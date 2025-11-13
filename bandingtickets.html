@@ -777,21 +777,19 @@
         const SERIES_PREFIX = 'BND';
         let selectedColor = 'blue';
         let currentSerial = 1;
-        const DEFAULT_SCAN_BASE_URL = 'http://localhost:8000/bandingtickets.html';
         
-        // Load saved scan URL or use current location (but prefer saved one)
-        let SCAN_BASE_URL = localStorage.getItem('scanBaseUrl') || '';
-        if (!SCAN_BASE_URL) {
+        // HARDCODED: GitHub Pages URL - Update this with your actual GitHub Pages URL
+        const DEFAULT_SCAN_BASE_URL = 'https://nexgridcoredatalabs.github.io/Nexers-Banding-Tickets/bandingtickets.html';
+        
+        // Load saved scan URL or use hardcoded default
+        let SCAN_BASE_URL = localStorage.getItem('scanBaseUrl') || DEFAULT_SCAN_BASE_URL;
+        
+        // If on GitHub Pages, auto-detect the URL
+        if (!localStorage.getItem('scanBaseUrl')) {
             const { protocol, origin, pathname } = window.location;
-            if (protocol === 'http:' || protocol === 'https:') {
-                // If localhost, don't use it - require manual configuration
-                if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-                    SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL; // Will show warning
-                } else {
-                    SCAN_BASE_URL = `${origin}${pathname}`;
-                }
-            } else {
-                SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL;
+            if (protocol === 'https:' && origin.includes('github.io')) {
+                SCAN_BASE_URL = `${origin}${pathname}`;
+                localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
             }
         }
         
@@ -853,11 +851,24 @@
             });
         });
 
-        // Google Sheets Configuration
-        let GOOGLE_SHEET_ID = localStorage.getItem('googleSheetId') || '';
-        let GOOGLE_API_KEY = localStorage.getItem('googleApiKey') || '';
+        // Google Sheets Configuration - HARDCODED DEFAULTS
+        // Set these values once, and they'll be used for all users
+        const DEFAULT_GOOGLE_SHEET_ID = '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
+        const DEFAULT_GOOGLE_API_KEY = 'AIzaSyBUSYg78PSD47OWJkzEa4kMQknjROGulLI';
         
-        // Load saved config
+        // Load configuration: Use hardcoded defaults, or localStorage override, or user input
+        let GOOGLE_SHEET_ID = DEFAULT_GOOGLE_SHEET_ID || localStorage.getItem('googleSheetId') || '';
+        let GOOGLE_API_KEY = DEFAULT_GOOGLE_API_KEY || localStorage.getItem('googleApiKey') || '';
+        
+        // Auto-save hardcoded values to localStorage if they exist
+        if (DEFAULT_GOOGLE_SHEET_ID && DEFAULT_GOOGLE_API_KEY) {
+            localStorage.setItem('googleSheetId', DEFAULT_GOOGLE_SHEET_ID);
+            localStorage.setItem('googleApiKey', DEFAULT_GOOGLE_API_KEY);
+            GOOGLE_SHEET_ID = DEFAULT_GOOGLE_SHEET_ID;
+            GOOGLE_API_KEY = DEFAULT_GOOGLE_API_KEY;
+        }
+        
+        // Load saved config into input fields (for display/override)
         if (document.getElementById('googleSheetId')) {
             document.getElementById('googleSheetId').value = GOOGLE_SHEET_ID;
         }

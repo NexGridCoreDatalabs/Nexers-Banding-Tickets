@@ -134,8 +134,20 @@ function doPost(e) {
     if (!data || !data.action) {
       return createResponse({ success: false, error: 'Invalid data structure. Received: ' + JSON.stringify(data) });
     }
-    const sheet = SpreadsheetApp.openById(SHEET_ID);
     
+    return handleWriteOperation(data, sheet);
+  } catch (error) {
+    Logger.log('Error in doPost: ' + error.toString());
+    Logger.log('Error stack: ' + (error.stack || 'No stack trace'));
+    return createResponse({ success: false, error: 'doPost error: ' + error.toString() });
+  }
+}
+
+/**
+ * Handle write operations (used by both doPost and doGet)
+ */
+function handleWriteOperation(data, sheet) {
+  try {
     if (data.action === 'append') {
       // Append new row to Tickets sheet
       const ticketsSheet = sheet.getSheetByName('Tickets');
@@ -163,7 +175,8 @@ function doPost(e) {
       }
       
       return createResponse({ success: true, message: 'Data saved successfully' });
-    } else if (data.action === 'update') {
+    } 
+    else if (data.action === 'update') {
       // Update existing row, or append if not found
       const ticketsSheet = sheet.getSheetByName('Tickets');
       if (!ticketsSheet) {
@@ -216,8 +229,33 @@ function doPost(e) {
  */
 function doGet(e) {
   try {
+    Logger.log('=== doGet called ===');
+    Logger.log('Parameters: ' + JSON.stringify(e.parameter));
+    
     const sheet = SpreadsheetApp.openById(SHEET_ID);
     const action = e.parameter.action || 'read';
+    
+    // Handle write operations via GET (to avoid POST/CORS issues)
+    if (action === 'append' || action === 'update') {
+      // Parse the values from query parameter
+      let values;
+      try {
+        values = JSON.parse(e.parameter.values || '[]');
+      } catch (e) {
+        return createResponse({ success: false, error: 'Failed to parse values: ' + e.toString() });
+      }
+      
+      const data = {
+        action: action,
+        serial: e.parameter.serial || '',
+        values: values,
+        sku: e.parameter.sku || '',
+        qty: e.parameter.qty || ''
+      };
+      
+      // Use the same logic as doPost
+      return handleWriteOperation(data, sheet);
+    }
     
     if (action === 'read') {
       const serial = e.parameter.serial;

@@ -1234,59 +1234,27 @@
             ];
             
             try {
-                // Strategy: Save serial first, then update with all data
-                // This avoids complex POST parsing issues
+                // Use GET requests instead of POST to avoid CORS issues
+                // Since GET works, we'll use it for writes too
                 const serial = ticketData.serial;
                 
-                // Step 1: Check if serial exists, if not create a row with just the serial
-                if (!isUpdate) {
-                    // For new tickets, append just the serial first
-                    const simplePayload = {
-                        action: 'append',
-                        serial: serial,
-                        values: [serial] // Just the serial in first column
-                    };
-                    
-                    let response;
-                    try {
-                        response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(simplePayload)
-                        });
-                    } catch (fetchError) {
-                        console.error('Fetch error creating serial:', fetchError);
-                        throw new Error(`Failed to connect to Apps Script: ${fetchError.message}. Please check the Apps Script URL and deployment settings.`);
-                    }
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text().catch(() => 'Unknown error');
-                        throw new Error(`Failed to create ticket: ${response.status} ${response.statusText}. Response: ${errorText.substring(0, 200)}`);
-                    }
-                    
-                    const createResult = await response.json();
-                    if (!createResult.success) {
-                        throw new Error(createResult.error || 'Failed to create ticket');
-                    }
-                    
-                    console.log('Serial created, now updating with full data...');
-                }
-                
-                // Step 2: Update the row with all data (whether new or existing)
-                const updatePayload = {
-                    action: 'update',
+                // Build query parameters
+                const params = new URLSearchParams({
+                    action: isUpdate ? 'update' : 'append',
                     serial: serial,
-                    values: row,
+                    values: JSON.stringify(row),
                     sku: ticketData.sku || '',
                     qty: ticketData.qty || ''
-                };
+                });
+                
+                const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
+                console.log('Calling Apps Script with GET:', url.substring(0, 200) + '...');
                 
                 let response;
                 try {
-                    response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updatePayload)
+                    response = await fetch(url, {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
                     });
                 } catch (fetchError) {
                     console.error('Fetch error:', fetchError);

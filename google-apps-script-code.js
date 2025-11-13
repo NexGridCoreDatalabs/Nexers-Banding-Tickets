@@ -148,6 +148,9 @@ function doPost(e) {
  */
 function handleWriteOperation(data, sheet) {
   try {
+    Logger.log('handleWriteOperation called with action: ' + data.action);
+    Logger.log('data object: ' + JSON.stringify(data));
+    
     if (data.action === 'append') {
       // Append new row to Tickets sheet
       const ticketsSheet = sheet.getSheetByName('Tickets');

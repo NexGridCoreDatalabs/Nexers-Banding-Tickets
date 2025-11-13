@@ -1636,8 +1636,11 @@
                             <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">📦 Tablet and Sachet Information</h3>
                             <div style="display: grid; gap: 10px;">
                                 <div><strong style="color: ${colors.text};">Product Type:</strong> <span style="color: #2d3748;">${escapeHtml(tabletSachetInfo)}</span></div>
-                                <div><strong style="color: ${colors.text};">Quantity (Cartons):</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Qty || '0')}</span></div>
-                                <div><strong style="color: ${colors.text};">Pieces:</strong> <span style="color: #2d3748; font-weight: 600; font-size: 16px;">${pieces.toLocaleString()}</span></div>
+                                <div><strong style="color: ${colors.text};">Quantity (UOM: Cartons):</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Qty || '0')} Cartons</span></div>
+                                <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40;">
+                                    <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Conversion:</strong> <span style="color: #4a5568; font-size: 14px;">${escapeHtml(ticket.Qty || '0')} Cartons × ${has1KG ? '6' : '12'} = </span></div>
+                                    <div><strong style="color: ${colors.text};">Total Pieces:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 18px;">${pieces.toLocaleString()} Pieces</span></div>
+                                </div>
                             </div>
                         </div>
                         ` : ''}

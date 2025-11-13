@@ -142,7 +142,20 @@ function doPost(e) {
       if (!ticketsSheet) {
         return createResponse({ success: false, error: 'Tickets sheet not found' });
       }
-      ticketsSheet.appendRow(data.values);
+      
+      // If only serial provided (partial data), create row with serial and empty cells
+      if (data.values && data.values.length === 1) {
+        // Create a row with serial in first column, rest empty
+        const headers = ticketsSheet.getRange(1, 1, 1, 19).getValues()[0];
+        const newRow = new Array(19).fill('');
+        newRow[0] = data.values[0]; // Serial in first column
+        ticketsSheet.appendRow(newRow);
+        Logger.log('Created row with serial only: ' + data.values[0]);
+      } else {
+        // Full row data provided
+        ticketsSheet.appendRow(data.values);
+        Logger.log('Appended full row');
+      }
       
       // Update Calculations sheet if SKU provided
       if (data.sku && data.qty) {

@@ -1234,36 +1234,51 @@
             ];
             
             try {
-                const payload = {
-                    action: isUpdate ? 'update' : 'append',
-                    serial: ticketData.serial,
+                // Strategy: Save serial first, then update with all data
+                // This avoids complex POST parsing issues
+                const serial = ticketData.serial;
+                
+                // Step 1: Check if serial exists, if not create a row with just the serial
+                if (!isUpdate) {
+                    // For new tickets, append just the serial first
+                    const simplePayload = {
+                        action: 'append',
+                        serial: serial,
+                        values: [serial] // Just the serial in first column
+                    };
+                    
+                    let response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(simplePayload)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to create ticket: ${response.statusText}`);
+                    }
+                    
+                    const createResult = await response.json();
+                    if (!createResult.success) {
+                        throw new Error(createResult.error || 'Failed to create ticket');
+                    }
+                    
+                    console.log('Serial created, now updating with full data...');
+                }
+                
+                // Step 2: Update the row with all data (whether new or existing)
+                const updatePayload = {
+                    action: 'update',
+                    serial: serial,
                     values: row,
                     sku: ticketData.sku || '',
                     qty: ticketData.qty || ''
                 };
                 
-                // Try sending as raw JSON first (Apps Script should handle this)
-                let response;
-                try {
-                    response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(payload)
-                    });
-                } catch (jsonError) {
-                    // Fallback to form data if JSON fails
-                    console.log('JSON POST failed, trying form data:', jsonError);
-                    const formBody = 'data=' + encodeURIComponent(JSON.stringify(payload));
-                    response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: formBody
-                    });
-                }
+                const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatePayload)
+                });
                 
                 if (!response.ok) {
                     throw new Error(`Failed to save: ${response.status} ${response.statusText}`);

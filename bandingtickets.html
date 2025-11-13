@@ -1175,6 +1175,10 @@
                 }
                 const result = await response.json();
                 if (!result.success) {
+                    // If ticket not found, return null instead of throwing error
+                    if (result.error && result.error.includes('not found')) {
+                        return null;
+                    }
                     throw new Error(result.error || 'Failed to read ticket');
                 }
                 if (!result.data) {
@@ -1581,8 +1585,18 @@
                     setFillStatus('Saving to Google Sheets...');
                     try {
                         const data = collectFormData(form);
-                        const existingTicket = await readTicketFromSheet(data.serial);
-                        const isUpdate = !!existingTicket;
+                        let existingTicket = null;
+                        try {
+                            existingTicket = await readTicketFromSheet(data.serial);
+                            // Check if ticket actually exists (has data, not just headers)
+                            if (existingTicket && (!existingTicket.Serial || existingTicket.Serial !== data.serial)) {
+                                existingTicket = null;
+                            }
+                        } catch (e) {
+                            // Ticket doesn't exist, that's fine
+                            existingTicket = null;
+                        }
+                        const isUpdate = !!(existingTicket && existingTicket.Serial === data.serial);
                         
                         // Save to Google Sheets
                         const saveResult = await saveTicketToSheet(data, isUpdate);

@@ -1247,14 +1247,21 @@
                         values: [serial] // Just the serial in first column
                     };
                     
-                    let response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(simplePayload)
-                    });
+                    let response;
+                    try {
+                        response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(simplePayload)
+                        });
+                    } catch (fetchError) {
+                        console.error('Fetch error creating serial:', fetchError);
+                        throw new Error(`Failed to connect to Apps Script: ${fetchError.message}. Please check the Apps Script URL and deployment settings.`);
+                    }
                     
                     if (!response.ok) {
-                        throw new Error(`Failed to create ticket: ${response.statusText}`);
+                        const errorText = await response.text().catch(() => 'Unknown error');
+                        throw new Error(`Failed to create ticket: ${response.status} ${response.statusText}. Response: ${errorText.substring(0, 200)}`);
                     }
                     
                     const createResult = await response.json();
@@ -1274,14 +1281,21 @@
                     qty: ticketData.qty || ''
                 };
                 
-                const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updatePayload)
-                });
+                let response;
+                try {
+                    response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updatePayload)
+                    });
+                } catch (fetchError) {
+                    console.error('Fetch error:', fetchError);
+                    throw new Error(`Failed to connect to Apps Script: ${fetchError.message}. Please check:\n1. Apps Script URL is correct\n2. Apps Script is deployed with "Anyone" access\n3. Your internet connection is stable`);
+                }
                 
                 if (!response.ok) {
-                    throw new Error(`Failed to save: ${response.status} ${response.statusText}`);
+                    const errorText = await response.text().catch(() => 'Unknown error');
+                    throw new Error(`Failed to save: ${response.status} ${response.statusText}. Response: ${errorText.substring(0, 200)}`);
                 }
                 
                 // Get response as text first, then parse

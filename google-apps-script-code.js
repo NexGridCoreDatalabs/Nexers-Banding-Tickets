@@ -21,12 +21,14 @@ const SHEET_ID = '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
  * Handle POST requests (writing data)
  */
 function doPost(e) {
+  // Always return JSON, even on error
   try {
     // Handle both JSON and form-encoded data
     let data;
     let rawData = null;
     
     // Log what we received for debugging
+    Logger.log('=== doPost called ===');
     Logger.log('e.postData: ' + JSON.stringify(e.postData));
     Logger.log('e.parameter: ' + JSON.stringify(e.parameter));
     

@@ -24,45 +24,69 @@ function doPost(e) {
   try {
     // Handle both JSON and form-encoded data
     let data;
+    let rawData = null;
     
-    // First, try to get data from e.parameter (form data)
-    if (e.parameter && e.parameter.data) {
-      // URL-encoded form data - decode and parse
-      try {
-        const decodedData = decodeURIComponent(e.parameter.data);
-        data = JSON.parse(decodedData);
-      } catch (parseError) {
-        return createResponse({ success: false, error: 'Failed to parse form data: ' + parseError.toString() });
-      }
-    } 
-    // Try postData.contents (raw JSON)
-    else if (e.postData && e.postData.contents) {
-      try {
-        data = JSON.parse(e.postData.contents);
-      } catch (parseError) {
-        // If JSON parse fails, try as form data
-        const params = e.parameter;
-        if (params && params.data) {
-          try {
-            const decodedData = decodeURIComponent(params.data);
-            data = JSON.parse(decodedData);
-          } catch (e2) {
-            return createResponse({ success: false, error: 'Failed to parse data: ' + parseError.toString() });
-          }
-        } else {
-          return createResponse({ success: false, error: 'Invalid data format' });
+    // Log what we received for debugging
+    Logger.log('e.postData: ' + JSON.stringify(e.postData));
+    Logger.log('e.parameter: ' + JSON.stringify(e.parameter));
+    
+    // First, try postData.contents (raw POST body)
+    if (e.postData && e.postData.contents) {
+      rawData = e.postData.contents;
+      Logger.log('Raw postData.contents: ' + rawData);
+      
+      // Check if it's URL-encoded form data (starts with "data=")
+      if (rawData.startsWith('data=')) {
+        try {
+          // Extract the data part and decode
+          const encodedData = rawData.substring(5); // Remove "data="
+          const decodedData = decodeURIComponent(encodedData);
+          Logger.log('Decoded data: ' + decodedData);
+          data = JSON.parse(decodedData);
+        } catch (parseError) {
+          return createResponse({ success: false, error: 'Failed to parse form data: ' + parseError.toString() + ', raw: ' + rawData });
+        }
+      } else {
+        // Try parsing as raw JSON
+        try {
+          data = JSON.parse(rawData);
+        } catch (parseError) {
+          return createResponse({ success: false, error: 'Failed to parse JSON: ' + parseError.toString() + ', raw: ' + rawData });
         }
       }
-    } 
+    }
+    // Try e.parameter (form data - Apps Script auto-decodes URL params)
+    else if (e.parameter && e.parameter.data) {
+      rawData = e.parameter.data;
+      Logger.log('Parameter data: ' + rawData);
+      
+      // Apps Script may have already decoded it, but check if it's still encoded
+      try {
+        // Try parsing directly first (in case it's already decoded)
+        data = JSON.parse(rawData);
+      } catch (e1) {
+        // If that fails, try decoding first
+        try {
+          const decodedData = decodeURIComponent(rawData);
+          data = JSON.parse(decodedData);
+        } catch (e2) {
+          return createResponse({ success: false, error: 'Failed to parse parameter data. Tried direct parse and decode. Raw: ' + rawData });
+        }
+      }
+    }
     // Fallback to direct parameter access
     else if (e.parameter) {
       const params = e.parameter;
       if (params.data) {
         try {
-          const decodedData = decodeURIComponent(params.data);
-          data = JSON.parse(decodedData);
-        } catch (e) {
-          return createResponse({ success: false, error: 'Failed to parse parameter data' });
+          data = JSON.parse(params.data);
+        } catch (e1) {
+          try {
+            const decodedData = decodeURIComponent(params.data);
+            data = JSON.parse(decodedData);
+          } catch (e2) {
+            return createResponse({ success: false, error: 'Failed to parse parameter data' });
+          }
         }
       } else {
         // Direct form data fields
@@ -75,7 +99,12 @@ function doPost(e) {
         };
       }
     } else {
-      return createResponse({ success: false, error: 'No data received' });
+      return createResponse({ success: false, error: 'No data received. postData: ' + (e.postData ? 'exists' : 'null') + ', parameter: ' + (e.parameter ? 'exists' : 'null') });
+    }
+    
+    // Validate data structure
+    if (!data || !data.action) {
+      return createResponse({ success: false, error: 'Invalid data structure. Received: ' + JSON.stringify(data) });
     }
     const sheet = SpreadsheetApp.openById(SHEET_ID);
     

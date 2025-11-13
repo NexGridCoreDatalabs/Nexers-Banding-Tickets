@@ -1051,6 +1051,66 @@
                 return timestampStr;
             }
         }
+        
+        function formatDateAndTime(dateStr, timeStr) {
+            if (!dateStr) return '';
+            try {
+                // Try to parse date (could be YYYY-MM-DD or other formats)
+                let date;
+                if (dateStr.includes('T') || dateStr.includes(' ')) {
+                    // ISO format or date-time string
+                    date = new Date(dateStr);
+                } else {
+                    // Assume YYYY-MM-DD format
+                    const [year, month, day] = dateStr.split('-').map(Number);
+                    if (timeStr) {
+                        const [hours, minutes] = timeStr.split(':').map(Number);
+                        date = new Date(year, month - 1, day, hours || 0, minutes || 0);
+                    } else {
+                        date = new Date(year, month - 1, day);
+                    }
+                }
+                
+                if (isNaN(date.getTime())) return dateStr + (timeStr ? ' ' + timeStr : '');
+                
+                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                
+                const dayName = days[date.getDay()];
+                const day = date.getDate();
+                const month = months[date.getMonth()];
+                const year = date.getFullYear();
+                
+                const getOrdinal = (n) => {
+                    const s = ['th', 'st', 'nd', 'rd'];
+                    const v = n % 100;
+                    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+                };
+                
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                
+                return `${dayName} ${getOrdinal(day)} ${month}, ${year} ${hours}${minutes}HRS`;
+            } catch (e) {
+                return dateStr + (timeStr ? ' ' + timeStr : '');
+            }
+        }
+        
+        function formatChangeHistory(changeHistory) {
+            if (!changeHistory) return '';
+            // Change history format: "2025-10-11T10:24:00Z - User: Updated ticket\n..."
+            const lines = changeHistory.split('\n');
+            return lines.map(line => {
+                // Try to find timestamp pattern (ISO format or similar)
+                const timestampMatch = line.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[Z]?)/);
+                if (timestampMatch) {
+                    const timestamp = timestampMatch[1];
+                    const formatted = formatTimestamp(timestamp);
+                    return line.replace(timestamp, formatted);
+                }
+                return line;
+            }).join('\n');
+        }
 
         function renderTicketQRCodes(rootElement = document) {
             if (typeof QRCode === 'undefined') {
@@ -1449,8 +1509,10 @@
             
             const viewCard = document.getElementById('viewCard');
             const editCard = document.getElementById('editCard');
+            const fillPreview = document.querySelector('.fill-preview');
             if (viewCard) viewCard.style.display = 'block';
             if (editCard) editCard.style.display = 'none';
+            if (fillPreview) fillPreview.style.display = 'none'; // Hide preview in view mode
             
             const serialValue = serial ? decodeURIComponent(serial) : formatSerial(currentSerial);
             const viewSerialDisplay = document.getElementById('viewSerialDisplay');
@@ -1468,6 +1530,8 @@
                         fillContainer.classList.remove('visible');
                     }
                     if (viewCard) viewCard.style.display = 'none';
+                    const fillPreview = document.querySelector('.fill-preview');
+                    if (fillPreview) fillPreview.style.display = 'none'; // Ensure preview stays hidden
                     // Clear URL parameters without reloading
                     window.history.replaceState({}, document.title, window.location.pathname);
                 });
@@ -1520,6 +1584,25 @@
             const firstModified = formatTimestamp(ticket.FirstModified);
             const lastModified = formatTimestamp(ticket.LastModified);
             
+            // Format Date and Time
+            const formattedDateTime = formatDateAndTime(ticket.Date || '', ticket.Time || '');
+            
+            // Parse Product Type to check for 1KG or 0.5KG
+            const productType = (ticket.ProductType || '').toLowerCase();
+            const has1KG = productType.includes('1kg') || productType.includes('1 kg');
+            const has05KG = productType.includes('0.5kg') || productType.includes('0.5 kg') || productType.includes('0,5kg');
+            const qty = parseFloat(ticket.Qty || 0) || 0;
+            let pieces = 0;
+            let tabletSachetInfo = '';
+            
+            if (has1KG && qty > 0) {
+                pieces = qty * 6;
+                tabletSachetInfo = '1KG';
+            } else if (has05KG && qty > 0) {
+                pieces = qty * 12;
+                tabletSachetInfo = '0.5KG';
+            }
+            
             return `
                 <div style="max-width: 900px; margin: 0 auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     <div style="border-left: 6px solid ${colors.border}; padding-left: 20px; margin-bottom: 30px;">
@@ -1532,8 +1615,7 @@
                             <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">Basic Information</h3>
                             <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
                                 <div><strong style="color: ${colors.text};">Serial:</strong> <span style="color: #2d3748;">${escapeHtml(serial)}</span></div>
-                                <div><strong style="color: ${colors.text};">Date:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Date || '')}</span></div>
-                                <div><strong style="color: ${colors.text};">Time:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Time || '')}</span></div>
+                                <div><strong style="color: ${colors.text};">Date & Time:</strong> <span style="color: #4a5568; font-family: 'Courier New', monospace;">${escapeHtml(formattedDateTime || 'N/A')}</span></div>
                                 <div><strong style="color: ${colors.text};">SKU:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.SKU || '')}</span></div>
                                 <div><strong style="color: ${colors.text};">Quantity:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Qty || '')}</span></div>
                                 <div><strong style="color: ${colors.text};">Layers:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Layers || '')}</span></div>
@@ -1548,6 +1630,17 @@
                                 <div><strong style="color: ${colors.text};">Pallet Size:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.PalletSize || '')}</span></div>
                             </div>
                         </div>
+                        
+                        ${tabletSachetInfo ? `
+                        <div style="background: ${colors.bg}; padding: 20px; border-radius: 8px; border-left: 4px solid ${colors.border};">
+                            <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">📦 Tablet and Sachet Information</h3>
+                            <div style="display: grid; gap: 10px;">
+                                <div><strong style="color: ${colors.text};">Product Type:</strong> <span style="color: #2d3748;">${escapeHtml(tabletSachetInfo)}</span></div>
+                                <div><strong style="color: ${colors.text};">Quantity (Cartons):</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Qty || '0')}</span></div>
+                                <div><strong style="color: ${colors.text};">Pieces:</strong> <span style="color: #2d3748; font-weight: 600; font-size: 16px;">${pieces.toLocaleString()}</span></div>
+                            </div>
+                        </div>
+                        ` : ''}
                         
                         ${ticket.QualityIssueType ? `
                         <div style="background: #fff5f5; padding: 20px; border-radius: 8px; border-left: 4px solid #e53e3e;">
@@ -1584,7 +1677,7 @@
                         ${ticket.ChangeHistory ? `
                         <div style="background: #f7fafc; padding: 20px; border-radius: 8px; border-left: 4px solid #cbd5e0;">
                             <h3 style="margin: 0 0 15px 0; color: #2d3748; font-size: 18px; font-weight: 600;">📝 Change History</h3>
-                            <pre style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 13px; color: #4a5568; margin: 0; background: white; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0;">${escapeHtml(ticket.ChangeHistory)}</pre>
+                            <pre style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 13px; color: #4a5568; margin: 0; background: white; padding: 15px; border-radius: 6px; border: 1px solid #e2e8f0;">${escapeHtml(formatChangeHistory(ticket.ChangeHistory))}</pre>
                         </div>
                         ` : ''}
                         

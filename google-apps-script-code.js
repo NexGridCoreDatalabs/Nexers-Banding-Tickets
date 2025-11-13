@@ -24,35 +24,52 @@ function doPost(e) {
   try {
     // Handle both JSON and form-encoded data
     let data;
-    if (e.postData && e.postData.contents) {
+    
+    // First, try to get data from e.parameter (form data)
+    if (e.parameter && e.parameter.data) {
+      // URL-encoded form data - decode and parse
+      try {
+        const decodedData = decodeURIComponent(e.parameter.data);
+        data = JSON.parse(decodedData);
+      } catch (parseError) {
+        return createResponse({ success: false, error: 'Failed to parse form data: ' + parseError.toString() });
+      }
+    } 
+    // Try postData.contents (raw JSON)
+    else if (e.postData && e.postData.contents) {
       try {
         data = JSON.parse(e.postData.contents);
-      } catch (e) {
-        // Try parsing as form data
+      } catch (parseError) {
+        // If JSON parse fails, try as form data
         const params = e.parameter;
         if (params && params.data) {
-          data = JSON.parse(params.data);
+          try {
+            const decodedData = decodeURIComponent(params.data);
+            data = JSON.parse(decodedData);
+          } catch (e2) {
+            return createResponse({ success: false, error: 'Failed to parse data: ' + parseError.toString() });
+          }
         } else {
-          // Direct form data
-          data = {
-            action: params.action || 'append',
-            serial: params.serial || '',
-            values: params.values ? JSON.parse(params.values) : [],
-            sku: params.sku || '',
-            qty: params.qty || ''
-          };
+          return createResponse({ success: false, error: 'Invalid data format' });
         }
       }
-    } else if (e.parameter) {
-      // URL-encoded form data
+    } 
+    // Fallback to direct parameter access
+    else if (e.parameter) {
       const params = e.parameter;
       if (params.data) {
-        data = JSON.parse(params.data);
+        try {
+          const decodedData = decodeURIComponent(params.data);
+          data = JSON.parse(decodedData);
+        } catch (e) {
+          return createResponse({ success: false, error: 'Failed to parse parameter data' });
+        }
       } else {
+        // Direct form data fields
         data = {
           action: params.action || 'append',
           serial: params.serial || '',
-          values: params.values ? JSON.parse(params.values) : [],
+          values: params.values ? (typeof params.values === 'string' ? JSON.parse(params.values) : params.values) : [],
           sku: params.sku || '',
           qty: params.qty || ''
         };

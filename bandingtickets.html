@@ -651,9 +651,6 @@
                 <div id="viewLoading" style="text-align: center; padding: 40px;">Loading ticket data...</div>
                 <div id="viewData" style="display: none;"></div>
             </div>
-            <div class="fill-actions" style="margin-top: 20px;">
-                <button type="button" id="viewClose" class="btn-reset">× Close</button>
-            </div>
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
                 <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
                     Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
@@ -949,8 +946,25 @@
             }
         }
         
-        // Initialize modes
-        if (currentMode === 'view') {
+        // Protect main generator page - only allow access via QR codes (mode=view or mode=fill/edit)
+        if (!currentMode) {
+            // No mode parameter means direct access to generator - block it
+            document.body.innerHTML = `
+                <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f7fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                    <div style="text-align: center; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px;">
+                        <h1 style="color: #e53e3e; margin-bottom: 20px;">⚠️ Access Restricted</h1>
+                        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
+                            This page is not directly accessible. Please scan a ticket QR code to view or edit ticket details.
+                        </p>
+                        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+                            <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
+                                Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if (currentMode === 'view') {
             initViewMode(initialSerialParam);
         } else if (currentMode === 'edit' || currentMode === 'fill') {
             initFillMode(initialSerialParam);
@@ -1520,18 +1534,17 @@
                 viewSerialDisplay.textContent = serialValue;
             }
             
-            const viewClose = document.getElementById('viewClose');
-            if (viewClose) {
-                viewClose.addEventListener('click', () => {
-                    // Close the tab/window
-                    window.close();
-                    // If window.close() doesn't work (some browsers block it), fallback to navigation
-                    // This happens when the window wasn't opened by script
-                    setTimeout(() => {
-                        window.location.href = window.location.pathname;
-                    }, 100);
-                });
-            }
+            // Prevent back navigation - replace current history entry
+            window.history.replaceState(null, '', window.location.href);
+            
+            // Block back button/swipe back
+            window.addEventListener('popstate', (e) => {
+                // Prevent going back to generator page
+                window.history.pushState(null, '', window.location.href);
+            });
+            
+            // Push a state to prevent back navigation
+            window.history.pushState(null, '', window.location.href);
             
             const viewLoading = document.getElementById('viewLoading');
             const viewData = document.getElementById('viewData');

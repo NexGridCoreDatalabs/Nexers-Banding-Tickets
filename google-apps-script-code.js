@@ -22,7 +22,44 @@ const SHEET_ID = '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
  */
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
+    // Handle both JSON and form-encoded data
+    let data;
+    if (e.postData && e.postData.contents) {
+      try {
+        data = JSON.parse(e.postData.contents);
+      } catch (e) {
+        // Try parsing as form data
+        const params = e.parameter;
+        if (params && params.data) {
+          data = JSON.parse(params.data);
+        } else {
+          // Direct form data
+          data = {
+            action: params.action || 'append',
+            serial: params.serial || '',
+            values: params.values ? JSON.parse(params.values) : [],
+            sku: params.sku || '',
+            qty: params.qty || ''
+          };
+        }
+      }
+    } else if (e.parameter) {
+      // URL-encoded form data
+      const params = e.parameter;
+      if (params.data) {
+        data = JSON.parse(params.data);
+      } else {
+        data = {
+          action: params.action || 'append',
+          serial: params.serial || '',
+          values: params.values ? JSON.parse(params.values) : [],
+          sku: params.sku || '',
+          qty: params.qty || ''
+        };
+      }
+    } else {
+      return createResponse({ success: false, error: 'No data received' });
+    }
     const sheet = SpreadsheetApp.openById(SHEET_ID);
     
     if (data.action === 'append') {

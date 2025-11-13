@@ -1242,14 +1242,19 @@
                     qty: ticketData.qty || ''
                 };
                 
+                // Use URL-encoded form data for better compatibility with Apps Script
+                const formBody = 'data=' + encodeURIComponent(JSON.stringify(payload));
+                
                 const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    headers: { 
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: formBody
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`Failed to save: ${response.statusText}`);
+                    throw new Error(`Failed to save: ${response.status} ${response.statusText}`);
                 }
                 
                 const result = await response.json();
@@ -1261,6 +1266,10 @@
                 return result;
             } catch (error) {
                 console.error('Error saving ticket:', error);
+                // Provide more helpful error message
+                if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+                    throw new Error(`Network error: Failed to connect to Google Apps Script.\n\nPlease check:\n1. Apps Script is deployed with "Anyone, even anonymous" access\n2. The Apps Script URL is correct\n3. Your internet connection is stable\n\nOriginal error: ${error.message}`);
+                }
                 throw error;
             }
         }

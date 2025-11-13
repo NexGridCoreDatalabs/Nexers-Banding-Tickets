@@ -1164,12 +1164,20 @@
                 const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
                 const response = await fetch(url);
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`Failed to read sheet: ${errorData.error?.message || response.statusText}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMsg = errorData.error?.message || response.statusText;
+                    if (errorMsg.includes('API keys are not supported') || errorMsg.includes('OAuth2')) {
+                        throw new Error(`API Key Error: ${errorMsg}\n\nPlease check:\n1. Google Sheets API is enabled in Google Cloud Console\n2. API key restrictions allow Google Sheets API\n3. Sheet is shared (if using restricted access)`);
+                    }
+                    throw new Error(`Failed to read sheet: ${errorMsg}`);
                 }
                 const data = await response.json();
                 if (data.error) {
-                    throw new Error(`Google Sheets API error: ${data.error.message}`);
+                    const errorMsg = data.error.message;
+                    if (errorMsg.includes('API keys are not supported') || errorMsg.includes('OAuth2')) {
+                        throw new Error(`API Key Error: ${errorMsg}\n\nPlease check:\n1. Google Sheets API is enabled in Google Cloud Console\n2. API key restrictions allow Google Sheets API`);
+                    }
+                    throw new Error(`Google Sheets API error: ${errorMsg}`);
                 }
                 if (!data.values || data.values.length === 0) {
                     return null;
@@ -1232,10 +1240,14 @@
                 }
                 const data = await response.json();
                 if (data.error) {
-                    throw new Error(`Google Sheets API error: ${data.error.message}`);
+                    const errorMsg = data.error.message;
+                    if (errorMsg.includes('API keys are not supported') || errorMsg.includes('OAuth2')) {
+                        throw new Error(`API Key Error: ${errorMsg}\n\nPlease check:\n1. Google Sheets API is enabled\n2. API key restrictions allow Google Sheets API`);
+                    }
+                    throw new Error(`Google Sheets API error: ${errorMsg}`);
                 }
                 if (data.values) {
-                    const rowIndex = data.values.findIndex(r => r[0] === ticketData.serial);
+                    const rowIndex = data.values.findIndex(r => r && r[0] === ticketData.serial);
                     if (rowIndex !== -1) {
                         const updateRange = `Tickets!A${rowIndex + 2}:S${rowIndex + 2}`;
                         const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${updateRange}?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
@@ -1245,26 +1257,43 @@
                             body: JSON.stringify({ values: [row] })
                         });
                         if (!updateResponse.ok) {
-                            const errorData = await updateResponse.json();
-                            throw new Error(`Failed to update sheet: ${errorData.error?.message || updateResponse.statusText}`);
+                            const errorData = await updateResponse.json().catch(() => ({}));
+                            const errorMsg = errorData.error?.message || updateResponse.statusText;
+                            console.error('Update error details:', errorData);
+                            if (errorMsg.includes('permission') || errorMsg.includes('403')) {
+                                throw new Error(`Permission Error: ${errorMsg}\n\nPlease check sheet sharing settings.`);
+                            }
+                            throw new Error(`Failed to update sheet: ${errorMsg}`);
                         }
+                        console.log('Successfully updated sheet');
                         return;
                     }
                 }
             }
             
-            // Append new row
-            const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Tickets!A2:append?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
+            // Append new row - try with insertDataOption
+            const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Tickets!A2:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${GOOGLE_API_KEY}`;
             const appendResponse = await fetch(appendUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ values: [row] })
             });
+            
             if (!appendResponse.ok) {
-                const errorData = await appendResponse.json();
-                throw new Error(`Failed to save to sheet: ${errorData.error?.message || appendResponse.statusText}`);
+                const errorData = await appendResponse.json().catch(() => ({}));
+                const errorMsg = errorData.error?.message || appendResponse.statusText;
+                console.error('Append error details:', errorData);
+                
+                if (errorMsg.includes('API keys are not supported') || errorMsg.includes('OAuth2')) {
+                    throw new Error(`API Key Error: ${errorMsg}\n\nPlease check:\n1. Google Sheets API is enabled in Google Cloud Console\n2. API key restrictions allow Google Sheets API\n3. Sheet is shared with "Anyone with the link" (Viewer or Editor)\n4. Try the test URL to verify API access`);
+                }
+                if (errorMsg.includes('permission') || errorMsg.includes('403')) {
+                    throw new Error(`Permission Error: ${errorMsg}\n\nPlease check:\n1. Sheet is shared (Share button → "Anyone with the link" → "Editor")\n2. API key has write permissions`);
+                }
+                throw new Error(`Failed to save to sheet: ${errorMsg}\n\nStatus: ${appendResponse.status}\nCheck browser console for details.`);
             }
             const result = await appendResponse.json();
+            console.log('Successfully saved to sheet:', result);
             return result;
         }
         

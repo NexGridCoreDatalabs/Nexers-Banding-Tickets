@@ -946,24 +946,48 @@
             }
         }
         
-        // Protect main generator page - only allow access via QR codes (mode=view or mode=fill/edit)
+        // Generator access control - only accessible from this PC
+        const GENERATOR_ACCESS_TOKEN = 'generator_access_granted';
+        const GENERATOR_PASSWORD = 'NEXGRID2025'; // Change this to your desired password
+        
+        function checkGeneratorAccess() {
+            const accessGranted = localStorage.getItem(GENERATOR_ACCESS_TOKEN);
+            if (accessGranted === 'true') {
+                return true;
+            }
+            
+            // Show password prompt
+            const password = prompt('🔐 Generator Access Required\n\nEnter password to access ticket generator:');
+            if (password === GENERATOR_PASSWORD) {
+                localStorage.setItem(GENERATOR_ACCESS_TOKEN, 'true');
+                return true;
+            } else if (password !== null) {
+                alert('❌ Incorrect password. Access denied.');
+            }
+            return false;
+        }
+        
+        // Protect main generator page - only allow access via QR codes (mode=view or mode=fill/edit) OR with password
         if (!currentMode) {
-            // No mode parameter means direct access to generator - block it
-            document.body.innerHTML = `
-                <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f7fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                    <div style="text-align: center; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px;">
-                        <h1 style="color: #e53e3e; margin-bottom: 20px;">⚠️ Access Restricted</h1>
-                        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-                            This page is not directly accessible. Please scan a ticket QR code to view or edit ticket details.
-                        </p>
-                        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
-                            <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
-                                Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
+            // No mode parameter means direct access to generator - require password
+            if (!checkGeneratorAccess()) {
+                document.body.innerHTML = `
+                    <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f7fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                        <div style="text-align: center; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px;">
+                            <h1 style="color: #e53e3e; margin-bottom: 20px;">⚠️ Access Denied</h1>
+                            <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
+                                Generator access is restricted to authorized devices only. Please scan a ticket QR code to view or edit ticket details.
                             </p>
+                            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+                                <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
+                                    Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
+            // If access granted, continue with normal page load (generator will show)
         } else if (currentMode === 'view') {
             initViewMode(initialSerialParam);
         } else if (currentMode === 'edit' || currentMode === 'fill') {

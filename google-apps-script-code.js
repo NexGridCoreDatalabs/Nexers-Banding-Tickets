@@ -29,31 +29,46 @@ function doPost(e) {
     
     // Log what we received for debugging
     Logger.log('=== doPost called ===');
-    Logger.log('e.postData: ' + JSON.stringify(e.postData));
-    Logger.log('e.parameter: ' + JSON.stringify(e.parameter));
+    Logger.log('e.postData type: ' + (e.postData ? e.postData.type : 'null'));
+    Logger.log('e.postData contents: ' + (e.postData && e.postData.contents ? e.postData.contents.substring(0, 200) : 'null'));
+    Logger.log('e.parameter keys: ' + (e.parameter ? Object.keys(e.parameter).join(', ') : 'null'));
     
-    // First, try postData.contents (raw POST body)
+    // PRIORITY 1: Try postData.contents (raw POST body - for JSON or form data)
     if (e.postData && e.postData.contents) {
       rawData = e.postData.contents;
-      Logger.log('Raw postData.contents: ' + rawData);
+      Logger.log('Found postData.contents, length: ' + rawData.length);
       
-      // Check if it's URL-encoded form data (starts with "data=")
-      if (rawData.startsWith('data=')) {
-        try {
-          // Extract the data part and decode
-          const encodedData = rawData.substring(5); // Remove "data="
-          const decodedData = decodeURIComponent(encodedData);
-          Logger.log('Decoded data: ' + decodedData);
-          data = JSON.parse(decodedData);
-        } catch (parseError) {
-          return createResponse({ success: false, error: 'Failed to parse form data: ' + parseError.toString() + ', raw: ' + rawData });
-        }
-      } else {
-        // Try parsing as raw JSON
+      // Check content type
+      const contentType = e.postData.type || '';
+      Logger.log('Content-Type: ' + contentType);
+      
+      // If it's JSON content type, parse directly
+      if (contentType.indexOf('application/json') !== -1) {
         try {
           data = JSON.parse(rawData);
+          Logger.log('Parsed as JSON successfully');
         } catch (parseError) {
-          return createResponse({ success: false, error: 'Failed to parse JSON: ' + parseError.toString() + ', raw: ' + rawData });
+          return createResponse({ success: false, error: 'Failed to parse JSON: ' + parseError.toString() });
+        }
+      }
+      // If it's form data (starts with "data=")
+      else if (rawData.startsWith('data=')) {
+        try {
+          const encodedData = rawData.substring(5); // Remove "data="
+          const decodedData = decodeURIComponent(encodedData);
+          Logger.log('Decoded form data: ' + decodedData.substring(0, 200));
+          data = JSON.parse(decodedData);
+        } catch (parseError) {
+          return createResponse({ success: false, error: 'Failed to parse form data: ' + parseError.toString() });
+        }
+      }
+      // Try parsing as raw JSON (might be JSON without proper content-type)
+      else {
+        try {
+          data = JSON.parse(rawData);
+          Logger.log('Parsed as raw JSON successfully');
+        } catch (parseError) {
+          return createResponse({ success: false, error: 'Unknown data format. Content-Type: ' + contentType + ', Data: ' + rawData.substring(0, 100) });
         }
       }
     }

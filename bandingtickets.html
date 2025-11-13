@@ -1242,16 +1242,28 @@
                     qty: ticketData.qty || ''
                 };
                 
-                // Use URL-encoded form data for better compatibility with Apps Script
-                const formBody = 'data=' + encodeURIComponent(JSON.stringify(payload));
-                
-                const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: formBody
-                });
+                // Try sending as raw JSON first (Apps Script should handle this)
+                let response;
+                try {
+                    response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (jsonError) {
+                    // Fallback to form data if JSON fails
+                    console.log('JSON POST failed, trying form data:', jsonError);
+                    const formBody = 'data=' + encodeURIComponent(JSON.stringify(payload));
+                    response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: formBody
+                    });
+                }
                 
                 if (!response.ok) {
                     throw new Error(`Failed to save: ${response.status} ${response.statusText}`);

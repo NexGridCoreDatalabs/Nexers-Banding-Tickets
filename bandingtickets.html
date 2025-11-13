@@ -623,6 +623,8 @@
             <input type="text" id="googleApiKey" placeholder="Enter Google API Key">
             <small>Get these from the setup instructions. Required for data tracking.</small>
             <button type="button" class="btn-reset" onclick="saveGoogleConfig()" style="margin-top: 10px; width: 100%;">💾 Save Configuration</button>
+            <button type="button" class="btn-reset" onclick="testGoogleSheetsConnection()" style="margin-top: 10px; width: 100%; background: #667eea; color: white;">🔍 Test Connection</button>
+            <div id="testResults" style="margin-top: 10px; padding: 10px; border-radius: 5px; display: none; font-size: 12px;"></div>
         </div>
         
         <div class="form-group" style="margin-top: 25px; padding-top: 25px; border-top: 2px solid #e2e8f0;">
@@ -1295,6 +1297,87 @@
             const result = await appendResponse.json();
             console.log('Successfully saved to sheet:', result);
             return result;
+        }
+        
+        async function testGoogleSheetsConnection() {
+            const resultsDiv = document.getElementById('testResults');
+            resultsDiv.style.display = 'block';
+            resultsDiv.innerHTML = '<div style="color: #667eea;">🔄 Testing connection...</div>';
+            
+            const tests = [];
+            
+            // Test 1: Read headers
+            try {
+                const readUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Tickets!A1:S1?key=${GOOGLE_API_KEY}`;
+                const readResponse = await fetch(readUrl);
+                if (readResponse.ok) {
+                    const data = await readResponse.json();
+                    tests.push({ name: '✅ Read Headers', status: 'success', details: `Found ${data.values?.[0]?.length || 0} columns` });
+                } else {
+                    const error = await readResponse.json().catch(() => ({}));
+                    tests.push({ name: '❌ Read Headers', status: 'error', details: error.error?.message || readResponse.statusText });
+                }
+            } catch (e) {
+                tests.push({ name: '❌ Read Headers', status: 'error', details: e.message });
+            }
+            
+            // Test 2: Write test (append a test row)
+            try {
+                const testRow = [['TEST-' + Date.now(), new Date().toISOString().split('T')[0], '00:00', 'TEST-SKU', '1', '1', 'online', '1kg', '78', 'Test entry - can be deleted', '', '', '', '[]', new Date().toISOString(), new Date().toISOString(), new Date().toISOString(), 'Test', 'System']];
+                const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Tickets!A2:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${GOOGLE_API_KEY}`;
+                const appendResponse = await fetch(appendUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ values: testRow })
+                });
+                
+                if (appendResponse.ok) {
+                    tests.push({ name: '✅ Write Test', status: 'success', details: 'Successfully wrote test row to sheet!' });
+                } else {
+                    const error = await appendResponse.json().catch(() => ({}));
+                    const errorMsg = error.error?.message || appendResponse.statusText;
+                    tests.push({ name: '❌ Write Test', status: 'error', details: errorMsg });
+                }
+            } catch (e) {
+                tests.push({ name: '❌ Write Test', status: 'error', details: e.message });
+            }
+            
+            // Test 3: Check sheet sharing
+            try {
+                const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}?key=${GOOGLE_API_KEY}`;
+                const metaResponse = await fetch(metaUrl);
+                if (metaResponse.ok) {
+                    const meta = await metaResponse.json();
+                    tests.push({ name: '✅ Sheet Access', status: 'success', details: `Sheet: "${meta.properties?.title || 'Unknown'}"` });
+                } else {
+                    tests.push({ name: '❌ Sheet Access', status: 'error', details: 'Cannot access sheet metadata' });
+                }
+            } catch (e) {
+                tests.push({ name: '❌ Sheet Access', status: 'error', details: e.message });
+            }
+            
+            // Display results
+            const allPassed = tests.every(t => t.status === 'success');
+            resultsDiv.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 10px; color: ${allPassed ? '#10b981' : '#ef4444'};">
+                    ${allPassed ? '✅ All Tests Passed!' : '❌ Some Tests Failed'}
+                </div>
+                ${tests.map(t => `
+                    <div style="margin: 5px 0; padding: 8px; background: ${t.status === 'success' ? '#f0fdf4' : '#fef2f2'}; border-left: 3px solid ${t.status === 'success' ? '#10b981' : '#ef4444'};">
+                        <strong>${t.name}</strong><br>
+                        <small style="color: #666;">${t.details}</small>
+                    </div>
+                `).join('')}
+                ${!allPassed ? `
+                    <div style="margin-top: 15px; padding: 10px; background: #fef3c7; border-radius: 5px; font-size: 11px;">
+                        <strong>💡 Troubleshooting Tips:</strong><br>
+                        1. Configure OAuth consent screen in Google Cloud Console<br>
+                        2. Share sheet: "Anyone with the link" → "Editor"<br>
+                        3. Enable Google Sheets API in Google Cloud Console<br>
+                        4. Check API key restrictions include Google Sheets API
+                    </div>
+                ` : ''}
+            `;
         }
         
         async function loadAuthorizedUsers() {

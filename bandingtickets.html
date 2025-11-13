@@ -1257,7 +1257,20 @@
                     throw new Error(`Failed to save: ${response.status} ${response.statusText}`);
                 }
                 
-                const result = await response.json();
+                // Get response as text first, then parse
+                const responseText = await response.text();
+                console.log('Raw response:', responseText);
+                
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (parseError) {
+                    // If parsing fails, the response might be the form data itself
+                    console.error('Failed to parse response as JSON:', parseError);
+                    console.error('Response text:', responseText);
+                    throw new Error(`Invalid response from server: ${responseText.substring(0, 100)}`);
+                }
+                
                 if (!result.success) {
                     throw new Error(result.error || 'Failed to save ticket');
                 }

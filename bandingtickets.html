@@ -890,6 +890,7 @@
         // Set these values once, and they'll be used for all users
         const DEFAULT_GOOGLE_SHEET_ID = '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
         const DEFAULT_GOOGLE_API_KEY = 'AIzaSyBUSYg78PSD47OWJkzEa4kMQknjROGulLI';
+        const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwXblg5rXbsS3Hxp2tSjegV6_4bV7cYmt5edM7BipuutHx8O9Nk2z_uxBxnP7aoiB2VEw/exec';
         
         // User Authentication - Secret Code
         // Change this code to control access
@@ -911,6 +912,7 @@
         // Load configuration: Use hardcoded defaults, or localStorage override, or user input
         let GOOGLE_SHEET_ID = DEFAULT_GOOGLE_SHEET_ID || localStorage.getItem('googleSheetId') || '';
         let GOOGLE_API_KEY = DEFAULT_GOOGLE_API_KEY || localStorage.getItem('googleApiKey') || '';
+        let GOOGLE_APPS_SCRIPT_URL = DEFAULT_GOOGLE_APPS_SCRIPT_URL || localStorage.getItem('googleAppsScriptUrl') || '';
         
         // Auto-save hardcoded values to localStorage if they exist
         if (DEFAULT_GOOGLE_SHEET_ID && DEFAULT_GOOGLE_API_KEY) {
@@ -918,6 +920,10 @@
             localStorage.setItem('googleApiKey', DEFAULT_GOOGLE_API_KEY);
             GOOGLE_SHEET_ID = DEFAULT_GOOGLE_SHEET_ID;
             GOOGLE_API_KEY = DEFAULT_GOOGLE_API_KEY;
+        }
+        if (DEFAULT_GOOGLE_APPS_SCRIPT_URL) {
+            localStorage.setItem('googleAppsScriptUrl', DEFAULT_GOOGLE_APPS_SCRIPT_URL);
+            GOOGLE_APPS_SCRIPT_URL = DEFAULT_GOOGLE_APPS_SCRIPT_URL;
         }
         
         // Load saved config into input fields (for display/override)
@@ -1156,44 +1162,36 @@
             `;
         }
 
-        // Google Sheets API Functions
+        // Google Sheets API Functions - Using Apps Script
         async function readTicketFromSheet(serial) {
-            if (!GOOGLE_SHEET_ID || !GOOGLE_API_KEY) {
-                throw new Error('Google Sheets not configured');
+            if (!GOOGLE_APPS_SCRIPT_URL) {
+                throw new Error('Google Apps Script URL not configured');
             }
             try {
-                const range = 'Tickets!A2:Z1000';
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
+                const url = `${GOOGLE_APPS_SCRIPT_URL}?action=read&serial=${encodeURIComponent(serial)}`;
                 const response = await fetch(url);
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    const errorMsg = errorData.error?.message || response.statusText;
-                    if (errorMsg.includes('API keys are not supported') || errorMsg.includes('OAuth2')) {
-                        throw new Error(`API Key Error: ${errorMsg}\n\nPlease check:\n1. Google Sheets API is enabled in Google Cloud Console\n2. API key restrictions allow Google Sheets API\n3. Sheet is shared (if using restricted access)`);
-                    }
-                    throw new Error(`Failed to read sheet: ${errorMsg}`);
+                    throw new Error(`Failed to read ticket: ${response.statusText}`);
                 }
-                const data = await response.json();
-                if (data.error) {
-                    const errorMsg = data.error.message;
-                    if (errorMsg.includes('API keys are not supported') || errorMsg.includes('OAuth2')) {
-                        throw new Error(`API Key Error: ${errorMsg}\n\nPlease check:\n1. Google Sheets API is enabled in Google Cloud Console\n2. API key restrictions allow Google Sheets API`);
-                    }
-                    throw new Error(`Google Sheets API error: ${errorMsg}`);
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to read ticket');
                 }
-                if (!data.values || data.values.length === 0) {
+                if (!result.data) {
                     return null;
                 }
                 
-                const headerRow = ['Serial', 'Date', 'Time', 'SKU', 'Qty', 'Layers', 'BandingType', 'ProductType', 'PalletSize', 'Notes', 'QualityIssueType', 'QualityIssueDesc', 'GroupLeader', 'MerchHistory', 'CreatedAt', 'FirstModified', 'LastModified', 'ChangeHistory', 'ModifiedBy'];
-                const rowIndex = data.values.findIndex(row => row && row[0] === serial);
-                if (rowIndex === -1) return null;
+                const ticket = result.data;
                 
-                const row = data.values[rowIndex];
-                const ticket = {};
-                headerRow.forEach((header, idx) => {
-                    ticket[header] = row[idx] || '';
-                });
+                // Parse JSON fields
+                if (ticket.MerchHistory) {
+                    try {
+                        ticket.MerchHistory = typeof ticket.MerchHistory === 'string' ? JSON.parse(ticket.MerchHistory) : ticket.MerchHistory;
+                    } catch (e) {
+                        ticket.MerchHistory = [];
+                    }
+                }
+                
                 return ticket;
             } catch (error) {
                 console.error('Error reading ticket:', error);
@@ -1202,8 +1200,8 @@
         }
         
         async function saveTicketToSheet(ticketData, isUpdate = false) {
-            if (!GOOGLE_SHEET_ID || !GOOGLE_API_KEY) {
-                throw new Error('Google Sheets not configured');
+            if (!GOOGLE_APPS_SCRIPT_URL) {
+                throw new Error('Google Apps Script URL not configured');
             }
             
             const timestamp = new Date().toISOString();
@@ -1231,72 +1229,36 @@
                 ticketData.modifiedBy || 'System'
             ];
             
-            if (isUpdate) {
-                // Find existing row and update
-                const range = 'Tickets!A2:Z1000';
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
-                const response = await fetch(url);
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`Failed to read sheet: ${errorData.error?.message || response.statusText}`);
-                }
-                const data = await response.json();
-                if (data.error) {
-                    const errorMsg = data.error.message;
-                    if (errorMsg.includes('API keys are not supported') || errorMsg.includes('OAuth2')) {
-                        throw new Error(`API Key Error: ${errorMsg}\n\nPlease check:\n1. Google Sheets API is enabled\n2. API key restrictions allow Google Sheets API`);
-                    }
-                    throw new Error(`Google Sheets API error: ${errorMsg}`);
-                }
-                if (data.values) {
-                    const rowIndex = data.values.findIndex(r => r && r[0] === ticketData.serial);
-                    if (rowIndex !== -1) {
-                        const updateRange = `Tickets!A${rowIndex + 2}:S${rowIndex + 2}`;
-                        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${updateRange}?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
-                        const updateResponse = await fetch(updateUrl, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ values: [row] })
-                        });
-                        if (!updateResponse.ok) {
-                            const errorData = await updateResponse.json().catch(() => ({}));
-                            const errorMsg = errorData.error?.message || updateResponse.statusText;
-                            console.error('Update error details:', errorData);
-                            if (errorMsg.includes('permission') || errorMsg.includes('403')) {
-                                throw new Error(`Permission Error: ${errorMsg}\n\nPlease check sheet sharing settings.`);
-                            }
-                            throw new Error(`Failed to update sheet: ${errorMsg}`);
-                        }
-                        console.log('Successfully updated sheet');
-                        return;
-                    }
-                }
-            }
-            
-            // Append new row - try with insertDataOption
-            const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Tickets!A2:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${GOOGLE_API_KEY}`;
-            const appendResponse = await fetch(appendUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ values: [row] })
-            });
-            
-            if (!appendResponse.ok) {
-                const errorData = await appendResponse.json().catch(() => ({}));
-                const errorMsg = errorData.error?.message || appendResponse.statusText;
-                console.error('Append error details:', errorData);
+            try {
+                const payload = {
+                    action: isUpdate ? 'update' : 'append',
+                    serial: ticketData.serial,
+                    values: row,
+                    sku: ticketData.sku || '',
+                    qty: ticketData.qty || ''
+                };
                 
-                if (errorMsg.includes('API keys are not supported') || errorMsg.includes('OAuth2')) {
-                    throw new Error(`API Key Error: ${errorMsg}\n\nPlease check:\n1. Google Sheets API is enabled in Google Cloud Console\n2. API key restrictions allow Google Sheets API\n3. Sheet is shared with "Anyone with the link" (Viewer or Editor)\n4. Try the test URL to verify API access`);
+                const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to save: ${response.statusText}`);
                 }
-                if (errorMsg.includes('permission') || errorMsg.includes('403')) {
-                    throw new Error(`Permission Error: ${errorMsg}\n\nPlease check:\n1. Sheet is shared (Share button → "Anyone with the link" → "Editor")\n2. API key has write permissions`);
+                
+                const result = await response.json();
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to save ticket');
                 }
-                throw new Error(`Failed to save to sheet: ${errorMsg}\n\nStatus: ${appendResponse.status}\nCheck browser console for details.`);
+                
+                console.log('Successfully saved to sheet:', result);
+                return result;
+            } catch (error) {
+                console.error('Error saving ticket:', error);
+                throw error;
             }
-            const result = await appendResponse.json();
-            console.log('Successfully saved to sheet:', result);
-            return result;
         }
         
         async function testGoogleSheetsConnection() {
@@ -1381,58 +1343,25 @@
         }
         
         async function loadAuthorizedUsers() {
-            if (!GOOGLE_SHEET_ID || !GOOGLE_API_KEY) return [];
+            if (!GOOGLE_APPS_SCRIPT_URL) return [];
             try {
-                const range = 'Authorized Users!A2:B100';
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
+                const url = `${GOOGLE_APPS_SCRIPT_URL}?action=users`;
                 const response = await fetch(url);
-                const data = await response.json();
-                if (!data.values) return [];
-                return data.values.map(row => ({ id: row[0] || '', name: row[1] || '' })).filter(u => u.id);
+                if (!response.ok) return [];
+                const result = await response.json();
+                if (!result.success || !result.data) return [];
+                return result.data;
             } catch (error) {
                 console.error('Error loading users:', error);
                 return [];
             }
         }
         
+        // SKU Calculations are now handled automatically by Apps Script
         async function updateSKUCalculations(sku, qty) {
-            if (!GOOGLE_SHEET_ID || !GOOGLE_API_KEY || !sku) return;
-            try {
-                const range = 'Calculations!A2:B1000';
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
-                const response = await fetch(url);
-                const data = await response.json();
-                if (!data.values) {
-                    // Create first entry
-                    const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Calculations!A2:append?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
-                    await fetch(appendUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ values: [[sku, qty || 0]] })
-                    });
-                    return;
-                }
-                const rowIndex = data.values.findIndex(r => r[0] === sku);
-                if (rowIndex !== -1) {
-                    const currentTotal = parseInt(data.values[rowIndex][1] || 0) + parseInt(qty || 0);
-                    const updateRange = `Calculations!B${rowIndex + 2}`;
-                    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${updateRange}?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
-                    await fetch(updateUrl, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ values: [[currentTotal]] })
-                    });
-                } else {
-                    const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Calculations!A2:append?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
-                    await fetch(appendUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ values: [[sku, qty || 0]] })
-                    });
-                }
-            } catch (error) {
-                console.error('Error updating SKU calculations:', error);
-            }
+            // This function is kept for compatibility but calculations are handled by Apps Script
+            // when saving tickets (see saveTicketToSheet function)
+            console.log('SKU calculations handled by Apps Script');
         }
         
         // View Mode Functions

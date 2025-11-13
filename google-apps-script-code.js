@@ -23,15 +23,26 @@ const SHEET_ID = '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
 function doPost(e) {
   // Always return JSON, even on error
   try {
+    // Log immediately to confirm doPost is called
+    Logger.log('=== doPost FUNCTION CALLED ===');
+    Logger.log('e object keys: ' + Object.keys(e).join(', '));
+    Logger.log('e.postData exists: ' + (e.postData ? 'YES' : 'NO'));
+    Logger.log('e.parameter exists: ' + (e.parameter ? 'YES' : 'NO'));
+    
     // Handle both JSON and form-encoded data
     let data;
     let rawData = null;
     
     // Log what we received for debugging
-    Logger.log('=== doPost called ===');
-    Logger.log('e.postData type: ' + (e.postData ? e.postData.type : 'null'));
-    Logger.log('e.postData contents: ' + (e.postData && e.postData.contents ? e.postData.contents.substring(0, 200) : 'null'));
-    Logger.log('e.parameter keys: ' + (e.parameter ? Object.keys(e.parameter).join(', ') : 'null'));
+    if (e.postData) {
+      Logger.log('e.postData type: ' + (e.postData.type || 'undefined'));
+      Logger.log('e.postData contents length: ' + (e.postData.contents ? e.postData.contents.length : 0));
+      Logger.log('e.postData contents preview: ' + (e.postData.contents ? e.postData.contents.substring(0, 200) : 'null'));
+    }
+    if (e.parameter) {
+      Logger.log('e.parameter keys: ' + Object.keys(e.parameter).join(', '));
+      Logger.log('e.parameter values: ' + JSON.stringify(e.parameter).substring(0, 200));
+    }
     
     // PRIORITY 1: Try postData.contents (raw POST body - for JSON or form data)
     if (e.postData && e.postData.contents) {

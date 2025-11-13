@@ -1259,7 +1259,15 @@
                 
                 // Get response as text first, then parse
                 const responseText = await response.text();
-                console.log('Raw response:', responseText);
+                console.log('Raw response from Apps Script:', responseText);
+                console.log('Response length:', responseText.length);
+                console.log('Response starts with:', responseText.substring(0, 50));
+                
+                // Check if Apps Script returned the raw form data (indicates it didn't process)
+                if (responseText.startsWith('data=') || responseText.includes('%7B')) {
+                    console.error('Apps Script appears to be returning raw request data instead of processing it');
+                    throw new Error(`Apps Script error: The script is not processing the request correctly. It returned: "${responseText.substring(0, 100)}". Please check:\n1. Apps Script is deployed as a Web App (not API Executable)\n2. The doPost function exists in your Apps Script\n3. You've updated the Apps Script with the latest code\n4. Check Apps Script execution logs for errors`);
+                }
                 
                 let result;
                 try {
@@ -1267,8 +1275,8 @@
                 } catch (parseError) {
                     // If parsing fails, the response might be the form data itself
                     console.error('Failed to parse response as JSON:', parseError);
-                    console.error('Response text:', responseText);
-                    throw new Error(`Invalid response from server: ${responseText.substring(0, 100)}`);
+                    console.error('Full response text:', responseText);
+                    throw new Error(`Invalid response from Apps Script. Expected JSON but got: "${responseText.substring(0, 200)}". Please check your Apps Script deployment and code.`);
                 }
                 
                 if (!result.success) {

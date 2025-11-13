@@ -1523,17 +1523,13 @@
             const viewClose = document.getElementById('viewClose');
             if (viewClose) {
                 viewClose.addEventListener('click', () => {
-                    // Close the view card instead of navigating back
-                    document.body.classList.remove('fill-mode-active');
-                    const fillContainer = document.getElementById('fillContainer');
-                    if (fillContainer) {
-                        fillContainer.classList.remove('visible');
-                    }
-                    if (viewCard) viewCard.style.display = 'none';
-                    const fillPreview = document.querySelector('.fill-preview');
-                    if (fillPreview) fillPreview.style.display = 'none'; // Ensure preview stays hidden
-                    // Clear URL parameters without reloading
-                    window.history.replaceState({}, document.title, window.location.pathname);
+                    // Close the tab/window
+                    window.close();
+                    // If window.close() doesn't work (some browsers block it), fallback to navigation
+                    // This happens when the window wasn't opened by script
+                    setTimeout(() => {
+                        window.location.href = window.location.pathname;
+                    }, 100);
                 });
             }
             

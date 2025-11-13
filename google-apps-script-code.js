@@ -40,7 +40,7 @@ function doPost(e) {
       
       return createResponse({ success: true, message: 'Data saved successfully' });
     } else if (data.action === 'update') {
-      // Update existing row
+      // Update existing row, or append if not found
       const ticketsSheet = sheet.getSheetByName('Tickets');
       if (!ticketsSheet) {
         return createResponse({ success: false, error: 'Tickets sheet not found' });
@@ -51,6 +51,7 @@ function doPost(e) {
       const serial = data.serial;
       
       // Find row with matching serial (column A)
+      let found = false;
       for (let i = 1; i < values.length; i++) {
         if (values[i][0] === serial) {
           // Update the row
@@ -62,11 +63,22 @@ function doPost(e) {
             updateCalculations(data.sku, parseFloat(data.qty) || 0);
           }
           
+          found = true;
           return createResponse({ success: true, message: 'Data updated successfully' });
         }
       }
       
-      return createResponse({ success: false, error: 'Serial number not found' });
+      // If not found, append as new ticket
+      if (!found) {
+        ticketsSheet.appendRow(data.values);
+        
+        // Update Calculations sheet if SKU provided
+        if (data.sku && data.qty) {
+          updateCalculations(data.sku, parseFloat(data.qty) || 0);
+        }
+        
+        return createResponse({ success: true, message: 'Data saved as new ticket' });
+      }
     }
     
     return createResponse({ success: false, error: 'Invalid action' });

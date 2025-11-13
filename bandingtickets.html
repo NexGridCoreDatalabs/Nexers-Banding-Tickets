@@ -1733,6 +1733,18 @@
         }
         
         async function initFillMode(serial) {
+            // Prevent back navigation - replace current history entry
+            window.history.replaceState(null, '', window.location.href);
+            
+            // Block back button/swipe back
+            window.addEventListener('popstate', (e) => {
+                // Prevent going back to generator page
+                window.history.pushState(null, '', window.location.href);
+            });
+            
+            // Push a state to prevent back navigation
+            window.history.pushState(null, '', window.location.href);
+            
             document.body.classList.add('fill-mode-active');
 
             const fillContainer = document.getElementById('fillContainer');

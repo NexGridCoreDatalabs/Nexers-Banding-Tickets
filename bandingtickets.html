@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banding Ticket Generator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Cascadia Mono', 'Courier New', monospace;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .control-panel {
+            background: white;
+            padding: 35px;
+            border-radius: 16px;
+            max-width: 650px;
+            margin: 0 auto 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .control-panel h1 {
+            margin-bottom: 10px;
+            color: #2d3748;
+            text-align: center;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            font-size: 13px;
+            margin-bottom: 30px;
+            font-weight: 400;
+        }
+
+        .current-serial {
+            text-align: center;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .current-serial strong {
+            display: block;
+            font-size: 20px;
+            letter-spacing: 2px;
+            margin-top: 6px;
+        }
+
+        .form-group {
+            margin-bottom: 22px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: 'Cascadia Mono', monospace;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group small {
+            color: #718096;
+            display: block;
+            margin-top: 6px;
+            font-size: 12px;
+        }
+
+        .color-selector {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .color-option {
+            padding: 18px;
+            border: 3px solid transparent;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: 700;
+            font-size: 13px;
+            transition: all 0.3s;
+            letter-spacing: 0.5px;
+        }
+
+        .color-option:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .color-option.selected {
+            border-color: #2d3748;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            transform: scale(1.05);
+        }
+
+        .color-red { background: #ff6b6b; color: white; }
+        .color-blue { background: #4dabf7; color: white; }
+        .color-green { background: #51cf66; color: white; }
+        .color-yellow { background: #ffd43b; color: #2d3748; }
+
+        .btn-generate {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Cascadia Mono', monospace;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-generate:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-generate:active {
+            transform: translateY(0);
+        }
+
+        .btn-reset {
+            width: 100%;
+            margin-top: 12px;
+            padding: 14px;
+            background: white;
+            color: #4c51bf;
+            border: 2px dashed #4c51bf;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Cascadia Mono', monospace;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-reset:hover {
+            background: #edf2f7;
+            transform: translateY(-1px);
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .control-panel {
+                display: none;
+            }
+            .print-container {
+                display: block !important;
+            }
+        }
+
+        .print-container {
+            display: none;
+        }
+
+        @page {
+            size: A4;
+            margin: 5mm;
+        }
+
+        .page {
+            width: 210mm;
+            height: 297mm;
+            page-break-after: always;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page:last-child {
+            page-break-after: auto;
+        }
+
+        .ticket-row {
+            display: flex;
+            flex: 1;
+            min-height: 74.25mm;
+            border-bottom: 1px dashed #aaa;
+        }
+
+        .ticket-row:last-child {
+            border-bottom: none;
+        }
+
+        .ticket-column {
+            width: 50%;
+            border-right: 2px dashed #666;
+            position: relative;
+        }
+
+        .ticket-column:last-child {
+            border-right: none;
+        }
+
+        .ticket {
+            position: relative;
+            height: 100%;
+            padding: 3.6mm;
+            display: flex;
+            flex-direction: column;
+            border: 3px solid;
+            font-family: 'Cascadia Mono', 'Courier New', monospace;
+        }
+
+        .ticket.red { border-color: #ff6b6b; }
+        .ticket.blue { border-color: #4dabf7; }
+        .ticket.green { border-color: #51cf66; }
+        .ticket.yellow { border-color: #ffd43b; }
+
+        .ticket.duplicate {
+            background: rgba(45, 55, 72, 0.06);
+        }
+
+        .ticket-header {
+            text-align: center;
+            font-weight: 700;
+            font-size: 11px;
+            padding-bottom: 1.8mm;
+            margin-bottom: 2.6mm;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .serial-wrapper {
+            display: flex;
+            align-items: stretch;
+            gap: 1.6mm;
+            margin-bottom: 1.8mm;
+        }
+
+        .serial-number {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            padding: 2mm 1.4mm;
+            background: #edf2f7;
+            border: 1.2px solid #cbd5e0;
+            border-radius: 3px;
+            letter-spacing: 1.3px;
+            font-size: 10.5px;
+        }
+
+        .ticket-qr {
+            width: 20mm;
+            min-width: 20mm;
+            height: 20mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff;
+            border: 1.2px solid #cbd5e0;
+            border-radius: 3px;
+            padding: 1.2mm;
+        }
+
+        .ticket-qr canvas,
+        .ticket-qr img {
+            width: 100%;
+            height: 100%;
+        }
+
+        .ticket-body {
+            flex: 1;
+            font-size: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.6mm;
+        }
+
+        .field-row {
+            display: flex;
+            gap: 2mm;
+            margin-bottom: 1.6mm;
+        }
+
+        .field-group {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 2mm;
+        }
+
+        .field-label {
+            font-weight: 600;
+            white-space: nowrap;
+            color: #2d3748;
+        }
+
+        .checkbox-columns {
+            display: flex;
+            gap: 2mm;
+            margin-top: 1mm;
+        }
+
+        .checkbox-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1mm;
+            padding: 1.6mm;
+            border-radius: 3px;
+            border: 1px solid #cbd5e0;
+            background: #f7fafc;
+        }
+
+        .checkbox-column.pallet {
+            background: #edf2f7;
+        }
+
+        .checkbox-column.pallet .checkbox-items {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.8mm;
+        }
+
+        .checkbox-column-title {
+            font-weight: 700;
+            font-size: 7px;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: #4a5568;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 1.2mm;
+            font-weight: 500;
+            font-size: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 3.4mm;
+            height: 3.4mm;
+        }
+
+        .ticket-footer {
+            text-align: center;
+            font-size: 7.2px;
+            padding: 2mm 1mm;
+            color: #2d3748;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            background: rgba(226, 232, 240, 0.95);
+            border-top: 1.4px solid rgba(45, 55, 72, 0.65);
+            border-bottom-left-radius: 2px;
+            border-bottom-right-radius: 2px;
+            margin-top: auto;
+        }
+
+        .duplicate-label {
+            font-size: 8px;
+            color: #e53e3e;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+
+        .field-value {
+            flex: 1;
+            border-bottom: 1.3px solid #2d3748;
+            min-height: 12px;
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .field-value.filled {
+            align-items: center;
+            color: #1a202c;
+            font-weight: 600;
+        }
+
+        .field-value.filled span {
+            width: 100%;
+            word-break: break-word;
+        }
+
+        body.fill-mode-active {
+            background: linear-gradient(135deg, #edf2f7 0%, #e2e8f0 100%);
+        }
+
+        body.fill-mode-active .control-panel,
+        body.fill-mode-active .print-container {
+            display: none !important;
+        }
+
+        .fill-mode {
+            display: none;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 20px 20px 60px;
+            gap: 24px;
+        }
+
+        .fill-mode.visible {
+            display: grid;
+            grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr);
+        }
+
+        .fill-card,
+        .fill-preview {
+            background: white;
+            border-radius: 18px;
+            padding: 28px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+        }
+
+        .fill-card h2,
+        .fill-preview h2 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .fill-intro {
+            font-size: 13px;
+            color: #4a5568;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .fill-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .fill-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 18px;
+        }
+
+        .fill-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .fill-form-group label,
+        .fill-group-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #2d3748;
+            letter-spacing: 0.2px;
+        }
+
+        .fill-form-group input[type="text"],
+        .fill-form-group input[type="number"],
+        .fill-form-group input[type="date"],
+        .fill-form-group input[type="time"],
+        .fill-form-group select,
+        .fill-form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1.6px solid #cbd5e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Cascadia Mono', monospace;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .fill-form-group textarea {
+            resize: vertical;
+        }
+
+        .fill-form-group input:focus,
+        .fill-form-group select:focus,
+        .fill-form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+        }
+
+        .fill-checkbox-group {
+            padding: 16px;
+            border: 1.5px dashed #cbd5e0;
+            border-radius: 10px;
+            background: #f8fafc;
+            gap: 10px;
+        }
+
+        .fill-checkbox-group label {
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #2d3748;
+        }
+
+        .fill-checkbox-group input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+
+        .fill-notes-group textarea {
+            min-height: 100px;
+        }
+
+        .fill-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .fill-status {
+            font-size: 13px;
+            color: #2d3748;
+            margin-top: 10px;
+            min-height: 18px;
+        }
+
+        .fill-preview-note {
+            font-size: 13px;
+            color: #4a5568;
+            margin-bottom: 16px;
+        }
+
+        .fill-preview-stage {
+            background: #f7fafc;
+            border-radius: 14px;
+            padding: 16px;
+            min-height: 420px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+        }
+
+        .fill-preview-stage .page {
+            transform: scale(0.9);
+            transform-origin: top left;
+        }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <h1>🎫 Banding Ticket Generator</h1>
+        <div class="subtitle">NexGridCore DataLabs Production System</div>
+        
+        <div class="current-serial">
+            <span>Next Serial</span>
+            <strong id="nextSerial">FG-BL-00001</strong>
+        </div>
+
+        <div class="form-group">
+            <label>📊 Number of Tickets (per side)</label>
+            <input type="number" id="ticketCount" value="4" min="4" step="4">
+            <small>Each A4 page prints 4 ticket pairs (8 total tickets)</small>
+        </div>
+
+        <div class="form-group">
+            <label>🎨 Select Group Color</label>
+            <div class="color-selector">
+                <div class="color-option color-red" data-color="red">RED</div>
+                <div class="color-option color-blue selected" data-color="blue">BLUE</div>
+                <div class="color-option color-green" data-color="green">GREEN</div>
+                <div class="color-option color-yellow" data-color="yellow">YELLOW</div>
+            </div>
+        </div>
+
+        <button class="btn-generate" onclick="generateTickets()">
+            🖨️ GENERATE & PRINT TICKETS
+        </button>
+        <button class="btn-reset" type="button" onclick="resetSerial()">
+            ♻️ Reset Serial Back to 1
+        </button>
+        
+        <div class="form-group" style="margin-top: 25px; padding-top: 25px; border-top: 2px solid #e2e8f0;">
+            <label>⚙️ Google Sheets Configuration</label>
+            <input type="text" id="googleSheetId" placeholder="Enter Google Sheet ID" style="margin-bottom: 10px;">
+            <input type="text" id="googleApiKey" placeholder="Enter Google API Key">
+            <small>Get these from the setup instructions. Required for data tracking.</small>
+            <button type="button" class="btn-reset" onclick="saveGoogleConfig()" style="margin-top: 10px; width: 100%;">💾 Save Configuration</button>
+        </div>
+        
+        <div class="form-group" style="margin-top: 25px; padding-top: 25px; border-top: 2px solid #e2e8f0;">
+            <label>📱 QR Code URL Configuration</label>
+            <input type="text" id="scanBaseUrl" placeholder="e.g. http://192.168.1.100:8000/bandingtickets.html" style="margin-bottom: 10px;">
+            <small>Enter your network IP address and port (not localhost). This is what QR codes will link to. Find your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)</small>
+            <button type="button" class="btn-reset" onclick="saveScanUrlConfig()" style="margin-top: 10px; width: 100%;">💾 Save QR URL</button>
+        </div>
+    </div>
+
+    <div class="print-container" id="printContainer"></div>
+
+    <div class="fill-mode" id="fillContainer">
+        <div class="fill-card" id="viewCard" style="display: none;">
+            <h2>Ticket Details (Read-Only)</h2>
+            <p class="fill-intro">Viewing ticket: <strong id="viewSerialDisplay"></strong></p>
+            <div id="viewContent" class="fill-form">
+                <div id="viewLoading" style="text-align: center; padding: 40px;">Loading ticket data...</div>
+                <div id="viewData" style="display: none;"></div>
+            </div>
+            <div class="fill-actions" style="margin-top: 20px;">
+                <button type="button" id="viewBack" class="btn-reset">← Back</button>
+            </div>
+        </div>
+        
+        <div class="fill-card" id="editCard">
+            <h2>Fill/Edit Ticket Details</h2>
+            <p class="fill-intro">Enter the captured information for serial <strong id="fillSerialDisplay"></strong>. When you submit, data is saved to Google Sheets and a finished ticket downloads as a PNG.</p>
+            <form id="ticketForm" class="fill-form">
+                <div class="fill-form-grid">
+                    <div class="fill-form-group">
+                        <label for="fillSerial">Ticket Serial</label>
+                        <input type="text" id="fillSerial" name="serial" required>
+                    </div>
+                    <div class="fill-form-group">
+                        <label for="fillColor">Ticket Colour</label>
+                        <select id="fillColor" name="color">
+                            <option value="blue">Blue</option>
+                            <option value="red">Red</option>
+                            <option value="green">Green</option>
+                            <option value="yellow">Yellow</option>
+                        </select>
+                    </div>
+                    <div class="fill-form-group">
+                        <label for="fillDate">Date</label>
+                        <input type="date" id="fillDate" name="date">
+                    </div>
+                    <div class="fill-form-group">
+                        <label for="fillTime">Time</label>
+                        <input type="time" id="fillTime" name="time">
+                    </div>
+                    <div class="fill-form-group">
+                        <label for="fillSku">SKU</label>
+                        <input type="text" id="fillSku" name="sku" placeholder="e.g. FG-Cocoa-500">
+                    </div>
+                    <div class="fill-form-group">
+                        <label for="fillQty">Quantity</label>
+                        <input type="number" id="fillQty" name="qty" min="0" step="1">
+                    </div>
+                    <div class="fill-form-group">
+                        <label for="fillLayers">Layers</label>
+                        <input type="number" id="fillLayers" name="layers" min="0" step="1">
+                    </div>
+                    <div class="fill-form-group fill-checkbox-group">
+                        <span class="fill-group-label">Banding Type</span>
+                        <label><input type="checkbox" name="bandingType" value="online"> Online</label>
+                        <label><input type="checkbox" name="bandingType" value="offline"> Offline</label>
+                    </div>
+                    <div class="fill-form-group fill-checkbox-group">
+                        <span class="fill-group-label">Product Type</span>
+                        <label><input type="checkbox" name="productType" value="1kg"> 1kg</label>
+                        <label><input type="checkbox" name="productType" value="0.5kg"> 0.5kg</label>
+                    </div>
+                    <div class="fill-form-group fill-checkbox-group">
+                        <span class="fill-group-label">Pallet Size</span>
+                        <label><input type="checkbox" name="palletSize" value="78"> 78</label>
+                        <label><input type="checkbox" name="palletSize" value="105"> 105</label>
+                        <label><input type="checkbox" name="palletSize" value="64"> 64</label>
+                        <label><input type="checkbox" name="palletSize" value="100"> 100</label>
+                    </div>
+                    <div class="fill-form-group fill-notes-group">
+                        <label for="fillNotes">Notes / References</label>
+                        <textarea id="fillNotes" name="notes" rows="4" placeholder="Additional remarks..."></textarea>
+                    </div>
+                    
+                    <div class="fill-form-group" style="grid-column: 1 / -1; margin-top: 10px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+                        <label style="font-size: 15px; font-weight: 700; margin-bottom: 15px;">Quality Issues</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div class="fill-form-group">
+                                <label for="qualityIssueType">Issue Type</label>
+                                <select id="qualityIssueType" name="qualityIssueType">
+                                    <option value="">Select type...</option>
+                                    <option value="banding">Banding Quality Frailties</option>
+                                    <option value="production">Production Quality Frailties</option>
+                                </select>
+                            </div>
+                            <div class="fill-form-group">
+                                <label for="groupLeader">Group Leader</label>
+                                <select id="groupLeader" name="groupLeader">
+                                    <option value="">Select leader...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="fill-form-group">
+                            <label for="qualityIssueDesc">Issue Description</label>
+                            <textarea id="qualityIssueDesc" name="qualityIssueDesc" rows="3" placeholder="Describe the quality issue..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="fill-form-group" style="grid-column: 1 / -1; margin-top: 10px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+                        <label style="font-size: 15px; font-weight: 700; margin-bottom: 15px;">Merchandise History</label>
+                        <div id="merchHistoryContainer">
+                            <div class="merch-history-entry" style="display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 10px; margin-bottom: 10px; align-items: end;">
+                                <div class="fill-form-group">
+                                    <label>Date</label>
+                                    <input type="date" class="merch-history-date" name="merchHistoryDate[]">
+                                </div>
+                                <div class="fill-form-group">
+                                    <label>User</label>
+                                    <select class="merch-history-user" name="merchHistoryUser[]">
+                                        <option value="">Select user...</option>
+                                    </select>
+                                </div>
+                                <div class="fill-form-group">
+                                    <label>Note</label>
+                                    <input type="text" class="merch-history-note" name="merchHistoryNote[]" placeholder="Enter note...">
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" onclick="addMerchHistoryEntry()" class="btn-reset" style="width: 100%; margin-top: 10px;">+ Add History Entry</button>
+                    </div>
+                </div>
+                <div class="fill-actions">
+                    <button type="submit" class="btn-generate">💾 Save to Google Sheets & Download Ticket</button>
+                    <button type="button" id="fillBack" class="btn-reset">← Back to Ticket Generator</button>
+                </div>
+                <div id="fillStatus" class="fill-status"></div>
+            </form>
+        </div>
+        <div class="fill-preview">
+            <h2>Live Preview</h2>
+            <div class="fill-preview-note">Preview updates on submit before the download starts.</div>
+            <div class="fill-preview-stage" id="fillPreview"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+
+    <script>
+        const SERIES_PREFIX = 'BND';
+        let selectedColor = 'blue';
+        let currentSerial = 1;
+        const DEFAULT_SCAN_BASE_URL = 'http://localhost:8000/bandingtickets.html';
+        
+        // Load saved scan URL or use current location (but prefer saved one)
+        let SCAN_BASE_URL = localStorage.getItem('scanBaseUrl') || '';
+        if (!SCAN_BASE_URL) {
+            const { protocol, origin, pathname } = window.location;
+            if (protocol === 'http:' || protocol === 'https:') {
+                // If localhost, don't use it - require manual configuration
+                if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+                    SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL; // Will show warning
+                } else {
+                    SCAN_BASE_URL = `${origin}${pathname}`;
+                }
+            } else {
+                SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL;
+            }
+        }
+        
+        // Load saved config into input field
+        if (document.getElementById('scanBaseUrl')) {
+            document.getElementById('scanBaseUrl').value = SCAN_BASE_URL;
+        }
+        
+        function saveScanUrlConfig() {
+            const url = document.getElementById('scanBaseUrl').value.trim();
+            if (url) {
+                // Basic validation
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    alert('URL must start with http:// or https://');
+                    return;
+                }
+                if (url.includes('localhost') || url.includes('127.0.0.1')) {
+                    if (!confirm('Warning: Using localhost will not work when scanning from phones. Continue anyway?')) {
+                        return;
+                    }
+                }
+                SCAN_BASE_URL = url;
+                localStorage.setItem('scanBaseUrl', url);
+                alert('QR URL saved! Regenerate tickets for the new URL to take effect.');
+            } else {
+                alert('Please enter a URL');
+            }
+        }
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentMode = urlParams.get('mode');
+        const initialSerialParam = urlParams.get('serial');
+
+        const savedSerial = localStorage.getItem('bandingSerial');
+        if (savedSerial) {
+            currentSerial = parseInt(savedSerial, 10);
+        }
+        updateSerialDisplay();
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined) {
+                return '';
+            }
+            return String(value).replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+
+        document.querySelectorAll('.color-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.color-option').forEach(opt => 
+                    opt.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedColor = this.dataset.color;
+                updateSerialDisplay();
+            });
+        });
+
+        // Google Sheets Configuration
+        let GOOGLE_SHEET_ID = localStorage.getItem('googleSheetId') || '';
+        let GOOGLE_API_KEY = localStorage.getItem('googleApiKey') || '';
+        
+        // Load saved config
+        if (document.getElementById('googleSheetId')) {
+            document.getElementById('googleSheetId').value = GOOGLE_SHEET_ID;
+        }
+        if (document.getElementById('googleApiKey')) {
+            document.getElementById('googleApiKey').value = GOOGLE_API_KEY;
+        }
+        
+        function saveGoogleConfig() {
+            const sheetId = document.getElementById('googleSheetId').value.trim();
+            const apiKey = document.getElementById('googleApiKey').value.trim();
+            if (sheetId && apiKey) {
+                GOOGLE_SHEET_ID = sheetId;
+                GOOGLE_API_KEY = apiKey;
+                localStorage.setItem('googleSheetId', sheetId);
+                localStorage.setItem('googleApiKey', apiKey);
+                alert('Configuration saved!');
+            } else {
+                alert('Please enter both Sheet ID and API Key');
+            }
+        }
+        
+        // Initialize modes
+        if (currentMode === 'view') {
+            initViewMode(initialSerialParam);
+        } else if (currentMode === 'edit' || currentMode === 'fill') {
+            initFillMode(initialSerialParam);
+        }
+
+        function formatSerial(serialNumber) {
+            return `FG-${SERIES_PREFIX}-${String(serialNumber).padStart(5, '0')}`;
+        }
+
+        function updateSerialDisplay() {
+            const formatted = formatSerial(currentSerial);
+            const nextSerialEl = document.getElementById('nextSerial');
+            if (nextSerialEl) {
+                nextSerialEl.textContent = formatted;
+            }
+        }
+
+        function resetSerial() {
+            currentSerial = 1;
+            localStorage.setItem('bandingSerial', currentSerial);
+            updateSerialDisplay();
+        }
+
+        function generateTickets() {
+            const ticketCount = parseInt(document.getElementById('ticketCount').value, 10);
+            
+            if (ticketCount % 4 !== 0) {
+                alert('Number of tickets must be a multiple of 4');
+                return;
+            }
+
+            const container = document.getElementById('printContainer');
+            container.innerHTML = '';
+
+            const ticketsPerPage = 4;
+            const pages = Math.ceil(ticketCount / ticketsPerPage);
+
+            for (let page = 0; page < pages; page++) {
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'page';
+
+                const ticketsOnThisPage = Math.min(ticketsPerPage, ticketCount - (page * ticketsPerPage));
+                
+                for (let i = 0; i < ticketsOnThisPage; i++) {
+                    const serialNum = currentSerial + (page * ticketsPerPage) + i;
+
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'ticket-row';
+
+                    rowDiv.innerHTML += createTicketHTML(serialNum, selectedColor, false, {}, 'view');
+                    rowDiv.innerHTML += createTicketHTML(serialNum, selectedColor, true, {}, 'edit');
+
+                    pageDiv.appendChild(rowDiv);
+                }
+
+                container.appendChild(pageDiv);
+            }
+
+            currentSerial += ticketCount;
+            localStorage.setItem('bandingSerial', currentSerial);
+            updateSerialDisplay();
+
+            renderTicketQRCodes(container);
+
+            setTimeout(() => window.print(), 100);
+        }
+
+        function buildScanUrl(serial, mode = 'edit') {
+            return `${SCAN_BASE_URL}?mode=${mode}&serial=${encodeURIComponent(serial)}`;
+        }
+
+        function renderTicketQRCodes(rootElement = document) {
+            if (typeof QRCode === 'undefined') {
+                return;
+            }
+            const elements = rootElement.querySelectorAll('.ticket-qr');
+            elements.forEach(container => {
+                const serial = container.dataset.serial;
+                const isDuplicate = container.dataset.duplicate === 'true';
+                if (!serial) return;
+                const mode = isDuplicate ? 'edit' : 'view';
+                const link = buildScanUrl(serial, mode);
+                container.innerHTML = '';
+                const canvas = document.createElement('canvas');
+                QRCode.toCanvas(canvas, link, {
+                    width: 140,
+                    margin: 0,
+                    color: {
+                        dark: '#1a202c',
+                        light: '#ffffff'
+                    }
+                }, (error) => {
+                    if (error) {
+                        container.textContent = 'QR';
+                        return;
+                    }
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                    container.appendChild(canvas);
+                });
+                container.title = `Scan to ${mode === 'view' ? 'view' : 'edit'} ${serial}`;
+            });
+        }
+
+        function createTicketHTML(serialNum, color, isDuplicate, data = {}, qrMode = 'edit') {
+            const serialValue = typeof serialNum === 'number' ? formatSerial(serialNum) : (serialNum || '');
+            const ticketColor = data.color || color;
+            const duplicateBadge = isDuplicate ? '<span class="duplicate-label">DUPLICATE</span>' : '';
+            const bandingSelections = new Set((data.bandingType || []).map(value => value.toLowerCase()));
+            const productSelections = new Set((data.productType || []).map(value => value.toLowerCase()));
+            const palletSelections = new Set((data.palletSize || []).map(value => value.toLowerCase()));
+
+            const renderFieldValue = (value) => {
+                const content = value !== undefined && value !== null && value !== ''
+                    ? escapeHtml(String(value))
+                    : '';
+                const filledClass = content ? ' filled' : '';
+                return `<span class="field-value${filledClass}">${content ? `<span>${content}</span>` : ''}</span>`;
+            };
+
+            return `
+                <div class="ticket-column">
+                    <div class="ticket ${ticketColor} ${isDuplicate ? 'duplicate' : ''}">
+                            <div class="ticket-header">Promotion Items · Finished Goods</div>
+                        <div class="serial-wrapper">
+                            <div class="serial-number">
+                                <span>${serialValue}</span>
+                                ${duplicateBadge}
+                            </div>
+                            <div class="ticket-qr" data-serial="${serialValue}" data-duplicate="${isDuplicate}" data-mode="${qrMode}"></div>
+                        </div>
+                        <div class="ticket-body">
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <span class="field-label">Date:</span>
+                                    ${renderFieldValue(data.date)}
+                                </div>
+                                <div class="field-group">
+                                    <span class="field-label">Time:</span>
+                                    ${renderFieldValue(data.time)}
+                                </div>
+                            </div>
+                            
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <span class="field-label">SKU:</span>
+                                    ${renderFieldValue(data.sku)}
+                                </div>
+                            </div>
+                            
+                            <div class="field-row">
+                                <div class="field-group">
+                                    <span class="field-label">Qty:</span>
+                                    ${renderFieldValue(data.qty)}
+                                </div>
+                                <div class="field-group">
+                                    <span class="field-label">Layers:</span>
+                                    ${renderFieldValue(data.layers)}
+                                </div>
+                            </div>
+                            <div class="checkbox-columns">
+                                <div class="checkbox-column">
+                                    <div class="checkbox-column-title">Banding Type</div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="online_${serialNum}_${isDuplicate}" ${bandingSelections.has('online') ? 'checked' : ''}>
+                                        <label for="online_${serialNum}_${isDuplicate}">Online</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="offline_${serialNum}_${isDuplicate}" ${bandingSelections.has('offline') ? 'checked' : ''}>
+                                        <label for="offline_${serialNum}_${isDuplicate}">Offline</label>
+                                    </div>
+                                </div>
+                                <div class="checkbox-column">
+                                    <div class="checkbox-column-title">Product Type</div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="fg1_${serialNum}_${isDuplicate}" ${productSelections.has('1kg') ? 'checked' : ''}>
+                                        <label for="fg1_${serialNum}_${isDuplicate}">1kg</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                        <input type="checkbox" id="fg05_${serialNum}_${isDuplicate}" ${productSelections.has('0.5kg') || productSelections.has('05kg') ? 'checked' : ''}>
+                                        <label for="fg05_${serialNum}_${isDuplicate}">0.5kg</label>
+                                    </div>
+                                </div>
+                                <div class="checkbox-column pallet">
+                                    <div class="checkbox-column-title">Pallet Size</div>
+                                    <div class="checkbox-items">
+                                    <div class="checkbox-item">
+                                            <input type="checkbox" id="p78_${serialNum}_${isDuplicate}" ${palletSelections.has('78') ? 'checked' : ''}>
+                                        <label for="p78_${serialNum}_${isDuplicate}">78</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                            <input type="checkbox" id="p105_${serialNum}_${isDuplicate}" ${palletSelections.has('105') ? 'checked' : ''}>
+                                        <label for="p105_${serialNum}_${isDuplicate}">105</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                            <input type="checkbox" id="p64_${serialNum}_${isDuplicate}" ${palletSelections.has('64') ? 'checked' : ''}>
+                                        <label for="p64_${serialNum}_${isDuplicate}">64</label>
+                                    </div>
+                                    <div class="checkbox-item">
+                                            <input type="checkbox" id="p100_${serialNum}_${isDuplicate}" ${palletSelections.has('100') ? 'checked' : ''}>
+                                        <label for="p100_${serialNum}_${isDuplicate}">100</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ticket-footer">Powered by NexGridCore DataLabs</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Google Sheets API Functions
+        async function readTicketFromSheet(serial) {
+            if (!GOOGLE_SHEET_ID || !GOOGLE_API_KEY) {
+                throw new Error('Google Sheets not configured');
+            }
+            const range = 'Tickets!A2:Z1000';
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            if (!data.values) return null;
+            
+            const headerRow = ['Serial', 'Date', 'Time', 'SKU', 'Qty', 'Layers', 'BandingType', 'ProductType', 'PalletSize', 'Notes', 'QualityIssueType', 'QualityIssueDesc', 'GroupLeader', 'MerchHistory', 'CreatedAt', 'FirstModified', 'LastModified', 'ChangeHistory', 'ModifiedBy'];
+            const rowIndex = data.values.findIndex(row => row[0] === serial);
+            if (rowIndex === -1) return null;
+            
+            const row = data.values[rowIndex];
+            const ticket = {};
+            headerRow.forEach((header, idx) => {
+                ticket[header] = row[idx] || '';
+            });
+            return ticket;
+        }
+        
+        async function saveTicketToSheet(ticketData, isUpdate = false) {
+            if (!GOOGLE_SHEET_ID || !GOOGLE_API_KEY) {
+                throw new Error('Google Sheets not configured');
+            }
+            
+            const timestamp = new Date().toISOString();
+            const changeEntry = `${timestamp} - ${ticketData.modifiedBy || 'System'}: ${isUpdate ? 'Updated ticket' : 'Created ticket'}`;
+            
+            const row = [
+                ticketData.serial,
+                ticketData.date || '',
+                ticketData.time || '',
+                ticketData.sku || '',
+                ticketData.qty || '',
+                ticketData.layers || '',
+                (ticketData.bandingType || []).join(','),
+                (ticketData.productType || []).join(','),
+                (ticketData.palletSize || []).join(','),
+                ticketData.notes || '',
+                ticketData.qualityIssueType || '',
+                ticketData.qualityIssueDesc || '',
+                ticketData.groupLeader || '',
+                JSON.stringify(ticketData.merchHistory || []),
+                ticketData.createdAt || timestamp,
+                ticketData.firstModified || timestamp,
+                timestamp,
+                isUpdate ? (ticketData.changeHistory || '') + '\n' + changeEntry : changeEntry,
+                ticketData.modifiedBy || 'System'
+            ];
+            
+            if (isUpdate) {
+                // Find existing row and update
+                const range = 'Tickets!A2:Z1000';
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.values) {
+                    const rowIndex = data.values.findIndex(r => r[0] === ticketData.serial);
+                    if (rowIndex !== -1) {
+                        const updateRange = `Tickets!A${rowIndex + 2}:S${rowIndex + 2}`;
+                        const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${updateRange}?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
+                        await fetch(updateUrl, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ values: [row] })
+                        });
+                        return;
+                    }
+                }
+            }
+            
+            // Append new row
+            const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Tickets!A2:append?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
+            await fetch(appendUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ values: [row] })
+            });
+        }
+        
+        async function loadAuthorizedUsers() {
+            if (!GOOGLE_SHEET_ID || !GOOGLE_API_KEY) return [];
+            try {
+                const range = 'Authorized Users!A2:B100';
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (!data.values) return [];
+                return data.values.map(row => ({ id: row[0] || '', name: row[1] || '' })).filter(u => u.id);
+            } catch (error) {
+                console.error('Error loading users:', error);
+                return [];
+            }
+        }
+        
+        async function updateSKUCalculations(sku, qty) {
+            if (!GOOGLE_SHEET_ID || !GOOGLE_API_KEY || !sku) return;
+            try {
+                const range = 'Calculations!A2:B1000';
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${range}?key=${GOOGLE_API_KEY}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (!data.values) {
+                    // Create first entry
+                    const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Calculations!A2:append?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
+                    await fetch(appendUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ values: [[sku, qty || 0]] })
+                    });
+                    return;
+                }
+                const rowIndex = data.values.findIndex(r => r[0] === sku);
+                if (rowIndex !== -1) {
+                    const currentTotal = parseInt(data.values[rowIndex][1] || 0) + parseInt(qty || 0);
+                    const updateRange = `Calculations!B${rowIndex + 2}`;
+                    const updateUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/${updateRange}?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
+                    await fetch(updateUrl, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ values: [[currentTotal]] })
+                    });
+                } else {
+                    const appendUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Calculations!A2:append?valueInputOption=RAW&key=${GOOGLE_API_KEY}`;
+                    await fetch(appendUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ values: [[sku, qty || 0]] })
+                    });
+                }
+            } catch (error) {
+                console.error('Error updating SKU calculations:', error);
+            }
+        }
+        
+        // View Mode Functions
+        async function initViewMode(serial) {
+            document.body.classList.add('fill-mode-active');
+            const fillContainer = document.getElementById('fillContainer');
+            if (fillContainer) {
+                fillContainer.classList.add('visible');
+            }
+            
+            const viewCard = document.getElementById('viewCard');
+            const editCard = document.getElementById('editCard');
+            if (viewCard) viewCard.style.display = 'block';
+            if (editCard) editCard.style.display = 'none';
+            
+            const serialValue = serial ? decodeURIComponent(serial) : formatSerial(currentSerial);
+            const viewSerialDisplay = document.getElementById('viewSerialDisplay');
+            if (viewSerialDisplay) {
+                viewSerialDisplay.textContent = serialValue;
+            }
+            
+            const viewBack = document.getElementById('viewBack');
+            if (viewBack) {
+                viewBack.addEventListener('click', () => {
+                    window.location.href = window.location.pathname;
+                });
+            }
+            
+            const viewLoading = document.getElementById('viewLoading');
+            const viewData = document.getElementById('viewData');
+            
+            try {
+                const ticket = await readTicketFromSheet(serialValue);
+                if (viewLoading) viewLoading.style.display = 'none';
+                if (viewData) {
+                    viewData.style.display = 'block';
+                    if (!ticket) {
+                        viewData.innerHTML = '<p style="text-align: center; padding: 40px; color: #718096;">No data found for this ticket.</p>';
+                    } else {
+                        viewData.innerHTML = renderViewMode(ticket);
+                    }
+                }
+            } catch (error) {
+                if (viewLoading) viewLoading.style.display = 'none';
+                if (viewData) {
+                    viewData.style.display = 'block';
+                    viewData.innerHTML = `<p style="text-align: center; padding: 40px; color: #e53e3e;">Error loading ticket: ${error.message}</p>`;
+                }
+            }
+        }
+        
+        function renderViewMode(ticket) {
+            const merchHistory = ticket.MerchHistory ? (typeof ticket.MerchHistory === 'string' ? JSON.parse(ticket.MerchHistory) : ticket.MerchHistory) : [];
+            return `
+                <div style="display: grid; gap: 20px;">
+                    <div style="background: #f7fafc; padding: 20px; border-radius: 10px;">
+                        <h3 style="margin-bottom: 15px; color: #2d3748;">Basic Information</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div><strong>Serial:</strong> ${escapeHtml(ticket.Serial || '')}</div>
+                            <div><strong>Date:</strong> ${escapeHtml(ticket.Date || '')}</div>
+                            <div><strong>Time:</strong> ${escapeHtml(ticket.Time || '')}</div>
+                            <div><strong>SKU:</strong> ${escapeHtml(ticket.SKU || '')}</div>
+                            <div><strong>Quantity:</strong> ${escapeHtml(ticket.Qty || '')}</div>
+                            <div><strong>Layers:</strong> ${escapeHtml(ticket.Layers || '')}</div>
+                        </div>
+                    </div>
+                    <div style="background: #f7fafc; padding: 20px; border-radius: 10px;">
+                        <h3 style="margin-bottom: 15px; color: #2d3748;">Product Details</h3>
+                        <div><strong>Banding Type:</strong> ${escapeHtml(ticket.BandingType || '')}</div>
+                        <div><strong>Product Type:</strong> ${escapeHtml(ticket.ProductType || '')}</div>
+                        <div><strong>Pallet Size:</strong> ${escapeHtml(ticket.PalletSize || '')}</div>
+                    </div>
+                    ${ticket.QualityIssueType ? `
+                    <div style="background: #fff5f5; padding: 20px; border-radius: 10px; border-left: 4px solid #e53e3e;">
+                        <h3 style="margin-bottom: 15px; color: #2d3748;">Quality Issues</h3>
+                        <div><strong>Type:</strong> ${escapeHtml(ticket.QualityIssueType === 'banding' ? 'Banding Quality Frailties' : 'Production Quality Frailties')}</div>
+                        <div><strong>Group Leader:</strong> ${escapeHtml(ticket.GroupLeader || '')}</div>
+                        <div><strong>Description:</strong> ${escapeHtml(ticket.QualityIssueDesc || '')}</div>
+                    </div>
+                    ` : ''}
+                    ${merchHistory.length > 0 ? `
+                    <div style="background: #f7fafc; padding: 20px; border-radius: 10px;">
+                        <h3 style="margin-bottom: 15px; color: #2d3748;">Merchandise History</h3>
+                        ${merchHistory.map(entry => `
+                            <div style="padding: 10px; margin-bottom: 10px; background: white; border-radius: 5px;">
+                                <div><strong>${escapeHtml(entry.date || '')}</strong> - ${escapeHtml(entry.user || '')}</div>
+                                <div style="color: #4a5568; margin-top: 5px;">${escapeHtml(entry.note || '')}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ` : ''}
+                    <div style="background: #edf2f7; padding: 20px; border-radius: 10px;">
+                        <h3 style="margin-bottom: 15px; color: #2d3748;">Timestamps</h3>
+                        <div><strong>Created At:</strong> ${escapeHtml(ticket.CreatedAt || '')}</div>
+                        <div><strong>First Modified:</strong> ${escapeHtml(ticket.FirstModified || '')}</div>
+                        <div><strong>Last Modified:</strong> ${escapeHtml(ticket.LastModified || '')}</div>
+                    </div>
+                    ${ticket.ChangeHistory ? `
+                    <div style="background: #f7fafc; padding: 20px; border-radius: 10px;">
+                        <h3 style="margin-bottom: 15px; color: #2d3748;">Change History</h3>
+                        <pre style="white-space: pre-wrap; font-family: 'Cascadia Mono', monospace; font-size: 12px; color: #4a5568;">${escapeHtml(ticket.ChangeHistory)}</pre>
+                    </div>
+                    ` : ''}
+                    ${ticket.Notes ? `
+                    <div style="background: #f7fafc; padding: 20px; border-radius: 10px;">
+                        <h3 style="margin-bottom: 15px; color: #2d3748;">Notes</h3>
+                        <p>${escapeHtml(ticket.Notes)}</p>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        function addMerchHistoryEntry() {
+            const container = document.getElementById('merchHistoryContainer');
+            if (!container) return;
+            const users = Array.from(document.querySelectorAll('#groupLeader option')).map(opt => ({ value: opt.value, text: opt.textContent }));
+            const entry = document.createElement('div');
+            entry.className = 'merch-history-entry';
+            entry.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr 2fr auto; gap: 10px; margin-bottom: 10px; align-items: end;';
+            entry.innerHTML = `
+                <div class="fill-form-group">
+                    <label>Date</label>
+                    <input type="date" class="merch-history-date" name="merchHistoryDate[]">
+                </div>
+                <div class="fill-form-group">
+                    <label>User</label>
+                    <select class="merch-history-user" name="merchHistoryUser[]">
+                        <option value="">Select user...</option>
+                        ${users.filter(u => u.value).map(u => `<option value="${u.value}">${u.text}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="fill-form-group">
+                    <label>Note</label>
+                    <input type="text" class="merch-history-note" name="merchHistoryNote[]" placeholder="Enter note...">
+                </div>
+                <button type="button" onclick="this.parentElement.remove()" class="btn-reset" style="padding: 10px;">×</button>
+            `;
+            container.appendChild(entry);
+        }
+        
+        async function initFillMode(serial) {
+            document.body.classList.add('fill-mode-active');
+
+            const fillContainer = document.getElementById('fillContainer');
+            if (fillContainer) {
+                fillContainer.classList.add('visible');
+            }
+            
+            const viewCard = document.getElementById('viewCard');
+            const editCard = document.getElementById('editCard');
+            if (viewCard) viewCard.style.display = 'none';
+            if (editCard) editCard.style.display = 'block';
+
+            const defaultSerial = serial ? decodeURIComponent(serial) : formatSerial(currentSerial);
+            const serialInput = document.getElementById('fillSerial');
+            const serialDisplay = document.getElementById('fillSerialDisplay');
+            if (serialInput) {
+                serialInput.value = defaultSerial;
+            }
+            if (serialDisplay) {
+                serialDisplay.textContent = defaultSerial;
+            }
+
+            const detectedColour = defaultSerial.includes('-BL-') ? 'blue' :
+                defaultSerial.includes('-RD-') ? 'red' :
+                defaultSerial.includes('-GN-') ? 'green' :
+                defaultSerial.includes('-YL-') ? 'yellow' : selectedColor;
+
+            const fillColorSelect = document.getElementById('fillColor');
+            if (fillColorSelect) {
+                fillColorSelect.value = detectedColour;
+            }
+            
+            // Load authorized users
+            const users = await loadAuthorizedUsers();
+            const groupLeaderSelect = document.getElementById('groupLeader');
+            const merchHistoryUsers = document.querySelectorAll('.merch-history-user');
+            if (groupLeaderSelect) {
+                groupLeaderSelect.innerHTML = '<option value="">Select leader...</option>' + 
+                    users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+            }
+            merchHistoryUsers.forEach(select => {
+                select.innerHTML = '<option value="">Select user...</option>' + 
+                    users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+            });
+            
+            // Load existing ticket data if editing
+            try {
+                const existingTicket = await readTicketFromSheet(defaultSerial);
+                if (existingTicket) {
+                    populateFormFromTicket(existingTicket);
+                }
+            } catch (error) {
+                console.log('No existing ticket or error loading:', error);
+            }
+
+            const backButton = document.getElementById('fillBack');
+            if (backButton) {
+                backButton.addEventListener('click', () => {
+                    window.location.href = window.location.pathname;
+                });
+            }
+
+            const form = document.getElementById('ticketForm');
+            if (form) {
+                form.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    setFillStatus('Saving to Google Sheets...');
+                    try {
+                        const data = collectFormData(form);
+                        const existingTicket = await readTicketFromSheet(data.serial);
+                        const isUpdate = !!existingTicket;
+                        
+                        // Save to Google Sheets
+                        await saveTicketToSheet(data, isUpdate);
+                        
+                        // Update SKU calculations
+                        if (data.sku && data.qty) {
+                            await updateSKUCalculations(data.sku, data.qty);
+                        }
+                        
+                        setFillStatus('Saved! Generating ticket preview...');
+                        const pageElement = renderFilledTicket(data);
+                        if (!pageElement) {
+                            setFillStatus('Could not render preview.');
+                            return;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        renderTicketQRCodes(pageElement);
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        await downloadFilledTicket(pageElement, data.serial);
+                        setFillStatus('✅ Saved to Google Sheets and download complete!');
+                    } catch (error) {
+                        setFillStatus(`❌ Error: ${error.message}`);
+                        console.error('Save error:', error);
+                    }
+                });
+            }
+        }
+        
+        function populateFormFromTicket(ticket) {
+            if (ticket.Date) document.getElementById('fillDate').value = ticket.Date;
+            if (ticket.Time) document.getElementById('fillTime').value = ticket.Time;
+            if (ticket.SKU) document.getElementById('fillSku').value = ticket.SKU;
+            if (ticket.Qty) document.getElementById('fillQty').value = ticket.Qty;
+            if (ticket.Layers) document.getElementById('fillLayers').value = ticket.Layers;
+            if (ticket.Notes) document.getElementById('fillNotes').value = ticket.Notes;
+            if (ticket.QualityIssueType) document.getElementById('qualityIssueType').value = ticket.QualityIssueType;
+            if (ticket.QualityIssueDesc) document.getElementById('qualityIssueDesc').value = ticket.QualityIssueDesc;
+            if (ticket.GroupLeader) document.getElementById('groupLeader').value = ticket.GroupLeader;
+            
+            // Populate checkboxes
+            (ticket.BandingType || '').split(',').forEach(val => {
+                const checkbox = document.querySelector(`input[name="bandingType"][value="${val.trim()}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+            (ticket.ProductType || '').split(',').forEach(val => {
+                const checkbox = document.querySelector(`input[name="productType"][value="${val.trim()}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+            (ticket.PalletSize || '').split(',').forEach(val => {
+                const checkbox = document.querySelector(`input[name="palletSize"][value="${val.trim()}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+            
+            // Populate merch history
+            const merchHistory = ticket.MerchHistory ? (typeof ticket.MerchHistory === 'string' ? JSON.parse(ticket.MerchHistory) : ticket.MerchHistory) : [];
+            const container = document.getElementById('merchHistoryContainer');
+            if (container && merchHistory.length > 0) {
+                container.innerHTML = '';
+                merchHistory.forEach(entry => {
+                    addMerchHistoryEntry();
+                    const entries = container.querySelectorAll('.merch-history-entry');
+                    const lastEntry = entries[entries.length - 1];
+                    if (lastEntry) {
+                        lastEntry.querySelector('.merch-history-date').value = entry.date || '';
+                        lastEntry.querySelector('.merch-history-user').value = entry.user || '';
+                        lastEntry.querySelector('.merch-history-note').value = entry.note || '';
+                    }
+                });
+            }
+        }
+
+        function collectFormData(form) {
+            const formData = new FormData(form);
+
+            const collectChecked = (name) =>
+                Array.from(form.querySelectorAll(`input[name="${name}"]:checked`))
+                    .map(input => input.value.toLowerCase());
+            
+            const merchHistoryEntries = [];
+            document.querySelectorAll('.merch-history-entry').forEach(entry => {
+                const date = entry.querySelector('.merch-history-date')?.value || '';
+                const user = entry.querySelector('.merch-history-user')?.value || '';
+                const note = entry.querySelector('.merch-history-note')?.value || '';
+                if (date || user || note) {
+                    merchHistoryEntries.push({ date, user, note });
+                }
+            });
+
+            return {
+                serial: formData.get('serial') || formatSerial(currentSerial),
+                color: formData.get('color') || selectedColor,
+                date: formData.get('date') || '',
+                time: formData.get('time') || '',
+                sku: formData.get('sku') || '',
+                qty: formData.get('qty') || '',
+                layers: formData.get('layers') || '',
+                notes: formData.get('notes') || '',
+                bandingType: collectChecked('bandingType'),
+                productType: collectChecked('productType'),
+                palletSize: collectChecked('palletSize'),
+                qualityIssueType: formData.get('qualityIssueType') || '',
+                qualityIssueDesc: formData.get('qualityIssueDesc') || '',
+                groupLeader: formData.get('groupLeader') || '',
+                merchHistory: merchHistoryEntries,
+                modifiedBy: formData.get('groupLeader') || 'System'
+            };
+        }
+
+        function renderFilledTicket(data) {
+            const previewContainer = document.getElementById('fillPreview');
+            if (!previewContainer) {
+                return null;
+            }
+
+            const serialDisplay = document.getElementById('fillSerialDisplay');
+            if (serialDisplay) {
+                serialDisplay.textContent = data.serial;
+            }
+
+            const originalHtml = createTicketHTML(data.serial, data.color, false, data, 'view');
+            const duplicateHtml = createTicketHTML(data.serial, data.color, true, data, 'edit');
+
+            previewContainer.innerHTML = `
+                <div class="page single">
+                    <div class="ticket-row">
+                        ${originalHtml}
+                        ${duplicateHtml}
+                    </div>
+                </div>
+            `;
+
+            return previewContainer.querySelector('.page');
+        }
+
+        async function downloadFilledTicket(pageElement, serial) {
+            if (typeof html2canvas === 'undefined') {
+                alert('Download library not loaded.');
+                return;
+            }
+
+            const canvas = await html2canvas(pageElement, {
+                scale: window.devicePixelRatio > 1 ? window.devicePixelRatio : 2,
+                backgroundColor: '#ffffff',
+                useCORS: true
+            });
+            const link = document.createElement('a');
+            const safeSerial = serial.replace(/[^a-z0-9_-]+/gi, '_');
+            link.download = `${safeSerial || 'ticket'}_completed.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function setFillStatus(message) {
+            const status = document.getElementById('fillStatus');
+            if (status) {
+                status.textContent = message || '';
+            }
+        }
+    </script>
+</body>
+</html>

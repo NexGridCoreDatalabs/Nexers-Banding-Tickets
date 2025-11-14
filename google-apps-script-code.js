@@ -172,9 +172,9 @@ function handleWriteOperation(data, sheet) {
         Logger.log('Appended full row');
       }
       
-      // Update Calculations sheet if SKU provided
-      if (data.sku && data.qty) {
-        updateCalculations(data.sku, parseFloat(data.qty) || 0);
+      // Update Calculations sheet if SKU and productType provided
+      if (data.sku && data.qty && data.productType) {
+        updateCalculations(data.sku, parseFloat(data.qty) || 0, data.productType, 0, false);
       }
       
       return createResponse({ success: true, message: 'Data saved successfully' });
@@ -194,13 +194,17 @@ function handleWriteOperation(data, sheet) {
       let found = false;
       for (let i = 1; i < values.length; i++) {
         if (values[i][0] === serial) {
+          // Get old quantity from existing row (column E = index 4)
+          const oldQty = parseFloat(values[i][4]) || 0;
+          const newQty = parseFloat(data.qty) || 0;
+          
           // Update the row
           const rowNum = i + 1;
           ticketsSheet.getRange(rowNum, 1, 1, data.values.length).setValues([data.values]);
           
-          // Update Calculations if SKU changed
-          if (data.sku && data.qty) {
-            updateCalculations(data.sku, parseFloat(data.qty) || 0);
+          // Update Calculations if SKU and productType provided
+          if (data.sku && data.qty && data.productType) {
+            updateCalculations(data.sku, newQty, data.productType, oldQty, true);
           }
           
           found = true;
@@ -212,9 +216,9 @@ function handleWriteOperation(data, sheet) {
       if (!found) {
         ticketsSheet.appendRow(data.values);
         
-        // Update Calculations sheet if SKU provided
-        if (data.sku && data.qty) {
-          updateCalculations(data.sku, parseFloat(data.qty) || 0);
+        // Update Calculations sheet if SKU and productType provided
+        if (data.sku && data.qty && data.productType) {
+          updateCalculations(data.sku, parseFloat(data.qty) || 0, data.productType, 0, false);
         }
         
         return createResponse({ success: true, message: 'Data saved as new ticket' });
@@ -253,7 +257,9 @@ function doGet(e) {
         serial: e.parameter.serial || '',
         values: values,
         sku: e.parameter.sku || '',
-        qty: e.parameter.qty || ''
+        qty: e.parameter.qty || '',
+        oldQty: e.parameter.oldQty || '0',
+        productType: e.parameter.productType || ''
       };
       
       // Use the same logic as doPost
@@ -354,39 +360,110 @@ function doGet(e) {
 
 /**
  * Update Calculations sheet
+ * Tracks SKU + ProductType combinations separately
+ * @param {string} sku - Product SKU
+ * @param {number} newQty - New quantity (cartons)
+ * @param {string} productType - Product type (e.g., "1kg" or "0.5kg")
+ * @param {number} oldQty - Old quantity (for updates, 0 for new)
+ * @param {boolean} isUpdate - Whether this is an update or new entry
  */
-function updateCalculations(sku, qty) {
+function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
   try {
     const sheet = SpreadsheetApp.openById(SHEET_ID);
     let calcSheet = sheet.getSheetByName('Calculations');
     
     if (!calcSheet) {
-      // Create Calculations sheet if it doesn't exist
+      // Create Calculations sheet with headers
       calcSheet = sheet.insertSheet('Calculations');
-      calcSheet.getRange(1, 1, 1, 2).setValues([['SKU', 'Total Quantity']]);
+      calcSheet.getRange(1, 1, 1, 6).setValues([[
+        'SKU', 
+        'Product Type', 
+        'Total Quantity (Cartons)', 
+        'Total Pieces', 
+        'Last Change', 
+        'Last Updated'
+      ]]);
     }
+    
+    // Determine product type and multiplier
+    const productTypeLower = (productType || '').toLowerCase();
+    const is1KG = productTypeLower.includes('1kg') || productTypeLower.includes('1 kg');
+    const is05KG = productTypeLower.includes('0.5kg') || productTypeLower.includes('0.5 kg') || productTypeLower.includes('0,5kg');
+    
+    let productTypeLabel = '';
+    let multiplier = 0;
+    
+    if (is1KG) {
+      productTypeLabel = '1KG';
+      multiplier = 6;
+    } else if (is05KG) {
+      productTypeLabel = '0.5KG';
+      multiplier = 12;
+    } else {
+      // If no product type specified, skip calculation
+      Logger.log('No valid product type found for SKU: ' + sku);
+      return;
+    }
+    
+    // Create unique key: SKU + ProductType
+    const uniqueKey = sku + '-' + productTypeLabel;
     
     const dataRange = calcSheet.getDataRange();
     const values = dataRange.getValues();
     
-    // Find existing SKU
+    // Find existing entry with matching SKU and ProductType
     let found = false;
     for (let i = 1; i < values.length; i++) {
-      if (values[i][0] === sku) {
-        // Update existing quantity
-        const currentQty = parseFloat(values[i][1]) || 0;
-        calcSheet.getRange(i + 1, 2).setValue(currentQty + qty);
+      const rowSku = values[i][0] || '';
+      const rowProductType = values[i][1] || '';
+      
+      if (rowSku === sku && rowProductType === productTypeLabel) {
+        // Found existing entry
+        const currentQty = parseFloat(values[i][2]) || 0;
+        const currentPieces = parseFloat(values[i][3]) || 0;
+        
+        let updatedQty, updatedPieces, change;
+        
+        if (isUpdate) {
+          // Calculate difference
+          const diff = newQty - oldQty;
+          updatedQty = currentQty + diff;
+          updatedPieces = currentPieces + (diff * multiplier);
+          change = diff;
+        } else {
+          // New entry: add to existing
+          updatedQty = currentQty + newQty;
+          updatedPieces = currentPieces + (newQty * multiplier);
+          change = newQty;
+        }
+        
+        // Update the row
+        const rowNum = i + 1;
+        calcSheet.getRange(rowNum, 3).setValue(updatedQty); // Total Quantity
+        calcSheet.getRange(rowNum, 4).setValue(updatedPieces); // Total Pieces
+        calcSheet.getRange(rowNum, 5).setValue(change >= 0 ? '+' + change : change.toString()); // Last Change
+        calcSheet.getRange(rowNum, 6).setValue(new Date().toISOString()); // Last Updated
+        
         found = true;
         break;
       }
     }
     
     if (!found) {
-      // Add new SKU
-      calcSheet.appendRow([sku, qty]);
+      // Add new entry
+      const pieces = newQty * multiplier;
+      const change = isUpdate ? (newQty - oldQty) : newQty;
+      calcSheet.appendRow([
+        sku,
+        productTypeLabel,
+        newQty,
+        pieces,
+        change >= 0 ? '+' + change : change.toString(),
+        new Date().toISOString()
+      ]);
     }
   } catch (error) {
-    console.error('Error updating calculations:', error);
+    Logger.log('Error updating calculations: ' + error.toString());
   }
 }
 

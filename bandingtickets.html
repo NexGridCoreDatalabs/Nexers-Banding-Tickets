@@ -1440,13 +1440,32 @@
             }
         }
         
-        async function saveTicketToSheet(ticketData, isUpdate = false) {
+        async function saveTicketToSheet(ticketData, isUpdate = false, existingTicket = null) {
             if (!GOOGLE_APPS_SCRIPT_URL) {
                 throw new Error('Google Apps Script URL not configured');
             }
             
             const timestamp = new Date().toISOString();
             const changeEntry = `${timestamp} - ${ticketData.modifiedBy || 'System'}: ${isUpdate ? 'Updated ticket' : 'Created ticket'}`;
+            
+            // Fix timestamps: CreatedAt, FirstModified, LastModified should be different
+            let createdAt, firstModified, lastModified;
+            if (isUpdate && existingTicket) {
+                // Update: preserve original timestamps, update lastModified
+                createdAt = existingTicket.CreatedAt || timestamp;
+                // If FirstModified is empty or same as CreatedAt, set it now (first update)
+                if (!existingTicket.FirstModified || existingTicket.FirstModified === existingTicket.CreatedAt) {
+                    firstModified = timestamp; // First modification
+                } else {
+                    firstModified = existingTicket.FirstModified; // Preserve original first modification
+                }
+                lastModified = timestamp; // Always update last modified
+            } else {
+                // New ticket: all timestamps are the same initially
+                createdAt = timestamp;
+                firstModified = timestamp; // Will be updated on first modification
+                lastModified = timestamp;
+            }
             
             const row = [
                 ticketData.serial,
@@ -1463,10 +1482,10 @@
                 ticketData.qualityIssueDesc || '',
                 ticketData.groupLeader || '',
                 JSON.stringify(ticketData.merchHistory || []),
-                ticketData.createdAt || timestamp,
-                ticketData.firstModified || timestamp,
-                timestamp,
-                isUpdate ? (ticketData.changeHistory || '') + '\n' + changeEntry : changeEntry,
+                createdAt,
+                firstModified,
+                lastModified,
+                isUpdate ? (existingTicket?.ChangeHistory || '') + '\n' + changeEntry : changeEntry,
                 ticketData.modifiedBy || 'System'
             ];
             
@@ -1475,13 +1494,18 @@
                 // Since GET works, we'll use it for writes too
                 const serial = ticketData.serial;
                 
-                // Build query parameters
+                // Build query parameters - include productType and oldQty for calculations
+                const oldQty = isUpdate && existingTicket ? (existingTicket.Qty || '0') : '0';
+                const productType = (ticketData.productType || []).join(',');
+                
                 const params = new URLSearchParams({
                     action: isUpdate ? 'update' : 'append',
                     serial: serial,
                     values: JSON.stringify(row),
                     sku: ticketData.sku || '',
-                    qty: ticketData.qty || ''
+                    qty: ticketData.qty || '',
+                    oldQty: oldQty,
+                    productType: productType
                 });
                 
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
@@ -2058,8 +2082,8 @@
                         }
                         const isUpdate = !!(existingTicket && existingTicket.Serial === data.serial);
                         
-                        // Save to Google Sheets
-                        const saveResult = await saveTicketToSheet(data, isUpdate);
+                        // Save to Google Sheets (pass existingTicket for timestamp handling)
+                        const saveResult = await saveTicketToSheet(data, isUpdate, existingTicket);
                         console.log('Save result:', saveResult);
                         
                         // Update SKU calculations

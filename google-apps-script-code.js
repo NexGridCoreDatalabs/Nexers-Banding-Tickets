@@ -307,6 +307,43 @@ function doGet(e) {
       }
       
       return createResponse({ success: true, data: users });
+    } else if (action === 'login') {
+      const userId = (e.parameter.userId || '').trim();
+      const passcode = (e.parameter.passcode || '').trim();
+      if (!userId || !passcode) {
+        return createResponse({ success: false, error: 'Missing user ID or passcode' });
+      }
+      
+      const usersSheet = sheet.getSheetByName('Authorized Users');
+      if (!usersSheet) {
+        return createResponse({ success: false, error: 'Authorized Users sheet not found' });
+      }
+      
+      const dataRange = usersSheet.getDataRange();
+      const values = dataRange.getValues();
+      
+      for (let i = 1; i < values.length; i++) {
+        if (values[i][0] && values[i][0].toString().trim() === userId) {
+          const storedPasscode = (values[i][2] || '').toString().trim();
+          if (!storedPasscode) {
+            return createResponse({ success: false, error: 'User has no passcode configured' });
+          }
+          
+          if (storedPasscode === passcode) {
+            return createResponse({
+              success: true,
+              data: {
+                id: values[i][0],
+                name: values[i][1] || ''
+              }
+            });
+          }
+          
+          return createResponse({ success: false, error: 'Invalid passcode' });
+        }
+      }
+      
+      return createResponse({ success: false, error: 'User not found' });
     }
     
     return createResponse({ success: false, error: 'Invalid action' });

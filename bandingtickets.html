@@ -462,6 +462,42 @@
             color: #2d3748;
         }
 
+        .logged-in-banner {
+            display: none;
+            margin-bottom: 16px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(14,165,233,0.15));
+            border: 1px solid rgba(14,165,233,0.3);
+            color: #0f172a;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logged-in-banner small {
+            display: block;
+            font-weight: 400;
+            color: #0369a1;
+            margin-top: 4px;
+        }
+
+        .login-status {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #475569;
+        }
+
+        .login-status.error {
+            color: #c53030;
+        }
+
+        .login-status.success {
+            color: #2f855a;
+        }
+
         .fill-intro {
             font-size: 13px;
             color: #4a5568;
@@ -657,10 +693,44 @@
                 </p>
             </div>
         </div>
+
+        <div class="fill-card" id="loginCard" style="display: none;">
+            <h2>Authorized User Login</h2>
+            <p class="fill-intro">Only authorized production leads can edit tickets from this workstation. Please sign in to continue.</p>
+            <form id="loginForm" class="fill-form">
+                <div class="fill-form-group">
+                    <label for="loginUser">Select User</label>
+                    <select id="loginUser" required>
+                        <option value="">Loading authorized users...</option>
+                    </select>
+                </div>
+                <div class="fill-form-group">
+                    <label for="loginPasscode">Passcode</label>
+                    <input type="password" id="loginPasscode" required placeholder="Enter your secure passcode">
+                </div>
+                <div class="fill-actions">
+                    <button type="submit" class="btn-generate" id="loginSubmit">Unlock Editor</button>
+                    <button type="button" class="btn-reset" id="loginResetAccess">Reset Access</button>
+                </div>
+                <div id="loginStatus" class="login-status"></div>
+            </form>
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+                <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
+                    Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
+                </p>
+            </div>
+        </div>
         
         <div class="fill-card" id="editCard">
             <h2>Fill/Edit Ticket Details</h2>
             <p class="fill-intro">Enter the captured information for serial <strong id="fillSerialDisplay"></strong>. When you submit, data is saved to Google Sheets and a finished ticket downloads as a PNG.</p>
+            <div class="logged-in-banner" id="loggedInUserBanner">
+                <div>
+                    <span id="loggedInUserText"></span>
+                    <small>Session locked to this user. All edits are tracked.</small>
+                </div>
+                <button type="button" class="btn-reset" id="logoutUserButton">Log out</button>
+            </div>
             <form id="ticketForm" class="fill-form">
                 <div class="fill-form-grid">
                     <div class="fill-form-group">
@@ -716,18 +786,6 @@
                     <div class="fill-form-group fill-notes-group">
                         <label for="fillNotes">Notes / References</label>
                         <textarea id="fillNotes" name="notes" rows="4" placeholder="Additional remarks..."></textarea>
-                    </div>
-                    
-                    <div class="fill-form-group" style="grid-column: 1 / -1; margin-top: 10px; padding-top: 20px; border-top: 2px solid #e2e8f0; background: #fff5f5; padding: 20px; border-radius: 8px;">
-                        <label style="font-size: 15px; font-weight: 700; margin-bottom: 10px; color: #2d3748;">🔐 User Authentication</label>
-                        <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end;">
-                            <div class="fill-form-group" style="margin-bottom: 0;">
-                                <label for="userSecretCode">Secret Code *</label>
-                                <input type="password" id="userSecretCode" name="userSecretCode" required placeholder="Enter your secret code">
-                            </div>
-                            <button type="button" onclick="changeSecretCode()" class="btn-reset" style="padding: 10px 15px; white-space: nowrap;">Change Code</button>
-                        </div>
-                        <small style="color: #718096; margin-top: 5px; display: block;">Required to submit ticket data</small>
                     </div>
                     
                     <div class="fill-form-group" style="grid-column: 1 / -1; margin-top: 10px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
@@ -861,6 +919,32 @@
         }
         updateSerialDisplay();
 
+        updateLoggedInUserBanner();
+
+        const loginFormEl = document.getElementById('loginForm');
+        if (loginFormEl) {
+            loginFormEl.addEventListener('submit', handleLoginSubmit);
+        }
+
+        const loginResetButton = document.getElementById('loginResetAccess');
+        if (loginResetButton) {
+            loginResetButton.addEventListener('click', () => {
+                clearLoggedInUserSession();
+                localStorage.removeItem(GENERATOR_ACCESS_TOKEN);
+                localStorage.removeItem(USER_SESSION_KEY);
+                alert('Access has been reset. Please reload the page and authenticate again.');
+                showLoginCard();
+            });
+        }
+
+        const logoutButton = document.getElementById('logoutUserButton');
+        if (logoutButton) {
+            logoutButton.addEventListener('click', () => {
+                clearLoggedInUserSession();
+                showLoginCard();
+            });
+        }
+
         function escapeHtml(value) {
             if (value === null || value === undefined) {
                 return '';
@@ -890,21 +974,44 @@
         const DEFAULT_GOOGLE_API_KEY = 'AIzaSyBUSYg78PSD47OWJkzEa4kMQknjROGulLI';
         const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxbujRsVW-vVwt34GVCOlCm145mjgp4uV11-YhSy1CQtXPKiqdlPycfTj7q8GvIHg0a0g/exec';
         
-        // User Authentication - Secret Code
-        // Change this code to control access
-        let USER_SECRET_CODE = localStorage.getItem('userSecretCode') || 'CHANGE_ME_123';
+        const USER_SESSION_KEY = 'bandingUserSession';
+        let loggedInUser = getStoredUser();
         
-        function changeSecretCode() {
-            const newCode = prompt('Enter new secret code:', USER_SECRET_CODE);
-            if (newCode && newCode.trim()) {
-                USER_SECRET_CODE = newCode.trim();
-                localStorage.setItem('userSecretCode', USER_SECRET_CODE);
-                alert('Secret code updated!');
+        function getStoredUser() {
+            try {
+                return JSON.parse(localStorage.getItem(USER_SESSION_KEY)) || null;
+            } catch (error) {
+                return null;
             }
         }
         
-        function validateUserCode(inputCode) {
-            return inputCode === USER_SECRET_CODE;
+        function isUserLoggedIn() {
+            return !!(loggedInUser && loggedInUser.id);
+        }
+        
+        function setLoggedInUser(user) {
+            loggedInUser = user;
+            localStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
+            updateLoggedInUserBanner();
+        }
+        
+        function clearLoggedInUserSession() {
+            loggedInUser = null;
+            localStorage.removeItem(USER_SESSION_KEY);
+            updateLoggedInUserBanner();
+        }
+        
+        function updateLoggedInUserBanner() {
+            const banner = document.getElementById('loggedInUserBanner');
+            const text = document.getElementById('loggedInUserText');
+            if (!banner || !text) return;
+            if (isUserLoggedIn()) {
+                banner.style.display = 'flex';
+                text.textContent = `Signed in as ${loggedInUser.name || loggedInUser.id}`;
+            } else {
+                banner.style.display = 'none';
+                text.textContent = '';
+            }
         }
         
         // Load configuration: Use hardcoded defaults, or localStorage override, or user input
@@ -1208,7 +1315,7 @@
                             <div class="serial-number">
                                 <span>${serialValue}</span>
                                 ${duplicateBadge}
-                            </div>
+                        </div>
                             <div class="ticket-qr" data-serial="${serialValue}" data-duplicate="${isDuplicate}" data-mode="${qrMode}" data-color="${ticketColor}"></div>
                         </div>
                         <div class="ticket-body">
@@ -1529,6 +1636,87 @@
                 return [];
             }
         }
+
+        function populateAuthorizedUserSelects(users) {
+            const loginSelect = document.getElementById('loginUser');
+            if (loginSelect) {
+                loginSelect.innerHTML = '<option value="">Select authorized user...</option>' +
+                    users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+            }
+        }
+
+        async function authenticateUser(userId, passcode) {
+            if (!GOOGLE_APPS_SCRIPT_URL) {
+                throw new Error('Apps Script URL not configured');
+            }
+            const url = `${GOOGLE_APPS_SCRIPT_URL}?action=login&userId=${encodeURIComponent(userId)}&passcode=${encodeURIComponent(passcode)}`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Login failed: ${response.statusText}`);
+            }
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.error || 'Invalid credentials');
+            }
+            return result.data;
+        }
+
+        function showLoginCard() {
+            const loginCard = document.getElementById('loginCard');
+            const editCard = document.getElementById('editCard');
+            if (loginCard) loginCard.style.display = 'block';
+            if (editCard) editCard.style.display = 'none';
+            const fillPreview = document.querySelector('.fill-preview');
+            if (fillPreview) fillPreview.style.display = 'none';
+            const banner = document.getElementById('loggedInUserBanner');
+            if (banner) banner.style.display = 'none';
+        }
+
+        function showEditCard() {
+            const loginCard = document.getElementById('loginCard');
+            const editCard = document.getElementById('editCard');
+            if (loginCard) loginCard.style.display = 'none';
+            if (editCard) editCard.style.display = 'block';
+            updateLoggedInUserBanner();
+        }
+
+        async function handleLoginSubmit(event) {
+            event.preventDefault();
+            const loginStatus = document.getElementById('loginStatus');
+            if (loginStatus) {
+                loginStatus.textContent = '🔐 Verifying credentials...';
+                loginStatus.classList.remove('error', 'success');
+            }
+            const userId = document.getElementById('loginUser')?.value;
+            const passcode = document.getElementById('loginPasscode')?.value;
+            if (!userId || !passcode) {
+                if (loginStatus) {
+                    loginStatus.textContent = '❌ Select a user and enter the passcode.';
+                    loginStatus.classList.add('error');
+                }
+                return;
+            }
+            try {
+                const userData = await authenticateUser(userId, passcode);
+                setLoggedInUser({
+                    id: userData.id || userId,
+                    name: userData.name || userId,
+                    loginAt: new Date().toISOString()
+                });
+                document.getElementById('loginPasscode').value = '';
+                showEditCard();
+                updateLoggedInUserBanner();
+                if (loginStatus) {
+                    loginStatus.textContent = '✅ Login successful. Editor unlocked.';
+                    loginStatus.classList.add('success');
+                }
+            } catch (error) {
+                if (loginStatus) {
+                    loginStatus.textContent = `❌ ${error.message}`;
+                    loginStatus.classList.add('error');
+                }
+            }
+        }
         
         // SKU Calculations are now handled automatically by Apps Script
         async function updateSKUCalculations(sku, qty) {
@@ -1779,7 +1967,12 @@
             const viewCard = document.getElementById('viewCard');
             const editCard = document.getElementById('editCard');
             if (viewCard) viewCard.style.display = 'none';
-            if (editCard) editCard.style.display = 'block';
+            if (isUserLoggedIn()) {
+                showEditCard();
+            } else {
+                showLoginCard();
+            }
+            updateLoggedInUserBanner();
 
             const defaultSerial = serial ? decodeURIComponent(serial) : formatSerial(currentSerial);
             const serialInput = document.getElementById('fillSerial');
@@ -1809,6 +2002,7 @@
             
             // Load authorized users
             const users = await loadAuthorizedUsers();
+            populateAuthorizedUserSelects(users);
             const groupLeaderSelect = document.getElementById('groupLeader');
             const merchHistoryUsers = document.querySelectorAll('.merch-history-user');
             if (groupLeaderSelect) {
@@ -1842,10 +2036,9 @@
                 form.addEventListener('submit', async (event) => {
                     event.preventDefault();
                     
-                    // Validate user secret code
-                    const userCode = document.getElementById('userSecretCode')?.value || '';
-                    if (!validateUserCode(userCode)) {
-                        setFillStatus('❌ Invalid secret code. Access denied.');
+                    if (!isUserLoggedIn()) {
+                        setFillStatus('❌ Please log in before editing tickets.');
+                        showLoginCard();
                         return;
                     }
                     
@@ -1938,6 +2131,9 @@
         }
 
         function collectFormData(form) {
+            if (!isUserLoggedIn()) {
+                throw new Error('Session expired. Please log in again.');
+            }
             const formData = new FormData(form);
 
             const collectChecked = (name) =>
@@ -1970,7 +2166,7 @@
                 qualityIssueDesc: formData.get('qualityIssueDesc') || '',
                 groupLeader: formData.get('groupLeader') || '',
                 merchHistory: merchHistoryEntries,
-                modifiedBy: formData.get('groupLeader') || 'System'
+                modifiedBy: loggedInUser?.name || loggedInUser?.id || 'Unknown User'
             };
         }
 

@@ -381,8 +381,13 @@ function formatTimestamp(timestamp) {
       return n + (s[(v - 20) % 10] || s[v] || s[0]);
     }
     
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
+    // padStart alternative for Apps Script
+    function padZero(num) {
+      return num < 10 ? '0' + num : String(num);
+    }
+    
+    const hours = padZero(date.getHours());
+    const minutes = padZero(date.getMinutes());
     
     return dayName + ' ' + getOrdinal(day) + ' ' + month + ', ' + year + ' ' + hours + minutes + 'HRS';
   } catch (e) {

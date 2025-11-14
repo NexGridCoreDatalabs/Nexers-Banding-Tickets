@@ -359,6 +359,38 @@ function doGet(e) {
 }
 
 /**
+ * Format timestamp to readable format: "Friday 11th Oct, 2025 0024HRS"
+ */
+function formatTimestamp(timestamp) {
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return timestamp;
+    
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const dayName = days[date.getDay()];
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    
+    // Get ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+    function getOrdinal(n) {
+      const s = ['th', 'st', 'nd', 'rd'];
+      const v = n % 100;
+      return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    }
+    
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return dayName + ' ' + getOrdinal(day) + ' ' + month + ', ' + year + ' ' + hours + minutes + 'HRS';
+  } catch (e) {
+    return timestamp;
+  }
+}
+
+/**
  * Update Calculations sheet
  * Tracks SKU + ProductType combinations separately
  * @param {string} sku - Product SKU
@@ -383,6 +415,30 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
         'Last Change', 
         'Last Updated'
       ]]);
+    } else {
+      // Check if old structure exists (only 2 columns: SKU, Total Quantity)
+      const headers = calcSheet.getRange(1, 1, 1, calcSheet.getLastColumn()).getValues()[0];
+      if (headers.length === 2 && headers[0] === 'SKU' && headers[1] === 'Total Quantity') {
+        // Migrate old structure to new structure
+        Logger.log('Migrating old Calculations sheet structure...');
+        const dataRange = calcSheet.getDataRange();
+        const oldData = dataRange.getValues();
+        
+        // Clear and recreate with new headers
+        calcSheet.clear();
+        calcSheet.getRange(1, 1, 1, 6).setValues([[
+          'SKU', 
+          'Product Type', 
+          'Total Quantity (Cartons)', 
+          'Total Pieces', 
+          'Last Change', 
+          'Last Updated'
+        ]]);
+        
+        // Note: Old entries without ProductType cannot be migrated automatically
+        // They will be recreated when tickets with those SKUs are saved/updated
+        Logger.log('Migration complete. Old entries will be recreated when tickets are updated.');
+      }
     }
     
     // Determine product type and multiplier
@@ -442,7 +498,7 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
         calcSheet.getRange(rowNum, 3).setValue(updatedQty); // Total Quantity
         calcSheet.getRange(rowNum, 4).setValue(updatedPieces); // Total Pieces
         calcSheet.getRange(rowNum, 5).setValue(change >= 0 ? '+' + change : change.toString()); // Last Change
-        calcSheet.getRange(rowNum, 6).setValue(new Date().toISOString()); // Last Updated
+        calcSheet.getRange(rowNum, 6).setValue(formatTimestamp(new Date().toISOString())); // Last Updated (formatted)
         
         found = true;
         break;
@@ -459,7 +515,7 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
         newQty,
         pieces,
         change >= 0 ? '+' + change : change.toString(),
-        new Date().toISOString()
+        formatTimestamp(new Date().toISOString()) // Formatted timestamp
       ]);
     }
   } catch (error) {

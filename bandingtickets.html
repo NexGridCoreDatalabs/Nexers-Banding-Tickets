@@ -919,8 +919,6 @@
         }
         updateSerialDisplay();
 
-        updateLoggedInUserBanner();
-
         const loginFormEl = document.getElementById('loginForm');
         if (loginFormEl) {
             loginFormEl.addEventListener('submit', handleLoginSubmit);
@@ -1013,6 +1011,8 @@
                 text.textContent = '';
             }
         }
+
+        updateLoggedInUserBanner();
         
         // Load configuration: Use hardcoded defaults, or localStorage override, or user input
         let GOOGLE_SHEET_ID = DEFAULT_GOOGLE_SHEET_ID || localStorage.getItem('googleSheetId') || '';

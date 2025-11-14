@@ -412,37 +412,57 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
     if (!calcSheet) {
       // Create Calculations sheet with headers
       calcSheet = sheet.insertSheet('Calculations');
-      calcSheet.getRange(1, 1, 1, 6).setValues([[
+      calcSheet.getRange(1, 1, 1, 14).setValues([[
         'SKU', 
         'Product Type', 
         'Total Quantity (Cartons)', 
         'Total Pieces', 
+        'Number of Tickets',
+        'Average Quantity per Ticket',
+        'First Ticket Date',
+        'Last Ticket Date',
+        'Total Layers',
+        'Quality Issues Count',
+        'Group Leaders',
+        'Banding Types',
         'Last Change', 
         'Last Updated'
       ]]);
     } else {
-      // Check if old structure exists (only 2 columns: SKU, Total Quantity)
+      // Check if old structure exists and migrate if needed
       const headers = calcSheet.getRange(1, 1, 1, calcSheet.getLastColumn()).getValues()[0];
-      if (headers.length === 2 && headers[0] === 'SKU' && headers[1] === 'Total Quantity') {
-        // Migrate old structure to new structure
+      const headerCount = headers.length;
+      
+      // If old structure (6 columns or less), migrate to new structure
+      if (headerCount <= 6) {
         Logger.log('Migrating old Calculations sheet structure...');
+        
+        // Save existing data (skip header row)
         const dataRange = calcSheet.getDataRange();
-        const oldData = dataRange.getValues();
+        const allData = dataRange.getValues();
+        const oldData = allData.length > 1 ? allData.slice(1) : [];
         
         // Clear and recreate with new headers
         calcSheet.clear();
-        calcSheet.getRange(1, 1, 1, 6).setValues([[
+        calcSheet.getRange(1, 1, 1, 14).setValues([[
           'SKU', 
           'Product Type', 
           'Total Quantity (Cartons)', 
           'Total Pieces', 
+          'Number of Tickets',
+          'Average Quantity per Ticket',
+          'First Ticket Date',
+          'Last Ticket Date',
+          'Total Layers',
+          'Quality Issues Count',
+          'Group Leaders',
+          'Banding Types',
           'Last Change', 
           'Last Updated'
         ]]);
         
-        // Note: Old entries without ProductType cannot be migrated automatically
-        // They will be recreated when tickets with those SKUs are saved/updated
-        Logger.log('Migration complete. Old entries will be recreated when tickets are updated.');
+        // Note: Old entries will be recalculated from Tickets sheet when tickets are saved/updated
+        Logger.log('Migration complete. Old entries will be recalculated from Tickets sheet.');
       }
     }
     
@@ -466,44 +486,114 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
       return;
     }
     
-    // Create unique key: SKU + ProductType
-    const uniqueKey = sku + '-' + productTypeLabel;
+    // Query all tickets for this SKU + ProductType combination to calculate all metrics
+    const ticketsSheet = sheet.getSheetByName('Tickets');
+    if (!ticketsSheet) {
+      Logger.log('Tickets sheet not found');
+      return;
+    }
     
+    const ticketsDataRange = ticketsSheet.getDataRange();
+    const ticketsValues = ticketsDataRange.getValues();
+    
+    // Column indices in Tickets sheet (0-based)
+    // Serial=0, Date=1, Time=2, SKU=3, Qty=4, Layers=5, BandingType=6, ProductType=7, 
+    // PalletSize=8, Notes=9, QualityIssueType=10, QualityIssueDesc=11, GroupLeader=12, etc.
+    
+    // Filter tickets matching SKU and ProductType
+    const matchingTickets = [];
+    for (let i = 1; i < ticketsValues.length; i++) { // Skip header row
+      const rowSku = (ticketsValues[i][3] || '').toString().trim();
+      const rowProductType = (ticketsValues[i][7] || '').toString().toLowerCase();
+      
+      // Check if SKU matches and ProductType contains the label
+      if (rowSku === sku && (rowProductType.includes('1kg') || rowProductType.includes('0.5kg'))) {
+        // Verify it matches our specific product type
+        const matches1KG = productTypeLabel === '1KG' && (rowProductType.includes('1kg') || rowProductType.includes('1 kg'));
+        const matches05KG = productTypeLabel === '0.5KG' && (rowProductType.includes('0.5kg') || rowProductType.includes('0.5 kg') || rowProductType.includes('0,5kg'));
+        
+        if (matches1KG || matches05KG) {
+          matchingTickets.push({
+            date: ticketsValues[i][1] || '',
+            qty: parseFloat(ticketsValues[i][4]) || 0,
+            layers: parseFloat(ticketsValues[i][5]) || 0,
+            bandingType: (ticketsValues[i][6] || '').toString().trim(),
+            qualityIssueType: (ticketsValues[i][10] || '').toString().trim(),
+            groupLeader: (ticketsValues[i][12] || '').toString().trim()
+          });
+        }
+      }
+    }
+    
+    // Calculate all metrics
+    const numTickets = matchingTickets.length;
+    const totalQty = matchingTickets.reduce((sum, t) => sum + t.qty, 0);
+    const avgQty = numTickets > 0 ? (totalQty / numTickets).toFixed(2) : 0;
+    const totalLayers = matchingTickets.reduce((sum, t) => sum + t.layers, 0);
+    const qualityIssuesCount = matchingTickets.filter(t => t.qualityIssueType !== '').length;
+    
+    // Get unique group leaders
+    const groupLeadersSet = new Set();
+    matchingTickets.forEach(t => {
+      if (t.groupLeader !== '') {
+        groupLeadersSet.add(t.groupLeader);
+      }
+    });
+    const groupLeaders = Array.from(groupLeadersSet).join(', ');
+    
+    // Get unique banding types
+    const bandingTypesSet = new Set();
+    matchingTickets.forEach(t => {
+      if (t.bandingType !== '') {
+        // BandingType might be comma-separated, so split it
+        const types = t.bandingType.split(',').map(bt => bt.trim()).filter(bt => bt !== '');
+        types.forEach(bt => bandingTypesSet.add(bt));
+      }
+    });
+    const bandingTypes = Array.from(bandingTypesSet).join(', ');
+    
+    // Get first and last ticket dates
+    const dates = matchingTickets.map(t => t.date).filter(d => d !== '');
+    let firstDate = '';
+    let lastDate = '';
+    if (dates.length > 0) {
+      // Sort dates (assuming YYYY-MM-DD format)
+      dates.sort();
+      firstDate = dates[0];
+      lastDate = dates[dates.length - 1];
+    }
+    
+    // Calculate total pieces
+    const totalPieces = totalQty * multiplier;
+    
+    // Calculate last change
+    const change = isUpdate ? (newQty - oldQty) : newQty;
+    const lastChange = change >= 0 ? '+' + change : change.toString();
+    
+    // Find existing entry or create new
     const dataRange = calcSheet.getDataRange();
     const values = dataRange.getValues();
     
-    // Find existing entry with matching SKU and ProductType
     let found = false;
     for (let i = 1; i < values.length; i++) {
       const rowSku = values[i][0] || '';
       const rowProductType = values[i][1] || '';
       
       if (rowSku === sku && rowProductType === productTypeLabel) {
-        // Found existing entry
-        const currentQty = parseFloat(values[i][2]) || 0;
-        const currentPieces = parseFloat(values[i][3]) || 0;
-        
-        let updatedQty, updatedPieces, change;
-        
-        if (isUpdate) {
-          // Calculate difference
-          const diff = newQty - oldQty;
-          updatedQty = currentQty + diff;
-          updatedPieces = currentPieces + (diff * multiplier);
-          change = diff;
-        } else {
-          // New entry: add to existing
-          updatedQty = currentQty + newQty;
-          updatedPieces = currentPieces + (newQty * multiplier);
-          change = newQty;
-        }
-        
-        // Update the row
+        // Update existing row
         const rowNum = i + 1;
-        calcSheet.getRange(rowNum, 3).setValue(updatedQty); // Total Quantity
-        calcSheet.getRange(rowNum, 4).setValue(updatedPieces); // Total Pieces
-        calcSheet.getRange(rowNum, 5).setValue(change >= 0 ? '+' + change : change.toString()); // Last Change
-        calcSheet.getRange(rowNum, 6).setValue(formatTimestamp(new Date().toISOString())); // Last Updated (formatted)
+        calcSheet.getRange(rowNum, 3).setValue(totalQty); // Total Quantity (Cartons)
+        calcSheet.getRange(rowNum, 4).setValue(totalPieces); // Total Pieces
+        calcSheet.getRange(rowNum, 5).setValue(numTickets); // Number of Tickets
+        calcSheet.getRange(rowNum, 6).setValue(avgQty); // Average Quantity per Ticket
+        calcSheet.getRange(rowNum, 7).setValue(firstDate); // First Ticket Date
+        calcSheet.getRange(rowNum, 8).setValue(lastDate); // Last Ticket Date
+        calcSheet.getRange(rowNum, 9).setValue(totalLayers); // Total Layers
+        calcSheet.getRange(rowNum, 10).setValue(qualityIssuesCount); // Quality Issues Count
+        calcSheet.getRange(rowNum, 11).setValue(groupLeaders); // Group Leaders
+        calcSheet.getRange(rowNum, 12).setValue(bandingTypes); // Banding Types
+        calcSheet.getRange(rowNum, 13).setValue(lastChange); // Last Change
+        calcSheet.getRange(rowNum, 14).setValue(formatTimestamp(new Date().toISOString())); // Last Updated
         
         found = true;
         break;
@@ -512,15 +602,21 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
     
     if (!found) {
       // Add new entry
-      const pieces = newQty * multiplier;
-      const change = isUpdate ? (newQty - oldQty) : newQty;
       calcSheet.appendRow([
         sku,
         productTypeLabel,
-        newQty,
-        pieces,
-        change >= 0 ? '+' + change : change.toString(),
-        formatTimestamp(new Date().toISOString()) // Formatted timestamp
+        totalQty,
+        totalPieces,
+        numTickets,
+        avgQty,
+        firstDate,
+        lastDate,
+        totalLayers,
+        qualityIssuesCount,
+        groupLeaders,
+        bandingTypes,
+        lastChange,
+        formatTimestamp(new Date().toISOString())
       ]);
     }
   } catch (error) {

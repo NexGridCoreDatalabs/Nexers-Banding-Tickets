@@ -1996,18 +1996,19 @@
                                 ${(ticket.SachetType || ticket.TabletType) ? `
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40; margin-top: 8px;">
                                     <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Carton to Sachet/Tablet Conversion:</strong></div>
-                                    <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">100 Cartons = 1,200 Sachets = 1,200 Tablet Pieces</div>
+                                    <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">1 Carton = 12 Sachets + 12 Tablet Pieces</div>
+                                    <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">100 Cartons = 1,200 Sachets + 1,200 Tablet Pieces</div>
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
                                         ${ticket.SachetType ? `
                                         <div>
                                             <div style="font-size: 12px; color: #718096; margin-bottom: 3px;">Sachets</div>
-                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${((parseFloat(ticket.Qty || 0) / 100) * 1200).toLocaleString()}</div>
+                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${(parseFloat(ticket.Qty || 0) * 12).toLocaleString()}</div>
                                         </div>
                                         ` : ''}
                                         ${ticket.TabletType ? `
                                         <div>
                                             <div style="font-size: 12px; color: #718096; margin-bottom: 3px;">Tablet Pieces</div>
-                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${((parseFloat(ticket.Qty || 0) / 100) * 1200).toLocaleString()}</div>
+                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${(parseFloat(ticket.Qty || 0) * 12).toLocaleString()}</div>
                                         </div>
                                         ` : ''}
                                     </div>

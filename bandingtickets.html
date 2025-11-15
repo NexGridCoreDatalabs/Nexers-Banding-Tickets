@@ -1653,8 +1653,43 @@
                     normalizedTicket.Time = ticket.Time || ticket['Time'] || ticket.time || ticket.TIME || '';
                 }
                 
-                console.log('Normalized Date:', normalizedTicket.Date);
-                console.log('Normalized Time:', normalizedTicket.Time);
+                // Convert Date and Time from ISO strings to proper format
+                // Date comes as ISO string like "2025-11-14T21:00:00.000Z" - extract just the date part
+                // Time comes as ISO string like "1899-12-30T18:50:44.000Z" - extract just the time part
+                // (1899-12-30 is Excel/Sheets epoch for time-only values)
+                if (normalizedTicket.Date) {
+                    try {
+                        const dateObj = new Date(normalizedTicket.Date);
+                        if (!isNaN(dateObj.getTime())) {
+                            // Extract YYYY-MM-DD format
+                            const year = dateObj.getFullYear();
+                            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                            const day = String(dateObj.getDate()).padStart(2, '0');
+                            normalizedTicket.Date = `${year}-${month}-${day}`;
+                            console.log('Extracted Date:', normalizedTicket.Date);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing Date:', e);
+                    }
+                }
+                
+                if (normalizedTicket.Time) {
+                    try {
+                        const timeObj = new Date(normalizedTicket.Time);
+                        if (!isNaN(timeObj.getTime())) {
+                            // Extract HH:MM format (24-hour)
+                            const hours = String(timeObj.getHours()).padStart(2, '0');
+                            const minutes = String(timeObj.getMinutes()).padStart(2, '0');
+                            normalizedTicket.Time = `${hours}:${minutes}`;
+                            console.log('Extracted Time:', normalizedTicket.Time);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing Time:', e);
+                    }
+                }
+                
+                console.log('Final Normalized Date:', normalizedTicket.Date);
+                console.log('Final Normalized Time:', normalizedTicket.Time);
                 
                 // Ensure SachetType and TabletType are accessible
                 if (ticket.SachetType !== undefined) normalizedTicket.SachetType = ticket.SachetType;

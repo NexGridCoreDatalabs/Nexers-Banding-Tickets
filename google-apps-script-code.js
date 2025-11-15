@@ -530,14 +530,12 @@ function recalculateAllCalculations(sheet) {
     }
     
     // Create comprehensive headers with Date and analytics
-    calcSheet.getRange(1, 1, 1, 20).setValues([[
+    calcSheet.getRange(1, 1, 1, 18).setValues([[
       'Date',
       'SKU', 
       'Product Type', 
       'Total Quantity (Cartons)', 
-      'Total Pieces',
-      'Total Sachets',
-      'Total Tablet Pieces',
+      'Total Pieces', 
       'Number of Tickets',
       'Average Quantity per Ticket',
       'Total Layers',
@@ -554,7 +552,7 @@ function recalculateAllCalculations(sheet) {
     ]]);
     
     // Format header row
-    const headerRange = calcSheet.getRange(1, 1, 1, 20);
+    const headerRange = calcSheet.getRange(1, 1, 1, 18);
     headerRange.setFontWeight('bold');
     headerRange.setBackground('#4285f4');
     headerRange.setFontColor('#ffffff');
@@ -563,6 +561,8 @@ function recalculateAllCalculations(sheet) {
     // Get all tickets
     const ticketsDataRange = ticketsSheet.getDataRange();
     const ticketsValues = ticketsDataRange.getValues();
+    
+    Logger.log(`Found ${ticketsValues.length - 1} tickets in Tickets sheet`);
     
     // Column indices: Serial=0, Date=1, Time=2, SKU=3, Qty=4, Layers=5, BandingType=6, 
     // ProductType=7, PalletSize=8, Notes=9, QualityIssueType=10, QualityIssueDesc=11, 
@@ -596,7 +596,10 @@ function recalculateAllCalculations(sheet) {
         continue; // Skip if no valid product type
       }
       
-      if (!date || !sku) continue;
+      if (!date || !sku) {
+        Logger.log(`Skipping ticket ${i}: missing date or SKU (date: ${date}, sku: ${sku})`);
+        continue;
+      }
       
       // Create unique key: Date + SKU + ProductType
       const key = date + '|' + sku + '|' + productTypeLabel;
@@ -609,8 +612,6 @@ function recalculateAllCalculations(sheet) {
           multiplier: multiplier,
           totalQty: 0,
           totalPieces: 0,
-          totalSachets: 0,
-          totalTablets: 0,
           numTickets: 0,
           totalLayers: 0,
           qualityIssuesCount: 0,
@@ -630,15 +631,13 @@ function recalculateAllCalculations(sheet) {
       group.numTickets += 1;
       group.totalLayers += parseFloat(ticketsValues[i][5]) || 0;
       
-      // Calculate sachets and tablets (1 carton = 12 sachets + 12 tablets)
+      // Track sachet and tablet types
       const sachetType = ticketsValues[i][13] || '';
       const tabletType = ticketsValues[i][14] || '';
       if (sachetType) {
-        group.totalSachets += qty * 12;
         group.sachetTypes.add(sachetType);
       }
       if (tabletType) {
-        group.totalTablets += qty * 12;
         group.tabletTypes.add(tabletType);
       }
       
@@ -671,6 +670,8 @@ function recalculateAllCalculations(sheet) {
       }
     }
     
+    Logger.log(`Grouped into ${Object.keys(groupedData).length} unique Date+SKU+ProductType combinations`);
+    
     // Convert to array and sort by Date, then SKU
     const sortedData = Object.values(groupedData).sort((a, b) => {
       if (a.date !== b.date) {
@@ -678,6 +679,8 @@ function recalculateAllCalculations(sheet) {
       }
       return a.sku.localeCompare(b.sku); // Then by SKU
     });
+    
+    Logger.log(`Sorted ${sortedData.length} groups`);
     
     // Write data to sheet
     const rows = sortedData.map(group => {
@@ -689,8 +692,6 @@ function recalculateAllCalculations(sheet) {
         group.productType,
         group.totalQty,
         group.totalPieces,
-        group.totalSachets,
-        group.totalTablets,
         group.numTickets,
         avgQty,
         group.totalLayers,
@@ -708,16 +709,21 @@ function recalculateAllCalculations(sheet) {
     });
     
     if (rows.length > 0) {
-      calcSheet.getRange(2, 1, rows.length, 20).setValues(rows);
+      calcSheet.getRange(2, 1, rows.length, 18).setValues(rows);
+      Logger.log(`Writing ${rows.length} rows to Calculations sheet`);
+    } else {
+      Logger.log('No data rows to write - check if tickets exist in Tickets sheet');
     }
     
     // Apply filters and sorting
-    const dataRange = calcSheet.getDataRange();
-    calcSheet.setAutoFilter(1, 1, rows.length + 1, 20);
-    
-    // Sort by Date (column 1), then SKU (column 2)
-    const sortRange = calcSheet.getRange(2, 1, rows.length, 20);
-    sortRange.sort([{column: 1, ascending: true}, {column: 2, ascending: true}]);
+    if (rows.length > 0) {
+      const dataRange = calcSheet.getDataRange();
+      calcSheet.setAutoFilter(1, 1, rows.length + 1, 18);
+      
+      // Sort by Date (column 1), then SKU (column 2)
+      const sortRange = calcSheet.getRange(2, 1, rows.length, 18);
+      sortRange.sort([{column: 1, ascending: true}, {column: 2, ascending: true}]);
+    }
     
     return createResponse({ 
       success: true, 
@@ -752,9 +758,7 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
         'SKU', 
         'Product Type', 
         'Total Quantity (Cartons)', 
-        'Total Pieces',
-        'Total Sachets',
-        'Total Tablet Pieces',
+        'Total Pieces', 
         'Number of Tickets',
         'Average Quantity per Ticket',
         'Total Layers',
@@ -792,31 +796,29 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
         
         // Clear and recreate with new headers
         calcSheet.clear();
-        calcSheet.getRange(1, 1, 1, 20).setValues([[
-          'Date',
-          'SKU', 
-          'Product Type', 
-          'Total Quantity (Cartons)', 
-          'Total Pieces',
-          'Total Sachets',
-          'Total Tablet Pieces',
-          'Number of Tickets',
-          'Average Quantity per Ticket',
-          'Total Layers',
-          'Quality Issues Count',
-          'Group Leaders',
-          'Banding Types',
-          'First Ticket Time',
-          'Last Ticket Time',
-          'Sachet Type',
-          'Tablet Type',
-          'Last Change', 
-          'Last Updated',
-          'Serial Numbers'
-        ]]);
-        
-        // Format header row
-        const headerRange = calcSheet.getRange(1, 1, 1, 20);
+      calcSheet.getRange(1, 1, 1, 18).setValues([[
+        'Date',
+        'SKU', 
+        'Product Type', 
+        'Total Quantity (Cartons)', 
+        'Total Pieces', 
+        'Number of Tickets',
+        'Average Quantity per Ticket',
+        'Total Layers',
+        'Quality Issues Count',
+        'Group Leaders',
+        'Banding Types',
+        'First Ticket Time',
+        'Last Ticket Time',
+        'Sachet Type',
+        'Tablet Type',
+        'Last Change', 
+        'Last Updated',
+        'Serial Numbers'
+      ]]);
+      
+      // Format header row
+      const headerRange = calcSheet.getRange(1, 1, 1, 18);
         headerRange.setFontWeight('bold');
         headerRange.setBackground('#4285f4');
         headerRange.setFontColor('#ffffff');

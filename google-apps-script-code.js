@@ -574,7 +574,28 @@ function recalculateAllCalculations(sheet) {
     const groupedData = {};
     
     for (let i = 1; i < ticketsValues.length; i++) {
-      const date = ticketsValues[i][1] || '';
+      // Handle date - could be Date object, ISO string, or YYYY-MM-DD string
+      let dateValue = ticketsValues[i][1];
+      let dateStr = '';
+      
+      if (dateValue instanceof Date) {
+        // Convert Date object to YYYY-MM-DD string
+        const year = dateValue.getFullYear();
+        const month = String(dateValue.getMonth() + 1).padStart(2, '0');
+        const day = String(dateValue.getDate()).padStart(2, '0');
+        dateStr = year + '-' + month + '-' + day;
+      } else if (typeof dateValue === 'string') {
+        // If it's an ISO string, extract the date part
+        if (dateValue.includes('T')) {
+          dateStr = dateValue.split('T')[0];
+        } else {
+          dateStr = dateValue;
+        }
+      } else if (dateValue) {
+        // Try to convert to string
+        dateStr = dateValue.toString();
+      }
+      
       const sku = (ticketsValues[i][3] || '').toString().trim();
       const productType = (ticketsValues[i][7] || '').toString().toLowerCase();
       const qty = parseFloat(ticketsValues[i][4]) || 0;
@@ -598,17 +619,17 @@ function recalculateAllCalculations(sheet) {
         continue; // Skip if no valid product type
       }
       
-      if (!date || !sku) {
-        Logger.log(`Skipping ticket ${i}: missing date or SKU (date: ${date}, sku: ${sku})`);
+      if (!dateStr || !sku) {
+        Logger.log(`Skipping ticket ${i}: missing date or SKU (date: ${dateStr}, sku: ${sku})`);
         continue;
       }
       
       // Create unique key: Date + SKU + ProductType
-      const key = date + '|' + sku + '|' + productTypeLabel;
+      const key = dateStr + '|' + sku + '|' + productTypeLabel;
       
       if (!groupedData[key]) {
         groupedData[key] = {
-          date: date,
+          date: dateStr,
           sku: sku,
           productType: productTypeLabel,
           multiplier: multiplier,

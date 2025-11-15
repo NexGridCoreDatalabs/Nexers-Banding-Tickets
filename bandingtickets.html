@@ -1270,29 +1270,72 @@
                 
                 // Try to parse date (could be YYYY-MM-DD or other formats)
                 let date;
-                if (dateStr instanceof Date) {
-                    date = dateStr;
+                
+                // First, try to parse as YYYY-MM-DD format explicitly (most common from Google Sheets)
+                if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    // Explicit YYYY-MM-DD format - parse directly to avoid timezone issues
+                    const dateParts = dateStr.split('-');
+                    const year = parseInt(dateParts[0], 10);
+                    const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed
+                    const day = parseInt(dateParts[2], 10);
+                    
+                    if (hasValidTime) {
+                        date = new Date(year, month, day, hours, minutes);
+                    } else {
+                        date = new Date(year, month, day);
+                    }
+                } else if (dateStr instanceof Date) {
+                    date = new Date(dateStr);
                     if (hasValidTime) {
                         date.setHours(hours, minutes, 0, 0);
                     }
-                } else if (dateStr.includes('T') || dateStr.includes(' ')) {
-                    // ISO format or date-time string
-                    date = new Date(dateStr);
-                    if (hasValidTime && !isNaN(date.getTime())) {
-                        date.setHours(hours, minutes, 0, 0);
+                } else if (typeof dateStr === 'string' && (dateStr.includes('T') || dateStr.includes(' '))) {
+                    // ISO format or date-time string - be careful with timezone
+                    // Try to extract YYYY-MM-DD part first
+                    const dateMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})/);
+                    if (dateMatch) {
+                        const dateParts = dateMatch[1].split('-');
+                        const year = parseInt(dateParts[0], 10);
+                        const month = parseInt(dateParts[1], 10) - 1;
+                        const day = parseInt(dateParts[2], 10);
+                        
+                        if (hasValidTime) {
+                            date = new Date(year, month, day, hours, minutes);
+                        } else {
+                            date = new Date(year, month, day);
+                        }
+                    } else {
+                        // Fallback to Date constructor
+                        date = new Date(dateStr);
+                        if (hasValidTime && !isNaN(date.getTime())) {
+                            date.setHours(hours, minutes, 0, 0);
+                        }
+                    }
+                } else if (typeof dateStr === 'string') {
+                    // Try to parse as YYYY-MM-DD format
+                    const dateParts = dateStr.split('-');
+                    if (dateParts.length === 3) {
+                        const year = parseInt(dateParts[0], 10);
+                        const month = parseInt(dateParts[1], 10) - 1;
+                        const day = parseInt(dateParts[2], 10);
+                        
+                        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                            if (hasValidTime) {
+                                date = new Date(year, month, day, hours, minutes);
+                            } else {
+                                date = new Date(year, month, day);
+                            }
+                        } else {
+                            // Fallback
+                            date = new Date(dateStr);
+                        }
+                    } else {
+                        // Fallback
+                        date = new Date(dateStr);
                     }
                 } else {
-                    // Assume YYYY-MM-DD format
-                    const dateParts = dateStr.split('-');
-                    if (dateParts.length !== 3) {
-                        return dateStr; // Return as-is if not valid format
-                    }
-                    const [year, month, day] = dateParts.map(Number);
-                    if (hasValidTime) {
-                        date = new Date(year, month - 1, day, hours, minutes);
-                    } else {
-                        date = new Date(year, month - 1, day);
-                    }
+                    // Fallback
+                    date = new Date(dateStr);
                 }
                 
                 if (isNaN(date.getTime())) {
@@ -2095,7 +2138,7 @@
                 <div style="max-width: 900px; margin: 0 auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     <div style="border-left: 6px solid ${colors.border}; padding-left: 20px; margin-bottom: 30px;">
                         <h2 style="margin: 0 0 5px 0; color: ${colors.text}; font-size: 28px; font-weight: 700;">${escapeHtml(serial)}</h2>
-                        <p style="margin: 0; color: #718096; font-size: 14px;">Ticket Details (Read-Only)</p>
+                        <p style="margin: 0; color: #718096; font-size: 14px;">Ticket Details</p>
                     </div>
                     
                     <div style="display: grid; gap: 20px; margin-bottom: 30px;">

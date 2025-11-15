@@ -1220,10 +1220,10 @@
         }
         
         function formatDateAndTime(dateStr, timeStr) {
-            if (!dateStr) return '';
+            if (!dateStr) return 'N/A';
             try {
-                // Check if timeStr is valid (not empty, not "00:00" unless it's actually midnight)
-                const hasValidTime = timeStr && timeStr.trim() !== '' && timeStr.trim() !== '00:00';
+                // Check if timeStr is valid (not empty, not "00:00")
+                const hasValidTime = timeStr && timeStr.trim() !== '' && timeStr.trim() !== '00:00' && timeStr.trim() !== '0:00';
                 
                 // Try to parse date (could be YYYY-MM-DD or other formats)
                 let date;
@@ -1232,16 +1232,40 @@
                     date = new Date(dateStr);
                 } else {
                     // Assume YYYY-MM-DD format
-                    const [year, month, day] = dateStr.split('-').map(Number);
+                    const dateParts = dateStr.split('-');
+                    if (dateParts.length !== 3) {
+                        return dateStr; // Return as-is if not valid format
+                    }
+                    const [year, month, day] = dateParts.map(Number);
                     if (hasValidTime) {
-                        const [hours, minutes] = timeStr.split(':').map(Number);
-                        date = new Date(year, month - 1, day, hours || 0, minutes || 0);
+                        const timeParts = timeStr.split(':');
+                        const hours = timeParts.length > 0 ? parseInt(timeParts[0], 10) || 0 : 0;
+                        const minutes = timeParts.length > 1 ? parseInt(timeParts[1], 10) || 0 : 0;
+                        date = new Date(year, month - 1, day, hours, minutes);
                     } else {
                         date = new Date(year, month - 1, day);
                     }
                 }
                 
-                if (isNaN(date.getTime())) return dateStr + (hasValidTime ? ' ' + timeStr : '');
+                if (isNaN(date.getTime())) {
+                    // If parsing failed, return formatted date string if possible
+                    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        const [year, month, day] = dateStr.split('-').map(Number);
+                        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const tempDate = new Date(year, month - 1, day);
+                        if (!isNaN(tempDate.getTime())) {
+                            const dayName = days[tempDate.getDay()];
+                            const getOrdinal = (n) => {
+                                const s = ['th', 'st', 'nd', 'rd'];
+                                const v = n % 100;
+                                return n + (s[(v - 20) % 10] || s[v] || s[0]);
+                            };
+                            return `${dayName} ${getOrdinal(day)} ${months[month - 1]}, ${year}`;
+                        }
+                    }
+                    return dateStr + (hasValidTime ? ' ' + timeStr : '');
+                }
                 
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1267,22 +1291,60 @@
                     return `${dayName} ${getOrdinal(day)} ${month}, ${year}`;
                 }
             } catch (e) {
-                return dateStr + (timeStr && timeStr.trim() !== '' ? ' ' + timeStr : '');
+                console.error('Error formatting date/time:', e, 'dateStr:', dateStr, 'timeStr:', timeStr);
+                return dateStr + (timeStr && timeStr.trim() !== '' && timeStr.trim() !== '00:00' ? ' ' + timeStr : '');
             }
         }
         
         function formatChangeHistory(changeHistory) {
             if (!changeHistory) return '';
-            // Change history format: "2025-10-11T10:24:00Z - User: Updated ticket\n..."
+            // Change history format: "2025-10-11T10:24:00Z - User: Updated ticket\n..." or "2025-10-11T10:24:00.000Z - User: Updated ticket\n..."
             const lines = changeHistory.split('\n');
             return lines.map(line => {
-                // Try to find timestamp pattern (ISO format or similar)
-                const timestampMatch = line.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[Z]?)/);
+                if (!line.trim()) return line;
+                
+                // Try multiple timestamp patterns
+                // Pattern 1: ISO with milliseconds: 2025-10-11T10:24:00.000Z
+                let timestampMatch = line.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}\.\d{3}Z?)/);
                 if (timestampMatch) {
                     const timestamp = timestampMatch[1];
                     const formatted = formatTimestamp(timestamp);
                     return line.replace(timestamp, formatted);
                 }
+                
+                // Pattern 2: ISO without milliseconds: 2025-10-11T10:24:00Z
+                timestampMatch = line.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}Z?)/);
+                if (timestampMatch) {
+                    const timestamp = timestampMatch[1];
+                    const formatted = formatTimestamp(timestamp);
+                    return line.replace(timestamp, formatted);
+                }
+                
+                // Pattern 3: Date only: 2025-10-11
+                timestampMatch = line.match(/(\d{4}-\d{2}-\d{2})(?![T ])/);
+                if (timestampMatch) {
+                    const dateStr = timestampMatch[1];
+                    // Try to format as date
+                    try {
+                        const [year, month, day] = dateStr.split('-').map(Number);
+                        const date = new Date(year, month - 1, day);
+                        if (!isNaN(date.getTime())) {
+                            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            const dayName = days[date.getDay()];
+                            const getOrdinal = (n) => {
+                                const s = ['th', 'st', 'nd', 'rd'];
+                                const v = n % 100;
+                                return n + (s[(v - 20) % 10] || s[v] || s[0]);
+                            };
+                            const formatted = `${dayName} ${getOrdinal(day)} ${months[month - 1]}, ${year}`;
+                            return line.replace(dateStr, formatted);
+                        }
+                    } catch (e) {
+                        // If formatting fails, return line as-is
+                    }
+                }
+                
                 return line;
             }).join('\n');
         }
@@ -1945,10 +2007,11 @@
             let pieces = 0;
             let tabletSachetInfo = '';
             
-            if (has1KG && qty > 0) {
+            // Show tablet/sachet info if product type is 1KG or 0.5KG, regardless of quantity
+            if (has1KG) {
                 pieces = qty * 6;
                 tabletSachetInfo = '1KG';
-            } else if (has05KG && qty > 0) {
+            } else if (has05KG) {
                 pieces = qty * 12;
                 tabletSachetInfo = '0.5KG';
             }

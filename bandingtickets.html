@@ -756,7 +756,11 @@
                     </div>
                     <div class="fill-form-group">
                         <label for="fillSku">SKU</label>
-                        <input type="text" id="fillSku" name="sku" placeholder="e.g. FG-Cocoa-500">
+                        <select id="fillSku" name="sku" style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; background: white;">
+                            <option value="">Select or type SKU...</option>
+                        </select>
+                        <input type="text" id="fillSkuCustom" name="skuCustom" placeholder="Or enter custom SKU..." style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; margin-top: 8px; display: none;">
+                        <small style="display: block; margin-top: 5px; color: #718096; font-size: 12px;">Select from list or type custom SKU</small>
                     </div>
                     <div class="fill-form-group">
                         <label for="fillQty">Quantity</label>
@@ -1200,6 +1204,9 @@
         function formatDateAndTime(dateStr, timeStr) {
             if (!dateStr) return '';
             try {
+                // Check if timeStr is valid (not empty, not "00:00" unless it's actually midnight)
+                const hasValidTime = timeStr && timeStr.trim() !== '' && timeStr.trim() !== '00:00';
+                
                 // Try to parse date (could be YYYY-MM-DD or other formats)
                 let date;
                 if (dateStr.includes('T') || dateStr.includes(' ')) {
@@ -1208,7 +1215,7 @@
                 } else {
                     // Assume YYYY-MM-DD format
                     const [year, month, day] = dateStr.split('-').map(Number);
-                    if (timeStr) {
+                    if (hasValidTime) {
                         const [hours, minutes] = timeStr.split(':').map(Number);
                         date = new Date(year, month - 1, day, hours || 0, minutes || 0);
                     } else {
@@ -1216,7 +1223,7 @@
                     }
                 }
                 
-                if (isNaN(date.getTime())) return dateStr + (timeStr ? ' ' + timeStr : '');
+                if (isNaN(date.getTime())) return dateStr + (hasValidTime ? ' ' + timeStr : '');
                 
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1232,12 +1239,17 @@
                     return n + (s[(v - 20) % 10] || s[v] || s[0]);
                 };
                 
-                const hours = String(date.getHours()).padStart(2, '0');
-                const minutes = String(date.getMinutes()).padStart(2, '0');
-                
-                return `${dayName} ${getOrdinal(day)} ${month}, ${year} ${hours}${minutes}HRS`;
+                // Only show time if it's valid
+                if (hasValidTime) {
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    return `${dayName} ${getOrdinal(day)} ${month}, ${year} ${hours}${minutes}HRS`;
+                } else {
+                    // Just show date without time
+                    return `${dayName} ${getOrdinal(day)} ${month}, ${year}`;
+                }
             } catch (e) {
-                return dateStr + (timeStr ? ' ' + timeStr : '');
+                return dateStr + (timeStr && timeStr.trim() !== '' ? ' ' + timeStr : '');
             }
         }
         
@@ -1647,17 +1659,76 @@
         }
         
         async function loadAuthorizedUsers() {
-            if (!GOOGLE_APPS_SCRIPT_URL) return [];
+            if (!GOOGLE_APPS_SCRIPT_URL) return { users: [], skus: [] };
             try {
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=users`;
                 const response = await fetch(url);
-                if (!response.ok) return [];
+                if (!response.ok) return { users: [], skus: [] };
                 const result = await response.json();
-                if (!result.success || !result.data) return [];
-                return result.data;
+                if (!result.success) return { users: [], skus: [] };
+                return {
+                    users: result.data || [],
+                    skus: result.skus || []
+                };
             } catch (error) {
                 console.error('Error loading users:', error);
-                return [];
+                return { users: [], skus: [] };
+            }
+        }
+        
+        function populateSKUDropdown(skus) {
+            const skuSelect = document.getElementById('fillSku');
+            const skuCustom = document.getElementById('fillSkuCustom');
+            
+            if (!skuSelect) return;
+            
+            // Clear existing options except the first one
+            skuSelect.innerHTML = '<option value="">Select or type SKU...</option>';
+            
+            // Add SKUs from the list
+            skus.forEach(sku => {
+                const option = document.createElement('option');
+                option.value = sku;
+                option.textContent = sku;
+                skuSelect.appendChild(option);
+            });
+            
+            // Add "Custom..." option
+            const customOption = document.createElement('option');
+            customOption.value = '__custom__';
+            customOption.textContent = '--- Enter Custom SKU ---';
+            skuSelect.appendChild(customOption);
+            
+            // Handle selection change
+            skuSelect.addEventListener('change', function() {
+                if (this.value === '__custom__') {
+                    this.style.display = 'none';
+                    if (skuCustom) {
+                        skuCustom.style.display = 'block';
+                        skuCustom.focus();
+                    }
+                } else if (this.value) {
+                    if (skuCustom) {
+                        skuCustom.style.display = 'none';
+                        skuCustom.value = '';
+                    }
+                }
+            });
+            
+            // Handle custom input
+            if (skuCustom) {
+                skuCustom.addEventListener('input', function() {
+                    if (this.value) {
+                        skuSelect.value = '';
+                    }
+                });
+                
+                skuCustom.addEventListener('blur', function() {
+                    if (!this.value) {
+                        this.style.display = 'none';
+                        skuSelect.style.display = 'block';
+                    }
+                });
             }
         }
 
@@ -2025,8 +2096,10 @@
             }
             
             // Load authorized users
-            const users = await loadAuthorizedUsers();
+            const { users, skus } = await loadAuthorizedUsers();
             populateAuthorizedUserSelects(users);
+            populateSKUDropdown(skus);
+            
             const groupLeaderSelect = document.getElementById('groupLeader');
             const merchHistoryUsers = document.querySelectorAll('.merch-history-user');
             if (groupLeaderSelect) {
@@ -2114,7 +2187,27 @@
         function populateFormFromTicket(ticket) {
             if (ticket.Date) document.getElementById('fillDate').value = ticket.Date;
             if (ticket.Time) document.getElementById('fillTime').value = ticket.Time;
-            if (ticket.SKU) document.getElementById('fillSku').value = ticket.SKU;
+            // Set SKU - check if it exists in dropdown, otherwise use custom input
+            if (ticket.SKU) {
+                const skuSelect = document.getElementById('fillSku');
+                const skuCustom = document.getElementById('fillSkuCustom');
+                if (skuSelect) {
+                    // Check if SKU exists in dropdown options
+                    const optionExists = Array.from(skuSelect.options).some(opt => opt.value === ticket.SKU);
+                    if (optionExists) {
+                        skuSelect.value = ticket.SKU;
+                        if (skuCustom) skuCustom.style.display = 'none';
+                    } else {
+                        // SKU not in dropdown, use custom input
+                        skuSelect.value = '';
+                        if (skuCustom) {
+                            skuCustom.value = ticket.SKU;
+                            skuCustom.style.display = 'block';
+                            skuSelect.style.display = 'none';
+                        }
+                    }
+                }
+            }
             if (ticket.Qty) document.getElementById('fillQty').value = ticket.Qty;
             if (ticket.Layers) document.getElementById('fillLayers').value = ticket.Layers;
             if (ticket.Notes) document.getElementById('fillNotes').value = ticket.Notes;
@@ -2159,10 +2252,33 @@
                 throw new Error('Session expired. Please log in again.');
             }
             const formData = new FormData(form);
-
+            
             const collectChecked = (name) =>
                 Array.from(form.querySelectorAll(`input[name="${name}"]:checked`))
                     .map(input => input.value.toLowerCase());
+            
+            // Get SKU from either dropdown or custom input
+            const skuSelect = document.getElementById('fillSku');
+            const skuCustom = document.getElementById('fillSkuCustom');
+            let sku = '';
+            if (skuSelect && skuSelect.value && skuSelect.value !== '__custom__') {
+                sku = skuSelect.value;
+            } else if (skuCustom && skuCustom.value) {
+                sku = skuCustom.value.trim();
+            } else {
+                sku = formData.get('sku') || '';
+            }
+            
+            // Validate pallet size vs quantity
+            const qty = parseInt(formData.get('qty') || '0', 10);
+            const palletSizes = collectChecked('palletSize').map(ps => parseInt(ps, 10)).filter(ps => !isNaN(ps));
+            
+            if (qty > 0 && palletSizes.length > 0) {
+                const maxPalletSize = Math.max(...palletSizes);
+                if (qty > maxPalletSize) {
+                    throw new Error(`Quantity (${qty}) cannot exceed the selected pallet size (${maxPalletSize}). Please reduce quantity or select a larger pallet size.`);
+                }
+            }
             
             const merchHistoryEntries = [];
             document.querySelectorAll('.merch-history-entry').forEach(entry => {
@@ -2179,7 +2295,7 @@
                 color: formData.get('color') || selectedColor,
                 date: formData.get('date') || '',
                 time: formData.get('time') || '',
-                sku: formData.get('sku') || '',
+                sku: sku, // Use the SKU from dropdown or custom input
                 qty: formData.get('qty') || '',
                 layers: formData.get('layers') || '',
                 notes: formData.get('notes') || '',

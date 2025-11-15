@@ -373,15 +373,39 @@ function doGet(e) {
       
       const dataRange = usersSheet.getDataRange();
       const values = dataRange.getValues();
+      const headers = values[0] || [];
+      
+      // Find column indices
+      const idCol = 0; // Assuming ID is first column
+      const nameCol = headers.indexOf('Name') >= 0 ? headers.indexOf('Name') : 1;
+      const skusCol = headers.indexOf('SKUs') >= 0 ? headers.indexOf('SKUs') : -1;
+      
       const users = [];
+      const allSkus = new Set(); // Collect all unique SKUs
       
       for (let i = 1; i < values.length; i++) {
-        if (values[i][0]) {
-          users.push({ id: values[i][0], name: values[i][1] || '' });
+        if (values[i][idCol]) {
+          users.push({ 
+            id: values[i][idCol], 
+            name: values[i][nameCol] || '' 
+          });
+          
+          // Collect SKUs from SKUs column if it exists
+          if (skusCol >= 0 && values[i][skusCol]) {
+            const skusStr = (values[i][skusCol] || '').toString();
+            // SKUs might be comma-separated or newline-separated
+            const skus = skusStr.split(/[,\n]/).map(s => s.trim()).filter(s => s !== '');
+            skus.forEach(sku => allSkus.add(sku));
+          }
         }
       }
       
-      return createResponse({ success: true, data: users });
+      // Return users with SKUs list
+      return createResponse({ 
+        success: true, 
+        data: users,
+        skus: Array.from(allSkus).sort() // Return sorted unique SKUs
+      });
     } else if (action === 'login') {
       const userId = (e.parameter.userId || '').trim();
       const passcode = (e.parameter.passcode || '').trim();

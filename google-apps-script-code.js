@@ -379,9 +379,13 @@ function doGet(e) {
       const idCol = 0; // Assuming ID is first column
       const nameCol = headers.indexOf('Name') >= 0 ? headers.indexOf('Name') : 1;
       const skusCol = headers.indexOf('SKUs') >= 0 ? headers.indexOf('SKUs') : -1;
+      const sachetTypeCol = headers.indexOf('Sachet Type') >= 0 ? headers.indexOf('Sachet Type') : -1;
+      const tabletTypeCol = headers.indexOf('Tablet Type') >= 0 ? headers.indexOf('Tablet Type') : -1;
       
       const users = [];
       const allSkus = new Set(); // Collect all unique SKUs
+      const allSachetTypes = new Set(); // Collect all unique Sachet Types
+      const allTabletTypes = new Set(); // Collect all unique Tablet Types
       
       for (let i = 1; i < values.length; i++) {
         if (values[i][idCol]) {
@@ -397,14 +401,30 @@ function doGet(e) {
             const skus = skusStr.split(/[,\n]/).map(s => s.trim()).filter(s => s !== '');
             skus.forEach(sku => allSkus.add(sku));
           }
+          
+          // Collect Sachet Types
+          if (sachetTypeCol >= 0 && values[i][sachetTypeCol]) {
+            const sachetTypesStr = (values[i][sachetTypeCol] || '').toString();
+            const sachetTypes = sachetTypesStr.split(/[,\n]/).map(s => s.trim()).filter(s => s !== '');
+            sachetTypes.forEach(st => allSachetTypes.add(st));
+          }
+          
+          // Collect Tablet Types
+          if (tabletTypeCol >= 0 && values[i][tabletTypeCol]) {
+            const tabletTypesStr = (values[i][tabletTypeCol] || '').toString();
+            const tabletTypes = tabletTypesStr.split(/[,\n]/).map(s => s.trim()).filter(s => s !== '');
+            tabletTypes.forEach(tt => allTabletTypes.add(tt));
+          }
         }
       }
       
-      // Return users with SKUs list
+      // Return users with SKUs, Sachet Types, and Tablet Types lists
       return createResponse({ 
         success: true, 
         data: users,
-        skus: Array.from(allSkus).sort() // Return sorted unique SKUs
+        skus: Array.from(allSkus).sort(), // Return sorted unique SKUs
+        sachetTypes: Array.from(allSachetTypes).sort(), // Return sorted unique Sachet Types
+        tabletTypes: Array.from(allTabletTypes).sort() // Return sorted unique Tablet Types
       });
     } else if (action === 'login') {
       const userId = (e.parameter.userId || '').trim();

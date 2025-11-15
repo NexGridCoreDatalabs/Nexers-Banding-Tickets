@@ -793,6 +793,24 @@
                     </div>
                     
                     <div class="fill-form-group" style="grid-column: 1 / -1; margin-top: 10px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
+                        <label style="font-size: 15px; font-weight: 700; margin-bottom: 15px;">Sachet & Tablet Information</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div class="fill-form-group">
+                                <label for="sachetType">Sachet Type</label>
+                                <select id="sachetType" name="sachetType" style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; background: white;">
+                                    <option value="">Select sachet type...</option>
+                                </select>
+                            </div>
+                            <div class="fill-form-group">
+                                <label for="tabletType">Tablet Type</label>
+                                <select id="tabletType" name="tabletType" style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; background: white;">
+                                    <option value="">Select tablet type...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="fill-form-group" style="grid-column: 1 / -1; margin-top: 10px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
                         <label style="font-size: 15px; font-weight: 700; margin-bottom: 15px;">Quality Issues</label>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                             <div class="fill-form-group">
@@ -1493,6 +1511,8 @@
                 ticketData.qualityIssueType || '',
                 ticketData.qualityIssueDesc || '',
                 ticketData.groupLeader || '',
+                ticketData.sachetType || '',
+                ticketData.tabletType || '',
                 JSON.stringify(ticketData.merchHistory || []),
                 createdAt,
                 firstModified,
@@ -1659,21 +1679,35 @@
         }
         
         async function loadAuthorizedUsers() {
-            if (!GOOGLE_APPS_SCRIPT_URL) return { users: [], skus: [] };
+            if (!GOOGLE_APPS_SCRIPT_URL) return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
             try {
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=users`;
                 const response = await fetch(url);
-                if (!response.ok) return { users: [], skus: [] };
+                if (!response.ok) return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
                 const result = await response.json();
-                if (!result.success) return { users: [], skus: [] };
+                if (!result.success) return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
                 return {
                     users: result.data || [],
-                    skus: result.skus || []
+                    skus: result.skus || [],
+                    sachetTypes: result.sachetTypes || [],
+                    tabletTypes: result.tabletTypes || []
                 };
             } catch (error) {
                 console.error('Error loading users:', error);
-                return { users: [], skus: [] };
+                return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
             }
+        }
+        
+        function populateDropdown(selectId, options, placeholder = 'Select...') {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            select.innerHTML = `<option value="">${placeholder}</option>`;
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt;
+                option.textContent = opt;
+                select.appendChild(option);
+            });
         }
         
         function populateSKUDropdown(skus) {
@@ -1953,10 +1987,32 @@
                             <div style="display: grid; gap: 10px;">
                                 <div><strong style="color: ${colors.text};">Product Type:</strong> <span style="color: #2d3748;">${escapeHtml(tabletSachetInfo)}</span></div>
                                 <div><strong style="color: ${colors.text};">Quantity (UOM: Cartons):</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Qty || '0')} Cartons</span></div>
+                                ${ticket.SachetType ? `<div><strong style="color: ${colors.text};">Sachet Type:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.SachetType)}</span></div>` : ''}
+                                ${ticket.TabletType ? `<div><strong style="color: ${colors.text};">Tablet Type:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.TabletType)}</span></div>` : ''}
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40;">
                                     <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Conversion:</strong> <span style="color: #4a5568; font-size: 14px;">${escapeHtml(ticket.Qty || '0')} Cartons × ${has1KG ? '6' : '12'} = </span></div>
                                     <div><strong style="color: ${colors.text};">Total Pieces:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 18px;">${pieces.toLocaleString()} Pieces</span></div>
                                 </div>
+                                ${(ticket.SachetType || ticket.TabletType) ? `
+                                <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40; margin-top: 8px;">
+                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Carton to Sachet/Tablet Conversion:</strong></div>
+                                    <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">100 Cartons = 1,200 Sachets = 1,200 Tablet Pieces</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                                        ${ticket.SachetType ? `
+                                        <div>
+                                            <div style="font-size: 12px; color: #718096; margin-bottom: 3px;">Sachets</div>
+                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${((parseFloat(ticket.Qty || 0) / 100) * 1200).toLocaleString()}</div>
+                                        </div>
+                                        ` : ''}
+                                        ${ticket.TabletType ? `
+                                        <div>
+                                            <div style="font-size: 12px; color: #718096; margin-bottom: 3px;">Tablet Pieces</div>
+                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${((parseFloat(ticket.Qty || 0) / 100) * 1200).toLocaleString()}</div>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                                ` : ''}
                             </div>
                         </div>
                         ` : ''}
@@ -2096,9 +2152,11 @@
             }
             
             // Load authorized users
-            const { users, skus } = await loadAuthorizedUsers();
+            const { users, skus, sachetTypes, tabletTypes } = await loadAuthorizedUsers();
             populateAuthorizedUserSelects(users);
             populateSKUDropdown(skus);
+            populateDropdown('sachetType', sachetTypes, 'Select sachet type...');
+            populateDropdown('tabletType', tabletTypes, 'Select tablet type...');
             
             const groupLeaderSelect = document.getElementById('groupLeader');
             const merchHistoryUsers = document.querySelectorAll('.merch-history-user');
@@ -2214,6 +2272,8 @@
             if (ticket.QualityIssueType) document.getElementById('qualityIssueType').value = ticket.QualityIssueType;
             if (ticket.QualityIssueDesc) document.getElementById('qualityIssueDesc').value = ticket.QualityIssueDesc;
             if (ticket.GroupLeader) document.getElementById('groupLeader').value = ticket.GroupLeader;
+            if (ticket.SachetType) document.getElementById('sachetType').value = ticket.SachetType;
+            if (ticket.TabletType) document.getElementById('tabletType').value = ticket.TabletType;
             
             // Populate checkboxes
             (ticket.BandingType || '').split(',').forEach(val => {
@@ -2305,6 +2365,8 @@
                 qualityIssueType: formData.get('qualityIssueType') || '',
                 qualityIssueDesc: formData.get('qualityIssueDesc') || '',
                 groupLeader: formData.get('groupLeader') || '',
+                sachetType: formData.get('sachetType') || '',
+                tabletType: formData.get('tabletType') || '',
                 merchHistory: merchHistoryEntries,
                 modifiedBy: loggedInUser?.name || loggedInUser?.id || 'Unknown User'
             };

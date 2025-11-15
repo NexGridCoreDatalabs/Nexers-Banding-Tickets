@@ -1609,37 +1609,52 @@
                 
                 const ticket = result.data;
                 
+                // Debug: Log the raw ticket data to see what we're getting
+                console.log('Raw ticket data from Apps Script:', ticket);
+                console.log('All ticket keys:', Object.keys(ticket));
+                
                 // Normalize field names - handle case variations and ensure Date/Time are correctly mapped
                 // Google Sheets might return headers with different casing
                 const normalizedTicket = {};
+                
+                // First, copy all original fields
                 Object.keys(ticket).forEach(key => {
-                    // Map common variations
+                    normalizedTicket[key] = ticket[key];
+                });
+                
+                // Then normalize specific fields we need
+                Object.keys(ticket).forEach(key => {
                     const normalizedKey = key.toLowerCase().trim();
                     
-                    // Map Date field (column B)
+                    // Map Date field (column B) - try all variations
                     if (normalizedKey === 'date') {
                         normalizedTicket.Date = ticket[key];
+                        console.log(`Found Date field as "${key}" with value:`, ticket[key]);
                     }
-                    // Map Time field (column C)
+                    // Map Time field (column C) - try all variations
                     else if (normalizedKey === 'time') {
                         normalizedTicket.Time = ticket[key];
+                        console.log(`Found Time field as "${key}" with value:`, ticket[key]);
                     }
                     // Map SachetType and TabletType
                     else if (normalizedKey === 'sachettype' || normalizedKey === 'sachet type') {
                         normalizedTicket.SachetType = ticket[key];
                     } else if (normalizedKey === 'tablettype' || normalizedKey === 'tablet type') {
                         normalizedTicket.TabletType = ticket[key];
-                    } else {
-                        // Keep original key but also try to match common patterns
-                        normalizedTicket[key] = ticket[key];
                     }
                 });
                 
-                // Ensure Date and Time are accessible (columns B and C)
-                if (ticket.Date !== undefined) normalizedTicket.Date = ticket.Date;
-                if (ticket['Date'] !== undefined) normalizedTicket.Date = ticket['Date'];
-                if (ticket.Time !== undefined) normalizedTicket.Time = ticket.Time;
-                if (ticket['Time'] !== undefined) normalizedTicket.Time = ticket['Time'];
+                // Ensure Date and Time are accessible with multiple fallbacks
+                // Try direct access first, then normalized
+                if (!normalizedTicket.Date) {
+                    normalizedTicket.Date = ticket.Date || ticket['Date'] || ticket.date || ticket.DATE || '';
+                }
+                if (!normalizedTicket.Time) {
+                    normalizedTicket.Time = ticket.Time || ticket['Time'] || ticket.time || ticket.TIME || '';
+                }
+                
+                console.log('Normalized Date:', normalizedTicket.Date);
+                console.log('Normalized Time:', normalizedTicket.Time);
                 
                 // Ensure SachetType and TabletType are accessible
                 if (ticket.SachetType !== undefined) normalizedTicket.SachetType = ticket.SachetType;

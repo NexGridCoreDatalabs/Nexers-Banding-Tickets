@@ -29,6 +29,9 @@ function doPost(e) {
     Logger.log('e.postData exists: ' + (e.postData ? 'YES' : 'NO'));
     Logger.log('e.parameter exists: ' + (e.parameter ? 'YES' : 'NO'));
     
+    // Log user activity
+    logUserActivity('POST: Write operation', 'POST request received');
+    
     // Handle both JSON and form-encoded data
     let data;
     let rawData = null;
@@ -151,6 +154,10 @@ function handleWriteOperation(data, sheet) {
     Logger.log('handleWriteOperation called with action: ' + data.action);
     Logger.log('data object: ' + JSON.stringify(data));
     
+    // Log user activity with more details
+    const modifiedBy = data.values && data.values.length > 18 ? data.values[18] : 'Unknown';
+    logUserActivity(data.action.toUpperCase() + ': ' + (data.serial || 'New ticket'), 'ModifiedBy: ' + modifiedBy + ', SKU: ' + (data.sku || 'N/A'));
+    
     if (data.action === 'append') {
       // Append new row to Tickets sheet
       const ticketsSheet = sheet.getSheetByName('Tickets');
@@ -232,6 +239,64 @@ function handleWriteOperation(data, sheet) {
 }
 
 /**
+ * Log user information for tracking
+ */
+function logUserActivity(action, additionalInfo) {
+  try {
+    const userEmail = Session.getActiveUser().getEmail() || 'Anonymous';
+    const effectiveUser = Session.getEffectiveUser().getEmail() || 'Anonymous';
+    const timestamp = new Date().toISOString();
+    
+    // Try to get IP address from request (if available)
+    const ipAddress = 'N/A'; // IP not directly available in Apps Script web apps
+    
+    Logger.log('=== USER ACTIVITY ===');
+    Logger.log('Action: ' + action);
+    Logger.log('Active User Email: ' + userEmail);
+    Logger.log('Effective User Email: ' + effectiveUser);
+    Logger.log('Timestamp: ' + timestamp);
+    Logger.log('Additional Info: ' + (additionalInfo || 'None'));
+    Logger.log('====================');
+    
+    // Also log to a tracking sheet if it exists
+    try {
+      const sheet = SpreadsheetApp.openById(SHEET_ID);
+      let trackingSheet = sheet.getSheetByName('User Activity Log');
+      
+      if (!trackingSheet) {
+        // Create tracking sheet
+        trackingSheet = sheet.insertSheet('User Activity Log');
+        trackingSheet.getRange(1, 1, 1, 5).setValues([[
+          'Timestamp',
+          'Action',
+          'Active User Email',
+          'Effective User Email',
+          'Additional Info'
+        ]]);
+        // Format header row
+        const headerRange = trackingSheet.getRange(1, 1, 1, 5);
+        headerRange.setFontWeight('bold');
+        headerRange.setBackground('#4285f4');
+        headerRange.setFontColor('#ffffff');
+      }
+      
+      // Append log entry
+      trackingSheet.appendRow([
+        timestamp,
+        action,
+        userEmail,
+        effectiveUser,
+        additionalInfo || ''
+      ]);
+    } catch (trackingError) {
+      Logger.log('Could not log to tracking sheet: ' + trackingError.toString());
+    }
+  } catch (error) {
+    Logger.log('Error logging user activity: ' + error.toString());
+  }
+}
+
+/**
  * Handle GET requests (reading data)
  */
 function doGet(e) {
@@ -241,6 +306,10 @@ function doGet(e) {
     
     const sheet = SpreadsheetApp.openById(SHEET_ID);
     const action = e.parameter.action || 'read';
+    const serial = e.parameter.serial || '';
+    
+    // Log user activity
+    logUserActivity('GET: ' + action + (serial ? ' (Serial: ' + serial + ')' : ''), JSON.stringify(e.parameter));
     
     // Handle write operations via GET (to avoid POST/CORS issues)
     if (action === 'append' || action === 'update') {

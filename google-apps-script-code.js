@@ -347,9 +347,11 @@ function doGet(e) {
       const values = dataRange.getValues();
       
       if (serial) {
-        // Find specific ticket by serial
+        // Find specific ticket by serial (case-insensitive)
+        const serialUpper = serial.toString().toUpperCase();
         for (let i = 1; i < values.length; i++) {
-          if (values[i][0] === serial) {
+          const rowSerial = (values[i][0] || '').toString().toUpperCase();
+          if (rowSerial === serialUpper) {
             const headers = values[0];
             const row = values[i];
             const ticket = {};

@@ -1609,10 +1609,6 @@
                 
                 const ticket = result.data;
                 
-                // Debug: Log the raw ticket data to see what we're getting
-                console.log('Raw ticket data from Apps Script:', ticket);
-                console.log('All ticket keys:', Object.keys(ticket));
-                
                 // Normalize field names - handle case variations and ensure Date/Time are correctly mapped
                 // Google Sheets might return headers with different casing
                 const normalizedTicket = {};
@@ -1629,12 +1625,10 @@
                     // Map Date field (column B) - try all variations
                     if (normalizedKey === 'date') {
                         normalizedTicket.Date = ticket[key];
-                        console.log(`Found Date field as "${key}" with value:`, ticket[key]);
                     }
                     // Map Time field (column C) - try all variations
                     else if (normalizedKey === 'time') {
                         normalizedTicket.Time = ticket[key];
-                        console.log(`Found Time field as "${key}" with value:`, ticket[key]);
                     }
                     // Map SachetType and TabletType
                     else if (normalizedKey === 'sachettype' || normalizedKey === 'sachet type') {
@@ -1666,10 +1660,9 @@
                             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
                             const day = String(dateObj.getDate()).padStart(2, '0');
                             normalizedTicket.Date = `${year}-${month}-${day}`;
-                            console.log('Extracted Date:', normalizedTicket.Date);
                         }
                     } catch (e) {
-                        console.error('Error parsing Date:', e);
+                        // Silently handle date parsing errors
                     }
                 }
                 
@@ -1681,15 +1674,11 @@
                             const hours = String(timeObj.getHours()).padStart(2, '0');
                             const minutes = String(timeObj.getMinutes()).padStart(2, '0');
                             normalizedTicket.Time = `${hours}:${minutes}`;
-                            console.log('Extracted Time:', normalizedTicket.Time);
                         }
                     } catch (e) {
-                        console.error('Error parsing Time:', e);
+                        // Silently handle time parsing errors
                     }
                 }
-                
-                console.log('Final Normalized Date:', normalizedTicket.Date);
-                console.log('Final Normalized Time:', normalizedTicket.Time);
                 
                 // Ensure SachetType and TabletType are accessible
                 if (ticket.SachetType !== undefined) normalizedTicket.SachetType = ticket.SachetType;
@@ -1711,7 +1700,6 @@
                 
                 return ticket;
             } catch (error) {
-                console.error('Error reading ticket:', error);
                 throw error;
             }
         }
@@ -2184,16 +2172,6 @@
             // Date is column B, Time is column C
             const dateValue = ticket.Date || ticket['Date'] || '';
             const timeValue = ticket.Time || ticket['Time'] || '';
-            
-            // Debug logging
-            console.log('Ticket data:', {
-                rawDate: ticket.Date,
-                rawTime: ticket.Time,
-                dateValue: dateValue,
-                timeValue: timeValue,
-                allKeys: Object.keys(ticket)
-            });
-            
             const formattedDateTime = formatDateAndTime(dateValue, timeValue);
             
             // Parse Product Type to check for 1KG or 0.5KG

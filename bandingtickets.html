@@ -1222,21 +1222,65 @@
         function formatDateAndTime(dateStr, timeStr) {
             if (!dateStr) return 'N/A';
             try {
-                // Normalize time string - handle various formats
-                const normalizedTime = (timeStr || '').toString().trim();
-                // Check if timeStr is valid (not empty, not "00:00", not "0:00", not just "0")
-                const hasValidTime = normalizedTime !== '' && 
-                                   normalizedTime !== '00:00' && 
-                                   normalizedTime !== '0:00' && 
-                                   normalizedTime !== '0' &&
-                                   normalizedTime !== '00' &&
-                                   !normalizedTime.match(/^0+:0*$/); // Matches "000:00", "00:0", etc.
+                // Handle time - could be Date object, string in various formats
+                let normalizedTime = '';
+                let hours = 0;
+                let minutes = 0;
+                let hasValidTime = false;
+                
+                if (timeStr) {
+                    // If it's a Date object, extract hours and minutes
+                    if (timeStr instanceof Date) {
+                        hours = timeStr.getHours();
+                        minutes = timeStr.getMinutes();
+                        hasValidTime = hours !== 0 || minutes !== 0;
+                        normalizedTime = String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+                    } else {
+                        // It's a string - normalize it
+                        normalizedTime = (timeStr || '').toString().trim();
+                        
+                        // Handle 24-hour format: could be "0024", "00:24", "14:30", "1430", etc.
+                        if (normalizedTime.length === 4 && !normalizedTime.includes(':')) {
+                            // Format: "0024" (4 digits, no colon)
+                            hours = parseInt(normalizedTime.substring(0, 2), 10) || 0;
+                            minutes = parseInt(normalizedTime.substring(2, 4), 10) || 0;
+                            normalizedTime = String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+                        } else if (normalizedTime.includes(':')) {
+                            // Format: "00:24" or "14:30"
+                            const timeParts = normalizedTime.split(':');
+                            hours = parseInt(timeParts[0], 10) || 0;
+                            minutes = parseInt(timeParts[1], 10) || 0;
+                        } else {
+                            // Try to parse as number or other format
+                            const numTime = parseInt(normalizedTime, 10);
+                            if (!isNaN(numTime) && numTime >= 0 && numTime < 2400) {
+                                hours = Math.floor(numTime / 100);
+                                minutes = numTime % 100;
+                                normalizedTime = String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+                            }
+                        }
+                        
+                        // Check if time is valid (not midnight)
+                        hasValidTime = normalizedTime !== '' && 
+                                      normalizedTime !== '00:00' && 
+                                      normalizedTime !== '0:00' && 
+                                      (hours !== 0 || minutes !== 0);
+                    }
+                }
                 
                 // Try to parse date (could be YYYY-MM-DD or other formats)
                 let date;
-                if (dateStr.includes('T') || dateStr.includes(' ')) {
+                if (dateStr instanceof Date) {
+                    date = dateStr;
+                    if (hasValidTime) {
+                        date.setHours(hours, minutes, 0, 0);
+                    }
+                } else if (dateStr.includes('T') || dateStr.includes(' ')) {
                     // ISO format or date-time string
                     date = new Date(dateStr);
+                    if (hasValidTime && !isNaN(date.getTime())) {
+                        date.setHours(hours, minutes, 0, 0);
+                    }
                 } else {
                     // Assume YYYY-MM-DD format
                     const dateParts = dateStr.split('-');
@@ -1245,15 +1289,7 @@
                     }
                     const [year, month, day] = dateParts.map(Number);
                     if (hasValidTime) {
-                        const timeParts = normalizedTime.split(':');
-                        const hours = timeParts.length > 0 ? parseInt(timeParts[0], 10) || 0 : 0;
-                        const minutes = timeParts.length > 1 ? parseInt(timeParts[1], 10) || 0 : 0;
-                        // Double-check: if both hours and minutes are 0, treat as invalid
-                        if (hours === 0 && minutes === 0) {
-                            date = new Date(year, month - 1, day);
-                        } else {
-                            date = new Date(year, month - 1, day, hours, minutes);
-                        }
+                        date = new Date(year, month - 1, day, hours, minutes);
                     } else {
                         date = new Date(year, month - 1, day);
                     }
@@ -1530,14 +1566,39 @@
                 
                 const ticket = result.data;
                 
+                // Normalize field names - handle case variations
+                // Google Sheets might return headers with different casing
+                const normalizedTicket = {};
+                Object.keys(ticket).forEach(key => {
+                    // Map common variations
+                    const normalizedKey = key.toLowerCase();
+                    if (normalizedKey === 'sachettype' || normalizedKey === 'sachet type') {
+                        normalizedTicket.SachetType = ticket[key];
+                    } else if (normalizedKey === 'tablettype' || normalizedKey === 'tablet type') {
+                        normalizedTicket.TabletType = ticket[key];
+                    } else {
+                        // Keep original key but also try to match common patterns
+                        normalizedTicket[key] = ticket[key];
+                    }
+                });
+                
+                // Ensure SachetType and TabletType are accessible
+                if (ticket.SachetType !== undefined) normalizedTicket.SachetType = ticket.SachetType;
+                if (ticket['Sachet Type'] !== undefined) normalizedTicket.SachetType = ticket['Sachet Type'];
+                if (ticket.TabletType !== undefined) normalizedTicket.TabletType = ticket.TabletType;
+                if (ticket['Tablet Type'] !== undefined) normalizedTicket.TabletType = ticket['Tablet Type'];
+                
                 // Parse JSON fields
-                if (ticket.MerchHistory) {
+                if (normalizedTicket.MerchHistory) {
                     try {
-                        ticket.MerchHistory = typeof ticket.MerchHistory === 'string' ? JSON.parse(ticket.MerchHistory) : ticket.MerchHistory;
+                        normalizedTicket.MerchHistory = typeof normalizedTicket.MerchHistory === 'string' ? JSON.parse(normalizedTicket.MerchHistory) : normalizedTicket.MerchHistory;
                     } catch (e) {
-                        ticket.MerchHistory = [];
+                        normalizedTicket.MerchHistory = [];
                     }
                 }
+                
+                // Merge normalized fields back
+                Object.assign(ticket, normalizedTicket);
                 
                 return ticket;
             } catch (error) {

@@ -1222,8 +1222,15 @@
         function formatDateAndTime(dateStr, timeStr) {
             if (!dateStr) return 'N/A';
             try {
-                // Check if timeStr is valid (not empty, not "00:00")
-                const hasValidTime = timeStr && timeStr.trim() !== '' && timeStr.trim() !== '00:00' && timeStr.trim() !== '0:00';
+                // Normalize time string - handle various formats
+                const normalizedTime = (timeStr || '').toString().trim();
+                // Check if timeStr is valid (not empty, not "00:00", not "0:00", not just "0")
+                const hasValidTime = normalizedTime !== '' && 
+                                   normalizedTime !== '00:00' && 
+                                   normalizedTime !== '0:00' && 
+                                   normalizedTime !== '0' &&
+                                   normalizedTime !== '00' &&
+                                   !normalizedTime.match(/^0+:0*$/); // Matches "000:00", "00:0", etc.
                 
                 // Try to parse date (could be YYYY-MM-DD or other formats)
                 let date;
@@ -1238,10 +1245,15 @@
                     }
                     const [year, month, day] = dateParts.map(Number);
                     if (hasValidTime) {
-                        const timeParts = timeStr.split(':');
+                        const timeParts = normalizedTime.split(':');
                         const hours = timeParts.length > 0 ? parseInt(timeParts[0], 10) || 0 : 0;
                         const minutes = timeParts.length > 1 ? parseInt(timeParts[1], 10) || 0 : 0;
-                        date = new Date(year, month - 1, day, hours, minutes);
+                        // Double-check: if both hours and minutes are 0, treat as invalid
+                        if (hours === 0 && minutes === 0) {
+                            date = new Date(year, month - 1, day);
+                        } else {
+                            date = new Date(year, month - 1, day, hours, minutes);
+                        }
                     } else {
                         date = new Date(year, month - 1, day);
                     }
@@ -1264,7 +1276,7 @@
                             return `${dayName} ${getOrdinal(day)} ${months[month - 1]}, ${year}`;
                         }
                     }
-                    return dateStr + (hasValidTime ? ' ' + timeStr : '');
+                    return dateStr + (hasValidTime ? ' ' + normalizedTime : '');
                 }
                 
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -1281,8 +1293,8 @@
                     return n + (s[(v - 20) % 10] || s[v] || s[0]);
                 };
                 
-                // Only show time if it's valid
-                if (hasValidTime) {
+                // Only show time if it's valid and not midnight (00:00)
+                if (hasValidTime && date.getHours() !== 0 || date.getMinutes() !== 0) {
                     const hours = String(date.getHours()).padStart(2, '0');
                     const minutes = String(date.getMinutes()).padStart(2, '0');
                     return `${dayName} ${getOrdinal(day)} ${month}, ${year} ${hours}${minutes}HRS`;
@@ -1292,7 +1304,9 @@
                 }
             } catch (e) {
                 console.error('Error formatting date/time:', e, 'dateStr:', dateStr, 'timeStr:', timeStr);
-                return dateStr + (timeStr && timeStr.trim() !== '' && timeStr.trim() !== '00:00' ? ' ' + timeStr : '');
+                const normalizedTime = (timeStr || '').toString().trim();
+                const hasValidTime = normalizedTime !== '' && normalizedTime !== '00:00' && normalizedTime !== '0:00';
+                return dateStr + (hasValidTime ? ' ' + normalizedTime : '');
             }
         }
         
@@ -2038,8 +2052,8 @@
                         <div style="background: ${colors.bg}; padding: 20px; border-radius: 8px; border-left: 4px solid ${colors.border};">
                             <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">Product Details</h3>
                             <div style="display: grid; gap: 10px;">
-                                <div><strong style="color: ${colors.text};">Banding Type:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.BandingType || '')}</span></div>
-                                <div><strong style="color: ${colors.text};">Product Type:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.ProductType || '')}</span></div>
+                                <div><strong style="color: ${colors.text};">Banding Type:</strong> <span style="color: #2d3748; text-transform: uppercase;">${escapeHtml((ticket.BandingType || '').toUpperCase())}</span></div>
+                                <div><strong style="color: ${colors.text};">Product Type:</strong> <span style="color: #2d3748; text-transform: uppercase;">${escapeHtml((ticket.ProductType || '').toUpperCase())}</span></div>
                                 <div><strong style="color: ${colors.text};">Pallet Size:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.PalletSize || '')}</span></div>
                             </div>
                         </div>
@@ -2056,11 +2070,11 @@
                                     <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Conversion:</strong> <span style="color: #4a5568; font-size: 14px;">${escapeHtml(ticket.Qty || '0')} Cartons × ${has1KG ? '6' : '12'} = </span></div>
                                     <div><strong style="color: ${colors.text};">Total Pieces:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 18px;">${pieces.toLocaleString()} Pieces</span></div>
                                 </div>
-                                ${(ticket.SachetType || ticket.TabletType) ? `
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40; margin-top: 8px;">
                                     <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Carton to Sachet/Tablet Conversion:</strong></div>
                                     <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">1 Carton = 12 Sachets + 12 Tablet Pieces</div>
                                     <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">100 Cartons = 1,200 Sachets + 1,200 Tablet Pieces</div>
+                                    ${(ticket.SachetType || ticket.TabletType) ? `
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
                                         ${ticket.SachetType ? `
                                         <div>
@@ -2075,8 +2089,12 @@
                                         </div>
                                         ` : ''}
                                     </div>
+                                    ` : `
+                                    <div style="margin-top: 10px; padding: 10px; background: #f7fafc; border-radius: 6px;">
+                                        <div style="color: #718096; font-size: 13px;">Sachet Type and Tablet Type not specified</div>
+                                    </div>
+                                    `}
                                 </div>
-                                ` : ''}
                             </div>
                         </div>
                         ` : ''}

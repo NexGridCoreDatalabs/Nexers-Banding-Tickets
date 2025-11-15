@@ -2134,6 +2134,16 @@
             // Date is column B, Time is column C
             const dateValue = ticket.Date || ticket['Date'] || '';
             const timeValue = ticket.Time || ticket['Time'] || '';
+            
+            // Debug logging
+            console.log('Ticket data:', {
+                rawDate: ticket.Date,
+                rawTime: ticket.Time,
+                dateValue: dateValue,
+                timeValue: timeValue,
+                allKeys: Object.keys(ticket)
+            });
+            
             const formattedDateTime = formatDateAndTime(dateValue, timeValue);
             
             // Parse Product Type to check for 1KG or 0.5KG

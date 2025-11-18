@@ -2191,6 +2191,41 @@
                 tabletSachetInfo = '0.5KG';
             }
             
+            // Calculate layers based on pallet size and quantity
+            const palletConfig = {
+                '100': { layers: 5, cartonsPerLayer: 20 },   // 100 / 5 = 20
+                '105': { layers: 7, cartonsPerLayer: 15 },   // 105 / 7 = 15
+                '78': { layers: 6, cartonsPerLayer: 13 },    // 78 / 6 = 13
+                '64': { layers: 4, cartonsPerLayer: 16 }     // 64 / 4 = 16
+            };
+            
+            let layersInfo = null;
+            const palletSizeStr = (ticket.PalletSize || '').toString().trim();
+            
+            if (palletSizeStr && qty > 0) {
+                const palletSizes = palletSizeStr.split(',').map(ps => ps.trim()).filter(ps => ps !== '');
+                if (palletSizes.length > 0) {
+                    const palletSize = palletSizes[0];
+                    const palletSizeNum = parseFloat(palletSize) || 0;
+                    const config = palletConfig[palletSize];
+                    
+                    if (config && palletSizeNum > 0) {
+                        const { cartonsPerLayer } = config;
+                        const calculatedLayers = Math.ceil(qty / cartonsPerLayer);
+                        const fullLayers = Math.floor(qty / cartonsPerLayer);
+                        const remainderUnits = qty % cartonsPerLayer;
+                        
+                        layersInfo = {
+                            palletSize: palletSize,
+                            cartonsPerLayer: cartonsPerLayer,
+                            calculatedLayers: calculatedLayers,
+                            fullLayers: fullLayers,
+                            remainderUnits: remainderUnits
+                        };
+                    }
+                }
+            }
+            
             return `
                 <div style="max-width: 900px; margin: 0 auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
                     <div style="border-left: 6px solid ${colors.border}; padding-left: 20px; margin-bottom: 30px;">
@@ -2205,7 +2240,11 @@
                                 <div><strong style="color: ${colors.text};">Date & Time:</strong> <span style="color: #4a5568; font-family: 'Courier New', monospace;">${escapeHtml(formattedDateTime || 'N/A')}</span></div>
                                 <div><strong style="color: ${colors.text};">SKU:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.SKU || '')}</span></div>
                                 <div><strong style="color: ${colors.text};">Quantity:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Qty || '')}</span></div>
-                                <div><strong style="color: ${colors.text};">Layers:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Layers || '')}</span></div>
+                                <div><strong style="color: ${colors.text};">Layers:</strong> 
+                                    <span style="color: #2d3748;">
+                                        ${layersInfo ? escapeHtml(layersInfo.calculatedLayers.toString()) : escapeHtml(ticket.Layers || '')}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                         
@@ -2217,6 +2256,37 @@
                                 <div><strong style="color: ${colors.text};">Pallet Size:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.PalletSize || '')}</span></div>
                             </div>
                         </div>
+                        
+                        ${layersInfo ? `
+                        <div style="background: ${colors.bg}; padding: 20px; border-radius: 8px; border-left: 4px solid ${colors.border};">
+                            <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">📊 Layer Calculations</h3>
+                            <div style="display: grid; gap: 10px;">
+                                <div><strong style="color: ${colors.text};">Pallet Size:</strong> <span style="color: #2d3748;">${escapeHtml(layersInfo.palletSize)} cartons</span></div>
+                                <div><strong style="color: ${colors.text};">Cartons per Layer:</strong> <span style="color: #2d3748; font-weight: 600;">${escapeHtml(layersInfo.cartonsPerLayer.toString())} cartons/layer</span></div>
+                                <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40; margin-top: 8px;">
+                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Total Quantity:</strong> <span style="color: #2d3748; font-weight: 600;">${escapeHtml(qty.toString())} cartons</span></div>
+                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Calculated Layers:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 16px;">${escapeHtml(layersInfo.calculatedLayers.toString())} layers</span></div>
+                                    ${layersInfo.fullLayers > 0 || layersInfo.remainderUnits > 0 ? `
+                                        <div style="margin-bottom: 5px; padding-top: 8px; border-top: 1px solid ${colors.accent}20;">
+                                            <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Breakdown:</strong></div>
+                                            <div style="color: #4a5568; font-size: 14px; margin-left: 10px;">
+                                                ${layersInfo.fullLayers > 0 ? `${escapeHtml(layersInfo.fullLayers.toString())} full layer(s)` : ''}
+                                                ${layersInfo.remainderUnits > 0 ? (layersInfo.fullLayers > 0 ? ` + ${escapeHtml(layersInfo.remainderUnits.toString())} units` : `${escapeHtml(layersInfo.remainderUnits.toString())} units`) : ''}
+                                                ${layersInfo.remainderUnits > 0 && layersInfo.fullLayers > 0 ? (() => {
+                                                    const nextLayer = layersInfo.fullLayers + 1;
+                                                    let suffix = 'th';
+                                                    if (nextLayer === 1) suffix = 'st';
+                                                    else if (nextLayer === 2) suffix = 'nd';
+                                                    else if (nextLayer === 3) suffix = 'rd';
+                                                    return ` (${nextLayer}${suffix} layer is not full)`;
+                                                })() : ''}
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
                         
                         ${tabletSachetInfo ? `
                         <div style="background: ${colors.bg}; padding: 20px; border-radius: 8px; border-left: 4px solid ${colors.border};">

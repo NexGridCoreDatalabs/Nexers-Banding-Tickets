@@ -525,6 +525,8 @@ function formatTimestamp(timestamp) {
  */
 function recalculateAllCalculations(sheet) {
   try {
+    sheet = sheet || SpreadsheetApp.openById(SHEET_ID);
+    
     const ticketsSheet = sheet.getSheetByName('Tickets');
     if (!ticketsSheet) {
       return createResponse({ success: false, error: 'Tickets sheet not found' });
@@ -713,7 +715,7 @@ function recalculateAllCalculations(sheet) {
     
     // Write data to sheet
     const rows = sortedData.map(group => {
-      const avgQty = group.numTickets > 0 ? (group.totalQty / group.numTickets).toFixed(2) : 0;
+      const avgQty = group.numTickets > 0 ? (group.totalQty / group.numTickets) : 0;
       
       return [
         group.date,
@@ -746,8 +748,12 @@ function recalculateAllCalculations(sheet) {
     
     // Apply filters and sorting
     if (rows.length > 0) {
-      const dataRange = calcSheet.getDataRange();
-      calcSheet.setAutoFilter(1, 1, rows.length + 1, 18);
+      const dataRange = calcSheet.getRange(1, 1, rows.length + 1, 18);
+      const existingFilter = calcSheet.getFilter();
+      if (existingFilter) {
+        existingFilter.remove();
+      }
+      dataRange.createFilter();
       
       // Sort by Date (column 1), then SKU (column 2)
       const sortRange = calcSheet.getRange(2, 1, rows.length, 18);
@@ -904,6 +910,7 @@ function buildAnalyticsCenter(workbook, groupedData, ticketsValues) {
   
   ensureConfigSheet(workbook);
   buildSummarySheet(workbook, analyticsData);
+  buildShiftSummarySheet(workbook, analyticsData);
   const skuSheetMeta = buildSkuDetailSheets(workbook, analyticsData);
   buildSkuIndexSheet(workbook, analyticsData, skuSheetMeta);
 }
@@ -1164,6 +1171,8 @@ function computeAnalyticsData(groupedData, ticketsValues) {
   totals.issueRate7d = totals.tickets7d ? totals.issues7d / totals.tickets7d : 0;
   totals.activeSkusToday = activeSkuTodaySet.size;
   
+  const shiftSummaries = computeShiftBuckets(ticketsValues);
+  
   return {
     today: today,
     totals: totals,
@@ -1172,6 +1181,7 @@ function computeAnalyticsData(groupedData, ticketsValues) {
     leaderTable: leaderArray.slice(0, 6),
     issuesSummary: issuesSummary.slice(0, 10),
     issueDetails: issueDetails,
+    shiftTable: shiftSummaries,
     labels: {
       today: formatDisplayDate(today),
       refreshedAt: new Date().toLocaleString()
@@ -1212,19 +1222,19 @@ function buildSummarySheet(workbook, analyticsData) {
   
   summarySheet.clear();
   summarySheet.getRange(1, 1, summarySheet.getMaxRows(), summarySheet.getMaxColumns()).setFontFamily('Cascadia Mono');
-  summarySheet.setColumnWidths(1, 8, 120);
+  summarySheet.setColumnWidths(1, 8, 160);
   
   summarySheet.getRange('A1:H1').merge().setValue('Banding Analytics Center 📈').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setFontColor('#1a202c').setBackground('#f8fafc');
   summarySheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontSize(12).setFontColor('#4c51bf').setHorizontalAlignment('center');
   summarySheet.getRange('A3:H3').merge().setValue('Refreshed: ' + analyticsData.labels.refreshedAt).setFontSize(10).setFontColor('#718096').setHorizontalAlignment('center');
   
   const cards = [
-    { range: 'A5:C8', title: '📦 Cartons Today', value: formatNumber(analyticsData.totals.cartonsToday), subtitle: 'Today (' + analyticsData.labels.today + ')', color: '#4dabf7' },
-    { range: 'D5:F8', title: '🗓️ Cartons (7d)', value: formatNumber(analyticsData.totals.cartons7d), subtitle: 'Rolling 7 days', color: '#5ad5a9' },
-    { range: 'G5:H8', title: '📊 Cartons (MTD)', value: formatNumber(analyticsData.totals.cartonsMTD), subtitle: 'Month-to-date', color: '#ffb347' },
-    { range: 'A9:C12', title: '🧱 Avg Layers (7d)', value: formatDecimal(analyticsData.totals.avgLayers7d), subtitle: 'Per ticket', color: '#9f7aea' },
-    { range: 'D9:F12', title: '⚠️ Issue Rate', value: formatPercent(analyticsData.totals.issueRate7d), subtitle: 'Issues / ticket (7d)', color: '#f56565' },
-    { range: 'G9:H12', title: '🧑‍🔧 Active SKUs', value: formatNumber(analyticsData.totals.activeSkusToday), subtitle: 'Producing today', color: '#48bb78' }
+    { range: 'A5:C8', title: '📦 Cartons Today', value: formatNumber(analyticsData.totals.cartonsToday), subtitle: 'Today (' + analyticsData.labels.today + ')', color: '#4dabf7', note: 'All cartons scanned today across every SKU and pack size.' },
+    { range: 'D5:F8', title: '🗓️ Cartons (7d)', value: formatNumber(analyticsData.totals.cartons7d), subtitle: 'Rolling 7 days', color: '#5ad5a9', note: 'Seven-day rolling carton total. Helps spot short-term surges or dips.' },
+    { range: 'G5:H8', title: '📊 Cartons (MTD)', value: formatNumber(analyticsData.totals.cartonsMTD), subtitle: 'Month-to-date', color: '#ffb347', note: 'Month-to-date cartons versus monthly targets.' },
+    { range: 'A9:C12', title: '🧱 Avg Layers (7d)', value: formatDecimal(analyticsData.totals.avgLayers7d), subtitle: 'Per ticket', color: '#9f7aea', note: 'Average number of pallet layers captured per ticket in the last 7 days.' },
+    { range: 'D9:F12', title: '⚠️ Issue Rate', value: formatPercent(analyticsData.totals.issueRate7d), subtitle: 'Issues / ticket (7d)', color: '#f56565', note: 'Quality issue count divided by total tickets for the last 7 days.' },
+    { range: 'G9:H12', title: '🧑‍🔧 Active SKUs', value: formatNumber(analyticsData.totals.activeSkusToday), subtitle: 'Producing today', color: '#48bb78', note: 'Distinct SKU + pack combinations that produced tickets today.' }
   ];
   
   cards.forEach(function(card) {
@@ -1237,14 +1247,17 @@ function buildSummarySheet(workbook, analyticsData) {
     range.setVerticalAlignment('middle');
     range.setHorizontalAlignment('left');
     range.setWrap(true);
+    range.setPadding(8, 8, 8, 8);
+    range.setNote(card.note || '');
   });
   
   let startRow = 14;
-  buildTable(summarySheet, '📅 Production by Day', ['Date', 'Cartons', 'Pieces', 'Tickets', 'Issues', 'Distinct SKUs'], analyticsData.perDay.slice(0, 14).map(function(day) {
+  const perDayRows = analyticsData.perDay.slice(0, 14);
+  buildTable(summarySheet, '📅 Production by Day', ['Date', 'Cartons', 'Pieces', 'Tickets', 'Issues', 'Distinct SKUs'], perDayRows.map(function(day) {
     return [day.date, day.cartons, day.pieces, day.tickets, day.issues, day.skuCount];
-  }), startRow);
+  }), startRow, { numericColumns: [2, 3, 4, 5, 6], columnWidth: 160 });
   
-  startRow += analyticsData.perDay.slice(0, 14).length + 4;
+  startRow += perDayRows.length + 4;
   buildTable(summarySheet, '📦 SKU Performance', ['SKU', 'Product Type', 'Cartons (7d)', 'Cartons (30d)', 'Avg Layers (7d)', 'Issue Rate (7d)', 'Last Production'], analyticsData.perSku.map(function(entry) {
     const issueRate = entry.totals7d.tickets ? entry.totals7d.issues / entry.totals7d.tickets : 0;
     return [
@@ -1252,23 +1265,70 @@ function buildSummarySheet(workbook, analyticsData) {
       entry.productType,
       entry.totals7d.cartons,
       entry.totals30d.cartons,
-      formatDecimal(entry.avgLayers7d),
-      formatPercent(issueRate),
+      entry.avgLayers7d,
+      issueRate,
       entry.lastDateStr
     ];
-  }), startRow);
+  }), startRow, { numericColumns: [3, 4], decimalColumns: [5], percentColumns: [6], columnWidth: 160 });
   
   startRow += analyticsData.perSku.length + 4;
   buildTable(summarySheet, '👷 Leader Productivity', ['Leader', 'Cartons (7d)', 'Tickets (7d)'], analyticsData.leaderTable.map(function(item) {
     return [item.leader, item.cartons7d, item.tickets7d];
-  }), startRow);
+  }), startRow, { numericColumns: [2, 3], columnWidth: 160 });
   
   startRow += analyticsData.leaderTable.length + 4;
   buildTable(summarySheet, '🛠️ Quality Issues (7d)', ['SKU', 'Product Type', 'Issues', 'Top Issue Types'], analyticsData.issuesSummary.map(function(item) {
     return [item.sku, item.productType, item.count, item.types];
-  }), startRow);
+  }), startRow, { numericColumns: [3], columnWidth: 160 });
   
   summarySheet.getRange(startRow + analyticsData.issuesSummary.length + 3, 1, 1, 8).merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+}
+
+/**
+ * Build shift-level intelligence sheet
+ */
+function buildShiftSummarySheet(workbook, analyticsData) {
+  let shiftSheet = workbook.getSheetByName('Shift_Summary');
+  if (!shiftSheet) {
+    shiftSheet = workbook.insertSheet('Shift_Summary');
+  }
+  
+  shiftSheet.clear();
+  shiftSheet.getRange(1, 1, shiftSheet.getMaxRows(), shiftSheet.getMaxColumns()).setFontFamily('Cascadia Mono');
+  shiftSheet.setColumnWidths(1, 10, 170);
+  
+  shiftSheet.getRange('A1:J1').merge().setValue('Shift Intelligence Hub 🌗').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c').setNote('Shift-by-shift performance with leader accountability and SKU mix.');
+  shiftSheet.getRange('A2:J2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontSize(12).setFontColor('#4c51bf').setHorizontalAlignment('center');
+  shiftSheet.getRange('A3:J3').merge().setValue('Shifts auto-classified: Day (08:00-18:00) • Night (18:00-08:00)').setFontColor('#718096').setHorizontalAlignment('center');
+  
+  const headers = ['Date', 'Shift', 'Cartons', 'Pieces', 'Tickets', 'Issues', 'Group Leaders (cartons)', 'SKU Output (cartons)', 'Banding Mix', 'Time Window'];
+  const rows = (analyticsData.shiftTable || []).map(function(shift) {
+    return [
+      shift.date,
+      shift.label,
+      shift.cartons,
+      shift.pieces,
+      shift.tickets,
+      shift.issues,
+      shift.leadersText || '—',
+      shift.skuText || '—',
+      shift.bandingText || '—',
+      shift.timeRange || shift.window
+    ];
+  });
+  
+  const startRow = 4;
+  buildTable(shiftSheet, '🌗 Shift Performance', headers, rows, startRow, {
+    numericColumns: [3, 4, 5, 6],
+    columnWidth: 170
+  });
+  
+  const headerRow = shiftSheet.getRange(startRow + 1, 1, 1, headers.length);
+  headerRow.getCell(1, 7).setNote('Leaders ranked by cartons produced during the shift.');
+  headerRow.getCell(1, 8).setNote('SKU + pack combinations contributing to the shift total.');
+  headerRow.getCell(1, 9).setNote('Banding styles applied (comma-separated).');
+  
+  shiftSheet.getRange(startRow + rows.length + 3, 1, 1, headers.length).merge().setValue('Need deeper diagnostics? Filter by date or shift and drill into SKU tabs.').setFontColor('#4c51bf').setHorizontalAlignment('center');
 }
 
 /**
@@ -1300,7 +1360,7 @@ function buildSkuDetailSheets(workbook, analyticsData) {
     
     skuSheet.clear();
     skuSheet.getRange(1, 1, skuSheet.getMaxRows(), skuSheet.getMaxColumns()).setFontFamily('Cascadia Mono');
-    skuSheet.setColumnWidths(1, 12, 120);
+    skuSheet.setColumnWidths(1, 12, 160);
     
     skuSheet.getRange('A1:H1').merge().setValue('SKU Analytics • ' + entry.sku + ' • ' + entry.productType).setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#edf2f7');
     skuSheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
@@ -1333,24 +1393,29 @@ function buildSkuDetailSheets(workbook, analyticsData) {
         row.totalQty,
         row.totalPieces,
         row.numTickets,
-        formatDecimal(row.avgQty),
+        row.avgQty,
         row.totalLayers,
         row.bandingTypes,
         row.groupLeaders,
-        row.firstTime + ' - ' + row.lastTime,
+        formatTimeRange(row.firstTime, row.lastTime),
         row.sachet,
         row.tablet,
-        formatPercent(issueRate)
+        issueRate
       ];
     });
     
-    buildTable(skuSheet, '📋 Recent Production', ['Date', 'Cartons', 'Pieces', 'Tickets', 'Avg Qty', 'Layers', 'Banding Types', 'Group Leaders', 'Time Window', 'Sachet', 'Tablet', 'Issue Rate'], tableData, tableStartRow);
+    buildTable(skuSheet, '📋 Recent Production', ['Date', 'Cartons', 'Pieces', 'Tickets', 'Avg Qty', 'Layers', 'Banding Types', 'Group Leaders', 'Time Window', 'Sachet', 'Tablet', 'Issue Rate'], tableData, tableStartRow, {
+      numericColumns: [2, 3, 4, 6],
+      decimalColumns: [5],
+      percentColumns: [12],
+      columnWidth: 150
+    });
     
     const issuesStart = tableStartRow + tableData.length + 4;
     const issueRows = entry.recentIssues.length ? entry.recentIssues : [{ date: '-', type: 'No issues', description: '-', serial: '-' }];
     buildTable(skuSheet, '🛠️ Recent Issues', ['Date', 'Type', 'Description', 'Serial'], issueRows.map(function(item) {
       return [item.date, item.type, item.description, item.serial || '-'];
-    }), issuesStart);
+    }), issuesStart, { columnWidth: 150 });
     
     skuSheet.getRange(issuesStart + issueRows.length + 3, 1, 1, 8).merge().setValue('Banding data • ' + entry.sku + ' • ' + entry.productType).setFontColor('#a0aec0').setHorizontalAlignment('center');
     
@@ -1380,7 +1445,7 @@ function buildSkuIndexSheet(workbook, analyticsData, sheetMeta) {
   
   indexSheet.clear();
   indexSheet.getRange(1, 1, indexSheet.getMaxRows(), indexSheet.getMaxColumns()).setFontFamily('Cascadia Mono');
-  indexSheet.setColumnWidths(1, 8, 140);
+  indexSheet.setColumnWidths(1, 8, 160);
   
   indexSheet.getRange('A1:H1').merge().setValue('SKU Directory 📚').setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#edf2f7');
   indexSheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
@@ -1403,28 +1468,68 @@ function buildSkuIndexSheet(workbook, analyticsData, sheetMeta) {
     ];
   });
   
-  buildTable(indexSheet, '📌 Overview', header, rows, 4);
+  buildTable(indexSheet, '📌 Overview', header, rows, 4, { numericColumns: [3, 4], columnWidth: 150 });
 }
 
 /**
  * Shared helper to build tables with title + header styling
  */
-function buildTable(sheet, title, headers, rows, startRow) {
+function buildTable(sheet, title, headers, rows, startRow, options) {
+  options = options || {};
+
   const titleRange = sheet.getRange(startRow, 1, 1, headers.length);
   titleRange.merge().setValue(title).setFontWeight('bold').setFontColor('#2d3748').setBackground('#e2e8f0');
   
   const headerRange = sheet.getRange(startRow + 1, 1, 1, headers.length);
   headerRange.setValues([headers]);
   headerRange.setFontWeight('bold').setBackground('#2d3748').setFontColor('#ffffff');
-  
+  if (options.columnWidth) {
+    sheet.setColumnWidths(1, headers.length, options.columnWidth);
+  }
+  if (options.notes) {
+    Object.keys(options.notes).forEach(function(colIndex) {
+      const col = parseInt(colIndex, 10);
+      if (!isNaN(col) && col >= 1 && col <= headers.length) {
+        sheet.getRange(startRow + 1, col).setNote(options.notes[colIndex]);
+      }
+    });
+  }
+
   if (rows.length > 0) {
     const bodyRange = sheet.getRange(startRow + 2, 1, rows.length, headers.length);
     bodyRange.setValues(rows);
     bodyRange.setBackground('#f8fafc');
+    if (options.wrap !== false) {
+      bodyRange.setWrap(true);
+      bodyRange.setVerticalAlignment('top');
+    }
+    
+    if (options.numericColumns) {
+      options.numericColumns.forEach(function(col) {
+        applyNumberFormatToColumn(sheet, startRow + 2, rows.length, col, '#,##0');
+      });
+    }
+    if (options.decimalColumns) {
+      options.decimalColumns.forEach(function(col) {
+        applyNumberFormatToColumn(sheet, startRow + 2, rows.length, col, '#,##0.00');
+      });
+    }
+    if (options.percentColumns) {
+      options.percentColumns.forEach(function(col) {
+        applyNumberFormatToColumn(sheet, startRow + 2, rows.length, col, '0.0%');
+      });
+    }
   } else {
     const placeholderRange = sheet.getRange(startRow + 2, 1, 1, headers.length);
     placeholderRange.merge().setValue('No data yet').setFontColor('#a0aec0').setHorizontalAlignment('center');
   }
+}
+
+function applyNumberFormatToColumn(sheet, startRow, rowCount, columnIndex, format) {
+  if (!rowCount || rowCount <= 0) return;
+  const maxCols = sheet.getMaxColumns();
+  if (columnIndex < 1 || columnIndex > maxCols) return;
+  sheet.getRange(startRow, columnIndex, rowCount, 1).setNumberFormat(format);
 }
 
 /**
@@ -1470,6 +1575,221 @@ function collectIssueDetails(ticketsValues, today, sevenDaysAgo, thirtyDaysAgo) 
   });
   
   return issueMap;
+}
+
+function computeShiftBuckets(ticketsValues) {
+  const buckets = {};
+  for (let i = 1; i < ticketsValues.length; i++) {
+    const row = ticketsValues[i];
+    const sku = (row[3] || '').toString().trim();
+    if (!sku) continue;
+    const dateObj = normalizeDateValue(row[1]);
+    if (!dateObj) continue;
+    const dateTime = combineDateTime(dateObj, row[2]);
+    const shiftInfo = getShiftInfo(dateTime);
+    const key = shiftInfo.key;
+    if (!buckets[key]) {
+      buckets[key] = {
+        dateKey: shiftInfo.dateKey,
+        shift: shiftInfo.shift,
+        label: shiftInfo.label,
+        window: shiftInfo.window,
+        cartons: 0,
+        pieces: 0,
+        tickets: 0,
+        issues: 0,
+        leaders: {},
+        skuMix: {},
+        banding: new Set(),
+        firstTime: null,
+        lastTime: null
+      };
+    }
+    
+    const bucket = buckets[key];
+    const qty = parseFloat(row[4]) || 0;
+    const productTypeLabel = getProductTypeLabel(row[7]);
+    const multiplier = productTypeLabel === '1KG' ? 6 : productTypeLabel === '0.5KG' ? 12 : 0;
+    
+    bucket.cartons += qty;
+    bucket.pieces += qty * multiplier;
+    bucket.tickets += 1;
+    if (row[10]) {
+      bucket.issues += 1;
+    }
+    
+    const leader = (row[12] || '').toString().trim();
+    if (leader) {
+      bucket.leaders[leader] = (bucket.leaders[leader] || 0) + qty;
+    }
+    
+    const skuKey = productTypeLabel ? sku + ' (' + productTypeLabel + ')' : sku;
+    if (skuKey) {
+      bucket.skuMix[skuKey] = (bucket.skuMix[skuKey] || 0) + qty;
+    }
+    
+    const banding = (row[6] || '').toString();
+    if (banding) {
+      banding.split(',').map(function(item) { return item.trim(); }).filter(function(item) { return item; }).forEach(function(item) {
+        bucket.banding.add(item);
+      });
+    }
+    
+    const timeValue = dateTime;
+    if (!bucket.firstTime || timeValue < bucket.firstTime) {
+      bucket.firstTime = timeValue;
+    }
+    if (!bucket.lastTime || timeValue > bucket.lastTime) {
+      bucket.lastTime = timeValue;
+    }
+  }
+  
+  const shiftOrder = { 'Day': 0, 'Night': 1 };
+  return Object.keys(buckets).map(function(key) {
+    const bucket = buckets[key];
+    return {
+      key: key,
+      date: bucket.dateKey,
+      shift: bucket.shift,
+      label: bucket.label,
+      window: bucket.window,
+      cartons: bucket.cartons,
+      pieces: bucket.pieces,
+      tickets: bucket.tickets,
+      issues: bucket.issues,
+      leadersText: summarizeValueMap(bucket.leaders, 5),
+      skuText: summarizeValueMap(bucket.skuMix, 6),
+      bandingText: bucket.banding.size ? Array.from(bucket.banding).join(', ') : '—',
+      timeRange: formatTimeRange(bucket.firstTime, bucket.lastTime)
+    };
+  }).sort(function(a, b) {
+    if (a.date !== b.date) {
+      return a.date < b.date ? 1 : -1;
+    }
+    const orderA = shiftOrder[a.shift] || 0;
+    const orderB = shiftOrder[b.shift] || 0;
+    return orderA - orderB;
+  });
+}
+
+function summarizeValueMap(map, limit) {
+  const entries = Object.keys(map || {}).map(function(key) {
+    return { key: key, value: map[key] };
+  }).sort(function(a, b) {
+    return b.value - a.value;
+  });
+  const selected = entries.slice(0, limit || entries.length);
+  return selected.length ? selected.map(function(item) {
+    return item.key + ' (' + formatNumber(item.value) + ')';
+  }).join(', ') : '';
+}
+
+function parseTimeValue(value) {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return null;
+  }
+  if (value instanceof Date) {
+    return {
+      hours: value.getHours(),
+      minutes: value.getMinutes(),
+      seconds: value.getSeconds(),
+      source: value
+    };
+  }
+  if (typeof value === 'number' && !isNaN(value)) {
+    const totalSeconds = Math.round(value * 24 * 60 * 60);
+    return {
+      hours: Math.floor(totalSeconds / 3600) % 24,
+      minutes: Math.floor((totalSeconds % 3600) / 60),
+      seconds: totalSeconds % 60
+    };
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (match) {
+      let hours = parseInt(match[1], 10);
+      const minutes = parseInt(match[2], 10);
+      const seconds = match[3] ? parseInt(match[3], 10) : 0;
+      const meridian = match[4] ? match[4].toUpperCase() : '';
+      if (meridian === 'PM' && hours < 12) hours += 12;
+      if (meridian === 'AM' && hours === 12) hours = 0;
+      return { hours: hours, minutes: minutes, seconds: seconds };
+    }
+  }
+  return null;
+}
+
+function formatTimeValue(value) {
+  const parsed = parseTimeValue(value);
+  if (!parsed) return '-';
+  const dateObj = parsed.source || new Date(1970, 0, 1, parsed.hours || 0, parsed.minutes || 0, parsed.seconds || 0);
+  return Utilities.formatDate(dateObj, Session.getScriptTimeZone(), 'hh:mm a');
+}
+
+function formatTimeRange(start, end) {
+  const startStr = formatTimeValue(start);
+  const endStr = formatTimeValue(end);
+  if (startStr === '-' && endStr === '-') return '-';
+  if (startStr === '-' || endStr === '-') return startStr !== '-' ? startStr : endStr;
+  if (startStr === endStr) return startStr;
+  return startStr + ' - ' + endStr;
+}
+
+function combineDateTime(dateObj, timeValue) {
+  const parsed = parseTimeValue(timeValue);
+  if (!parsed) {
+    return new Date(
+      dateObj.getFullYear(),
+      dateObj.getMonth(),
+      dateObj.getDate(),
+      12,
+      0,
+      0
+    );
+  }
+  return new Date(
+    dateObj.getFullYear(),
+    dateObj.getMonth(),
+    dateObj.getDate(),
+    parsed.hours || 0,
+    parsed.minutes || 0,
+    parsed.seconds || 0
+  );
+}
+
+function getShiftInfo(dateTime) {
+  const baseDate = getStartOfDay(dateTime);
+  const dayStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 8, 0);
+  const nightStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 18, 0);
+  let shiftDate = baseDate;
+  let shift = '';
+  let label = '';
+  let window = '';
+  
+  if (dateTime >= dayStart && dateTime < nightStart) {
+    shift = 'Day';
+    label = '☀️ Day Shift';
+    window = '08:00 - 18:00';
+  } else {
+    shift = 'Night';
+    label = '🌙 Night Shift';
+    window = '18:00 - 08:00';
+    if (dateTime < dayStart) {
+      shiftDate = new Date(baseDate);
+      shiftDate.setDate(shiftDate.getDate() - 1);
+    }
+  }
+  
+  const dateKey = formatDateKey(shiftDate);
+  return {
+    key: dateKey + '|' + shift,
+    dateKey: dateKey,
+    shift: shift,
+    label: label,
+    window: window
+  };
 }
 
 function parseIsoDate(dateStr) {

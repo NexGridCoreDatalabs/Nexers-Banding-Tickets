@@ -928,7 +928,6 @@ function computeAnalyticsData(groupedData, ticketsValues) {
   
   const dayMap = {};
   const skuMap = {};
-  const leaderMap = {};
   const activeSkuTodaySet = new Set();
   
   const totals = {
@@ -1073,15 +1072,11 @@ function computeAnalyticsData(groupedData, ticketsValues) {
       skuEntry.totals30d.issues += group.qualityIssuesCount;
     }
     
-    (group.groupLeaders || new Set()).forEach(function(leader) {
-      if (!leader) return;
-      skuEntry.leaderSet.add(leader);
-      if (!leaderMap[leader]) {
-        leaderMap[leader] = { cartons7d: 0, tickets7d: 0 };
-      }
-      if (dateObj >= sevenDaysAgo && dateObj <= today) {
-        leaderMap[leader].cartons7d += group.totalQty;
-        leaderMap[leader].tickets7d += group.numTickets;
+    const leaderNames = parseLeaderNames(ticketsValues[i][12]);
+    leaderNames.forEach(function(leader) {
+      if (leader) {
+        skuEntry.leaderSet.add(leader);
+        group.groupLeaders.add(leader);
       }
     });
     
@@ -1157,20 +1152,11 @@ function computeAnalyticsData(groupedData, ticketsValues) {
     return a.date < b.date ? 1 : -1;
   });
   
-  const leaderArray = Object.keys(leaderMap).map(function(name) {
-    return {
-      leader: name,
-      cartons7d: leaderMap[name].cartons7d,
-      tickets7d: leaderMap[name].tickets7d
-    };
-  }).sort(function(a, b) {
-    return b.cartons7d - a.cartons7d;
-  });
-  
   totals.avgLayers7d = totals.tickets7d ? totals.layers7d / totals.tickets7d : 0;
   totals.issueRate7d = totals.tickets7d ? totals.issues7d / totals.tickets7d : 0;
   totals.activeSkusToday = activeSkuTodaySet.size;
   
+  const leaderStats = computeLeaderStats(ticketsValues, today, sevenDaysAgo);
   const shiftSummaries = computeShiftBuckets(ticketsValues);
   
   return {
@@ -1178,10 +1164,11 @@ function computeAnalyticsData(groupedData, ticketsValues) {
     totals: totals,
     perDay: perDayArray,
     perSku: perSkuArray,
-    leaderTable: leaderArray.slice(0, 6),
+    leaderTable: leaderStats.table.slice(0, 6),
     issuesSummary: issuesSummary.slice(0, 10),
     issueDetails: issueDetails,
     shiftTable: shiftSummaries,
+    multiLeaderTickets: leaderStats.multi,
     labels: {
       today: formatDisplayDate(today),
       refreshedAt: new Date().toLocaleString()
@@ -1247,7 +1234,6 @@ function buildSummarySheet(workbook, analyticsData) {
     range.setVerticalAlignment('middle');
     range.setHorizontalAlignment('left');
     range.setWrap(true);
-    range.setPadding(8, 8, 8, 8);
     range.setNote(card.note || '');
   });
   
@@ -1273,10 +1259,20 @@ function buildSummarySheet(workbook, analyticsData) {
   
   startRow += analyticsData.perSku.length + 4;
   buildTable(summarySheet, '👷 Leader Productivity', ['Leader', 'Cartons (7d)', 'Tickets (7d)'], analyticsData.leaderTable.map(function(item) {
-    return [item.leader, item.cartons7d, item.tickets7d];
+    return [item.leader, item.cartons, item.tickets];
   }), startRow, { numericColumns: [2, 3], columnWidth: 160 });
   
   startRow += analyticsData.leaderTable.length + 4;
+  const multiLeaderRows = (analyticsData.multiLeaderTickets || []).slice(0, 10).map(function(item) {
+    return [item.date, item.serial, item.leaders, item.qty];
+  });
+  buildTable(summarySheet, '🚩 Tickets With Multiple Leaders', ['Date', 'Serial', 'Leaders Entered', 'Cartons'], multiLeaderRows, startRow, {
+    numericColumns: [4],
+    columnWidth: 180,
+    bodyBackground: '#fff5f5'
+  });
+  
+  startRow += multiLeaderRows.length + 4;
   buildTable(summarySheet, '🛠️ Quality Issues (7d)', ['SKU', 'Product Type', 'Issues', 'Top Issue Types'], analyticsData.issuesSummary.map(function(item) {
     return [item.sku, item.productType, item.count, item.types];
   }), startRow, { numericColumns: [3], columnWidth: 160 });
@@ -1498,7 +1494,11 @@ function buildTable(sheet, title, headers, rows, startRow, options) {
   if (rows.length > 0) {
     const bodyRange = sheet.getRange(startRow + 2, 1, rows.length, headers.length);
     bodyRange.setValues(rows);
-    bodyRange.setBackground('#f8fafc');
+    const bodyBg = options.bodyBackground || '#f8fafc';
+    bodyRange.setBackground(bodyBg);
+    if (options.bodyFontColor) {
+      bodyRange.setFontColor(options.bodyFontColor);
+    }
     if (options.wrap !== false) {
       bodyRange.setWrap(true);
       bodyRange.setVerticalAlignment('top');
@@ -1522,6 +1522,10 @@ function buildTable(sheet, title, headers, rows, startRow, options) {
   } else {
     const placeholderRange = sheet.getRange(startRow + 2, 1, 1, headers.length);
     placeholderRange.merge().setValue('No data yet').setFontColor('#a0aec0').setHorizontalAlignment('center');
+    placeholderRange.setBackground(options.bodyBackground || '#f8fafc');
+    if (options.bodyFontColor) {
+      placeholderRange.setFontColor(options.bodyFontColor);
+    }
   }
 }
 
@@ -1577,6 +1581,60 @@ function collectIssueDetails(ticketsValues, today, sevenDaysAgo, thirtyDaysAgo) 
   return issueMap;
 }
 
+function computeLeaderStats(ticketsValues, today, sevenDaysAgo) {
+  const stats = {};
+  const multiLeaderTickets = [];
+  
+  for (let i = 1; i < ticketsValues.length; i++) {
+    const row = ticketsValues[i];
+    const qty = parseFloat(row[4]) || 0;
+    if (!qty) continue;
+    
+    const dateObj = normalizeDateValue(row[1]);
+    const leaders = parseLeaderNames(row[12]);
+    if (!leaders.length) continue;
+    
+    const serial = row[0] || '';
+    if (leaders.length > 1) {
+      multiLeaderTickets.push({
+        date: dateObj ? formatDateKey(dateObj) : '-',
+        serial: serial,
+        leaders: leaders.join(', '),
+        qty: qty
+      });
+    }
+    
+    const primaryLeader = leaders[0];
+    if (!primaryLeader || !dateObj) continue;
+    if (dateObj >= sevenDaysAgo && dateObj <= today) {
+      if (!stats[primaryLeader]) {
+        stats[primaryLeader] = { leader: primaryLeader, cartons: 0, tickets: 0 };
+      }
+      stats[primaryLeader].cartons += qty;
+      stats[primaryLeader].tickets += 1;
+    }
+  }
+  
+  multiLeaderTickets.sort(function(a, b) {
+    if (a.date !== b.date) {
+      return (a.date || '') < (b.date || '') ? 1 : -1;
+    }
+    return b.qty - a.qty;
+  });
+  
+  const table = Object.keys(stats).map(function(name) {
+    return {
+      leader: name,
+      cartons: stats[name].cartons,
+      tickets: stats[name].tickets
+    };
+  }).sort(function(a, b) {
+    return b.cartons - a.cartons;
+  });
+  
+  return { table: table, multi: multiLeaderTickets };
+}
+
 function computeShiftBuckets(ticketsValues) {
   const buckets = {};
   for (let i = 1; i < ticketsValues.length; i++) {
@@ -1618,9 +1676,10 @@ function computeShiftBuckets(ticketsValues) {
       bucket.issues += 1;
     }
     
-    const leader = (row[12] || '').toString().trim();
-    if (leader) {
-      bucket.leaders[leader] = (bucket.leaders[leader] || 0) + qty;
+    const leaders = parseLeaderNames(row[12]);
+    const primaryLeader = leaders[0];
+    if (primaryLeader) {
+      bucket.leaders[primaryLeader] = (bucket.leaders[primaryLeader] || 0) + qty;
     }
     
     const skuKey = productTypeLabel ? sku + ' (' + productTypeLabel + ')' : sku;
@@ -1682,6 +1741,15 @@ function summarizeValueMap(map, limit) {
   return selected.length ? selected.map(function(item) {
     return item.key + ' (' + formatNumber(item.value) + ')';
   }).join(', ') : '';
+}
+
+function parseLeaderNames(value) {
+  if (!value) return [];
+  return value.toString().split(/[,\n]/).map(function(item) {
+    return item.trim();
+  }).filter(function(item) {
+    return item.length > 0;
+  });
 }
 
 function parseTimeValue(value) {

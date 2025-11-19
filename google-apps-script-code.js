@@ -23,11 +23,17 @@ const SHEET_ID = '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
 function doPost(e) {
   // Always return JSON, even on error
   try {
-    // Log immediately to confirm doPost is called
     Logger.log('=== doPost FUNCTION CALLED ===');
-    Logger.log('e object keys: ' + Object.keys(e).join(', '));
+    
+    if (!e) {
+      return createResponse({ success: false, error: 'No event payload received' });
+    }
+    
+    Logger.log('e object keys: ' + Object.keys(e));
     Logger.log('e.postData exists: ' + (e.postData ? 'YES' : 'NO'));
     Logger.log('e.parameter exists: ' + (e.parameter ? 'YES' : 'NO'));
+    
+    const sheet = SpreadsheetApp.openById(SHEET_ID);
     
     // Log user activity
     logUserActivity('POST: Write operation', 'POST request received');

@@ -906,10 +906,12 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
  * @param {Array<Array>} ticketsValues - Raw tickets sheet values (including header)
  */
 function buildAnalyticsCenter(workbook, groupedData, ticketsValues) {
-  const analyticsData = computeAnalyticsData(groupedData, ticketsValues);
+  const leaderNameMap = getLeaderNameMap(workbook);
+  const analyticsData = computeAnalyticsData(groupedData, ticketsValues, leaderNameMap);
   
   ensureConfigSheet(workbook);
   buildSummarySheet(workbook, analyticsData);
+  buildVariantComparisonSheet(workbook, analyticsData);
   buildShiftSummarySheet(workbook, analyticsData);
   const skuSheetMeta = buildSkuDetailSheets(workbook, analyticsData);
   buildSkuIndexSheet(workbook, analyticsData, skuSheetMeta);
@@ -918,7 +920,8 @@ function buildAnalyticsCenter(workbook, groupedData, ticketsValues) {
 /**
  * Compute aggregates required for dashboards
  */
-function computeAnalyticsData(groupedData, ticketsValues) {
+function computeAnalyticsData(groupedData, ticketsValues, leaderNameMap) {
+  leaderNameMap = leaderNameMap || {};
   const today = getStartOfDay(new Date());
   const sevenDaysAgo = new Date(today);
   sevenDaysAgo.setDate(today.getDate() - 6);
@@ -929,6 +932,7 @@ function computeAnalyticsData(groupedData, ticketsValues) {
   const dayMap = {};
   const skuMap = {};
   const activeSkuTodaySet = new Set();
+  const variantStats = {};
   
   const totals = {
     cartonsToday: 0,
@@ -949,9 +953,25 @@ function computeAnalyticsData(groupedData, ticketsValues) {
     totalPiecesAll: 0
   };
   
+  totals.avgLayersAll = 0;
+  totals.issueRateAll = 0;
+  
   groupedData.forEach(function(group) {
     const dateObj = parseIsoDate(group.date);
     if (!dateObj) return;
+    
+    const variantKey = group.productType || 'Other';
+    ensureVariantBucket(variantStats, variantKey);
+    accumulateVariant(variantStats[variantKey].all, group.totalQty, group.totalPieces, group.numTickets, group.totalLayers, group.qualityIssuesCount);
+    if (isSameDay(dateObj, today)) {
+      accumulateVariant(variantStats[variantKey].today, group.totalQty, group.totalPieces, group.numTickets, group.totalLayers, group.qualityIssuesCount);
+    }
+    if (dateObj >= sevenDaysAgo && dateObj <= today) {
+      accumulateVariant(variantStats[variantKey].seven, group.totalQty, group.totalPieces, group.numTickets, group.totalLayers, group.qualityIssuesCount);
+    }
+    if (dateObj >= thirtyDaysAgo && dateObj <= today) {
+      accumulateVariant(variantStats[variantKey].thirty, group.totalQty, group.totalPieces, group.numTickets, group.totalLayers, group.qualityIssuesCount);
+    }
     const dayKey = formatDateKey(dateObj);
     
     if (!dayMap[dayKey]) {
@@ -1025,6 +1045,8 @@ function computeAnalyticsData(groupedData, ticketsValues) {
     }
     
     const skuEntry = skuMap[skuKey];
+    const leaderDisplayList = formatLeaderList(group.groupLeaders, leaderNameMap);
+    
     skuEntry.data.push({
       date: group.date,
       totalQty: group.totalQty,
@@ -1033,7 +1055,7 @@ function computeAnalyticsData(groupedData, ticketsValues) {
       avgQty: group.numTickets ? group.totalQty / group.numTickets : 0,
       totalLayers: group.totalLayers,
       qualityIssues: group.qualityIssuesCount,
-      groupLeaders: Array.from(group.groupLeaders || []).join(', '),
+      groupLeaders: leaderDisplayList,
       bandingTypes: Array.from(group.bandingTypes || []).join(', '),
       firstTime: group.firstTime,
       lastTime: group.lastTime,
@@ -1074,7 +1096,8 @@ function computeAnalyticsData(groupedData, ticketsValues) {
     
     (group.groupLeaders || new Set()).forEach(function(leader) {
       if (!leader) return;
-      skuEntry.leaderSet.add(leader);
+      const displayLeader = toLeaderDisplayName(leader, leaderNameMap);
+      skuEntry.leaderSet.add(displayLeader);
     });
     
     (group.bandingTypes || new Set()).forEach(function(type) {
@@ -1151,10 +1174,25 @@ function computeAnalyticsData(groupedData, ticketsValues) {
   
   totals.avgLayers7d = totals.tickets7d ? totals.layers7d / totals.tickets7d : 0;
   totals.issueRate7d = totals.tickets7d ? totals.issues7d / totals.tickets7d : 0;
+  const allTickets = totals.tickets30d + totals.tickets7d;
+  totals.avgLayersAll = allTickets ? (totals.layers30d + totals.layers7d) / allTickets : 0;
+  totals.issueRateAll = allTickets ? (totals.issues30d + totals.issues7d) / allTickets : 0;
   totals.activeSkusToday = activeSkuTodaySet.size;
   
-  const leaderStats = computeLeaderStats(ticketsValues, today, sevenDaysAgo);
-  const shiftSummaries = computeShiftBuckets(ticketsValues);
+  const leaderStats = computeLeaderStats(ticketsValues, today, sevenDaysAgo, leaderNameMap);
+  const shiftSummaries = computeShiftBuckets(ticketsValues, leaderNameMap);
+  const variantArray = Object.keys(variantStats).map(function(key) {
+    const entry = variantStats[key];
+    return {
+      variant: key,
+      all: finalizeVariantBucket(entry.all),
+      today: finalizeVariantBucket(entry.today),
+      seven: finalizeVariantBucket(entry.seven),
+      thirty: finalizeVariantBucket(entry.thirty)
+    };
+  }).sort(function(a, b) {
+    return a.variant.localeCompare(b.variant);
+  });
   
   return {
     today: today,
@@ -1167,11 +1205,45 @@ function computeAnalyticsData(groupedData, ticketsValues) {
     shiftTable: shiftSummaries,
     multiLeaderTickets: leaderStats.multi,
     leaderlessTickets: leaderStats.leaderless,
+    leaderlessTotals: leaderStats.leaderlessTotals,
+    variantStats: variantArray,
     labels: {
       today: formatDisplayDate(today),
       refreshedAt: new Date().toLocaleString()
     }
   };
+}
+
+function ensureVariantBucket(container, key) {
+  if (!container[key]) {
+    container[key] = {
+      all: createVariantBucket(),
+      today: createVariantBucket(),
+      seven: createVariantBucket(),
+      thirty: createVariantBucket()
+    };
+  }
+}
+
+function createVariantBucket() {
+  return { cartons: 0, pieces: 0, tickets: 0, layers: 0, issues: 0 };
+}
+
+function accumulateVariant(bucket, cartons, pieces, tickets, layers, issues) {
+  bucket.cartons += cartons || 0;
+  bucket.pieces += pieces || 0;
+  bucket.tickets += tickets || 0;
+  bucket.layers += layers || 0;
+  bucket.issues += issues || 0;
+}
+
+function finalizeVariantBucket(bucket) {
+  const avgLayers = bucket.tickets ? bucket.layers / bucket.tickets : 0;
+  const issueRate = bucket.tickets ? bucket.issues / bucket.tickets : 0;
+  return Object.assign({}, bucket, {
+    avgLayers: avgLayers,
+    issueRate: issueRate
+  });
 }
 
 /**
@@ -1214,12 +1286,12 @@ function buildSummarySheet(workbook, analyticsData) {
   summarySheet.getRange('A3:H3').merge().setValue('Refreshed: ' + analyticsData.labels.refreshedAt).setFontSize(10).setFontColor('#718096').setHorizontalAlignment('center');
   
   const cards = [
-    { range: 'A5:C8', title: '📦 Cartons Today', value: formatNumber(analyticsData.totals.cartonsToday), subtitle: 'Today (' + analyticsData.labels.today + ')', color: '#4dabf7', note: 'All cartons scanned today across every SKU and pack size.' },
-    { range: 'D5:F8', title: '🗓️ Cartons (7d)', value: formatNumber(analyticsData.totals.cartons7d), subtitle: 'Rolling 7 days', color: '#5ad5a9', note: 'Seven-day rolling carton total. Helps spot short-term surges or dips.' },
-    { range: 'G5:H8', title: '📊 Cartons (MTD)', value: formatNumber(analyticsData.totals.cartonsMTD), subtitle: 'Month-to-date', color: '#ffb347', note: 'Month-to-date cartons versus monthly targets.' },
-    { range: 'A9:C12', title: '🧱 Avg Layers (7d)', value: formatDecimal(analyticsData.totals.avgLayers7d), subtitle: 'Per ticket', color: '#9f7aea', note: 'Sum of all recorded layers ÷ ticket count for the last 7 days.' },
-    { range: 'D9:F12', title: '⚠️ Issue Rate', value: formatPercent(analyticsData.totals.issueRate7d), subtitle: 'Issues / ticket (7d)', color: '#f56565', note: 'Quality issue count divided by total tickets for the last 7 days.' },
-    { range: 'G9:H12', title: '🧑‍🔧 Active SKUs', value: formatNumber(analyticsData.totals.activeSkusToday), subtitle: 'Producing today', color: '#48bb78', note: 'Distinct SKU + pack combinations that produced tickets today.' }
+    { range: 'A5:C7', title: '📦 Cartons Today', value: formatNumber(analyticsData.totals.cartonsToday), subtitle: 'Today (' + analyticsData.labels.today + ')', color: '#4dabf7', note: 'All cartons scanned today across every SKU and pack size.' },
+    { range: 'D5:F7', title: '🗓️ Cartons (7d)', value: formatNumber(analyticsData.totals.cartons7d), subtitle: 'Rolling 7 days', color: '#5ad5a9', note: 'Seven-day rolling carton total. Helps spot short-term surges or dips.' },
+    { range: 'G5:H7', title: '📊 Cartons (30d)', value: formatNumber(analyticsData.totals.cartons30d), subtitle: 'Rolling 30 days', color: '#ffb347', note: 'Rolling 30-day carton total for medium-term tracking.' },
+    { range: 'A8:C10', title: '🧱 Avg Layers (All)', value: formatDecimal(analyticsData.totals.avgLayersAll), subtitle: 'Lifetime per ticket', color: '#9f7aea', note: 'All-time average layers per ticket.' },
+    { range: 'D8:F10', title: '⚠️ Issue Rate (All)', value: formatPercent(analyticsData.totals.issueRateAll), subtitle: 'Lifetime issues/ticket', color: '#f56565', note: 'All-time quality issue rate across all tickets.' },
+    { range: 'G8:H10', title: '🧑‍🔧 Active SKUs', value: formatNumber(analyticsData.totals.activeSkusToday), subtitle: 'Producing today', color: '#48bb78', note: 'Distinct SKU + pack combinations that produced tickets today.' }
   ];
   
   cards.forEach(function(card) {
@@ -1256,16 +1328,6 @@ function buildSummarySheet(workbook, analyticsData) {
   }), startRow, { numericColumns: [3, 4], decimalColumns: [5], percentColumns: [6], notes: {5: 'Average is total layers ÷ tickets for this SKU and pack type over the last 7 days.'} });
   
   startRow += analyticsData.perSku.length + 4;
-  const leaderRows = analyticsData.leaderTable.map(function(item) {
-    return [item.leader, item.cartons, item.tickets];
-  });
-  buildTable(summarySheet, '👷 Leader Productivity', ['Leader', 'Cartons (7d)', 'Tickets (7d)'], leaderRows, startRow, { numericColumns: [2, 3], notes: { 2: 'Cartons allocated only when a valid leader was entered on the ticket. Leaderless tickets appear in the warning table below.' } });
-  const unassignedIndex = analyticsData.leaderTable.findIndex(function(item) { return item.unassigned; });
-  if (unassignedIndex >= 0) {
-    summarySheet.getRange(startRow + 2 + unassignedIndex, 1, 1, 3).setBackground('#fffbea');
-  }
-  
-  startRow += leaderRows.length + 4;
   const multiLeaderRows = (analyticsData.multiLeaderTickets || []).slice(0, 10).map(function(item) {
     return [item.date, item.serial, item.leaders, item.qty];
   });
@@ -1291,6 +1353,91 @@ function buildSummarySheet(workbook, analyticsData) {
   }), startRow, { numericColumns: [3] });
   
   summarySheet.getRange(startRow + analyticsData.issuesSummary.length + 3, 1, 1, 8).merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+}
+
+function buildVariantComparisonSheet(workbook, analyticsData) {
+  let sheet = workbook.getSheetByName('Variant_Comparison');
+  if (!sheet) {
+    sheet = workbook.insertSheet('Variant_Comparison');
+  }
+  
+  sheet.clear();
+  sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).setFontFamily('Cascadia Mono');
+  sheet.setColumnWidths(1, 10, 150);
+  
+  sheet.getRange('A1:J1').merge().setValue('Variant Comparison ⚖️').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c');
+  sheet.getRange('A2:J2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  sheet.getRange('A3:J3').merge().setValue('0.5KG vs 1KG performance across time windows').setFontColor('#718096').setHorizontalAlignment('center');
+  
+  const variants = analyticsData.variantStats || [];
+  if (!variants.length) {
+    sheet.getRange('A4').setValue('No variant data yet').setFontColor('#a0aec0');
+    return;
+  }
+  
+  const periods = [
+    { key: 'today', label: 'Today', color: '#4dabf7' },
+    { key: 'seven', label: 'Rolling 7 days', color: '#5ad5a9' },
+    { key: 'thirty', label: 'Rolling 30 days', color: '#ffb347' },
+    { key: 'all', label: 'All Time', color: '#9f7aea' }
+  ];
+  
+  let cardStartRow = 5;
+  periods.forEach(function(period, pIndex) {
+    variants.forEach(function(variant, vIndex) {
+      const row = cardStartRow + pIndex * 4;
+      const col = 1 + vIndex * 4;
+      const range = sheet.getRange(row, col, 3, 3);
+      range.merge();
+      const stats = variant[period.key] || {};
+      range.setValue(variant.variant + ' • ' + period.label + '\nCartons: ' + formatNumber(stats.cartons || 0) + '\nPieces: ' + formatNumber(stats.pieces || 0));
+      range.setBackground(period.color);
+      range.setFontColor('#ffffff');
+      range.setWrap(true);
+      range.setVerticalAlignment('middle');
+      range.setHorizontalAlignment('left');
+    });
+  });
+  
+  sheet.getRange(cardStartRow + periods.length * 4 + 1, 1, 1, 10).merge().setValue('Variant KPIs • All windows are auto-refreshed after each recalculation').setFontColor('#a0aec0').setHorizontalAlignment('center');
+  
+  let tableStartRow = cardStartRow + periods.length * 4 + 3;
+  const headers = ['Variant', 'Cartons (All)', 'Pieces (All)', 'Tickets (All)', 'Avg Layers', 'Issue Rate', 'Cartons Today', 'Cartons (7d)', 'Cartons (30d)', 'Pieces (30d)'];
+  const rows = variants.map(function(variant) {
+    return [
+      variant.variant,
+      variant.all.cartons,
+      variant.all.pieces,
+      variant.all.tickets,
+      variant.all.avgLayers,
+      variant.all.issueRate,
+      variant.today.cartons,
+      variant.seven.cartons,
+      variant.thirty.cartons,
+      variant.thirty.pieces
+    ];
+  });
+  
+  buildTable(sheet, '📊 Variant Overview', headers, rows, tableStartRow, {
+    numericColumns: [2, 3, 4, 7, 8, 9, 10],
+    decimalColumns: [5],
+    percentColumns: [6]
+  });
+  
+  const skuHeaders = ['Variant', 'SKU', 'Cartons'];
+  const skuRows = [];
+  (analyticsData.variantSkuMap || []).forEach(function(entry) {
+    entry.skus.forEach(function(skuRow) {
+      skuRows.push([entry.variant, skuRow.sku, skuRow.cartons]);
+    });
+  });
+  
+  if (skuRows.length > 0) {
+    const skuStartRow = tableStartRow + rows.length + 4;
+    buildTable(sheet, '🔬 Variant SKU Breakdown', skuHeaders, skuRows, skuStartRow, {
+      numericColumns: [3]
+    });
+  }
 }
 
 /**
@@ -1604,115 +1751,51 @@ function collectIssueDetails(ticketsValues, today, sevenDaysAgo, thirtyDaysAgo) 
   return issueMap;
 }
 
-function computeLeaderStats(ticketsValues, today, sevenDaysAgo) {
-  const stats = {};
-  const multiLeaderTickets = [];
+function computeLeaderStats(ticketsValues, today, sevenDaysAgo, leaderNameMap) {
+  leaderNameMap = leaderNameMap || {};
+  const counts = {};
   const leaderlessTickets = [];
-  let leaderlessTotals = { cartons: 0, tickets: 0 };
-  let windowCartons = 0;
-  let windowTickets = 0;
   
   for (let i = 1; i < ticketsValues.length; i++) {
     const row = ticketsValues[i];
     const qty = parseFloat(row[4]) || 0;
-    if (!qty) continue;
-    
-    const dateObj = normalizeDateValue(row[1]);
-    if (!dateObj) continue;
-    if (dateObj < sevenDaysAgo || dateObj > today) {
-      continue;
-    }
-    
-    windowCartons += qty;
-    windowTickets += 1;
-    
-    const leaders = parseLeaderNames(row[12]);
     const serial = row[0] || '';
-    if (!leaders.length) {
-      leaderlessTickets.push({
-        date: formatDateKey(dateObj),
-        serial: serial,
-        qty: qty,
-        sku: (row[3] || '').toString().trim()
-      });
-      leaderlessTotals.cartons += qty;
-      leaderlessTotals.tickets += 1;
+    const rawLeader = (row[12] || '').toString().trim();
+    
+    if (!rawLeader) {
+      leaderlessTickets.push({ serial: serial, qty: qty });
       continue;
     }
     
-    if (leaders.length > 1) {
-      multiLeaderTickets.push({
-        date: formatDateKey(dateObj),
-        serial: serial,
-        leaders: leaders.join(', '),
-        qty: qty
-      });
+    const leaderId = rawLeader.toUpperCase();
+    if (!counts[leaderId]) {
+      counts[leaderId] = { id: leaderId, cartons: 0, tickets: 0, raw: rawLeader };
     }
-    
-    const primaryLeader = leaders[0];
-    if (!primaryLeader) {
-      leaderlessTickets.push({
-        date: formatDateKey(dateObj),
-        serial: serial,
-        qty: qty,
-        sku: (row[3] || '').toString().trim()
-      });
-      leaderlessTotals.cartons += qty;
-      leaderlessTotals.tickets += 1;
-      continue;
-    }
-    
-    if (!stats[primaryLeader]) {
-      stats[primaryLeader] = { leader: primaryLeader, cartons: 0, tickets: 0 };
-    }
-    stats[primaryLeader].cartons += qty;
-    stats[primaryLeader].tickets += 1;
+    counts[leaderId].cartons += qty;
+    counts[leaderId].tickets += 1;
   }
   
-  multiLeaderTickets.sort(function(a, b) {
-    if (a.date !== b.date) {
-      return (a.date || '') < (b.date || '') ? 1 : -1;
-    }
-    return b.qty - a.qty;
-  });
-  
-  leaderlessTickets.sort(function(a, b) {
-    if (a.date !== b.date) {
-      return (a.date || '') < (b.date || '') ? 1 : -1;
-    }
-    return b.qty - a.qty;
-  });
-  
-  const table = Object.keys(stats).map(function(name) {
-    return {
-      leader: name,
-      cartons: stats[name].cartons,
-      tickets: stats[name].tickets
-    };
+  const table = Object.keys(counts).map(function(id) {
+    const displayName = leaderNameMap[id] || counts[id].raw || id;
+    return { leader: displayName, cartons: counts[id].cartons, tickets: counts[id].tickets, id: id };
   }).sort(function(a, b) {
     return b.cartons - a.cartons;
   });
   
-  if (leaderlessTotals.cartons > 0) {
+  if (leaderlessTickets.length > 0) {
     table.push({
       leader: 'Unassigned ⚠️',
-      cartons: leaderlessTotals.cartons,
-      tickets: leaderlessTotals.tickets,
+      cartons: leaderlessTickets.reduce(function(sum, item) { return sum + item.qty; }, 0),
+      tickets: leaderlessTickets.length,
       unassigned: true
     });
   }
   
-  return { 
-    table: table, 
-    multi: multiLeaderTickets, 
-    leaderless: leaderlessTickets,
-    leaderlessTotals: leaderlessTotals,
-    windowCartons: windowCartons,
-    windowTickets: windowTickets
-  };
+  return { table: table, leaderlessTickets: leaderlessTickets };
 }
 
-function computeShiftBuckets(ticketsValues) {
+function computeShiftBuckets(ticketsValues, leaderNameMap) {
+  leaderNameMap = leaderNameMap || {};
   const buckets = {};
   for (let i = 1; i < ticketsValues.length; i++) {
     const row = ticketsValues[i];
@@ -1756,7 +1839,8 @@ function computeShiftBuckets(ticketsValues) {
     const leaders = parseLeaderNames(row[12]);
     const primaryLeader = leaders[0];
     if (primaryLeader) {
-      bucket.leaders[primaryLeader] = (bucket.leaders[primaryLeader] || 0) + qty;
+      const displayLeader = toLeaderDisplayName(primaryLeader, leaderNameMap);
+      bucket.leaders[displayLeader] = (bucket.leaders[displayLeader] || 0) + qty;
     }
     
     const skuKey = productTypeLabel ? sku + ' (' + productTypeLabel + ')' : sku;
@@ -1822,11 +1906,49 @@ function summarizeValueMap(map, limit) {
 
 function parseLeaderNames(value) {
   if (!value) return [];
-  return value.toString().split(/[,\n]/).map(function(item) {
-    return item.trim();
+  const raw = value.toString();
+  const idMatches = raw.match(/USER\s*\d+/gi);
+  if (idMatches && idMatches.length) {
+    return idMatches.map(function(match) {
+      return match.replace(/\s+/g, '').toUpperCase();
+    });
+  }
+  return raw.split(/[,;\n]+/).map(function(item) {
+    return cleanLeaderToken(item);
   }).filter(function(item) {
     return item.length > 0;
   });
+}
+
+function cleanLeaderToken(token) {
+  if (!token) return '';
+  let cleaned = token.toString().trim();
+  if (!cleaned) return '';
+  cleaned = cleaned.replace(/\(.*?\)/g, '').trim();
+  cleaned = cleaned.replace(/[-–|].*$/, '').trim();
+  cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+  return cleaned;
+}
+
+function toLeaderDisplayName(rawValue, nameMap) {
+  if (!rawValue) return '';
+  const value = rawValue.toString().trim();
+  if (!value) return '';
+  if (!nameMap) return value;
+  
+  const upper = value.toUpperCase();
+  if (nameMap[upper]) return nameMap[upper];
+  
+  return value;
+}
+
+function formatLeaderList(leaderSet, nameMap) {
+  if (!leaderSet) return '';
+  return Array.from(leaderSet).map(function(id) {
+    return toLeaderDisplayName(id, nameMap);
+  }).filter(function(name) {
+    return name;
+  }).join(', ');
 }
 
 function parseTimeValue(value) {
@@ -1944,6 +2066,29 @@ function getShiftInfo(dateTime) {
     label: label,
     window: window
   };
+}
+
+function getLeaderNameMap(workbook) {
+  const map = {};
+  try {
+    const sheet = workbook.getSheetByName('Authorized Users');
+    if (!sheet) return map;
+    const values = sheet.getDataRange().getValues();
+    if (!values || values.length < 2) return map;
+    const headers = values[0] || [];
+    const idCol = 0;
+    const nameCol = headers.indexOf('Name') >= 0 ? headers.indexOf('Name') : 1;
+    for (let i = 1; i < values.length; i++) {
+      const rawId = (values[i][idCol] || '').toString().trim();
+      if (!rawId) continue;
+      const upperId = rawId.toUpperCase();
+      const name = (values[i][nameCol] || '').toString().trim() || rawId;
+      map[upperId] = name;
+    }
+  } catch (err) {
+    Logger.log('Error building leader name map: ' + err.toString());
+  }
+  return map;
 }
 
 function parseIsoDate(dateStr) {

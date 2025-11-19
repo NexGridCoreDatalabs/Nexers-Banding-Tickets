@@ -748,6 +748,12 @@ function recalculateAllCalculations(sheet) {
       sortRange.sort([{column: 1, ascending: true}, {column: 2, ascending: true}]);
     }
     
+    try {
+      buildAnalyticsCenter(sheet, sortedData, ticketsValues);
+    } catch (dashboardError) {
+      Logger.log('Analytics center build failed: ' + dashboardError.toString());
+    }
+    
     return createResponse({ 
       success: true, 
       message: `Recalculated ${rows.length} entries from ${ticketsValues.length - 1} tickets`,
@@ -879,6 +885,664 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
   } catch (error) {
     Logger.log('Error updating calculations: ' + error.toString());
   }
+}
+
+/**
+ * Build analytics center sheets (Summary, SKU Index, SKU detail tabs)
+ * @param {Spreadsheet} workbook
+ * @param {Array<Object>} groupedData - Output from recalculateAllCalculations
+ * @param {Array<Array>} ticketsValues - Raw tickets sheet values (including header)
+ */
+function buildAnalyticsCenter(workbook, groupedData, ticketsValues) {
+  const analyticsData = computeAnalyticsData(groupedData, ticketsValues);
+  
+  ensureConfigSheet(workbook);
+  buildSummarySheet(workbook, analyticsData);
+  const skuSheetMeta = buildSkuDetailSheets(workbook, analyticsData);
+  buildSkuIndexSheet(workbook, analyticsData, skuSheetMeta);
+}
+
+/**
+ * Compute aggregates required for dashboards
+ */
+function computeAnalyticsData(groupedData, ticketsValues) {
+  const today = getStartOfDay(new Date());
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 6);
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 29);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  
+  const dayMap = {};
+  const skuMap = {};
+  const leaderMap = {};
+  const activeSkuTodaySet = new Set();
+  
+  const totals = {
+    cartonsToday: 0,
+    piecesToday: 0,
+    cartons7d: 0,
+    pieces7d: 0,
+    cartons30d: 0,
+    pieces30d: 0,
+    cartonsMTD: 0,
+    piecesMTD: 0,
+    tickets7d: 0,
+    tickets30d: 0,
+    layers7d: 0,
+    layers30d: 0,
+    issues7d: 0,
+    issues30d: 0,
+    totalCartonsAll: 0,
+    totalPiecesAll: 0
+  };
+  
+  groupedData.forEach(function(group) {
+    const dateObj = parseIsoDate(group.date);
+    if (!dateObj) return;
+    const dayKey = formatDateKey(dateObj);
+    
+    if (!dayMap[dayKey]) {
+      dayMap[dayKey] = {
+        date: dayKey,
+        dateObj: dateObj,
+        cartons: 0,
+        pieces: 0,
+        tickets: 0,
+        issues: 0,
+        skuSet: new Set()
+      };
+    }
+    
+    const dayEntry = dayMap[dayKey];
+    dayEntry.cartons += group.totalQty;
+    dayEntry.pieces += group.totalPieces;
+    dayEntry.tickets += group.numTickets;
+    dayEntry.issues += group.qualityIssuesCount;
+    dayEntry.skuSet.add(group.sku + '|' + group.productType);
+    
+    totals.totalCartonsAll += group.totalQty;
+    totals.totalPiecesAll += group.totalPieces;
+    
+    if (isSameDay(dateObj, today)) {
+      totals.cartonsToday += group.totalQty;
+      totals.piecesToday += group.totalPieces;
+      activeSkuTodaySet.add(group.sku + '|' + group.productType);
+    }
+    
+    if (dateObj >= sevenDaysAgo && dateObj <= today) {
+      totals.cartons7d += group.totalQty;
+      totals.pieces7d += group.totalPieces;
+      totals.tickets7d += group.numTickets;
+      totals.layers7d += group.totalLayers;
+      totals.issues7d += group.qualityIssuesCount;
+    }
+    
+    if (dateObj >= thirtyDaysAgo && dateObj <= today) {
+      totals.cartons30d += group.totalQty;
+      totals.pieces30d += group.totalPieces;
+      totals.tickets30d += group.numTickets;
+      totals.layers30d += group.totalLayers;
+      totals.issues30d += group.qualityIssuesCount;
+    }
+    
+    if (dateObj >= monthStart && dateObj <= today) {
+      totals.cartonsMTD += group.totalQty;
+      totals.piecesMTD += group.totalPieces;
+    }
+    
+    const skuKey = group.sku + '|' + group.productType;
+    if (!skuMap[skuKey]) {
+      skuMap[skuKey] = {
+        key: skuKey,
+        sku: group.sku,
+        productType: group.productType,
+        data: [],
+        totalsAll: { cartons: 0, pieces: 0, tickets: 0, layers: 0, issues: 0 },
+        totals7d: { cartons: 0, pieces: 0, tickets: 0, layers: 0, issues: 0 },
+        totals30d: { cartons: 0, pieces: 0, tickets: 0, layers: 0, issues: 0 },
+        todayCartons: 0,
+        lastDate: null,
+        leaderSet: new Set(),
+        bandingSet: new Set(),
+        sachetSet: new Set(),
+        tabletSet: new Set(),
+        recentIssues: [],
+        issueTypes: []
+      };
+    }
+    
+    const skuEntry = skuMap[skuKey];
+    skuEntry.data.push({
+      date: group.date,
+      totalQty: group.totalQty,
+      totalPieces: group.totalPieces,
+      numTickets: group.numTickets,
+      avgQty: group.numTickets ? group.totalQty / group.numTickets : 0,
+      totalLayers: group.totalLayers,
+      qualityIssues: group.qualityIssuesCount,
+      groupLeaders: Array.from(group.groupLeaders || []).join(', '),
+      bandingTypes: Array.from(group.bandingTypes || []).join(', '),
+      firstTime: group.firstTime,
+      lastTime: group.lastTime,
+      sachet: Array.from(group.sachetTypes || []).join(', '),
+      tablet: Array.from(group.tabletTypes || []).join(', '),
+      serials: group.serials.join(', ')
+    });
+    
+    skuEntry.totalsAll.cartons += group.totalQty;
+    skuEntry.totalsAll.pieces += group.totalPieces;
+    skuEntry.totalsAll.tickets += group.numTickets;
+    skuEntry.totalsAll.layers += group.totalLayers;
+    skuEntry.totalsAll.issues += group.qualityIssuesCount;
+    
+    if (!skuEntry.lastDate || dateObj > skuEntry.lastDate) {
+      skuEntry.lastDate = dateObj;
+    }
+    
+    if (isSameDay(dateObj, today)) {
+      skuEntry.todayCartons += group.totalQty;
+    }
+    
+    if (dateObj >= sevenDaysAgo && dateObj <= today) {
+      skuEntry.totals7d.cartons += group.totalQty;
+      skuEntry.totals7d.pieces += group.totalPieces;
+      skuEntry.totals7d.tickets += group.numTickets;
+      skuEntry.totals7d.layers += group.totalLayers;
+      skuEntry.totals7d.issues += group.qualityIssuesCount;
+    }
+    
+    if (dateObj >= thirtyDaysAgo && dateObj <= today) {
+      skuEntry.totals30d.cartons += group.totalQty;
+      skuEntry.totals30d.pieces += group.totalPieces;
+      skuEntry.totals30d.tickets += group.numTickets;
+      skuEntry.totals30d.layers += group.totalLayers;
+      skuEntry.totals30d.issues += group.qualityIssuesCount;
+    }
+    
+    (group.groupLeaders || new Set()).forEach(function(leader) {
+      if (!leader) return;
+      skuEntry.leaderSet.add(leader);
+      if (!leaderMap[leader]) {
+        leaderMap[leader] = { cartons7d: 0, tickets7d: 0 };
+      }
+      if (dateObj >= sevenDaysAgo && dateObj <= today) {
+        leaderMap[leader].cartons7d += group.totalQty;
+        leaderMap[leader].tickets7d += group.numTickets;
+      }
+    });
+    
+    (group.bandingTypes || new Set()).forEach(function(type) {
+      if (type) {
+        skuEntry.bandingSet.add(type);
+      }
+    });
+    
+    (group.sachetTypes || new Set()).forEach(function(type) {
+      if (type) {
+        skuEntry.sachetSet.add(type);
+      }
+    });
+    
+    (group.tabletTypes || new Set()).forEach(function(type) {
+      if (type) {
+        skuEntry.tabletSet.add(type);
+      }
+    });
+  });
+  
+  const issueDetails = collectIssueDetails(ticketsValues, today, sevenDaysAgo, thirtyDaysAgo);
+  
+  const perSkuArray = Object.keys(skuMap).map(function(key) {
+    const entry = skuMap[key];
+    const detail = issueDetails[key] || { counts7d: {}, recent: [] };
+    entry.recentIssues = detail.recent.slice(0, 5);
+    entry.issueTypes = Object.keys(detail.counts7d).map(function(type) {
+      return { type: type, count: detail.counts7d[type] };
+    }).sort(function(a, b) { return b.count - a.count; });
+    entry.issueCount7d = entry.issueTypes.reduce(function(acc, obj) { return acc + obj.count; }, 0);
+    entry.avgLayers7d = entry.totals7d.tickets ? entry.totals7d.layers / entry.totals7d.tickets : 0;
+    entry.avgLayers30d = entry.totals30d.tickets ? entry.totals30d.layers / entry.totals30d.tickets : 0;
+    entry.lastDateStr = entry.lastDate ? formatDateKey(entry.lastDate) : '-';
+    entry.dayData = entry.data.sort(function(a, b) {
+      return a.date < b.date ? 1 : -1;
+    });
+    entry.key = key;
+    return entry;
+  }).sort(function(a, b) {
+    if (a.sku === b.sku) {
+      return a.productType.localeCompare(b.productType);
+    }
+    return a.sku.localeCompare(b.sku);
+  });
+  
+  const issuesSummary = [];
+  perSkuArray.forEach(function(entry) {
+    if (entry.issueCount7d > 0) {
+      issuesSummary.push({
+        sku: entry.sku,
+        productType: entry.productType,
+        count: entry.issueCount7d,
+        types: entry.issueTypes.slice(0, 3).map(function(obj) {
+          return obj.type + ' (' + obj.count + ')';
+        }).join(', ')
+      });
+    }
+  });
+  
+  const perDayArray = Object.keys(dayMap).map(function(key) {
+    const item = dayMap[key];
+    return {
+      date: key,
+      cartons: item.cartons,
+      pieces: item.pieces,
+      tickets: item.tickets,
+      issues: item.issues,
+      skuCount: item.skuSet.size
+    };
+  }).sort(function(a, b) {
+    return a.date < b.date ? 1 : -1;
+  });
+  
+  const leaderArray = Object.keys(leaderMap).map(function(name) {
+    return {
+      leader: name,
+      cartons7d: leaderMap[name].cartons7d,
+      tickets7d: leaderMap[name].tickets7d
+    };
+  }).sort(function(a, b) {
+    return b.cartons7d - a.cartons7d;
+  });
+  
+  totals.avgLayers7d = totals.tickets7d ? totals.layers7d / totals.tickets7d : 0;
+  totals.issueRate7d = totals.tickets7d ? totals.issues7d / totals.tickets7d : 0;
+  totals.activeSkusToday = activeSkuTodaySet.size;
+  
+  return {
+    today: today,
+    totals: totals,
+    perDay: perDayArray,
+    perSku: perSkuArray,
+    leaderTable: leaderArray.slice(0, 6),
+    issuesSummary: issuesSummary.slice(0, 10),
+    issueDetails: issueDetails,
+    labels: {
+      today: formatDisplayDate(today),
+      refreshedAt: new Date().toLocaleString()
+    }
+  };
+}
+
+/**
+ * Ensure Config sheet exists with default headers
+ */
+function ensureConfigSheet(workbook) {
+  let configSheet = workbook.getSheetByName('Config');
+  if (!configSheet) {
+    configSheet = workbook.insertSheet('Config');
+    configSheet.getRange(1, 1, 1, 7).setValues([[
+      'SKU',
+      'Friendly Name',
+      'Category',
+      'Product Types',
+      'Target Cartons / Day',
+      'Alert Threshold',
+      'Notes'
+    ]]);
+    configSheet.getRange('A1:G1').setFontWeight('bold').setBackground('#2d3748').setFontColor('#ffffff');
+    configSheet.setColumnWidths(1, 7, 160);
+  }
+  configSheet.getRange(1, 1, configSheet.getMaxRows(), configSheet.getMaxColumns()).setFontFamily('Cascadia Mono');
+}
+
+/**
+ * Build Summary sheet with KPI cards and tables
+ */
+function buildSummarySheet(workbook, analyticsData) {
+  let summarySheet = workbook.getSheetByName('Summary');
+  if (!summarySheet) {
+    summarySheet = workbook.insertSheet('Summary');
+  }
+  
+  summarySheet.clear();
+  summarySheet.getRange(1, 1, summarySheet.getMaxRows(), summarySheet.getMaxColumns()).setFontFamily('Cascadia Mono');
+  summarySheet.setColumnWidths(1, 8, 120);
+  
+  summarySheet.getRange('A1:H1').merge().setValue('Banding Analytics Center 📈').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setFontColor('#1a202c').setBackground('#f8fafc');
+  summarySheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontSize(12).setFontColor('#4c51bf').setHorizontalAlignment('center');
+  summarySheet.getRange('A3:H3').merge().setValue('Refreshed: ' + analyticsData.labels.refreshedAt).setFontSize(10).setFontColor('#718096').setHorizontalAlignment('center');
+  
+  const cards = [
+    { range: 'A5:C8', title: '📦 Cartons Today', value: formatNumber(analyticsData.totals.cartonsToday), subtitle: 'Today (' + analyticsData.labels.today + ')', color: '#4dabf7' },
+    { range: 'D5:F8', title: '🗓️ Cartons (7d)', value: formatNumber(analyticsData.totals.cartons7d), subtitle: 'Rolling 7 days', color: '#5ad5a9' },
+    { range: 'G5:H8', title: '📊 Cartons (MTD)', value: formatNumber(analyticsData.totals.cartonsMTD), subtitle: 'Month-to-date', color: '#ffb347' },
+    { range: 'A9:C12', title: '🧱 Avg Layers (7d)', value: formatDecimal(analyticsData.totals.avgLayers7d), subtitle: 'Per ticket', color: '#9f7aea' },
+    { range: 'D9:F12', title: '⚠️ Issue Rate', value: formatPercent(analyticsData.totals.issueRate7d), subtitle: 'Issues / ticket (7d)', color: '#f56565' },
+    { range: 'G9:H12', title: '🧑‍🔧 Active SKUs', value: formatNumber(analyticsData.totals.activeSkusToday), subtitle: 'Producing today', color: '#48bb78' }
+  ];
+  
+  cards.forEach(function(card) {
+    const range = summarySheet.getRange(card.range);
+    range.merge();
+    range.setValue(card.title + '\n' + card.value + '\n' + card.subtitle);
+    range.setBackground(card.color);
+    range.setFontColor('#ffffff');
+    range.setFontSize(13);
+    range.setVerticalAlignment('middle');
+    range.setHorizontalAlignment('left');
+    range.setWrap(true);
+  });
+  
+  let startRow = 14;
+  buildTable(summarySheet, '📅 Production by Day', ['Date', 'Cartons', 'Pieces', 'Tickets', 'Issues', 'Distinct SKUs'], analyticsData.perDay.slice(0, 14).map(function(day) {
+    return [day.date, day.cartons, day.pieces, day.tickets, day.issues, day.skuCount];
+  }), startRow);
+  
+  startRow += analyticsData.perDay.slice(0, 14).length + 4;
+  buildTable(summarySheet, '📦 SKU Performance', ['SKU', 'Product Type', 'Cartons (7d)', 'Cartons (30d)', 'Avg Layers (7d)', 'Issue Rate (7d)', 'Last Production'], analyticsData.perSku.map(function(entry) {
+    const issueRate = entry.totals7d.tickets ? entry.totals7d.issues / entry.totals7d.tickets : 0;
+    return [
+      entry.sku,
+      entry.productType,
+      entry.totals7d.cartons,
+      entry.totals30d.cartons,
+      formatDecimal(entry.avgLayers7d),
+      formatPercent(issueRate),
+      entry.lastDateStr
+    ];
+  }), startRow);
+  
+  startRow += analyticsData.perSku.length + 4;
+  buildTable(summarySheet, '👷 Leader Productivity', ['Leader', 'Cartons (7d)', 'Tickets (7d)'], analyticsData.leaderTable.map(function(item) {
+    return [item.leader, item.cartons7d, item.tickets7d];
+  }), startRow);
+  
+  startRow += analyticsData.leaderTable.length + 4;
+  buildTable(summarySheet, '🛠️ Quality Issues (7d)', ['SKU', 'Product Type', 'Issues', 'Top Issue Types'], analyticsData.issuesSummary.map(function(item) {
+    return [item.sku, item.productType, item.count, item.types];
+  }), startRow);
+  
+  summarySheet.getRange(startRow + analyticsData.issuesSummary.length + 3, 1, 1, 8).merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+}
+
+/**
+ * Build SKU detail sheets
+ * @returns {Object} map of SKU keys to sheet metadata
+ */
+function buildSkuDetailSheets(workbook, analyticsData) {
+  const existingSheets = workbook.getSheets().filter(function(s) {
+    return s.getName().indexOf('SKU_') === 0;
+  });
+  const keepSheetNames = new Set();
+  const sheetMeta = {};
+  
+  analyticsData.perSku.forEach(function(entry) {
+    let sheetName = createSkuSheetName(entry.sku, entry.productType);
+    let uniqueName = sheetName;
+    let counter = 2;
+    while (keepSheetNames.has(uniqueName)) {
+      uniqueName = sheetName + '_' + counter;
+      counter++;
+    }
+    sheetName = uniqueName;
+    keepSheetNames.add(sheetName);
+    
+    let skuSheet = workbook.getSheetByName(sheetName);
+    if (!skuSheet) {
+      skuSheet = workbook.insertSheet(sheetName);
+    }
+    
+    skuSheet.clear();
+    skuSheet.getRange(1, 1, skuSheet.getMaxRows(), skuSheet.getMaxColumns()).setFontFamily('Cascadia Mono');
+    skuSheet.setColumnWidths(1, 12, 120);
+    
+    skuSheet.getRange('A1:H1').merge().setValue('SKU Analytics • ' + entry.sku + ' • ' + entry.productType).setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#edf2f7');
+    skuSheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+    
+    const skuCards = [
+      { range: 'A4:C6', title: '📦 Cartons Today', value: formatNumber(entry.todayCartons), subtitle: 'Today', color: '#4dabf7' },
+      { range: 'D4:E6', title: '🗓️ Cartons (7d)', value: formatNumber(entry.totals7d.cartons), subtitle: 'Rolling 7d', color: '#5ad5a9' },
+      { range: 'F4:H6', title: '📈 Cartons (30d)', value: formatNumber(entry.totals30d.cartons), subtitle: 'Rolling 30d', color: '#ffb347' },
+      { range: 'A7:C9', title: '🧱 Avg Layers (7d)', value: formatDecimal(entry.avgLayers7d), subtitle: 'Per ticket', color: '#9f7aea' },
+      { range: 'D7:E9', title: '🎯 Tickets (7d)', value: formatNumber(entry.totals7d.tickets), subtitle: 'Rolling 7d', color: '#63b3ed' },
+      { range: 'F7:H9', title: '⚠️ Issues (7d)', value: formatNumber(entry.totals7d.issues), subtitle: 'Rolling 7d', color: '#f56565' }
+    ];
+    
+    skuCards.forEach(function(card) {
+      const range = skuSheet.getRange(card.range);
+      range.merge();
+      range.setValue(card.title + '\n' + card.value + '\n' + card.subtitle);
+      range.setBackground(card.color);
+      range.setFontColor('#ffffff');
+      range.setWrap(true);
+      range.setHorizontalAlignment('left');
+      range.setVerticalAlignment('middle');
+    });
+    
+    const tableStartRow = 11;
+    const tableData = entry.dayData.slice(0, 30).map(function(row) {
+      const issueRate = row.numTickets ? row.qualityIssues / row.numTickets : 0;
+      return [
+        row.date,
+        row.totalQty,
+        row.totalPieces,
+        row.numTickets,
+        formatDecimal(row.avgQty),
+        row.totalLayers,
+        row.bandingTypes,
+        row.groupLeaders,
+        row.firstTime + ' - ' + row.lastTime,
+        row.sachet,
+        row.tablet,
+        formatPercent(issueRate)
+      ];
+    });
+    
+    buildTable(skuSheet, '📋 Recent Production', ['Date', 'Cartons', 'Pieces', 'Tickets', 'Avg Qty', 'Layers', 'Banding Types', 'Group Leaders', 'Time Window', 'Sachet', 'Tablet', 'Issue Rate'], tableData, tableStartRow);
+    
+    const issuesStart = tableStartRow + tableData.length + 4;
+    const issueRows = entry.recentIssues.length ? entry.recentIssues : [{ date: '-', type: 'No issues', description: '-', serial: '-' }];
+    buildTable(skuSheet, '🛠️ Recent Issues', ['Date', 'Type', 'Description', 'Serial'], issueRows.map(function(item) {
+      return [item.date, item.type, item.description, item.serial || '-'];
+    }), issuesStart);
+    
+    skuSheet.getRange(issuesStart + issueRows.length + 3, 1, 1, 8).merge().setValue('Banding data • ' + entry.sku + ' • ' + entry.productType).setFontColor('#a0aec0').setHorizontalAlignment('center');
+    
+    sheetMeta[entry.key] = {
+      sheetName: sheetName,
+      sheetId: skuSheet.getSheetId()
+    };
+  });
+  
+  existingSheets.forEach(function(sheet) {
+    if (!keepSheetNames.has(sheet.getName())) {
+      workbook.deleteSheet(sheet);
+    }
+  });
+  
+  return sheetMeta;
+}
+
+/**
+ * Build SKU index sheet with links to detail tabs
+ */
+function buildSkuIndexSheet(workbook, analyticsData, sheetMeta) {
+  let indexSheet = workbook.getSheetByName('SKU_Index');
+  if (!indexSheet) {
+    indexSheet = workbook.insertSheet('SKU_Index');
+  }
+  
+  indexSheet.clear();
+  indexSheet.getRange(1, 1, indexSheet.getMaxRows(), indexSheet.getMaxColumns()).setFontFamily('Cascadia Mono');
+  indexSheet.setColumnWidths(1, 8, 140);
+  
+  indexSheet.getRange('A1:H1').merge().setValue('SKU Directory 📚').setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#edf2f7');
+  indexSheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  
+  const header = ['SKU', 'Product Type', 'Cartons (7d)', 'Cartons (30d)', 'Last Production', 'Leaders', 'Status', 'Open'];
+  const rows = analyticsData.perSku.map(function(entry) {
+    const key = entry.key;
+    const meta = sheetMeta[key];
+    const link = meta ? '=HYPERLINK("#gid=' + meta.sheetId + '","View")' : '';
+    const status = entry.totals7d.cartons > 0 ? '🟢 Active' : '⚠️ Idle';
+    return [
+      entry.sku,
+      entry.productType,
+      entry.totals7d.cartons,
+      entry.totals30d.cartons,
+      entry.lastDateStr,
+      Array.from(entry.leaderSet).join(', '),
+      status,
+      link
+    ];
+  });
+  
+  buildTable(indexSheet, '📌 Overview', header, rows, 4);
+}
+
+/**
+ * Shared helper to build tables with title + header styling
+ */
+function buildTable(sheet, title, headers, rows, startRow) {
+  const titleRange = sheet.getRange(startRow, 1, 1, headers.length);
+  titleRange.merge().setValue(title).setFontWeight('bold').setFontColor('#2d3748').setBackground('#e2e8f0');
+  
+  const headerRange = sheet.getRange(startRow + 1, 1, 1, headers.length);
+  headerRange.setValues([headers]);
+  headerRange.setFontWeight('bold').setBackground('#2d3748').setFontColor('#ffffff');
+  
+  if (rows.length > 0) {
+    const bodyRange = sheet.getRange(startRow + 2, 1, rows.length, headers.length);
+    bodyRange.setValues(rows);
+    bodyRange.setBackground('#f8fafc');
+  } else {
+    const placeholderRange = sheet.getRange(startRow + 2, 1, 1, headers.length);
+    placeholderRange.merge().setValue('No data yet').setFontColor('#a0aec0').setHorizontalAlignment('center');
+  }
+}
+
+/**
+ * Collect issue details from Tickets sheet raw data
+ */
+function collectIssueDetails(ticketsValues, today, sevenDaysAgo, thirtyDaysAgo) {
+  const issueMap = {};
+  for (let i = 1; i < ticketsValues.length; i++) {
+    const row = ticketsValues[i];
+    const sku = (row[3] || '').toString().trim();
+    if (!sku) continue;
+    const productTypeLabel = getProductTypeLabel(row[7]);
+    if (!productTypeLabel) continue;
+    const dateObj = normalizeDateValue(row[1]);
+    if (!dateObj) continue;
+    const key = sku + '|' + productTypeLabel;
+    if (!issueMap[key]) {
+      issueMap[key] = { counts7d: {}, counts30d: {}, recent: [] };
+    }
+    const issueType = (row[10] || '').toString().trim();
+    const issueDesc = (row[11] || '').toString().trim();
+    
+    if (issueType) {
+      if (dateObj >= sevenDaysAgo && dateObj <= today) {
+        issueMap[key].counts7d[issueType] = (issueMap[key].counts7d[issueType] || 0) + 1;
+      }
+      if (dateObj >= thirtyDaysAgo && dateObj <= today) {
+        issueMap[key].counts30d[issueType] = (issueMap[key].counts30d[issueType] || 0) + 1;
+        issueMap[key].recent.push({
+          date: formatDateKey(dateObj),
+          type: issueType,
+          description: issueDesc || 'No description',
+          serial: row[0] || ''
+        });
+      }
+    }
+  }
+  
+  Object.keys(issueMap).forEach(function(key) {
+    issueMap[key].recent.sort(function(a, b) {
+      return a.date < b.date ? 1 : -1;
+    });
+  });
+  
+  return issueMap;
+}
+
+function parseIsoDate(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return null;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  return new Date(year, month, day);
+}
+
+function getStartOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function isSameDay(dateA, dateB) {
+  return dateA.getFullYear() === dateB.getFullYear() &&
+    dateA.getMonth() === dateB.getMonth() &&
+    dateA.getDate() === dateB.getDate();
+}
+
+function formatDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return year + '-' + month + '-' + day;
+}
+
+function formatDisplayDate(date) {
+  const options = { weekday: 'short', month: 'short', day: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
+}
+
+function normalizeDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return getStartOfDay(value);
+  }
+  if (typeof value === 'string') {
+    if (value.indexOf('T') >= 0) {
+      return getStartOfDay(new Date(value));
+    }
+    const parsed = parseIsoDate(value);
+    return parsed ? getStartOfDay(parsed) : null;
+  }
+  return null;
+}
+
+function getProductTypeLabel(rawType) {
+  const value = (rawType || '').toString().toLowerCase();
+  if (value.indexOf('1kg') >= 0 || value.indexOf('1 kg') >= 0) {
+    return '1KG';
+  }
+  if (value.indexOf('0.5kg') >= 0 || value.indexOf('0,5kg') >= 0 || value.indexOf('0.5 kg') >= 0) {
+    return '0.5KG';
+  }
+  return '';
+}
+
+function createSkuSheetName(sku, productType) {
+  const base = 'SKU_' + sku + '_' + productType;
+  const cleaned = base.replace(/[^A-Za-z0-9_\- ]/g, '').substring(0, 90);
+  return cleaned;
+}
+
+function formatNumber(num) {
+  if (!num) return '0';
+  return Number(num).toLocaleString();
+}
+
+function formatDecimal(num) {
+  if (!num) return '0.00';
+  return Number(num).toFixed(2);
+}
+
+function formatPercent(value) {
+  if (!value) return '0%';
+  return (value * 100).toFixed(1) + '%';
 }
 
 /**

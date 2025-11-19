@@ -912,9 +912,16 @@ function buildAnalyticsCenter(workbook, groupedData, ticketsValues) {
   ensureConfigSheet(workbook);
   buildSummarySheet(workbook, analyticsData);
   buildVariantComparisonSheet(workbook, analyticsData);
+  buildVisualsSheet(workbook, analyticsData);
   buildShiftSummarySheet(workbook, analyticsData);
   const skuSheetMeta = buildSkuDetailSheets(workbook, analyticsData);
   buildSkuIndexSheet(workbook, analyticsData, skuSheetMeta);
+  storeAnalyticsCache({
+    totals: analyticsData.totals,
+    variantStats: analyticsData.variantStats,
+    visuals: analyticsData.visuals,
+    labels: analyticsData.labels
+  });
 }
 
 /**
@@ -932,7 +939,14 @@ function computeAnalyticsData(groupedData, ticketsValues, leaderNameMap) {
   const dayMap = {};
   const skuMap = {};
   const activeSkuTodaySet = new Set();
+  const variantSkuMap = {};
   const variantStats = {};
+  const visualsData = {
+    rawDaily: [],
+    rawScatter: [],
+    rawLeaderVariant: [],
+    rawSku: []
+  };
   
   const totals = {
     cartonsToday: 0,
@@ -956,12 +970,82 @@ function computeAnalyticsData(groupedData, ticketsValues, leaderNameMap) {
   totals.avgLayersAll = 0;
   totals.issueRateAll = 0;
   
+  if (ticketsValues && ticketsValues.length > 1) {
+    for (let i = 1; i < ticketsValues.length; i++) {
+      const row = ticketsValues[i];
+      let dateValue = row[1];
+      let dateStr = '';
+      if (dateValue instanceof Date) {
+        dateStr = formatDateKey(dateValue);
+      } else if (typeof dateValue === 'string' && dateValue.length) {
+        dateStr = dateValue.includes('T') ? dateValue.split('T')[0] : dateValue;
+      } else if (dateValue) {
+        dateStr = dateValue.toString();
+      }
+      
+      const sku = (row[3] || '').toString().trim();
+      const qty = parseFloat(row[4]) || 0;
+      const productTypeRaw = (row[7] || '').toString().toLowerCase();
+      const is1KG = productTypeRaw.includes('1kg') || productTypeRaw.includes('1 kg');
+      const is05KG = productTypeRaw.includes('0.5kg') || productTypeRaw.includes('0.5 kg') || productTypeRaw.includes('0,5kg');
+      let productTypeLabel = '';
+      let multiplier = 0;
+      if (is1KG) {
+        productTypeLabel = '1KG';
+        multiplier = 6;
+      } else if (is05KG) {
+        productTypeLabel = '0.5KG';
+        multiplier = 12;
+      } else {
+        productTypeLabel = 'Other';
+        multiplier = 0;
+      }
+      
+      if (!dateStr || !sku || qty === 0) {
+        continue;
+      }
+      
+      const issueFlag = row[10] ? 1 : 0;
+      const leaderIds = parseLeaderNames(row[12]);
+      const leaderNames = leaderIds.length ? leaderIds.map(function(id) { return toLeaderDisplayName(id, leaderNameMap); }) : ['Unassigned'];
+      leaderNames.forEach(function(name) {
+        visualsData.rawLeaderVariant.push({
+          date: dateStr,
+          leader: name || 'Unassigned',
+          variant: productTypeLabel,
+          tickets: 1,
+          cartons: qty,
+          issues: issueFlag
+        });
+      });
+      
+      visualsData.rawScatter.push({
+        date: dateStr,
+        variant: productTypeLabel,
+        layers: parseFloat(row[5]) || 0,
+        palletSize: parseFloat(row[8]) || 0,
+        qtyPerTicket: qty
+      });
+      
+      visualsData.rawSku.push({
+        date: dateStr,
+        variant: productTypeLabel,
+        sku: sku,
+        cartons: qty,
+        pieces: multiplier ? qty * multiplier : 0,
+        tickets: 1
+      });
+    }
+  }
+  
   groupedData.forEach(function(group) {
     const dateObj = parseIsoDate(group.date);
     if (!dateObj) return;
     
     const variantKey = group.productType || 'Other';
     ensureVariantBucket(variantStats, variantKey);
+    ensureVariantSkuBucket(variantSkuMap, variantKey, group.sku);
+    accumulateVariantSku(variantSkuMap, variantKey, group.sku, group.totalQty, group.totalPieces, group.numTickets);
     accumulateVariant(variantStats[variantKey].all, group.totalQty, group.totalPieces, group.numTickets, group.totalLayers, group.qualityIssuesCount);
     if (isSameDay(dateObj, today)) {
       accumulateVariant(variantStats[variantKey].today, group.totalQty, group.totalPieces, group.numTickets, group.totalLayers, group.qualityIssuesCount);
@@ -1171,6 +1255,7 @@ function computeAnalyticsData(groupedData, ticketsValues, leaderNameMap) {
   }).sort(function(a, b) {
     return a.date < b.date ? 1 : -1;
   });
+  visualsData.rawDaily = perDayArray.slice();
   
   totals.avgLayers7d = totals.tickets7d ? totals.layers7d / totals.tickets7d : 0;
   totals.issueRate7d = totals.tickets7d ? totals.issues7d / totals.tickets7d : 0;
@@ -1188,7 +1273,8 @@ function computeAnalyticsData(groupedData, ticketsValues, leaderNameMap) {
       all: finalizeVariantBucket(entry.all),
       today: finalizeVariantBucket(entry.today),
       seven: finalizeVariantBucket(entry.seven),
-      thirty: finalizeVariantBucket(entry.thirty)
+      thirty: finalizeVariantBucket(entry.thirty),
+      skuStats: buildVariantSkuStats(variantSkuMap[key] || {})
     };
   }).sort(function(a, b) {
     return a.variant.localeCompare(b.variant);
@@ -1207,6 +1293,7 @@ function computeAnalyticsData(groupedData, ticketsValues, leaderNameMap) {
     leaderlessTickets: leaderStats.leaderless,
     leaderlessTotals: leaderStats.leaderlessTotals,
     variantStats: variantArray,
+    visuals: buildVisualsData(visualsData),
     labels: {
       today: formatDisplayDate(today),
       refreshedAt: new Date().toLocaleString()
@@ -1223,6 +1310,27 @@ function ensureVariantBucket(container, key) {
       thirty: createVariantBucket()
     };
   }
+}
+
+function ensureVariantSkuBucket(container, variantKey, sku) {
+  if (!container[variantKey]) {
+    container[variantKey] = {};
+  }
+  if (!container[variantKey][sku]) {
+    container[variantKey][sku] = { cartons: 0, pieces: 0, tickets: 0 };
+  }
+}
+
+function accumulateVariantSku(container, variantKey, sku, cartons, pieces, tickets) {
+  if (!container[variantKey]) {
+    container[variantKey] = {};
+  }
+  if (!container[variantKey][sku]) {
+    container[variantKey][sku] = { cartons: 0, pieces: 0, tickets: 0 };
+  }
+  container[variantKey][sku].cartons += cartons || 0;
+  container[variantKey][sku].pieces += pieces || 0;
+  container[variantKey][sku].tickets += tickets || 0;
 }
 
 function createVariantBucket() {
@@ -1244,6 +1352,77 @@ function finalizeVariantBucket(bucket) {
     avgLayers: avgLayers,
     issueRate: issueRate
   });
+}
+
+function buildVariantSkuStats(skuMap) {
+  return Object.keys(skuMap).map(function(sku) {
+    return {
+      sku: sku,
+      cartons: skuMap[sku].cartons,
+      pieces: skuMap[sku].pieces,
+      tickets: skuMap[sku].tickets
+    };
+  }).sort(function(a, b) {
+    return b.cartons - a.cartons;
+  });
+}
+
+function buildVisualsData(visualsRaw) {
+  const daily = visualsRaw.rawDaily || [];
+  const scatter = visualsRaw.rawScatter || [];
+  const leaderEntries = visualsRaw.rawLeaderVariant || [];
+  const skuEntries = visualsRaw.rawSku || [];
+  
+  const heatmapMap = {};
+  leaderEntries.forEach(function(entry) {
+    const key = entry.leader + '|' + entry.variant;
+    if (!heatmapMap[key]) {
+      heatmapMap[key] = { leader: entry.leader, variant: entry.variant, tickets: 0, cartons: 0, issues: 0 };
+    }
+    heatmapMap[key].tickets += entry.tickets || 0;
+    heatmapMap[key].cartons += entry.cartons || 0;
+    heatmapMap[key].issues += entry.issues || 0;
+  });
+  const heatmap = Object.keys(heatmapMap).map(function(key) {
+    return heatmapMap[key];
+  }).sort(function(a, b) {
+    return b.tickets - a.tickets;
+  });
+  
+  const variantTotals = {};
+  skuEntries.forEach(function(entry) {
+    if (!variantTotals[entry.variant]) {
+      variantTotals[entry.variant] = 0;
+    }
+    variantTotals[entry.variant] += entry.cartons || 0;
+  });
+  const variantShare = Object.keys(variantTotals).map(function(variant) {
+    return [variant, variantTotals[variant]];
+  }).sort(function(a, b) {
+    return b[1] - a[1];
+  });
+  
+  const skuTotals = {};
+  skuEntries.forEach(function(entry) {
+    if (!skuTotals[entry.sku]) {
+      skuTotals[entry.sku] = 0;
+    }
+    skuTotals[entry.sku] += entry.cartons || 0;
+  });
+  const topSku = Object.keys(skuTotals).map(function(sku) {
+    return [sku, skuTotals[sku]];
+  }).sort(function(a, b) {
+    return b[1] - a[1];
+  }).slice(0, 10);
+  
+  return {
+    daily: daily,
+    scatter: scatter,
+    heatmap: heatmap,
+    variantShare: variantShare,
+    topSku: topSku,
+    raw: visualsRaw
+  };
 }
 
 /**
@@ -1307,7 +1486,8 @@ function buildSummarySheet(workbook, analyticsData) {
     range.setNote(card.note || '');
   });
   
-  let startRow = 14;
+  const perDayTableStart = 14;
+  let startRow = perDayTableStart;
   const perDayRows = analyticsData.perDay.slice(0, 14);
   buildTable(summarySheet, '📅 Production by Day', ['Date', 'Cartons', 'Pieces', 'Tickets', 'Issues', 'Distinct SKUs'], perDayRows.map(function(day) {
     return [day.date, day.cartons, day.pieces, day.tickets, day.issues, day.skuCount];
@@ -1353,6 +1533,12 @@ function buildSummarySheet(workbook, analyticsData) {
   }), startRow, { numericColumns: [3] });
   
   summarySheet.getRange(startRow + analyticsData.issuesSummary.length + 3, 1, 1, 8).merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  
+  try {
+    buildSummaryCharts(summarySheet, perDayTableStart, perDayRows.length);
+  } catch (chartError) {
+    Logger.log('Failed to build summary charts: ' + chartError.toString());
+  }
 }
 
 function buildVariantComparisonSheet(workbook, analyticsData) {
@@ -1424,20 +1610,393 @@ function buildVariantComparisonSheet(workbook, analyticsData) {
     percentColumns: [6]
   });
   
-  const skuHeaders = ['Variant', 'SKU', 'Cartons'];
+  const skuHeaders = ['Variant', 'SKU', 'Cartons', 'Pieces', 'Tickets', 'Contribution %'];
   const skuRows = [];
-  (analyticsData.variantSkuMap || []).forEach(function(entry) {
-    entry.skus.forEach(function(skuRow) {
-      skuRows.push([entry.variant, skuRow.sku, skuRow.cartons]);
+  (analyticsData.variantStats || []).forEach(function(entry) {
+    (entry.skuStats || []).forEach(function(stat) {
+      const contribution = entry.all.cartons ? stat.cartons / entry.all.cartons : 0;
+      skuRows.push([entry.variant, stat.sku, stat.cartons, stat.pieces, stat.tickets, contribution]);
     });
   });
   
+  let skuStartRow = null;
   if (skuRows.length > 0) {
-    const skuStartRow = tableStartRow + rows.length + 4;
+    skuStartRow = tableStartRow + rows.length + 4;
     buildTable(sheet, '🔬 Variant SKU Breakdown', skuHeaders, skuRows, skuStartRow, {
-      numericColumns: [3]
+      numericColumns: [3, 4, 5],
+      percentColumns: [6]
     });
   }
+  
+  try {
+    buildVariantCharts(sheet, tableStartRow, rows.length, skuStartRow, skuRows.length);
+  } catch (variantChartError) {
+    Logger.log('Failed to build variant charts: ' + variantChartError.toString());
+  }
+}
+
+function buildVisualsSheet(workbook, analyticsData) {
+  let sheet = workbook.getSheetByName('Visuals');
+  if (!sheet) {
+    sheet = workbook.insertSheet('Visuals');
+  }
+  
+  let preservedFilters = null;
+  try {
+    preservedFilters = {
+      preset: sheet.getRange('B6').getValue(),
+      startDate: sheet.getRange('E6').getValue(),
+      endDate: sheet.getRange('F6').getValue()
+    };
+  } catch (filterError) {
+    preservedFilters = null;
+  }
+  
+  sheet.clear();
+  sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).setFontFamily('Cascadia Mono');
+  sheet.setColumnWidths(1, 12, 165);
+  
+  sheet.getRange('A1:L1').merge().setValue('NexGridCore Visual Intelligence 🎨').setFontSize(20).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#1a202c').setFontColor('#f7fafc');
+  sheet.getRange('A2:L2').merge().setValue('Powered by NexGridCore DataLabs ⚡ | Complete visual storytelling for banding operations').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  
+  const filterConfig = setupVisualFilterControls(sheet, preservedFilters);
+  const visuals = analyticsData.visuals || {};
+  const filtered = filterVisualData(visuals, filterConfig);
+  const rangeLabel = filtered.rangeLabel || 'All Time';
+  
+  const vizTotals = analyticsData.totals;
+  const vizCards = [
+    { cell: 'G4:H6', title: 'Total Cartons', subtitle: rangeLabel, value: formatNumber(vizTotals.totalCartonsAll), color: '#4dabf7', note: 'Sum of all cartons produced in the selected range.' },
+    { cell: 'I4:J6', title: 'Total Pieces', subtitle: rangeLabel, value: formatNumber(vizTotals.totalPiecesAll), color: '#5ad5a9', note: 'Pieces derived from cartons × pack size.' },
+    { cell: 'K4:L6', title: 'Issue Rate', subtitle: 'Lifetime', value: formatPercent(vizTotals.issueRateAll), color: '#f56565', note: 'Quality issues divided by tickets for all time.' }
+  ];
+  vizCards.forEach(function(card) {
+    const range = sheet.getRange(card.cell);
+    range.merge();
+    range.setValue(card.title + '\n' + card.value + '\n' + card.subtitle);
+    range.setBackground(card.color);
+    range.setFontColor('#ffffff');
+    range.setWrap(true);
+    range.setVerticalAlignment('middle');
+    range.setHorizontalAlignment('center');
+    range.setNote(card.note || '');
+  });
+  
+  let cursorRow = 12;
+  sheet.getRange(cursorRow - 1, 1, 1, 12).merge().setValue('Filtered range: ' + rangeLabel + '. Adjust preset/custom dates above, then use Visual Controls → Apply Filters.').setFontColor('#718096');
+  
+  // Daily trend table
+  const dailyData = filtered.daily.length ? filtered.daily : [{date: analyticsData.labels.today, cartons: 0, pieces: 0}];
+  sheet.getRange(cursorRow, 1, 1, 3).merge().setValue('Daily Trend • ' + rangeLabel).setFontWeight('bold');
+  cursorRow += 1;
+  const dailyHeader = sheet.getRange(cursorRow, 1, 1, 3);
+  dailyHeader.setValues([['Date', 'Cartons', 'Pieces']]).setFontWeight('bold').setBackground('#edf2f7');
+  const dailyValuesRange = sheet.getRange(cursorRow + 1, 1, dailyData.length, 3);
+  dailyValuesRange.setValues(dailyData.map(function(item) { return [item.date, item.cartons, item.pieces]; }));
+  dailyValuesRange.setNumberFormat('0.00');
+  const dailyRange = sheet.getRange(cursorRow, 1, dailyData.length + 1, 3);
+  cursorRow += dailyData.length + 2;
+  sheet.getRange(cursorRow, 1, 1, 3).merge().setValue('Shows cartons vs pieces produced each day within the selected window.').setFontColor('#718096');
+  cursorRow += 2;
+  
+  // Scatter data
+  const scatterRow = 12;
+  const scatterData = filtered.scatter.length ? filtered.scatter : [{variant: 'N/A', layers: 0, qtyPerTicket: 0, palletSize: 0}];
+  sheet.getRange(scatterRow, 6, 1, 4).merge().setValue('Layers vs Qty per Ticket (Bubble size = pallet) • ' + rangeLabel).setFontWeight('bold');
+  sheet.getRange(scatterRow + 1, 6, 1, 4).setValues([['Variant', 'Layers', 'Qty / Ticket', 'Pallet Size']]).setFontWeight('bold').setBackground('#edf2f7');
+  const scatterValuesRange = sheet.getRange(scatterRow + 2, 6, scatterData.length, 4);
+  scatterValuesRange.setValues(scatterData.map(function(item) { return [item.variant, item.layers, item.qtyPerTicket, item.palletSize]; }));
+  scatterValuesRange.setNumberFormat('0.00');
+  const scatterRange = sheet.getRange(scatterRow + 1, 6, scatterData.length + 1, 4);
+  sheet.getRange(scatterRow + scatterData.length + 3, 6, 1, 4).merge().setValue('Each bubble represents a ticket: X = layers, Y = quantity per ticket, size = pallet size.').setFontColor('#718096');
+  
+  // Heatmap
+  let heatmapRow = Math.max(cursorRow, scatterRow + scatterData.length + 6);
+  sheet.getRange(heatmapRow, 1, 1, 6).merge().setValue('Leader vs Variant Heatmap (Tickets) • ' + rangeLabel).setFontWeight('bold');
+  heatmapRow += 1;
+  const heatmapData = filtered.heatmap || [];
+  const leaders = Array.from(new Set(heatmapData.map(function(entry) { return entry.leader; }))).sort();
+  const variants = Array.from(new Set(heatmapData.map(function(entry) { return entry.variant; }))).sort();
+  let heatmapRange = null;
+  if (leaders.length && variants.length) {
+    sheet.getRange(heatmapRow, 2, 1, variants.length).setValues([variants]).setFontWeight('bold').setBackground('#edf2f7');
+    sheet.getRange(heatmapRow + 1, 1, leaders.length, 1).setValues(leaders.map(function(name) { return [name]; })).setFontWeight('bold').setBackground('#edf2f7');
+    const matrix = leaders.map(function(leader) {
+      return variants.map(function(variant) {
+        const match = heatmapData.find(function(entry) { return entry.leader === leader && entry.variant === variant; });
+        return match ? match.tickets : 0;
+      });
+    });
+    heatmapRange = sheet.getRange(heatmapRow + 1, 2, leaders.length, variants.length);
+    heatmapRange.setValues(matrix);
+    heatmapRange.setNumberFormat('0');
+    let maxHeatValue = 0;
+    matrix.forEach(function(row) {
+      row.forEach(function(value) {
+        if (value > maxHeatValue) maxHeatValue = value;
+      });
+    });
+    if (maxHeatValue <= 0) maxHeatValue = 1;
+    const rules = sheet.getConditionalFormatRules();
+    const heatRule = SpreadsheetApp.newConditionalFormatRule()
+      .setGradientMinpointWithValue('#edf2f7', SpreadsheetApp.InterpolationType.NUMBER, '0')
+      .setGradientMidpointWithValue('#63b3ed', SpreadsheetApp.InterpolationType.PERCENTILE, '50')
+      .setGradientMaxpointWithValue('#1a365d', SpreadsheetApp.InterpolationType.NUMBER, String(maxHeatValue))
+      .setRanges([heatmapRange])
+      .build();
+    rules.push(heatRule);
+    sheet.setConditionalFormatRules(rules);
+    heatmapRow += leaders.length + 3;
+  } else {
+    sheet.getRange(heatmapRow, 1, 1, 6).merge().setValue('Heatmap data will appear once the selected range contains tickets.').setFontColor('#a0aec0');
+    heatmapRow += 2;
+  }
+  
+  // Variant share + caption
+  sheet.getRange(heatmapRow, 1, 1, 4).merge().setValue('Variant Share (Cartons) • ' + rangeLabel).setFontWeight('bold');
+  const variantShare = filtered.variantShare.length ? filtered.variantShare : [['N/A', 0]];
+  sheet.getRange(heatmapRow + 1, 1, 1, 2).setValues([['Variant', 'Cartons']]).setFontWeight('bold').setBackground('#edf2f7');
+  const variantShareRange = sheet.getRange(heatmapRow + 2, 1, variantShare.length, 2);
+  variantShareRange.setValues(variantShare);
+  variantShareRange.setNumberFormat('0.00');
+  const shareRange = sheet.getRange(heatmapRow + 1, 1, variantShare.length + 1, 2);
+  
+  sheet.getRange(heatmapRow, 6, 1, 4).merge().setValue('Top SKU Output (Cartons) • ' + rangeLabel).setFontWeight('bold');
+  const topSku = filtered.topSku.length ? filtered.topSku : [['N/A', 0]];
+  sheet.getRange(heatmapRow + 1, 6, 1, 2).setValues([['SKU', 'Cartons']]).setFontWeight('bold').setBackground('#edf2f7');
+  const topSkuRange = sheet.getRange(heatmapRow + 2, 6, topSku.length, 2);
+  topSkuRange.setValues(topSku);
+  topSkuRange.setNumberFormat('0.00');
+  const skuRange = sheet.getRange(heatmapRow + 1, 6, topSku.length + 1, 2);
+  heatmapRow += Math.max(variantShare.length, topSku.length) + 4;
+  
+  const chartRanges = {
+    daily: dailyRange,
+    scatter: scatterRange,
+    variantShare: shareRange,
+    topSku: skuRange
+  };
+  
+  try {
+    buildVisualsCharts(sheet, chartRanges);
+  } catch (visualsError) {
+    Logger.log('Failed to build visuals charts: ' + visualsError.toString());
+  }
+  
+  sheet.getRange(heatmapRow, 1, 1, 12).merge().setValue('Tip: change filters above then use Visual Controls → Apply Filters to refresh this dashboard.').setFontColor('#4c51bf').setHorizontalAlignment('center');
+}
+
+function setupVisualFilterControls(sheet, defaults) {
+  sheet.getRange('A4:B4').merge().setValue('Preset Range').setFontWeight('bold').setBackground('#edf2f7').setHorizontalAlignment('center');
+  sheet.getRange('E4:F4').merge().setValue('Custom Dates').setFontWeight('bold').setBackground('#edf2f7').setHorizontalAlignment('center');
+  sheet.getRange('A7:F8').merge().setValue('Pick a preset or custom range, then use the Visual Controls menu → Apply Filters to redraw the dashboard.').setWrap(true).setFontColor('#2c5282').setVerticalAlignment('middle').setBackground('#e6fffa');
+  
+  sheet.getRange('A5').setValue('Choice');
+  const presetCell = sheet.getRange('B6');
+  const presets = ['Today', 'Last 7 Days', 'Last 30 Days', 'All Time'];
+  const validation = SpreadsheetApp.newDataValidation().requireValueInList(presets, true).setAllowInvalid(false).build();
+  presetCell.setDataValidation(validation);
+  if (defaults && defaults.preset) {
+    presetCell.setValue(defaults.preset);
+  } else if (!presetCell.getValue()) {
+    presetCell.setValue('All Time');
+  }
+  presetCell.setBackground('#fff5f5');
+  
+  sheet.getRange('E5').setValue('Start Date');
+  sheet.getRange('F5').setValue('End Date');
+  const startCell = sheet.getRange('E6');
+  const endCell = sheet.getRange('F6');
+  startCell.setNumberFormat('yyyy-mm-dd');
+  endCell.setNumberFormat('yyyy-mm-dd');
+  if (defaults && defaults.startDate) {
+    startCell.setValue(defaults.startDate);
+  }
+  if (defaults && defaults.endDate) {
+    endCell.setValue(defaults.endDate);
+  }
+  
+  return getVisualFilterConfig(sheet);
+}
+
+function getVisualFilterConfig(sheet) {
+  const preset = sheet.getRange('B6').getValue() || 'All Time';
+  const startDate = normalizeDateValue(sheet.getRange('E6').getValue());
+  const endDate = normalizeDateValue(sheet.getRange('F6').getValue());
+  return {
+    preset: preset,
+    startDate: startDate,
+    endDate: endDate
+  };
+}
+
+function filterVisualData(visuals, config) {
+  const raw = visuals.raw || {};
+  const rawDaily = raw.rawDaily || visuals.daily || [];
+  const rawScatter = raw.rawScatter || visuals.scatter || [];
+  const rawLeader = raw.rawLeaderVariant || [];
+  const rawSku = raw.rawSku || [];
+  
+  const rangeInfo = computeFilterRange(config);
+  function withinRange(dateStr) {
+    if (!rangeInfo.start || !rangeInfo.end) {
+      return true;
+    }
+    const dateObj = parseIsoDate(dateStr);
+    if (!dateObj) {
+      return false;
+    }
+    return dateObj >= rangeInfo.start && dateObj <= rangeInfo.end;
+  }
+  
+  const daily = rawDaily.filter(function(entry) { return withinRange(entry.date); });
+  const scatter = rawScatter.filter(function(entry) { return withinRange(entry.date); });
+  const leaderEntries = rawLeader.filter(function(entry) { return withinRange(entry.date); });
+  const skuEntries = rawSku.filter(function(entry) { return withinRange(entry.date); });
+  
+  return {
+    daily: daily,
+    scatter: scatter,
+    heatmap: aggregateLeaderVariantEntries(leaderEntries),
+    variantShare: aggregateVariantShareFromEntries(skuEntries),
+    topSku: aggregateTopSkuFromEntries(skuEntries),
+    rangeLabel: rangeInfo.label
+  };
+}
+
+function computeFilterRange(config) {
+  const today = normalizeDateValue(new Date());
+  let start = null;
+  let end = null;
+  let label = 'All Time';
+  const preset = (config.preset || 'All Time').toString();
+  switch (preset) {
+    case 'Today':
+      start = today;
+      end = today;
+      label = 'Today';
+      break;
+    case 'Last 7 Days':
+      start = new Date(today);
+      start.setDate(today.getDate() - 6);
+      end = today;
+      label = 'Last 7 Days';
+      break;
+    case 'Last 30 Days':
+      start = new Date(today);
+      start.setDate(today.getDate() - 29);
+      end = today;
+      label = 'Last 30 Days';
+      break;
+    default:
+      start = null;
+      end = null;
+      label = 'All Time';
+      break;
+  }
+  
+  if (config.startDate && config.endDate) {
+    start = config.startDate;
+    end = config.endDate;
+    if (start && end && start > end) {
+      const tmp = start;
+      start = end;
+      end = tmp;
+    }
+    if (start && end) {
+      const tz = Session.getScriptTimeZone();
+      label = Utilities.formatDate(start, tz, 'MMM d, yyyy') + ' → ' + Utilities.formatDate(end, tz, 'MMM d, yyyy');
+    }
+  }
+  
+  return { start: start, end: end, label: label };
+}
+
+function aggregateLeaderVariantEntries(entries) {
+  const map = {};
+  entries.forEach(function(entry) {
+    const leader = entry.leader || 'Unassigned';
+    const variant = entry.variant || 'Other';
+    const key = leader + '|' + variant;
+    if (!map[key]) {
+      map[key] = { leader: leader, variant: variant, tickets: 0, cartons: 0, issues: 0 };
+    }
+    map[key].tickets += entry.tickets || 0;
+    map[key].cartons += entry.cartons || 0;
+    map[key].issues += entry.issues || 0;
+  });
+  return Object.keys(map).map(function(key) { return map[key]; }).sort(function(a, b) {
+    return b.tickets - a.tickets;
+  });
+}
+
+function aggregateVariantShareFromEntries(entries) {
+  const variantTotals = {};
+  entries.forEach(function(entry) {
+    const variant = entry.variant || 'Other';
+    variantTotals[variant] = (variantTotals[variant] || 0) + (entry.cartons || 0);
+  });
+  return Object.keys(variantTotals).map(function(variant) {
+    return [variant, variantTotals[variant]];
+  }).sort(function(a, b) { return b[1] - a[1]; });
+}
+
+function aggregateTopSkuFromEntries(entries) {
+  const skuTotals = {};
+  entries.forEach(function(entry) {
+    const sku = entry.sku || 'Unknown SKU';
+    skuTotals[sku] = (skuTotals[sku] || 0) + (entry.cartons || 0);
+  });
+  return Object.keys(skuTotals).map(function(sku) {
+    return [sku, skuTotals[sku]];
+  }).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 10);
+}
+
+function getAnalyticsPropertyStore() {
+  try {
+    const docProps = PropertiesService.getDocumentProperties();
+    if (docProps) {
+      return docProps;
+    }
+  } catch (docErr) {
+    Logger.log('Document properties unavailable, falling back to script properties: ' + docErr.toString());
+  }
+  return PropertiesService.getScriptProperties();
+}
+
+function storeAnalyticsCache(payload) {
+  try {
+    getAnalyticsPropertyStore().setProperty('NEXGRIDCORE_ANALYTICS_CACHE', JSON.stringify(payload));
+  } catch (cacheError) {
+    Logger.log('Failed to cache analytics payload: ' + cacheError.toString());
+  }
+}
+
+function loadAnalyticsCache() {
+  try {
+    const data = getAnalyticsPropertyStore().getProperty('NEXGRIDCORE_ANALYTICS_CACHE');
+    return data ? JSON.parse(data) : null;
+  } catch (cacheError) {
+    Logger.log('Failed to read analytics cache: ' + cacheError.toString());
+    return null;
+  }
+}
+
+function refreshVisualsDashboard() {
+  const cached = loadAnalyticsCache();
+  if (!cached) {
+    SpreadsheetApp.getUi().alert('No cached analytics data found. Please run the full recalculation first.');
+    return;
+  }
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  buildVisualsSheet(workbook, cached);
+  SpreadsheetApp.getUi().alert('Visuals dashboard refreshed with current filters.');
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Visual Controls')
+    .addItem('Apply Filters', 'refreshVisualsDashboard')
+    .addToUi();
 }
 
 /**
@@ -1485,6 +2044,140 @@ function buildShiftSummarySheet(workbook, analyticsData) {
   headerRow.getCell(1, 9).setNote('Banding styles applied (comma-separated).');
   
   shiftSheet.getRange(startRow + rows.length + 3, 1, 1, headers.length).merge().setValue('Need deeper diagnostics? Filter by date or shift and drill into SKU tabs.').setFontColor('#4c51bf').setHorizontalAlignment('center');
+}
+
+function buildSummaryCharts(sheet, perDayStartRow, perDayCount) {
+  try {
+    sheet.getCharts().forEach(function(chart) {
+      sheet.removeChart(chart);
+    });
+  } catch (err) {
+    Logger.log('Unable to clear charts on sheet ' + sheet.getName() + ': ' + err.toString());
+  }
+  
+  if (perDayCount > 0) {
+    const trendRange = sheet.getRange(perDayStartRow + 1, 1, perDayCount + 1, 2);
+    const trendChart = sheet.newChart()
+      .setChartType(Charts.ChartType.LINE)
+      .addRange(trendRange)
+      .setOption('title', 'Daily Cartons Trend')
+      .setOption('legend', 'none')
+      .setOption('curveType', 'function')
+      .setPosition(perDayStartRow, 9, 0, 0)
+      .build();
+    sheet.insertChart(trendChart);
+    
+    if (perDayCount > 1) {
+      const piecesRange = sheet.getRange(perDayStartRow + 1, 1, perDayCount + 1, 3);
+      const piecesChart = sheet.newChart()
+        .setChartType(Charts.ChartType.COLUMN)
+        .addRange(piecesRange)
+        .setOption('title', 'Cartons vs Pieces')
+        .setOption('legend', { position: 'bottom' })
+        .setPosition(perDayStartRow + 20, 9, 0, 0)
+        .build();
+      sheet.insertChart(piecesChart);
+    }
+  }
+}
+
+function buildVisualsCharts(sheet, ranges) {
+  try {
+    sheet.getCharts().forEach(function(chart) {
+      sheet.removeChart(chart);
+    });
+  } catch (err) {
+    Logger.log('Unable to clear charts on sheet ' + sheet.getName() + ': ' + err.toString());
+  }
+  
+  if (ranges.daily && ranges.daily.getNumRows() > 1) {
+    const trendChart = sheet.newChart()
+      .setChartType(Charts.ChartType.LINE)
+      .addRange(ranges.daily)
+      .setOption('title', 'Daily Cartons vs Pieces')
+      .setOption('legend', { position: 'bottom' })
+      .setOption('curveType', 'function')
+      .setPosition(ranges.daily.getRow() + ranges.daily.getNumRows() + 1, 5, 0, 0)
+      .build();
+    sheet.insertChart(trendChart);
+  }
+  
+  if (ranges.scatter && ranges.scatter.getNumRows() > 1) {
+    const scatterChart = sheet.newChart()
+      .setChartType(Charts.ChartType.BUBBLE)
+      .addRange(ranges.scatter)
+      .setOption('title', 'Layers vs Qty per Ticket (Bubble size = Pallet)')
+      .setOption('legend', { position: 'right' })
+      .setPosition(ranges.scatter.getRow() + ranges.scatter.getNumRows() + 1, 10, 0, 0)
+      .build();
+    sheet.insertChart(scatterChart);
+  }
+  
+  if (ranges.variantShare && ranges.variantShare.getNumRows() > 1) {
+    const columnChart = sheet.newChart()
+      .setChartType(Charts.ChartType.COLUMN)
+      .addRange(ranges.variantShare)
+      .setOption('title', 'Variant Share (Cartons)')
+      .setOption('legend', 'none')
+      .setPosition(ranges.variantShare.getRow() + ranges.variantShare.getNumRows() + 2, 5, 0, 0)
+      .build();
+    sheet.insertChart(columnChart);
+  }
+  
+  if (ranges.topSku && ranges.topSku.getNumRows() > 1) {
+    const skuChart = sheet.newChart()
+      .setChartType(Charts.ChartType.BAR)
+      .addRange(ranges.topSku)
+      .setOption('title', 'Top SKU Output')
+      .setOption('legend', 'none')
+      .setPosition(ranges.topSku.getRow() + ranges.topSku.getNumRows() + 2, 10, 0, 0)
+      .build();
+    sheet.insertChart(skuChart);
+  }
+}
+
+function buildVariantCharts(sheet, tableStartRow, variantCount, skuStartRow, skuCount) {
+  try {
+    sheet.getCharts().forEach(function(chart) {
+      sheet.removeChart(chart);
+    });
+  } catch (err) {
+    Logger.log('Unable to clear charts on variant sheet: ' + err.toString());
+  }
+  
+  if (variantCount > 0) {
+    const overviewRange = sheet.getRange(tableStartRow + 1, 1, variantCount + 1, 2);
+    const columnChart = sheet.newChart()
+      .setChartType(Charts.ChartType.COLUMN)
+      .addRange(overviewRange)
+      .setOption('title', 'Cartons by Variant (All Time)')
+      .setOption('legend', 'none')
+      .setPosition(tableStartRow, 12, 0, 0)
+      .build();
+    sheet.insertChart(columnChart);
+    
+    const shareRange = sheet.getRange(tableStartRow + 1, 1, variantCount + 1, 2);
+    const pieChart = sheet.newChart()
+      .setChartType(Charts.ChartType.PIE)
+      .addRange(shareRange)
+      .setOption('title', 'Variant Share (Cartons All Time)')
+      .setPosition(tableStartRow + 18, 12, 0, 0)
+      .build();
+    sheet.insertChart(pieChart);
+  }
+  
+  if (skuCount && skuStartRow) {
+    const displayCount = Math.min(skuCount, 10);
+    const skuRange = sheet.getRange(skuStartRow + 1, 1, displayCount + 1, 3);
+    const skuChart = sheet.newChart()
+      .setChartType(Charts.ChartType.BAR)
+      .addRange(skuRange)
+      .setOption('title', 'Top SKU Contributors (Cartons)')
+      .setOption('legend', 'none')
+      .setPosition(skuStartRow, 12, 0, 0)
+      .build();
+    sheet.insertChart(skuChart);
+  }
 }
 
 /**

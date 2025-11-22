@@ -649,8 +649,11 @@
         <button class="btn-generate" onclick="generateTickets()">
             🖨️ GENERATE & PRINT TICKETS
         </button>
+        <button class="btn-generate" onclick="generateAllColorTicketsPDF()" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); margin-top: 10px;">
+            📥 DOWNLOAD PDF (52 Tickets × 4 Colors)
+        </button>
         <button class="btn-reset" type="button" onclick="resetSerial()">
-            ♻️ Reset Serial Back to 1
+            ♻️ Reset Serial Number
         </button>
         
         <div class="form-group" style="margin-top: 25px; padding-top: 25px; border-top: 2px solid #e2e8f0;">
@@ -883,6 +886,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://apis.google.com/js/api.js"></script>
 
     <script>
@@ -896,12 +900,27 @@
         // Load saved scan URL or use hardcoded default
         let SCAN_BASE_URL = localStorage.getItem('scanBaseUrl') || DEFAULT_SCAN_BASE_URL;
         
-        // If on GitHub Pages, auto-detect the URL
+        // Auto-detect the current page URL if no saved URL exists
         if (!localStorage.getItem('scanBaseUrl')) {
-            const { protocol, origin, pathname } = window.location;
-            if (protocol === 'https:' && origin.includes('github.io')) {
+            const { protocol, origin, pathname, hostname } = window.location;
+            
+            // If accessing via file:// protocol, warn user
+            if (protocol === 'file:') {
+                console.warn('⚠️ Accessing via file:// protocol. QR codes will not work from phones.');
+                console.warn('💡 Solution: Use a local web server (e.g., Python: python -m http.server 8000)');
+                console.warn('💡 Then access via: http://localhost:8000/bandingtickets.html');
+                // Don't set URL for file:// - user must configure manually
+            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                // Local server - use it but warn about phone access
                 SCAN_BASE_URL = `${origin}${pathname}`;
                 localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
+                console.warn('⚠️ Using localhost URL. QR codes will only work if phone is on same network.');
+                console.warn('💡 For phone access, use your computer IP: http://YOUR-IP:PORT/bandingtickets.html');
+            } else {
+                // Web server (GitHub Pages, etc.) - use current URL
+                SCAN_BASE_URL = `${origin}${pathname}`;
+                localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
+                console.log('✅ Auto-detected URL:', SCAN_BASE_URL);
             }
         }
         
@@ -1136,9 +1155,43 @@
         }
 
         function resetSerial() {
-            currentSerial = 1;
+            // Require password validation
+            const password = prompt('🔐 Serial Reset - Password Required\n\nEnter password to reset serial number:');
+            if (password !== GENERATOR_PASSWORD) {
+                if (password !== null) {
+                    alert('❌ Incorrect password. Reset cancelled.');
+                }
+                return;
+            }
+
+            // Prompt for new serial number
+            const newSerialInput = prompt(`🔢 Reset Serial Number\n\nCurrent serial: ${formatSerial(currentSerial)}\n\nEnter the serial number to reset to (e.g., 1085):`);
+            
+            if (newSerialInput === null) {
+                // User cancelled
+                return;
+            }
+
+            // Validate input
+            const newSerial = parseInt(newSerialInput, 10);
+            if (isNaN(newSerial) || newSerial < 1) {
+                alert('❌ Invalid serial number. Please enter a positive number.');
+                return;
+            }
+
+            // Confirm reset
+            const confirmReset = confirm(`⚠️ Confirm Serial Reset\n\nCurrent: ${formatSerial(currentSerial)}\nNew: ${formatSerial(newSerial)}\n\nThis action cannot be undone. Continue?`);
+            
+            if (!confirmReset) {
+                return;
+            }
+
+            // Perform reset
+            currentSerial = newSerial;
             localStorage.setItem('bandingSerial', currentSerial);
             updateSerialDisplay();
+            
+            alert(`✅ Serial number reset successfully!\n\nNew serial: ${formatSerial(currentSerial)}`);
         }
 
         function generateTickets() {
@@ -1185,8 +1238,183 @@
             setTimeout(() => window.print(), 100);
         }
 
+        async function generateAllColorTicketsPDF() {
+            if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+                alert('PDF libraries not loaded. Please refresh the page.');
+                return;
+            }
+
+            const ticketCount = 52;
+            const colors = ['red', 'blue', 'green', 'yellow'];
+            const ticketsPerPage = 4; // 4 ticket pairs per page (8 tickets total)
+            
+            // Show loading message
+            const originalButton = event.target;
+            const originalText = originalButton.innerHTML;
+            originalButton.innerHTML = '⏳ Generating PDF...';
+            originalButton.disabled = true;
+
+            try {
+                const container = document.getElementById('printContainer');
+                container.innerHTML = '';
+                container.style.display = 'block';
+
+                // Generate all tickets: 52 serials per color × 4 colors = 208 unique serials total
+                // Serial 1-52: RED
+                // Serial 53-104: GREEN
+                // Serial 105-156: BLUE
+                // Serial 157-208: YELLOW
+                let allTicketPairs = [];
+                
+                // Generate 52 serials for each color (208 total unique serials)
+                colors.forEach((color, colorIndex) => {
+                    for (let ticketNum = 0; ticketNum < ticketCount; ticketNum++) {
+                        const serialNum = currentSerial + (colorIndex * ticketCount) + ticketNum;
+                        allTicketPairs.push({
+                            serial: serialNum,
+                            color: color
+                        });
+                    }
+                });
+
+                // Group into pages: 4 ticket pairs per page (each pair = view + edit)
+                const pairsPerPage = 4;
+                const totalPagesCount = Math.ceil(allTicketPairs.length / pairsPerPage);
+
+                // Create pages in the container
+                for (let pageIdx = 0; pageIdx < totalPagesCount; pageIdx++) {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'page';
+                    pageDiv.style.width = '210mm';
+                    pageDiv.style.height = '297mm';
+                    pageDiv.style.pageBreakAfter = 'always';
+
+                    const startIdx = pageIdx * pairsPerPage;
+                    const endIdx = Math.min(startIdx + pairsPerPage, allTicketPairs.length);
+                    const pairsOnPage = allTicketPairs.slice(startIdx, endIdx);
+
+                    // Create a row for each ticket pair (view + edit)
+                    pairsOnPage.forEach(ticket => {
+                        const rowDiv = document.createElement('div');
+                        rowDiv.className = 'ticket-row';
+                        rowDiv.innerHTML += createTicketHTML(ticket.serial, ticket.color, false, {}, 'view');
+                        rowDiv.innerHTML += createTicketHTML(ticket.serial, ticket.color, true, {}, 'edit');
+                        pageDiv.appendChild(rowDiv);
+                    });
+
+                    container.appendChild(pageDiv);
+                }
+
+                // Render QR codes
+                await new Promise((resolve) => {
+                    renderTicketQRCodes(container);
+                    // Wait for QR codes to render (they're async)
+                    setTimeout(resolve, 2000);
+                });
+
+                // Initialize PDF
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const pageWidth = 210; // A4 width in mm
+                const pageHeight = 297; // A4 height in mm
+
+                // Get all pages
+                const pages = Array.from(container.querySelectorAll('.page'));
+                const totalPages = pages.length;
+                
+                // Optimized: Process pages in parallel batches for faster generation
+                const BATCH_SIZE = 4; // Process 4 pages at a time in parallel
+                const pageImages = []; // Store all page images first
+                
+                originalButton.innerHTML = `⏳ Rendering ${totalPages} pages (optimized)...`;
+
+                // Process pages in batches
+                for (let batchStart = 0; batchStart < totalPages; batchStart += BATCH_SIZE) {
+                    const batchEnd = Math.min(batchStart + BATCH_SIZE, totalPages);
+                    const batch = pages.slice(batchStart, batchEnd);
+                    
+                    // Update progress
+                    originalButton.innerHTML = `⏳ Rendering pages ${batchStart + 1}-${batchEnd} of ${totalPages}...`;
+                    
+                    // Process batch in parallel
+                    const batchPromises = batch.map((pageElement, batchIdx) => {
+                        return html2canvas(pageElement, {
+                            scale: 1.8, // Slightly reduced for speed (was 2)
+                            backgroundColor: '#ffffff',
+                            useCORS: true,
+                            logging: false,
+                            width: pageElement.scrollWidth,
+                            height: pageElement.scrollHeight,
+                            removeContainer: false, // Keep container for next batch
+                            allowTaint: false
+                        }).then(canvas => {
+                            return {
+                                index: batchStart + batchIdx,
+                                data: canvas.toDataURL('image/png', 0.92), // Slight compression for speed
+                                width: pageWidth,
+                                height: (canvas.height * pageWidth) / canvas.width
+                            };
+                        });
+                    });
+                    
+                    // Wait for batch to complete
+                    const batchResults = await Promise.all(batchPromises);
+                    pageImages.push(...batchResults);
+                }
+
+                // Sort by index to ensure correct order
+                pageImages.sort((a, b) => a.index - b.index);
+
+                // Add all pages to PDF
+                originalButton.innerHTML = `⏳ Assembling PDF...`;
+                pageImages.forEach((pageImg, idx) => {
+                    if (idx > 0) {
+                        pdf.addPage();
+                    }
+                    pdf.addImage(pageImg.data, 'PNG', 0, 0, pageImg.width, pageImg.height);
+                });
+
+                // Download PDF
+                const fileName = `Banding_Tickets_${ticketCount}_AllColors_${new Date().toISOString().split('T')[0]}.pdf`;
+                pdf.save(fileName);
+
+                // Update serial number (208 unique serials were used: 52 per color)
+                currentSerial += (ticketCount * colors.length);
+                localStorage.setItem('bandingSerial', currentSerial);
+                updateSerialDisplay();
+
+                // Hide container
+                container.style.display = 'none';
+                container.innerHTML = '';
+
+                originalButton.innerHTML = originalText;
+                originalButton.disabled = false;
+
+                const firstSerial = formatSerial(currentSerial - (ticketCount * colors.length));
+                const lastSerial = formatSerial(currentSerial - 1);
+                alert(`✅ PDF generated successfully!\n\n${ticketCount} serials per color × 4 colors = ${allTicketPairs.length} unique serials total\n${totalPages} pages generated\n\nSerial ranges:\n• ${firstSerial} to ${formatSerial(currentSerial - (ticketCount * 3) - 1)}: RED\n• ${formatSerial(currentSerial - (ticketCount * 3))} to ${formatSerial(currentSerial - (ticketCount * 2) - 1)}: GREEN\n• ${formatSerial(currentSerial - (ticketCount * 2))} to ${formatSerial(currentSerial - ticketCount - 1)}: BLUE\n• ${formatSerial(currentSerial - ticketCount)} to ${lastSerial}: YELLOW\n\nFile: ${fileName}`);
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                alert('Error generating PDF: ' + error.message);
+                originalButton.innerHTML = originalText;
+                originalButton.disabled = false;
+            }
+        }
+
         function buildScanUrl(serial, mode = 'edit', color = 'blue') {
-            return `${SCAN_BASE_URL}?mode=${mode}&serial=${encodeURIComponent(serial)}&color=${encodeURIComponent(color)}`;
+            // Ensure SCAN_BASE_URL is always current if not set
+            if (!SCAN_BASE_URL || SCAN_BASE_URL === DEFAULT_SCAN_BASE_URL) {
+                const { origin, pathname } = window.location;
+                SCAN_BASE_URL = `${origin}${pathname}`;
+            }
+            // Remove any existing query parameters from base URL
+            const baseUrl = SCAN_BASE_URL.split('?')[0];
+            return `${baseUrl}?mode=${mode}&serial=${encodeURIComponent(serial)}&color=${encodeURIComponent(color)}`;
         }
         
         function formatTimestamp(timestampStr) {

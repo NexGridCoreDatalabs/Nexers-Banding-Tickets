@@ -1327,13 +1327,12 @@
                 const pages = Array.from(container.querySelectorAll('.page'));
                 const totalPages = pages.length;
                 
-                // Optimized: Process pages in parallel batches for faster generation
-                const BATCH_SIZE = 4; // Process 4 pages at a time in parallel
-                const pageImages = []; // Store all page images first
+                // Optimized: Process and add pages incrementally to avoid memory issues
+                const BATCH_SIZE = 2; // Process 2 pages at a time to reduce memory usage
                 
                 originalButton.innerHTML = `⏳ Rendering ${totalPages} pages (optimized)...`;
 
-                // Process pages in batches
+                // Process pages in batches and add to PDF incrementally
                 for (let batchStart = 0; batchStart < totalPages; batchStart += BATCH_SIZE) {
                     const batchEnd = Math.min(batchStart + BATCH_SIZE, totalPages);
                     const batch = pages.slice(batchStart, batchEnd);
@@ -1344,18 +1343,20 @@
                     // Process batch in parallel
                     const batchPromises = batch.map((pageElement, batchIdx) => {
                         return html2canvas(pageElement, {
-                            scale: 1.8, // Slightly reduced for speed (was 2)
+                            scale: 1.2, // Reduced scale to prevent memory issues
                             backgroundColor: '#ffffff',
                             useCORS: true,
                             logging: false,
                             width: pageElement.scrollWidth,
                             height: pageElement.scrollHeight,
-                            removeContainer: false, // Keep container for next batch
+                            removeContainer: false,
                             allowTaint: false
                         }).then(canvas => {
+                            // Use JPEG with compression instead of PNG to reduce size
+                            const imgData = canvas.toDataURL('image/jpeg', 0.85); // JPEG at 85% quality
                             return {
                                 index: batchStart + batchIdx,
-                                data: canvas.toDataURL('image/png', 0.92), // Slight compression for speed
+                                data: imgData,
                                 width: pageWidth,
                                 height: (canvas.height * pageWidth) / canvas.width
                             };
@@ -1364,20 +1365,24 @@
                     
                     // Wait for batch to complete
                     const batchResults = await Promise.all(batchPromises);
-                    pageImages.push(...batchResults);
+                    
+                    // Sort batch by index
+                    batchResults.sort((a, b) => a.index - b.index);
+                    
+                    // Add pages to PDF immediately (incremental approach)
+                    originalButton.innerHTML = `⏳ Adding pages ${batchStart + 1}-${batchEnd} to PDF...`;
+                    batchResults.forEach((pageImg, batchIdx) => {
+                        const pageIndex = batchStart + batchIdx;
+                        if (pageIndex > 0) {
+                            pdf.addPage();
+                        }
+                        // Use JPEG format
+                        pdf.addImage(pageImg.data, 'JPEG', 0, 0, pageImg.width, pageImg.height, undefined, 'FAST');
+                    });
+                    
+                    // Clear batch results from memory
+                    batchResults.length = 0;
                 }
-
-                // Sort by index to ensure correct order
-                pageImages.sort((a, b) => a.index - b.index);
-
-                // Add all pages to PDF
-                originalButton.innerHTML = `⏳ Assembling PDF...`;
-                pageImages.forEach((pageImg, idx) => {
-                    if (idx > 0) {
-                        pdf.addPage();
-                    }
-                    pdf.addImage(pageImg.data, 'PNG', 0, 0, pageImg.width, pageImg.height);
-                });
 
                 // Download PDF
                 const fileName = `Banding_Tickets_${ticketCount}_AllColors_${new Date().toISOString().split('T')[0]}.pdf`;

@@ -2712,6 +2712,20 @@
             const timeValue = ticket.Time || ticket['Time'] || '';
             const formattedDateTime = formatDateAndTime(dateValue, timeValue);
             const palletInfo = ticket.pallet || ticket.PalletInfo || ticket._pallet || null;
+            const originalQty = (() => {
+                if (palletInfo && palletInfo.Quantity != null && palletInfo.Quantity !== '') {
+                    const value = Number(palletInfo.Quantity);
+                    if (!isNaN(value)) return value;
+                }
+                return parseFloat(ticket.Qty || 0) || 0;
+            })();
+            const remainingQty = (() => {
+                if (palletInfo && palletInfo.RemainingQuantity != null && palletInfo.RemainingQuantity !== '') {
+                    const value = Number(palletInfo.RemainingQuantity);
+                    if (!isNaN(value)) return value;
+                }
+                return originalQty;
+            })();
             const palletZone = palletInfo && palletInfo.CurrentZone ? palletInfo.CurrentZone : 'Receiving Area';
             const palletStatus = palletInfo && palletInfo.Status ? palletInfo.Status : 'Received';
             const palletRemaining = palletInfo && (palletInfo.RemainingQuantity ?? palletInfo.Quantity) ? (palletInfo.RemainingQuantity ?? palletInfo.Quantity) : '—';
@@ -2736,20 +2750,6 @@
             const productType = (ticket.ProductType || '').toLowerCase();
             const has1KG = productType.includes('1kg') || productType.includes('1 kg');
             const has05KG = productType.includes('0.5kg') || productType.includes('0.5 kg') || productType.includes('0,5kg');
-            const originalQty = (() => {
-                if (palletInfo && palletInfo.Quantity != null && palletInfo.Quantity !== '') {
-                    const value = Number(palletInfo.Quantity);
-                    if (!isNaN(value)) return value;
-                }
-                return parseFloat(ticket.Qty || 0) || 0;
-            })();
-            const remainingQty = (() => {
-                if (palletInfo && palletInfo.RemainingQuantity != null && palletInfo.RemainingQuantity !== '') {
-                    const value = Number(palletInfo.RemainingQuantity);
-                    if (!isNaN(value)) return value;
-                }
-                return originalQty;
-            })();
             const qty = remainingQty;
             let pieces = 0;
             let tabletSachetInfo = '';

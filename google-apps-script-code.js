@@ -3686,8 +3686,8 @@ function createInventorySnapshot() {
     return zone.skuStats[sku];
   }
 
-  function addDailyMetric(dateKey, zoneName, sku, field, amount) {
-    if (!dateKey || !zoneName || !sku || !amount) return;
+function addDailyMetric(dateKey, zoneName, sku, field, amount) {
+    if (!dateKey || !zoneName || !sku || amount === undefined || amount === null) return;
     if (!dailySummary[dateKey]) {
       dailySummary[dateKey] = {};
     }
@@ -3777,6 +3777,8 @@ function createInventorySnapshot() {
     if (moveDate) {
       const dateKey = Utilities.formatDate(moveDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
       addDailyMetric(dateKey, fromZone, sku, 'moved', qty);
+      const toZone = (row[movementIndex.ToZone] || '').toString().trim();
+      addDailyMetric(dateKey, toZone || 'Unknown Zone', sku, 'received', qty);
     }
   }
 

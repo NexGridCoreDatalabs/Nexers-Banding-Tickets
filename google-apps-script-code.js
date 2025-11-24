@@ -3872,8 +3872,13 @@ function createInventorySnapshot() {
   });
 
   const receivingZone = zoneStats['Receiving Area'];
-  const receivingQty = receivingZone ? receivingZone.totals.current : 0;
-  const receivingPallets = receivingZone ? receivingZone.totals.palletsCurrent : 0;
+  let receivingQty = receivingZone ? receivingZone.totals.current : 0;
+  let receivingPallets = receivingZone ? receivingZone.totals.palletsCurrent : 0;
+  const receivingOutbound = receivingZone ? receivingZone.totals.outbound : 0;
+  if (receivingOutbound && receivingOutbound > 0) {
+    receivingQty += receivingOutbound;
+    receivingPallets += receivingOutbound > 0 ? receivingOutbound : 0;
+  }
   const cardData = [
     { range: 'A4:C6', title: 'Receiving Area', value: formatNumber(receivingQty), subtitle: receivingPallets + ' pallets awaiting processing', color: '#4dabf7' },
     { range: 'D4:F6', title: 'In Stock', value: formatNumber(facilityTotals.current), subtitle: facilityTotals.currentPallets + ' pallets', color: '#48bb78' },

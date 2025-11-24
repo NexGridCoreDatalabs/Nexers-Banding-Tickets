@@ -1113,10 +1113,6 @@
                                         <option value="Shipped">Shipped</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label for="movementLimit">Limit</label>
-                                    <input type="number" id="movementLimit" min="1" max="100" value="25">
-                                </div>
                                 <button type="button" class="btn-generate" onclick="refreshMovementZone()">🔄 Refresh</button>
                             </div>
                             <div id="movementZoneMeta" class="movement-zone-meta"></div>
@@ -2143,6 +2139,9 @@
                 }
                 
                 const ticket = result.data;
+                if (result.pallet) {
+                    ticket.pallet = result.pallet;
+                }
                 
                 // Normalize field names - handle case variations and ensure Date/Time are correctly mapped
                 // Google Sheets might return headers with different casing
@@ -2712,6 +2711,25 @@
             const dateValue = ticket.Date || ticket['Date'] || '';
             const timeValue = ticket.Time || ticket['Time'] || '';
             const formattedDateTime = formatDateAndTime(dateValue, timeValue);
+            const palletInfo = ticket.pallet || ticket.PalletInfo || ticket._pallet || null;
+            const palletZone = palletInfo && palletInfo.CurrentZone ? palletInfo.CurrentZone : 'Receiving Area';
+            const palletStatus = palletInfo && palletInfo.Status ? palletInfo.Status : 'Received';
+            const palletRemaining = palletInfo && (palletInfo.RemainingQuantity ?? palletInfo.Quantity) ? (palletInfo.RemainingQuantity ?? palletInfo.Quantity) : '—';
+            const palletLastMove = palletInfo && palletInfo.LastMovedAt ? formatMovementDate(palletInfo.LastMovedAt) : 'Not moved yet';
+            const palletCreated = palletInfo && palletInfo.CreatedAt ? formatMovementDate(palletInfo.CreatedAt) : 'Pending';
+            const palletInfoCard = `
+                <div style="background: ${colors.bg}; padding: 20px; border-radius: 8px; border-left: 4px solid ${colors.border};">
+                    <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">📍 Pallet Location</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+                        <div><strong style="color: ${colors.text};">Current Zone:</strong> <span style="color: #2d3748;">${escapeHtml(palletZone)}</span></div>
+                        <div><strong style="color: ${colors.text};">Status:</strong> <span style="color: #2d3748;">${escapeHtml(palletStatus)}</span></div>
+                        <div><strong style="color: ${colors.text};">Remaining Qty:</strong> <span style="color: #2d3748;">${escapeHtml(palletRemaining.toString())}</span></div>
+                        <div><strong style="color: ${colors.text};">Last Movement:</strong> <span style="color: #4a5568;">${escapeHtml(palletLastMove)}</span></div>
+                        <div><strong style="color: ${colors.text};">Pallet Created:</strong> <span style="color: #4a5568;">${escapeHtml(palletCreated)}</span></div>
+                    </div>
+                    ${!palletInfo ? `<div style="margin-top: 12px; padding: 10px; background: #fff; border-radius: 6px; color: #718096; font-size: 13px;">No pallet movement recorded yet. Submit this ticket via the Stock Movement panel to update.</div>` : ''}
+                </div>
+            `;
             
             // Parse Product Type to check for 1KG or 0.5KG
             const productType = (ticket.ProductType || '').toLowerCase();
@@ -2786,6 +2804,8 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        ${palletInfoCard}
                         
                         <div style="background: ${colors.bg}; padding: 20px; border-radius: 8px; border-left: 4px solid ${colors.border};">
                             <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">Product Details</h3>
@@ -3352,15 +3372,14 @@
             const zoneName = zoneSelect.value;
             updateMovementZoneMeta(zoneName);
             const statusFilter = document.getElementById('movementStatusFilter')?.value || '';
-            const limitValue = document.getElementById('movementLimit')?.value || '';
             setMovementListLoading('Loading pallets...');
             try {
                 const params = new URLSearchParams({
                     action: 'getPalletsInZone',
-                    zoneName: zoneName
+                    zoneName: zoneName,
+                    limit: 25
                 });
                 if (statusFilter) params.append('status', statusFilter);
-                if (limitValue) params.append('limit', limitValue);
                 const result = await callAppsScript(params);
                 movementLastPallets = result.pallets || [];
                 renderMovementPalletList(movementLastPallets);

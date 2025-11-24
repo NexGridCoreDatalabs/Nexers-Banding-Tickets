@@ -66,7 +66,7 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
   if (lastMovedByCol >= 0) {
     palletSheet.getRange(parentInfo.rowIndex, lastMovedByCol + 1).setValue(movedBy || 'System');
   }
-  logZoneMovement({
+  const childLog = {
     palletId: childId,
     fromZone: parentRow[headers.indexOf('CurrentZone')],
     toZone: targetZone,
@@ -76,7 +76,16 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
     quantity: childQty,
     orderReference: '',
     movementDate: new Date()
-  });
+  };
+  logZoneMovement(childLog);
+  const childCol = headers.indexOf('ChildPallets');
+  if (childCol >= 0) {
+    const existingChildren = parentRow[childCol] ? parentRow[childCol].toString().split(',').map(function(val) { return val.trim(); }).filter(Boolean) : [];
+    if (existingChildren.indexOf(childId) === -1) {
+      existingChildren.push(childId);
+      palletSheet.getRange(parentInfo.rowIndex, childCol + 1).setValue(existingChildren.join(', '));
+    }
+  }
   return childId;
 }
 /**
@@ -305,6 +314,17 @@ const DEFAULT_ZONE_CONFIG = [
     CurrentOccupancy: 0,
     NextPalletNumber: 1,
     DefaultStatus: 'Dispatch'
+  },
+  {
+    ZoneName: 'Outbounding',
+    Prefix: 'OUT',
+    AllowsSplitting: false,
+    FIFORequired: false,
+    ShelfLifeDays: '',
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Shipped'
   }
 ];
 
@@ -673,7 +693,24 @@ function doGet(e) {
             headers.forEach((header, index) => {
               ticket[header] = row[index] || '';
             });
-            return createResponse({ success: true, data: ticket });
+            let palletRecord = null;
+            const palletsSheet = sheet.getSheetByName('Pallets');
+            if (palletsSheet) {
+              const palletRange = palletsSheet.getDataRange();
+              const palletValues = palletRange.getValues();
+              const palletHeaders = palletValues[0] || [];
+              for (let p = 1; p < palletValues.length; p++) {
+                const palletId = (palletValues[p][0] || '').toString().toUpperCase();
+                if (palletId === serialUpper) {
+                  palletRecord = {};
+                  palletHeaders.forEach(function(header, idx) {
+                    palletRecord[header] = palletValues[p][idx];
+                  });
+                  break;
+                }
+              }
+            }
+            return createResponse({ success: true, data: ticket, pallet: palletRecord });
           }
         }
         return createResponse({ success: false, error: 'Ticket not found' });
@@ -3569,6 +3606,13 @@ function checkZoneEligibility(config) {
     return { allowed: false, message: 'Target zone required' };
   }
   const toZone = config.toZone.trim();
+  if (toZone === 'Outbounding') {
+    return {
+      allowed: true,
+      targetStatus: 'Shipped',
+      info: 'Outbounding treated as final shipping zone.'
+    };
+  }
   const zoneConfigMap = getZoneConfigMap();
   const zoneSettings = zoneConfigMap[toZone] || {};
   const defaultStatus = zoneSettings.DefaultStatus || 'Active';
@@ -3794,13 +3838,11 @@ function determinePalletType(palletId) {
   return palletId.toUpperCase().indexOf('-BND-') >= 0 ? 'Banded' : 'Standard';
 }
 
-function createOrUpdatePalletFromTicket(ticket) {
-  if (!ticket || !ticket.serial) {
+function createOrUpdatePalletFromTicket(ticket, overrides) {
+  if (!ticket || !ticket.serial || !ticket.sku) {
     return;
   }
-  if (!ticket.sku) {
-    return;
-  }
+  const opts = overrides || {};
   const workbook = SpreadsheetApp.openById(SHEET_ID);
   const palletSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
   const data = palletSheet.getDataRange().getValues();
@@ -3824,18 +3866,36 @@ function createOrUpdatePalletFromTicket(ticket) {
   }
   const zoneConfigMap = getZoneConfigMap();
   const skuEntry = ticket.sku ? findSkuZoneEntry(ticket.sku) : null;
-  const defaultZone = (skuEntry && (skuEntry.DefaultZone || (skuEntry.allowedZones && skuEntry.allowedZones[0]))) || 'Detergents Zone';
+  const fallbackZone = 'Receiving Area';
+  const existingRow = targetRowIndex >= 1 ? data[targetRowIndex] : null;
+  const priorZone = existingRow && columnIndexMap.CurrentZone !== undefined ? (existingRow[columnIndexMap.CurrentZone] || '') : '';
+  const defaultZone = opts.currentZone || priorZone || opts.initialZone ||
+    (skuEntry && (skuEntry.DefaultZone || (skuEntry.allowedZones && skuEntry.allowedZones[0]))) ||
+    fallbackZone;
   const zoneSettings = zoneConfigMap[defaultZone] || {};
   const now = new Date();
-  const existingRow = targetRowIndex >= 1 ? data[targetRowIndex] : null;
-  const currentZone = existingRow ? existingRow[columnIndexMap.CurrentZone] : defaultZone;
-  const status = existingRow ? existingRow[columnIndexMap.Status] : (zoneSettings.DefaultStatus || 'Active');
-  const createdAtExisting = existingRow ? existingRow[columnIndexMap.CreatedAt] : '';
-  const lastMovedAtExisting = existingRow ? existingRow[columnIndexMap.LastMovedAt] : '';
-  const lastMovedByExisting = existingRow ? existingRow[columnIndexMap.LastMovedBy] : '';
-  const createdAtValue = createdAtExisting || (ticket.createdAt ? new Date(ticket.createdAt) : now);
-  const lastMovedAtValue = lastMovedAtExisting || createdAtValue;
-  const lastMovedByValue = lastMovedByExisting || ticket.modifiedBy || 'System';
+  const createdAtExisting = existingRow && columnIndexMap.CreatedAt !== undefined ? existingRow[columnIndexMap.CreatedAt] : '';
+  const lastMovedAtExisting = existingRow && columnIndexMap.LastMovedAt !== undefined ? existingRow[columnIndexMap.LastMovedAt] : '';
+  const lastMovedByExisting = existingRow && columnIndexMap.LastMovedBy !== undefined ? existingRow[columnIndexMap.LastMovedBy] : '';
+  const createdAtValue = opts.createdAt || createdAtExisting || (ticket.createdAt ? new Date(ticket.createdAt) : now);
+  const lastMovedAtValue = opts.lastMovedAt || lastMovedAtExisting || createdAtValue;
+  const lastMovedByValue = opts.lastMovedBy || lastMovedByExisting || ticket.modifiedBy || 'System';
+  const remainingQuantityValue = opts.remainingQuantity != null
+    ? Number(opts.remainingQuantity)
+    : (existingRow && columnIndexMap.RemainingQuantity !== undefined
+        ? (Number(existingRow[columnIndexMap.RemainingQuantity]) || Number(existingRow[columnIndexMap.Quantity]) || Number(ticket.qty) || 0)
+        : (Number(ticket.qty) || 0));
+  const parentIdValue = opts.parentId || (existingRow && columnIndexMap.ParentPalletID !== undefined ? (existingRow[columnIndexMap.ParentPalletID] || '') : '');
+  let childListValue = existingRow && columnIndexMap.ChildPallets !== undefined ? (existingRow[columnIndexMap.ChildPallets] || '') : '';
+  if (opts.appendChildId) {
+    const parts = childListValue ? childListValue.split(',').map(function(entry) { return entry.trim(); }).filter(Boolean) : [];
+    if (parts.indexOf(opts.appendChildId) === -1) {
+      parts.push(opts.appendChildId);
+      childListValue = parts.join(', ');
+    }
+  }
+  const notesValue = opts.notes ||
+    (ticket.notes || (existingRow && columnIndexMap.Notes !== undefined ? (existingRow[columnIndexMap.Notes] || '') : ''));
   const rowValues = STOCK_MOVEMENT_SHEETS.Pallets.map(function(header) {
     switch (header) {
       case 'PalletID':
@@ -3845,35 +3905,39 @@ function createOrUpdatePalletFromTicket(ticket) {
       case 'OriginalTicketSerial':
         return ticket.serial;
       case 'ZonePrefix':
-        return deriveZonePrefix(palletId);
+        return opts.zonePrefix || deriveZonePrefix(palletId);
       case 'CurrentZone':
-        return currentZone || defaultZone;
+        return defaultZone;
       case 'Status':
-        return status || 'Active';
+        return opts.status ||
+          (existingRow && columnIndexMap.Status !== undefined ? (existingRow[columnIndexMap.Status] || zoneSettings.DefaultStatus || 'Active') : (zoneSettings.DefaultStatus || 'Active'));
       case 'SKU':
         return ticket.sku || '';
       case 'ProductType':
-        return (ticket.productType || []).join(', ');
+        return Array.isArray(ticket.productType) ? ticket.productType.join(', ') : (ticket.productType || '');
       case 'Quantity':
         return ticket.qty || '';
       case 'RemainingQuantity':
-        return ticket.qty || '';
+        return remainingQuantityValue;
       case 'Layers':
         return ticket.layers || '';
       case 'ManufacturingDate':
         return ticket.date || '';
       case 'BatchLot':
-        return '';
+        return ticket.batchLot || '';
       case 'ExpiryDate':
-        return '';
+        return ticket.expiryDate || '';
       case 'ShelfLifeDays':
+        if (opts.shelfLifeDays != null) {
+          return opts.shelfLifeDays;
+        }
         return skuEntry ? (skuEntry.shelfLifeDays || '') : '';
       case 'ParentPalletID':
-        return '';
+        return parentIdValue;
       case 'ChildPallets':
-        return '';
+        return childListValue;
       case 'PhotoLinks':
-        return '';
+        return ticket.photoLinks || '';
       case 'CreatedBy':
         return ticket.modifiedBy || 'System';
       case 'CreatedAt':
@@ -3883,7 +3947,7 @@ function createOrUpdatePalletFromTicket(ticket) {
       case 'LastMovedBy':
         return lastMovedByValue;
       case 'Notes':
-        return ticket.notes || '';
+        return notesValue;
       default:
         return '';
     }

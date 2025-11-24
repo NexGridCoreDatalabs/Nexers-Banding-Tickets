@@ -3718,26 +3718,25 @@ function createInventorySnapshot() {
     facilityTotals.received += originalQty;
     if (createdAt) {
       const dateKey = Utilities.formatDate(createdAt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-      addDailyMetric(dateKey, zoneName, sku, 'received', originalQty);
+      addDailyMetric(dateKey, 'Receiving Area', sku, 'received', originalQty);
     }
 
     const skuStats = ensureZoneSku(zoneName, sku);
     const zone = ensureZone(zoneName);
     if (zoneName === 'Outbounding') {
-      skuStats.outboundQty += remainingQty;
-      zone.totals.outbound += remainingQty;
-      zone.totals.palletsOutbound += 1;
-      facilityTotals.outbound += remainingQty;
-      facilityTotals.outboundPallets += 1;
-    } else {
-      skuStats.currentQty += remainingQty;
-      zone.totals.current += remainingQty;
-      zone.totals.palletsCurrent += 1;
-      facilityTotals.current += remainingQty;
-      facilityTotals.currentPallets += 1;
-      if (remainingQty > 0) {
-        facilityTotals.activeSkuSet.add(sku);
+      if (lastMoved && (!skuStats.lastMovement || lastMoved > skuStats.lastMovement)) {
+        skuStats.lastMovement = lastMoved;
       }
+      continue;
+    }
+
+    skuStats.currentQty += remainingQty;
+    zone.totals.current += remainingQty;
+    zone.totals.palletsCurrent += 1;
+    facilityTotals.current += remainingQty;
+    facilityTotals.currentPallets += 1;
+    if (remainingQty > 0) {
+      facilityTotals.activeSkuSet.add(sku);
     }
     if (lastMoved && (!skuStats.lastMovement || lastMoved > skuStats.lastMovement)) {
       skuStats.lastMovement = lastMoved;

@@ -2723,7 +2723,8 @@
                     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
                         <div><strong style="color: ${colors.text};">Current Zone:</strong> <span style="color: #2d3748;">${escapeHtml(palletZone)}</span></div>
                         <div><strong style="color: ${colors.text};">Status:</strong> <span style="color: #2d3748;">${escapeHtml(palletStatus)}</span></div>
-                        <div><strong style="color: ${colors.text};">Remaining Qty:</strong> <span style="color: #2d3748;">${escapeHtml(palletRemaining.toString())}</span></div>
+                        <div><strong style="color: ${colors.text};">Original Qty:</strong> <span style="color: #2d3748;">${escapeHtml(originalQty.toString())}</span></div>
+                        <div><strong style="color: ${colors.text};">Remaining Qty:</strong> <span style="color: #2d3748;">${escapeHtml(remainingQty.toString())}</span></div>
                         <div><strong style="color: ${colors.text};">Last Movement:</strong> <span style="color: #4a5568;">${escapeHtml(palletLastMove)}</span></div>
                         <div><strong style="color: ${colors.text};">Pallet Created:</strong> <span style="color: #4a5568;">${escapeHtml(palletCreated)}</span></div>
                     </div>
@@ -2735,7 +2736,21 @@
             const productType = (ticket.ProductType || '').toLowerCase();
             const has1KG = productType.includes('1kg') || productType.includes('1 kg');
             const has05KG = productType.includes('0.5kg') || productType.includes('0.5 kg') || productType.includes('0,5kg');
-            const qty = parseFloat(ticket.Qty || 0) || 0;
+            const originalQty = (() => {
+                if (palletInfo && palletInfo.Quantity != null && palletInfo.Quantity !== '') {
+                    const value = Number(palletInfo.Quantity);
+                    if (!isNaN(value)) return value;
+                }
+                return parseFloat(ticket.Qty || 0) || 0;
+            })();
+            const remainingQty = (() => {
+                if (palletInfo && palletInfo.RemainingQuantity != null && palletInfo.RemainingQuantity !== '') {
+                    const value = Number(palletInfo.RemainingQuantity);
+                    if (!isNaN(value)) return value;
+                }
+                return originalQty;
+            })();
+            const qty = remainingQty;
             let pieces = 0;
             let tabletSachetInfo = '';
             
@@ -2759,29 +2774,28 @@
             let layersInfo = null;
             const palletSizeStr = (ticket.PalletSize || '').toString().trim();
             
-            if (palletSizeStr && qty > 0) {
+            const computeLayerInfo = (quantityValue) => {
+                if (!palletSizeStr || quantityValue <= 0) return null;
                 const palletSizes = palletSizeStr.split(',').map(ps => ps.trim()).filter(ps => ps !== '');
-                if (palletSizes.length > 0) {
-                    const palletSize = palletSizes[0];
-                    const palletSizeNum = parseFloat(palletSize) || 0;
-                    const config = palletConfig[palletSize];
-                    
-                    if (config && palletSizeNum > 0) {
-                        const { cartonsPerLayer } = config;
-                        const calculatedLayers = Math.ceil(qty / cartonsPerLayer);
-                        const fullLayers = Math.floor(qty / cartonsPerLayer);
-                        const remainderUnits = qty % cartonsPerLayer;
-                        
-                        layersInfo = {
-                            palletSize: palletSize,
-                            cartonsPerLayer: cartonsPerLayer,
-                            calculatedLayers: calculatedLayers,
-                            fullLayers: fullLayers,
-                            remainderUnits: remainderUnits
-                        };
-                    }
-                }
-            }
+                if (!palletSizes.length) return null;
+                const palletSize = palletSizes[0];
+                const config = palletConfig[palletSize];
+                if (!config) return null;
+                const cartonsPerLayer = config.cartonsPerLayer;
+                const calculatedLayers = Math.ceil(quantityValue / cartonsPerLayer);
+                const fullLayers = Math.floor(quantityValue / cartonsPerLayer);
+                const remainderUnits = quantityValue % cartonsPerLayer;
+                return {
+                    palletSize,
+                    cartonsPerLayer,
+                    calculatedLayers,
+                    fullLayers,
+                    remainderUnits
+                };
+            };
+
+            layersInfo = computeLayerInfo(remainingQty);
+            const layersInfoOriginal = originalQty !== remainingQty ? computeLayerInfo(originalQty) : null;
             
             return `
                 <div style="max-width: 900px; margin: 0 auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -2796,7 +2810,14 @@
                                 <div><strong style="color: ${colors.text};">Serial:</strong> <span style="color: #2d3748;">${escapeHtml(serial)}</span></div>
                                 <div><strong style="color: ${colors.text};">Date & Time:</strong> <span style="color: #4a5568; font-family: 'Courier New', monospace;">${escapeHtml(formattedDateTime || 'N/A')}</span></div>
                                 <div><strong style="color: ${colors.text};">SKU:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.SKU || '')}</span></div>
-                                <div><strong style="color: ${colors.text};">Quantity:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Qty || '')}</span></div>
+                                <div>
+                                    <strong style="color: ${colors.text};">Quantity (Original):</strong>
+                                    <span style="color: #2d3748;">${escapeHtml(originalQty.toString())}</span>
+                                </div>
+                                <div>
+                                    <strong style="color: ${colors.text};">Quantity (Remaining):</strong>
+                                    <span style="color: #2d3748;">${escapeHtml(remainingQty.toString())}</span>
+                                </div>
                                 <div><strong style="color: ${colors.text};">Layers:</strong> 
                                     <span style="color: #2d3748;">
                                         ${layersInfo ? escapeHtml(layersInfo.calculatedLayers.toString()) : escapeHtml(ticket.Layers || '')}
@@ -2823,7 +2844,7 @@
                                 <div><strong style="color: ${colors.text};">Pallet Size:</strong> <span style="color: #2d3748;">${escapeHtml(layersInfo.palletSize)} cartons</span></div>
                                 <div><strong style="color: ${colors.text};">Cartons per Layer:</strong> <span style="color: #2d3748; font-weight: 600;">${escapeHtml(layersInfo.cartonsPerLayer.toString())} cartons/layer</span></div>
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40; margin-top: 8px;">
-                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Total Quantity:</strong> <span style="color: #2d3748; font-weight: 600;">${escapeHtml(qty.toString())} cartons</span></div>
+                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Remaining Quantity:</strong> <span style="color: #2d3748; font-weight: 600;">${escapeHtml(remainingQty.toString())} cartons</span></div>
                                     <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Calculated Layers:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 16px;">${escapeHtml(layersInfo.calculatedLayers.toString())} layers</span></div>
                                     ${layersInfo.fullLayers > 0 || layersInfo.remainderUnits > 0 ? `
                                         <div style="margin-bottom: 5px; padding-top: 8px; border-top: 1px solid ${colors.accent}20;">
@@ -2843,6 +2864,12 @@
                                         </div>
                                     ` : ''}
                                 </div>
+                                ${layersInfoOriginal ? `
+                                <div style="padding-top: 8px; border-top: 1px dashed ${colors.accent}40; margin-top: 12px; font-size: 13px; color: #4a5568;">
+                                    <strong>Original Quantity:</strong> ${escapeHtml(originalQty.toString())} cartons •
+                                    <strong>Original Layers:</strong> ${escapeHtml(layersInfoOriginal.calculatedLayers.toString())}
+                                </div>
+                                ` : ''}
                             </div>
                         </div>
                         ` : ''}
@@ -2852,12 +2879,14 @@
                             <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">📦 Tablet and Sachet Information</h3>
                             <div style="display: grid; gap: 10px;">
                                 <div><strong style="color: ${colors.text};">Product Type:</strong> <span style="color: #2d3748;">${escapeHtml(tabletSachetInfo)}</span></div>
-                                <div><strong style="color: ${colors.text};">Quantity (UOM: Cartons):</strong> <span style="color: #2d3748;">${escapeHtml(ticket.Qty || '0')} Cartons</span></div>
+                                <div><strong style="color: ${colors.text};">Quantity Remaining (Cartons):</strong> <span style="color: #2d3748;">${escapeHtml(remainingQty.toString())} Cartons</span></div>
+                                ${originalQty !== remainingQty ? `<div><strong style="color: ${colors.text};">Original Quantity:</strong> <span style="color: #2d3748;">${escapeHtml(originalQty.toString())} Cartons</span></div>` : ''}
                                 ${ticket.SachetType ? `<div><strong style="color: ${colors.text};">Sachet Type:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.SachetType)}</span></div>` : ''}
                                 ${ticket.TabletType ? `<div><strong style="color: ${colors.text};">Tablet Type:</strong> <span style="color: #2d3748;">${escapeHtml(ticket.TabletType)}</span></div>` : ''}
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40;">
-                                    <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Conversion:</strong> <span style="color: #4a5568; font-size: 14px;">${escapeHtml(ticket.Qty || '0')} Cartons × ${has1KG ? '6' : '12'} = </span></div>
-                                    <div><strong style="color: ${colors.text};">Total Pieces:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 18px;">${pieces.toLocaleString()} Pieces</span></div>
+                                    <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Conversion:</strong> <span style="color: #4a5568; font-size: 14px;">${escapeHtml(remainingQty.toString())} Cartons × ${has1KG ? '6' : '12'} = </span></div>
+                                    <div><strong style="color: ${colors.text};">Total Pieces Remaining:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 18px;">${pieces.toLocaleString()} Pieces</span></div>
+                                    ${originalQty !== remainingQty ? `<div style="margin-top: 6px; color: #718096; font-size: 13px;">Original pieces: ${( (originalQty) * (has1KG ? 6 : 12)).toLocaleString()}</div>` : ''}
                                 </div>
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40; margin-top: 8px;">
                                     <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Carton to Sachet/Tablet Conversion:</strong></div>
@@ -2873,13 +2902,13 @@
                                         ${ticket.SachetType ? `
                                         <div>
                                             <div style="font-size: 12px; color: #718096; margin-bottom: 3px;">Sachets</div>
-                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${(parseFloat(ticket.Qty || 0) * (has1KG ? 6 : 12)).toLocaleString()}</div>
+                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${(remainingQty * (has1KG ? 6 : 12)).toLocaleString()}</div>
                                         </div>
                                         ` : ''}
                                         ${ticket.TabletType ? `
                                         <div>
                                             <div style="font-size: 12px; color: #718096; margin-bottom: 3px;">Tablet Pieces</div>
-                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${(parseFloat(ticket.Qty || 0) * (has1KG ? 6 : 12)).toLocaleString()}</div>
+                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${(remainingQty * (has1KG ? 6 : 12)).toLocaleString()}</div>
                                         </div>
                                         ` : ''}
                                     </div>

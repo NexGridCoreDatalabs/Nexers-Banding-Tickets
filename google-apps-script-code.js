@@ -3658,6 +3658,7 @@ function createInventorySnapshot() {
     current: 0,
     outbound: 0,
     received: 0,
+    receivedPallets: 0,
     currentPallets: 0,
     outboundPallets: 0,
     activeSkuSet: new Set()
@@ -3709,14 +3710,19 @@ function createInventorySnapshot() {
     const remainingQty = Number(row[palletIndex.RemainingQuantity]) || Number(row[palletIndex.Quantity]) || 0;
     const lastMoved = row[palletIndex.LastMovedAt] ? new Date(row[palletIndex.LastMovedAt]) : null;
     const createdAt = row[palletIndex.CreatedAt] ? new Date(row[palletIndex.CreatedAt]) : null;
+    const parentId = palletIndex.ParentPalletID !== undefined ? (row[palletIndex.ParentPalletID] || '').toString().trim() : '';
+    const isOriginalPallet = !parentId;
     palletInfoMap[palletId] = {
       sku: sku,
       quantity: originalQty,
       remaining: remainingQty,
       zone: zoneName
     };
-    facilityTotals.received += originalQty;
-    if (createdAt) {
+    if (isOriginalPallet) {
+      facilityTotals.received += originalQty;
+      facilityTotals.receivedPallets += 1;
+    }
+    if (isOriginalPallet && createdAt) {
       const dateKey = Utilities.formatDate(createdAt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
       addDailyMetric(dateKey, 'Receiving Area', sku, 'received', originalQty);
     }
@@ -3872,13 +3878,8 @@ function createInventorySnapshot() {
   });
 
   const receivingZone = zoneStats['Receiving Area'];
-  let receivingQty = receivingZone ? receivingZone.totals.current : 0;
-  let receivingPallets = receivingZone ? receivingZone.totals.palletsCurrent : 0;
-  const receivingOutbound = receivingZone ? receivingZone.totals.outbound : 0;
-  if (receivingOutbound && receivingOutbound > 0) {
-    receivingQty += receivingOutbound;
-    receivingPallets += receivingOutbound > 0 ? receivingOutbound : 0;
-  }
+  const receivingQty = facilityTotals.received;
+  const receivingPallets = facilityTotals.receivedPallets;
   const cardData = [
     { range: 'A4:C6', title: 'Receiving Area', value: formatNumber(receivingQty), subtitle: receivingPallets + ' pallets awaiting processing', color: '#4dabf7' },
     { range: 'D4:F6', title: 'In Stock', value: formatNumber(facilityTotals.current), subtitle: facilityTotals.currentPallets + ' pallets', color: '#48bb78' },

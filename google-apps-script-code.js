@@ -45,7 +45,8 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
     status: 'Active',
     parentId: parentTicket.serial,
     lastMovedAt: new Date(),
-    lastMovedBy: movedBy || 'System'
+    lastMovedBy: movedBy || 'System',
+    palletType: 'Banded'
   });
   // Update parent remaining qty
   const newRemaining = parentQty - childQty;
@@ -3994,7 +3995,7 @@ function createOrUpdatePalletFromTicket(ticket, overrides) {
       case 'PalletID':
         return palletId;
       case 'PalletType':
-        return determinePalletType(palletId);
+        return opts.palletType || determinePalletType(palletId);
       case 'OriginalTicketSerial':
         return ticket.serial;
       case 'ZonePrefix':

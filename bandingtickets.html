@@ -1076,104 +1076,105 @@
                 </p>
             </div>
         </div>
-    </div>
 
-    <div id="movementSection" style="display: none;">
-    <div class="movement-toggle">
-        <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
-            🚚 Open Stock Movement Control
-        </button>
-    </div>
-
-    <div class="movement-panel" id="movementPanel">
-        <div class="movement-panel-header">
-            <div>
-                <h2>📦 Stock Movement Control</h2>
-                <p>Monitor pallets per zone, enforce FIFO, and log movements in real time.</p>
+        <div id="movementSection" style="display: none;">
+            <div class="movement-toggle">
+                <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
+                    🚚 Open Stock Movement Control
+                </button>
             </div>
-            <button type="button" class="btn-reset" onclick="toggleMovementPanel(false)">Close</button>
-        </div>
 
-        <div class="movement-grid">
-            <div class="movement-column">
-                <div class="movement-section">
-                    <h3>Zone Monitor</h3>
-                    <div class="movement-controls">
-                        <div>
-                            <label for="movementZoneSelect">Zone</label>
-                            <select id="movementZoneSelect"></select>
-                        </div>
-                        <div>
-                            <label for="movementStatusFilter">Status</label>
-                            <select id="movementStatusFilter">
-                                <option value="">Any status</option>
-                                <option value="Active">Active</option>
-                                <option value="Hold">Hold</option>
-                                <option value="Rework">Rework</option>
-                                <option value="Dispatch">Dispatch</option>
-                                <option value="Shipped">Shipped</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="movementLimit">Limit</label>
-                            <input type="number" id="movementLimit" min="1" max="100" value="25">
-                        </div>
-                        <button type="button" class="btn-generate" onclick="refreshMovementZone()">🔄 Refresh</button>
+            <div class="movement-panel" id="movementPanel">
+                <div class="movement-panel-header">
+                    <div>
+                        <h2>📦 Stock Movement Control</h2>
+                        <p>Monitor pallets per zone, enforce FIFO, and log movements in real time.</p>
                     </div>
-                    <div id="movementZoneMeta" class="movement-zone-meta"></div>
-                    <div id="movementPalletList" class="movement-pallet-list">
-                        <div style="color:#94a3b8;">Select a zone to view pallets.</div>
+                    <button type="button" class="btn-reset" onclick="toggleMovementPanel(false)">Close</button>
+                </div>
+
+                <div class="movement-grid">
+                    <div class="movement-column">
+                        <div class="movement-section">
+                            <h3>Zone Monitor</h3>
+                            <div class="movement-controls">
+                                <div>
+                                    <label for="movementZoneSelect">Zone</label>
+                                    <select id="movementZoneSelect"></select>
+                                </div>
+                                <div>
+                                    <label for="movementStatusFilter">Status</label>
+                                    <select id="movementStatusFilter">
+                                        <option value="">Any status</option>
+                                        <option value="Active">Active</option>
+                                        <option value="Hold">Hold</option>
+                                        <option value="Rework">Rework</option>
+                                        <option value="Dispatch">Dispatch</option>
+                                        <option value="Shipped">Shipped</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="movementLimit">Limit</label>
+                                    <input type="number" id="movementLimit" min="1" max="100" value="25">
+                                </div>
+                                <button type="button" class="btn-generate" onclick="refreshMovementZone()">🔄 Refresh</button>
+                            </div>
+                            <div id="movementZoneMeta" class="movement-zone-meta"></div>
+                            <div id="movementPalletList" class="movement-pallet-list">
+                                <div style="color:#94a3b8;">Select a zone to view pallets.</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="movement-column movement-column-form">
+                        <div class="movement-section">
+                            <h3>Move Pallet</h3>
+                            <form id="movementForm" onsubmit="event.preventDefault(); submitMovementForm();">
+                                <div class="movement-form-grid">
+                                    <div>
+                                        <label for="movementPalletId">Pallet ID</label>
+                                        <input type="text" id="movementPalletId" placeholder="FG-DET-00001" required>
+                                    </div>
+                                    <div>
+                                        <label for="movementCurrentZone">Current Zone</label>
+                                        <input type="text" id="movementCurrentZone" placeholder="Auto-detected" readonly>
+                                    </div>
+                                    <div>
+                                        <label for="movementToZoneSelect">Move To</label>
+                                        <select id="movementToZoneSelect" required></select>
+                                    </div>
+                                    <div>
+                                        <label for="movementMovedBy">Moved By</label>
+                                        <input type="text" id="movementMovedBy" placeholder="Clerk name / badge" required>
+                                    </div>
+                                    <div>
+                                        <label for="movementQuantity">Quantity (optional)</label>
+                                        <input type="number" id="movementQuantity" min="0" step="1" placeholder="Leave blank to keep full qty">
+                                    </div>
+                                    <div>
+                                        <label for="movementOrderRef">Order Reference (optional)</label>
+                                        <input type="text" id="movementOrderRef" placeholder="MT/Dispatch reference">
+                                    </div>
+                                    <div style="grid-column: 1 / -1;">
+                                        <label for="movementReason">Reason / Notes</label>
+                                        <textarea id="movementReason" rows="3" placeholder="Reason for movement, QA notes, etc."></textarea>
+                                    </div>
+                                    <div style="grid-column: 1 / -1;">
+                                        <label for="movementOverrideReason">Override Reason (required when bypassing FIFO)</label>
+                                        <textarea id="movementOverrideReason" rows="2" placeholder="Explain why FIFO is bypassed. Leave blank to enforce FIFO."></textarea>
+                                    </div>
+                                </div>
+                                <div class="movement-form-actions">
+                                    <button type="submit" class="btn-generate">Move Pallet</button>
+                                    <button type="button" class="btn-reset" onclick="resetMovementForm()">Clear</button>
+                                </div>
+                                <div id="movementStatusMessage" class="movement-status"></div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="movement-column movement-column-form">
-                <div class="movement-section">
-                    <h3>Move Pallet</h3>
-                    <form id="movementForm" onsubmit="event.preventDefault(); submitMovementForm();">
-                        <div class="movement-form-grid">
-                            <div>
-                                <label for="movementPalletId">Pallet ID</label>
-                                <input type="text" id="movementPalletId" placeholder="FG-DET-00001" required>
-                            </div>
-                            <div>
-                                <label for="movementCurrentZone">Current Zone</label>
-                                <input type="text" id="movementCurrentZone" placeholder="Auto-detected" readonly>
-                            </div>
-                            <div>
-                                <label for="movementToZoneSelect">Move To</label>
-                                <select id="movementToZoneSelect" required></select>
-                            </div>
-                            <div>
-                                <label for="movementMovedBy">Moved By</label>
-                                <input type="text" id="movementMovedBy" placeholder="Clerk name / badge" required>
-                            </div>
-                            <div>
-                                <label for="movementQuantity">Quantity (optional)</label>
-                                <input type="number" id="movementQuantity" min="0" step="1" placeholder="Leave blank to keep full qty">
-                            </div>
-                            <div>
-                                <label for="movementOrderRef">Order Reference (optional)</label>
-                                <input type="text" id="movementOrderRef" placeholder="MT/Dispatch reference">
-                            </div>
-                            <div style="grid-column: 1 / -1;">
-                                <label for="movementReason">Reason / Notes</label>
-                                <textarea id="movementReason" rows="3" placeholder="Reason for movement, QA notes, etc."></textarea>
-                            </div>
-                            <div style="grid-column: 1 / -1;">
-                                <label for="movementOverrideReason">Override Reason (required when bypassing FIFO)</label>
-                                <textarea id="movementOverrideReason" rows="2" placeholder="Explain why FIFO is bypassed. Leave blank to enforce FIFO."></textarea>
-                            </div>
-                        </div>
-                        <div class="movement-form-actions">
-                            <button type="submit" class="btn-generate">Move Pallet</button>
-                            <button type="button" class="btn-reset" onclick="resetMovementForm()">Clear</button>
-                        </div>
-                        <div id="movementStatusMessage" class="movement-status"></div>
-                    </form>
-                </div>
-            </div>
         </div>
-    </div>
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
@@ -2992,6 +2993,15 @@
             }
             if (serialDisplay) {
                 serialDisplay.textContent = defaultSerial;
+            }
+
+            const movementPalletInput = document.getElementById('movementPalletId');
+            if (movementPalletInput) {
+                movementPalletInput.value = defaultSerial;
+            }
+            const movementCurrentZone = document.getElementById('movementCurrentZone');
+            if (movementCurrentZone) {
+                movementCurrentZone.value = '';
             }
 
             // Priority: URL color param > serial detection > default

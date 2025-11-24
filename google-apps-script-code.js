@@ -388,6 +388,10 @@ function handleWriteOperation(data, sheet) {
         // Full row data provided
         ticketsSheet.appendRow(data.values);
         Logger.log('Appended full row');
+        const ticketPayload = mapTicketRowToObject(data.values);
+        if (ticketPayload) {
+          createOrUpdatePalletFromTicket(ticketPayload);
+        }
       }
       
       // Update Calculations sheet if SKU and productType provided
@@ -425,6 +429,10 @@ function handleWriteOperation(data, sheet) {
             updateCalculations(data.sku, newQty, data.productType, oldQty, true);
           }
           
+          const ticketPayload = mapTicketRowToObject(data.values);
+          if (ticketPayload) {
+            createOrUpdatePalletFromTicket(ticketPayload);
+          }
           found = true;
           return createResponse({ success: true, message: 'Data updated successfully' });
         }
@@ -433,6 +441,10 @@ function handleWriteOperation(data, sheet) {
       // If not found, append as new ticket
       if (!found) {
         ticketsSheet.appendRow(data.values);
+        const ticketPayload = mapTicketRowToObject(data.values);
+        if (ticketPayload) {
+          createOrUpdatePalletFromTicket(ticketPayload);
+        }
         
         // Update Calculations sheet if SKU and productType provided
         if (data.sku && data.qty && data.productType) {
@@ -3636,5 +3648,158 @@ function parseBoolean(value) {
   if (value === undefined || value === null) return false;
   const str = value.toString().trim().toLowerCase();
   return str === 'true' || str === 'yes' || str === '1';
+}
+
+function splitCsvList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+  return value.toString().split(',').map(function(item) {
+    return item.trim();
+  }).filter(function(item) {
+    return item.length > 0;
+  });
+}
+
+function mapTicketRowToObject(row) {
+  if (!row || row.length === 0) {
+    return null;
+  }
+  return {
+    serial: row[0] || '',
+    date: row[1] || '',
+    time: row[2] || '',
+    sku: row[3] || '',
+    qty: Number(row[4]) || 0,
+    layers: row[5] || '',
+    bandingType: splitCsvList(row[6]),
+    productType: splitCsvList(row[7]),
+    palletSize: splitCsvList(row[8]),
+    notes: row[9] || '',
+    qualityIssueType: row[10] || '',
+    qualityIssueDesc: row[11] || '',
+    groupLeader: row[12] || '',
+    sachetType: row[13] || '',
+    tabletType: row[14] || '',
+    merchHistory: row[15] || '',
+    createdAt: row[16] || '',
+    firstModified: row[17] || '',
+    lastModified: row[18] || '',
+    changeHistory: row[19] || '',
+    modifiedBy: row[20] || ''
+  };
+}
+
+function deriveZonePrefix(palletId) {
+  if (!palletId) return '';
+  const match = palletId.toString().match(/^FG-([A-Z0-9]+)-/i);
+  return match ? match[1].toUpperCase() : '';
+}
+
+function determinePalletType(palletId) {
+  if (!palletId) return 'Standard';
+  return palletId.toUpperCase().indexOf('-BND-') >= 0 ? 'Banded' : 'Standard';
+}
+
+function createOrUpdatePalletFromTicket(ticket) {
+  if (!ticket || !ticket.serial) {
+    return;
+  }
+  if (!ticket.sku) {
+    return;
+  }
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const palletSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const data = palletSheet.getDataRange().getValues();
+  const headers = data[0];
+  const columnIndexMap = {};
+  headers.forEach(function(header, idx) {
+    columnIndexMap[header] = idx;
+  });
+  const requiredColumns = ['PalletID', 'CurrentZone', 'Status', 'CreatedAt', 'LastMovedAt', 'LastMovedBy'];
+  const missingColumn = requiredColumns.find(function(header) { return columnIndexMap[header] === undefined; });
+  if (missingColumn) {
+    throw new Error('Pallets sheet missing required column: ' + missingColumn);
+  }
+  const palletId = ticket.serial;
+  let targetRowIndex = -1;
+  for (let i = 1; i < data.length; i++) {
+    if ((data[i][columnIndexMap.PalletID] || '').toString() === palletId) {
+      targetRowIndex = i;
+      break;
+    }
+  }
+  const zoneConfigMap = getZoneConfigMap();
+  const skuEntry = ticket.sku ? findSkuZoneEntry(ticket.sku) : null;
+  const defaultZone = (skuEntry && (skuEntry.DefaultZone || (skuEntry.allowedZones && skuEntry.allowedZones[0]))) || 'Detergents Zone';
+  const zoneSettings = zoneConfigMap[defaultZone] || {};
+  const now = new Date();
+  const existingRow = targetRowIndex >= 1 ? data[targetRowIndex] : null;
+  const currentZone = existingRow ? existingRow[columnIndexMap.CurrentZone] : defaultZone;
+  const status = existingRow ? existingRow[columnIndexMap.Status] : (zoneSettings.DefaultStatus || 'Active');
+  const createdAtExisting = existingRow ? existingRow[columnIndexMap.CreatedAt] : '';
+  const lastMovedAtExisting = existingRow ? existingRow[columnIndexMap.LastMovedAt] : '';
+  const lastMovedByExisting = existingRow ? existingRow[columnIndexMap.LastMovedBy] : '';
+  const createdAtValue = createdAtExisting || (ticket.createdAt ? new Date(ticket.createdAt) : now);
+  const lastMovedAtValue = lastMovedAtExisting || createdAtValue;
+  const lastMovedByValue = lastMovedByExisting || ticket.modifiedBy || 'System';
+  const rowValues = STOCK_MOVEMENT_SHEETS.Pallets.map(function(header) {
+    switch (header) {
+      case 'PalletID':
+        return palletId;
+      case 'PalletType':
+        return determinePalletType(palletId);
+      case 'OriginalTicketSerial':
+        return ticket.serial;
+      case 'ZonePrefix':
+        return deriveZonePrefix(palletId);
+      case 'CurrentZone':
+        return currentZone || defaultZone;
+      case 'Status':
+        return status || 'Active';
+      case 'SKU':
+        return ticket.sku || '';
+      case 'ProductType':
+        return (ticket.productType || []).join(', ');
+      case 'Quantity':
+        return ticket.qty || '';
+      case 'RemainingQuantity':
+        return ticket.qty || '';
+      case 'Layers':
+        return ticket.layers || '';
+      case 'ManufacturingDate':
+        return ticket.date || '';
+      case 'BatchLot':
+        return '';
+      case 'ExpiryDate':
+        return '';
+      case 'ShelfLifeDays':
+        return skuEntry ? (skuEntry.shelfLifeDays || '') : '';
+      case 'ParentPalletID':
+        return '';
+      case 'ChildPallets':
+        return '';
+      case 'PhotoLinks':
+        return '';
+      case 'CreatedBy':
+        return ticket.modifiedBy || 'System';
+      case 'CreatedAt':
+        return createdAtValue;
+      case 'LastMovedAt':
+        return lastMovedAtValue;
+      case 'LastMovedBy':
+        return lastMovedByValue;
+      case 'Notes':
+        return ticket.notes || '';
+      default:
+        return '';
+    }
+  });
+  if (targetRowIndex >= 1) {
+    palletSheet.getRange(targetRowIndex + 1, 1, 1, rowValues.length).setValues([rowValues]);
+  } else {
+    palletSheet.appendRow(rowValues);
+  }
 }
 

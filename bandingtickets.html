@@ -1078,6 +1078,7 @@
         </div>
     </div>
 
+    <div id="movementSection" style="display: none;">
     <div class="movement-toggle">
         <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
             🚚 Open Stock Movement Control
@@ -1172,6 +1173,7 @@
                 </div>
             </div>
         </div>
+    </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
@@ -2626,6 +2628,10 @@
             if (fillContainer) {
                 fillContainer.classList.add('visible');
             }
+            const movementSection = document.getElementById('movementSection');
+            if (movementSection) {
+                movementSection.style.display = 'block';
+            }
             
             const viewCard = document.getElementById('viewCard');
             const editCard = document.getElementById('editCard');
@@ -2958,6 +2964,11 @@
             
             document.body.classList.add('fill-mode-active');
 
+            const movementSection = document.getElementById('movementSection');
+            if (movementSection) {
+                movementSection.style.display = 'block';
+            }
+
             const fillContainer = document.getElementById('fillContainer');
             if (fillContainer) {
                 fillContainer.classList.add('visible');
@@ -3241,6 +3252,11 @@
         }
 
         function toggleMovementPanel(forceOpen) {
+            if (!isUserLoggedIn()) {
+                alert('🔐 Please log in before using stock movement controls.');
+                showLoginCard();
+                return;
+            }
             const panel = document.getElementById('movementPanel');
             const toggleBtn = document.getElementById('movementToggleBtn');
             if (!panel || !toggleBtn) return;

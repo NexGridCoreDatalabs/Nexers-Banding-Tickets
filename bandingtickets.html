@@ -3539,20 +3539,34 @@
             const overrideReason = document.getElementById('movementOverrideReason')?.value || '';
             const quantity = document.getElementById('movementQuantity')?.value || '';
             const orderReference = document.getElementById('movementOrderRef')?.value || '';
+            if (isChildMode) {
+                if (!quantity || Number(quantity) <= 0) {
+                    setMovementStatus('Enter child quantity greater than zero.', 'error');
+                    return;
+                }
+            }
             try {
                 setMovementStatus('Moving pallet...');
                 const params = new URLSearchParams({
-                    action: 'movePallet',
+                    action: isChildMode ? 'createChildPallet' : 'movePallet',
                     palletId: palletId,
                     toZone: toZone,
                     movedBy: movedBy
                 });
                 if (reason) params.append('reason', reason);
-                if (overrideReason) params.append('overrideReason', overrideReason);
-                if (quantity) params.append('quantity', quantity);
-                if (orderReference) params.append('orderReference', orderReference);
+                if (isChildMode) {
+                    params.append('quantity', quantity);
+                } else {
+                    if (overrideReason) params.append('overrideReason', overrideReason);
+                    if (quantity) params.append('quantity', quantity);
+                    if (orderReference) params.append('orderReference', orderReference);
+                }
                 const result = await callAppsScript(params);
-                setMovementStatus(result.message || 'Pallet moved successfully', 'success');
+                if (isChildMode) {
+                    setMovementStatus(result.message || 'Child pallet created successfully', 'success');
+                } else {
+                    setMovementStatus(result.message || 'Pallet moved successfully', 'success');
+                }
                 resetMovementForm();
                 refreshMovementZone();
             } catch (error) {

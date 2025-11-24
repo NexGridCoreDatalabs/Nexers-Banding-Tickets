@@ -86,7 +86,10 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
       palletSheet.getRange(parentInfo.rowIndex, childCol + 1).setValue(existingChildren.join(', '));
     }
   }
-  return childId;
+  return {
+    childId: childId,
+    parentRemaining: newRemaining
+  };
 }
 /**
  * Google Apps Script Code for Banding Tickets System
@@ -718,6 +721,63 @@ function doGet(e) {
         // Return all tickets
         return createResponse({ success: true, data: values });
       }
+    } else if (action === 'createChildPallet') {
+      const palletId = (e.parameter.palletId || '').toString().trim();
+      const toZone = (e.parameter.toZone || '').toString().trim();
+      const movedBy = (e.parameter.movedBy || '').toString().trim();
+      const quantity = Number(e.parameter.quantity || 0);
+      const reason = (e.parameter.reason || '').toString();
+      if (!palletId) {
+        return createResponse({ success: false, error: 'Pallet ID is required.' });
+      }
+      if (!toZone) {
+        return createResponse({ success: false, error: 'Destination zone is required.' });
+      }
+      if (!movedBy) {
+        return createResponse({ success: false, error: 'Moved By is required.' });
+      }
+      if (!quantity || quantity <= 0) {
+        return createResponse({ success: false, error: 'Child quantity must be greater than zero.' });
+      }
+      const palletsSheet = sheet.getSheetByName('Pallets');
+      if (!palletsSheet) {
+        return createResponse({ success: false, error: 'Pallets sheet not found' });
+      }
+      const dataRange = palletsSheet.getDataRange();
+      const values = dataRange.getValues();
+      if (values.length <= 1) {
+        return createResponse({ success: false, error: 'Pallets sheet has no data' });
+      }
+      const headers = values[0];
+      const columnIndexMap = {};
+      headers.forEach(function(header, idx) {
+        columnIndexMap[header] = idx;
+      });
+      const palletIdIndex = columnIndexMap.PalletID;
+      if (palletIdIndex === undefined) {
+        return createResponse({ success: false, error: 'PalletID column missing in Pallets sheet' });
+      }
+      let parentRow = null;
+      for (let i = 1; i < values.length; i++) {
+        if ((values[i][palletIdIndex] || '').toString().trim().toUpperCase() === palletId.toUpperCase()) {
+          parentRow = values[i];
+          break;
+        }
+      }
+      if (!parentRow) {
+        return createResponse({ success: false, error: 'Pallet not found: ' + palletId });
+      }
+      const parentTicket = buildTicketFromPalletRow(parentRow, columnIndexMap);
+      if (!parentTicket) {
+        return createResponse({ success: false, error: 'Unable to load parent pallet details.' });
+      }
+      const childResult = createChildPallet(parentTicket, quantity, toZone, movedBy, reason);
+      return createResponse({
+        success: true,
+        message: 'Child pallet ' + childResult.childId + ' created successfully',
+        childPalletId: childResult.childId,
+        parentRemaining: childResult.parentRemaining
+      });
     } else if (action === 'users') {
       // Get authorized users
       const usersSheet = sheet.getSheetByName('Authorized Users');
@@ -3824,6 +3884,39 @@ function mapTicketRowToObject(row) {
     lastModified: row[18] || '',
     changeHistory: row[19] || '',
     modifiedBy: row[20] || ''
+  };
+}
+
+function buildTicketFromPalletRow(row, columnIndexMap) {
+  if (!row || !columnIndexMap) {
+    return null;
+  }
+  const get = function(header) {
+    const idx = columnIndexMap[header];
+    return idx >= 0 ? row[idx] : '';
+  };
+  return {
+    serial: get('PalletID') || '',
+    date: get('ManufacturingDate') || '',
+    time: '',
+    sku: get('SKU') || '',
+    qty: Number(get('RemainingQuantity')) || Number(get('Quantity')) || 0,
+    layers: get('Layers') || '',
+    bandingType: splitCsvList(get('BandingType')),
+    productType: splitCsvList(get('ProductType')),
+    palletSize: splitCsvList(get('PalletSize')),
+    notes: get('Notes') || '',
+    qualityIssueType: '',
+    qualityIssueDesc: '',
+    groupLeader: '',
+    sachetType: '',
+    tabletType: '',
+    merchHistory: [],
+    createdAt: get('CreatedAt') || '',
+    firstModified: '',
+    lastModified: get('LastMovedAt') || '',
+    changeHistory: '',
+    modifiedBy: get('LastMovedBy') || ''
   };
 }
 

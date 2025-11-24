@@ -17,6 +17,211 @@
 // Your Google Sheet ID (update this)
 const SHEET_ID = '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
 
+// Stock movement constants
+const STOCK_MOVEMENT_SHEETS = {
+  Pallets: [
+    'PalletID',
+    'PalletType',
+    'OriginalTicketSerial',
+    'ZonePrefix',
+    'CurrentZone',
+    'Status',
+    'SKU',
+    'ProductType',
+    'Quantity',
+    'RemainingQuantity',
+    'Layers',
+    'ManufacturingDate',
+    'BatchLot',
+    'ExpiryDate',
+    'ShelfLifeDays',
+    'ParentPalletID',
+    'ChildPallets',
+    'PhotoLinks',
+    'CreatedBy',
+    'CreatedAt',
+    'LastMovedAt',
+    'LastMovedBy',
+    'Notes'
+  ],
+  ZoneMovements: [
+    'MovementID',
+    'PalletID',
+    'FromZone',
+    'ToZone',
+    'MovementDate',
+    'MovementTime',
+    'MovedBy',
+    'Reason',
+    'OverrideReason',
+    'Quantity',
+    'OrderReference',
+    'Notes',
+    'CreatedAt'
+  ],
+  ZoneConfig: [
+    'ZoneName',
+    'Prefix',
+    'AllowsSplitting',
+    'FIFORequired',
+    'ShelfLifeDays',
+    'MaxCapacity',
+    'CurrentOccupancy',
+    'NextPalletNumber',
+    'DefaultStatus',
+    'Notes'
+  ],
+  SKUZoneMapping: [
+    'SKU',
+    'AllowedZones',
+    'DefaultZone',
+    'RequiresBanding',
+    'ShelfLifeDays',
+    'Notes'
+  ],
+  QAHold: [
+    'HoldID',
+    'PalletID',
+    'HoldDate',
+    'HoldTime',
+    'Reason',
+    'HeldBy',
+    'QAReference',
+    'Status',
+    'ReleaseDate',
+    'ReleasedBy',
+    'ReleaseNotes'
+  ],
+  Rework: [
+    'ReworkID',
+    'PalletID',
+    'ReworkDate',
+    'ReworkTime',
+    'ReworkReason',
+    'AssignedTo',
+    'Status',
+    'CompletedDate',
+    'CompletedBy',
+    'Result',
+    'Notes'
+  ],
+  Dispatch: [
+    'DispatchID',
+    'OrderReference',
+    'PalletID',
+    'ChildPalletID',
+    'AssignedDate',
+    'AssignedBy',
+    'VehicleID',
+    'DriverName',
+    'DriverContact',
+    'LoadingDate',
+    'LoadingBy',
+    'ShippedDate',
+    'ShippedBy',
+    'Status',
+    'ProofOfLoadingPhotos',
+    'Notes'
+  ]
+};
+
+const DEFAULT_ZONE_CONFIG = [
+  {
+    ZoneName: 'Detergents Zone',
+    Prefix: 'DET',
+    AllowsSplitting: false,
+    FIFORequired: true,
+    ShelfLifeDays: 180,
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Active'
+  },
+  {
+    ZoneName: 'Fats Zone',
+    Prefix: 'FAT',
+    AllowsSplitting: false,
+    FIFORequired: true,
+    ShelfLifeDays: 180,
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Active'
+  },
+  {
+    ZoneName: 'Liquids/Oils Zone',
+    Prefix: 'LIQ',
+    AllowsSplitting: false,
+    FIFORequired: true,
+    ShelfLifeDays: 120,
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Active'
+  },
+  {
+    ZoneName: 'Soaps Zone',
+    Prefix: 'SOP',
+    AllowsSplitting: false,
+    FIFORequired: true,
+    ShelfLifeDays: 240,
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Active'
+  },
+  {
+    ZoneName: 'SuperMarket Area',
+    Prefix: 'SM',
+    AllowsSplitting: true,
+    FIFORequired: true,
+    ShelfLifeDays: '',
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Active'
+  },
+  {
+    ZoneName: 'QA Hold',
+    Prefix: 'QAH',
+    AllowsSplitting: false,
+    FIFORequired: false,
+    ShelfLifeDays: '',
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Hold'
+  },
+  {
+    ZoneName: 'Rework Zone',
+    Prefix: 'REW',
+    AllowsSplitting: false,
+    FIFORequired: false,
+    ShelfLifeDays: '',
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Rework'
+  },
+  {
+    ZoneName: 'Dispatch Loading Area',
+    Prefix: 'DSP',
+    AllowsSplitting: false,
+    FIFORequired: true,
+    ShelfLifeDays: '',
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Dispatch'
+  }
+];
+
+const SKU_ZONE_CACHE = {
+  timestamp: 0,
+  data: null
+};
+const SKU_ZONE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Handle POST requests (writing data)
  */
@@ -474,6 +679,30 @@ function doGet(e) {
       }
       
       return createResponse({ success: false, error: 'User not found' });
+    }
+    else if (action === 'initializeStockMovement') {
+      return initializeStockMovementSheets();
+    }
+    else if (action === 'getZoneConfig') {
+      return getZoneConfigDataResponse();
+    }
+    else if (action === 'getPalletsInZone') {
+      return getPalletsInZone({
+        zoneName: e.parameter.zoneName || '',
+        status: e.parameter.status || '',
+        limit: e.parameter.limit || ''
+      });
+    }
+    else if (action === 'movePallet') {
+      return movePallet({
+        palletId: e.parameter.palletId || '',
+        toZone: e.parameter.toZone || '',
+        movedBy: e.parameter.movedBy || '',
+        reason: e.parameter.reason || '',
+        overrideReason: e.parameter.overrideReason || '',
+        quantity: e.parameter.quantity || '',
+        orderReference: e.parameter.orderReference || ''
+      });
     }
     
     return createResponse({ success: false, error: 'Invalid action' });
@@ -2869,5 +3098,543 @@ function formatPercent(value) {
 function createResponse(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Initialize stock movement sheets and defaults
+ */
+function initializeStockMovementSheets() {
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  Object.keys(STOCK_MOVEMENT_SHEETS).forEach(function(sheetName) {
+    ensureSheetWithHeaders(workbook, sheetName, STOCK_MOVEMENT_SHEETS[sheetName]);
+  });
+  seedZoneConfig(workbook);
+  return createResponse({ success: true, message: 'Stock movement sheets initialized' });
+}
+
+/**
+ * Ensure sheet exists with provided headers
+ * @param {SpreadsheetApp.Spreadsheet} workbook
+ * @param {string} sheetName
+ * @param {string[]} headers
+ */
+function ensureSheetWithHeaders(workbook, sheetName, headers) {
+  let sheet = workbook.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = workbook.insertSheet(sheetName);
+  }
+  const headerRange = sheet.getRange(1, 1, 1, headers.length);
+  const existingHeaders = headerRange.getValues()[0];
+  const needsHeaderUpdate = headers.some(function(header, idx) {
+    return (existingHeaders[idx] || '').toString().trim() !== header;
+  });
+  if (needsHeaderUpdate) {
+    headerRange.setValues([headers]);
+  }
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+/**
+ * Seed ZoneConfig defaults if missing
+ * @param {SpreadsheetApp.Spreadsheet} workbook
+ */
+function seedZoneConfig(workbook) {
+  const sheet = ensureSheetWithHeaders(workbook, 'ZoneConfig', STOCK_MOVEMENT_SHEETS.ZoneConfig);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0] || STOCK_MOVEMENT_SHEETS.ZoneConfig;
+  const prefixColIndex = headers.indexOf('Prefix');
+  if (prefixColIndex === -1) {
+    throw new Error('ZoneConfig sheet is missing the Prefix column.');
+  }
+  const existingPrefixes = new Set();
+  for (let i = 1; i < data.length; i++) {
+    const prefix = (data[i][prefixColIndex] || '').toString().trim().toUpperCase();
+    if (prefix) {
+      existingPrefixes.add(prefix);
+    }
+  }
+  const rowsToAppend = [];
+  DEFAULT_ZONE_CONFIG.forEach(function(zone) {
+    if (!existingPrefixes.has(zone.Prefix.toUpperCase())) {
+      rowsToAppend.push(buildZoneConfigRow(zone));
+    }
+  });
+  if (rowsToAppend.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, STOCK_MOVEMENT_SHEETS.ZoneConfig.length)
+      .setValues(rowsToAppend);
+  }
+}
+
+function buildZoneConfigRow(zone) {
+  return STOCK_MOVEMENT_SHEETS.ZoneConfig.map(function(header) {
+    if (zone.hasOwnProperty(header)) {
+      return zone[header];
+    }
+    if (header === 'CurrentOccupancy') {
+      return 0;
+    }
+    if (header === 'NextPalletNumber') {
+      return 1;
+    }
+    return '';
+  });
+}
+
+/**
+ * Generate pallet ID based on zone prefix (e.g., DET, FAT, LIQ)
+ * Automatically increments counter in ZoneConfig sheet
+ * @param {string} zonePrefix
+ */
+function generatePalletId(zonePrefix) {
+  if (!zonePrefix) {
+    throw new Error('zonePrefix is required to generate a pallet ID.');
+  }
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'ZoneConfig', STOCK_MOVEMENT_SHEETS.ZoneConfig);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const prefixCol = headers.indexOf('Prefix');
+  const counterCol = headers.indexOf('NextPalletNumber');
+  if (prefixCol === -1 || counterCol === -1) {
+    throw new Error('ZoneConfig sheet is missing required columns.');
+  }
+  for (let i = 1; i < data.length; i++) {
+    const prefix = (data[i][prefixCol] || '').toString().trim().toUpperCase();
+    if (prefix === zonePrefix.toUpperCase()) {
+      const currentCounter = Number(data[i][counterCol]) || 1;
+      const palletId = 'FG-' + prefix + '-' + String(currentCounter).padStart(5, '0');
+      sheet.getRange(i + 1, counterCol + 1).setValue(currentCounter + 1);
+      return palletId;
+    }
+  }
+  throw new Error('Zone prefix not configured: ' + zonePrefix);
+}
+
+/**
+ * Move pallet between zones with validation (zone eligibility + FIFO)
+ * @param {Object} params
+ *  - palletId {string}
+ *  - toZone {string}
+ *  - movedBy {string}
+ *  - reason {string}
+ *  - overrideReason {string}
+ *  - quantity {number}
+ *  - orderReference {string}
+ */
+function movePallet(params) {
+  const requiredFields = ['palletId', 'toZone', 'movedBy'];
+  requiredFields.forEach(function(field) {
+    if (!params || !params[field]) {
+      throw new Error('Missing required field: ' + field);
+    }
+  });
+  const palletId = params.palletId;
+  const toZone = params.toZone;
+  const movedBy = params.movedBy;
+  const reason = params.reason || '';
+  const overrideReason = params.overrideReason || '';
+  const quantity = params.quantity || '';
+  const orderReference = params.orderReference || '';
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const palletsSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const palletData = palletsSheet.getDataRange().getValues();
+  if (palletData.length <= 1) {
+    throw new Error('Pallets sheet is empty.');
+  }
+  const headers = palletData[0];
+  const palletIdCol = headers.indexOf('PalletID');
+  if (palletIdCol === -1) {
+    throw new Error('Pallets sheet missing PalletID column.');
+  }
+  let targetRow = -1;
+  let palletRowValues = null;
+  for (let i = 1; i < palletData.length; i++) {
+    if ((palletData[i][palletIdCol] || '').toString().trim() === palletId) {
+      targetRow = i;
+      palletRowValues = palletData[i];
+      break;
+    }
+  }
+  if (targetRow === -1 || !palletRowValues) {
+    throw new Error('Pallet not found: ' + palletId);
+  }
+  const currentZoneCol = headers.indexOf('CurrentZone');
+  const statusCol = headers.indexOf('Status');
+  const createdAtCol = headers.indexOf('CreatedAt');
+  const remainingQtyCol = headers.indexOf('RemainingQuantity');
+  const lastMovedAtCol = headers.indexOf('LastMovedAt');
+  const lastMovedByCol = headers.indexOf('LastMovedBy');
+  const notesCol = headers.indexOf('Notes');
+  const currentZone = palletRowValues[currentZoneCol] || '';
+  if (currentZone === toZone) {
+    throw new Error('Pallet is already in ' + toZone);
+  }
+  // Zone eligibility validation
+  const palletTypeCol = headers.indexOf('PalletType');
+  const zoneEligibility = checkZoneEligibility({
+    sku: palletRowValues[headers.indexOf('SKU')],
+    toZone: toZone,
+    palletType: palletTypeCol >= 0 ? palletRowValues[palletTypeCol] : ''
+  });
+  if (!zoneEligibility.allowed) {
+    throw new Error(zoneEligibility.message || ('Pallet cannot move to ' + toZone));
+  }
+  // FIFO validation if required
+  if (!overrideReason) {
+    enforceFifoIfRequired({
+      palletId: palletId,
+      targetZone: toZone,
+      palletsSheet: palletsSheet,
+      palletHeaders: headers,
+      palletData: palletData
+    });
+  }
+  // Prepare row updates
+  const now = new Date();
+  const updates = {};
+  if (statusCol >= 0) {
+    updates[statusCol] = zoneEligibility.targetStatus || 'Active';
+  }
+  if (currentZoneCol >= 0) {
+    updates[currentZoneCol] = toZone;
+  }
+  if (remainingQtyCol >= 0 && quantity) {
+    const currentQty = Number(palletRowValues[remainingQtyCol]) || Number(palletRowValues[headers.indexOf('Quantity')]) || 0;
+    updates[remainingQtyCol] = Math.max(currentQty - Number(quantity), 0);
+  }
+  if (lastMovedAtCol >= 0) {
+    updates[lastMovedAtCol] = now;
+  }
+  if (lastMovedByCol >= 0) {
+    updates[lastMovedByCol] = movedBy;
+  }
+  if (notesCol >= 0 && reason) {
+    const existingNotes = palletRowValues[notesCol] || '';
+    updates[notesCol] = existingNotes ? existingNotes + '\n' + reason : reason;
+  }
+  Object.keys(updates).forEach(function(colIndexStr) {
+    const colIndex = Number(colIndexStr);
+    palletsSheet.getRange(targetRow + 1, colIndex + 1).setValue(updates[colIndex]);
+  });
+  logZoneMovement({
+    palletId: palletId,
+    fromZone: currentZone,
+    toZone: toZone,
+    movedBy: movedBy,
+    reason: reason,
+    overrideReason: overrideReason,
+    quantity: quantity,
+    orderReference: orderReference,
+    movementDate: now
+  });
+  logUserActivity('MOVE PALLET: ' + palletId, 'Moved from ' + currentZone + ' to ' + toZone + ' by ' + movedBy);
+  return createResponse({
+    success: true,
+    message: 'Pallet moved successfully',
+    palletId: palletId,
+    fromZone: currentZone,
+    toZone: toZone
+  });
+}
+
+function enforceFifoIfRequired(config) {
+  const headers = config.palletHeaders;
+  const zoneCol = headers.indexOf('CurrentZone');
+  const createdAtCol = headers.indexOf('CreatedAt');
+  if (zoneCol === -1 || createdAtCol === -1) {
+    return true;
+  }
+  const targetZone = config.targetZone;
+  const zoneConfig = getZoneConfigMap();
+  const zoneSettings = zoneConfig[targetZone] || {};
+  if (!zoneSettings.FIFORequired) {
+    return true;
+  }
+  const palletsInZone = config.palletData
+    .slice(1)
+    .filter(function(row) {
+      return (row[zoneCol] || '').toString().trim() === targetZone;
+    })
+    .sort(function(a, b) {
+      const aDate = new Date(a[createdAtCol]);
+      const bDate = new Date(b[createdAtCol]);
+      return aDate - bDate;
+    });
+  if (palletsInZone.length === 0) {
+    return true;
+  }
+  const oldestPallet = palletsInZone[0][headers.indexOf('PalletID')];
+  if (oldestPallet !== config.palletId) {
+    throw new Error('FIFO enforcement active for ' + targetZone + '. Oldest pallet is ' + oldestPallet + '. Provide override reason to bypass.');
+  }
+  return true;
+}
+
+function logZoneMovement(entry) {
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
+  const movementId = generateMovementId();
+  const row = STOCK_MOVEMENT_SHEETS.ZoneMovements.map(function(header) {
+    switch (header) {
+      case 'MovementID':
+        return movementId;
+      case 'PalletID':
+        return entry.palletId;
+      case 'FromZone':
+        return entry.fromZone || '';
+      case 'ToZone':
+        return entry.toZone;
+      case 'MovementDate':
+        return Utilities.formatDate(entry.movementDate || new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      case 'MovementTime':
+        return Utilities.formatDate(entry.movementDate || new Date(), Session.getScriptTimeZone(), 'HH:mm:ss');
+      case 'MovedBy':
+        return entry.movedBy;
+      case 'Reason':
+        return entry.reason || '';
+      case 'OverrideReason':
+        return entry.overrideReason || '';
+      case 'Quantity':
+        return entry.quantity || '';
+      case 'OrderReference':
+        return entry.orderReference || '';
+      case 'Notes':
+        return entry.notes || '';
+      case 'CreatedAt':
+        return new Date();
+      default:
+        return '';
+    }
+  });
+  sheet.appendRow(row);
+}
+
+function generateMovementId() {
+  const ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return 'MOV-' + ts + '-' + random;
+}
+
+function getZoneConfigMap() {
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'ZoneConfig', STOCK_MOVEMENT_SHEETS.ZoneConfig);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const map = {};
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    const rowObj = {};
+    headers.forEach(function(header, idx) {
+      rowObj[header] = data[i][idx];
+    });
+    map[rowObj.ZoneName] = rowObj;
+  }
+  return map;
+}
+
+function getZoneConfigDataResponse() {
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'ZoneConfig', STOCK_MOVEMENT_SHEETS.ZoneConfig);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const zones = [];
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    const zone = {};
+    headers.forEach(function(header, idx) {
+      zone[header] = data[i][idx];
+    });
+    zones.push(zone);
+  }
+  return createResponse({
+    success: true,
+    zones: zones
+  });
+}
+
+/**
+ * Evaluate SKU-to-zone eligibility using SKUZoneMapping sheet
+ * @param {Object} config
+ *  - sku {string}
+ *  - toZone {string}
+ *  - palletType {string}
+ */
+function checkZoneEligibility(config) {
+  if (!config || !config.toZone) {
+    return { allowed: false, message: 'Target zone required' };
+  }
+  const toZone = config.toZone.trim();
+  const zoneConfigMap = getZoneConfigMap();
+  const zoneSettings = zoneConfigMap[toZone] || {};
+  const defaultStatus = zoneSettings.DefaultStatus || 'Active';
+  const result = {
+    allowed: true,
+    targetStatus: defaultStatus
+  };
+  const sku = (config.sku || '').toString().trim();
+  if (!sku) {
+    result.info = 'No SKU specified; allowing by default.';
+    return result;
+  }
+  const skuMapping = findSkuZoneEntry(sku);
+  if (!skuMapping) {
+    result.info = 'SKU not yet mapped; allowing by default.';
+    return result;
+  }
+  if (skuMapping.requiresBanding && (config.palletType || '').toLowerCase() !== 'banded') {
+    return {
+      allowed: false,
+      message: 'SKU ' + sku + ' requires banded pallets only.'
+    };
+  }
+  if (skuMapping.allowedZones.length > 0) {
+    const zoneNameNormalized = toZone.toUpperCase();
+    const allowed = skuMapping.allowedZones.some(function(zone) {
+      return zone.toUpperCase() === zoneNameNormalized;
+    });
+    if (!allowed) {
+      return {
+        allowed: false,
+        message: 'SKU ' + sku + ' not allowed in ' + toZone + '. Allowed zones: ' + skuMapping.allowedZones.join(', ')
+      };
+    }
+  }
+  if (skuMapping.shelfLifeDays) {
+    result.shelfLifeDays = skuMapping.shelfLifeDays;
+  }
+  return result;
+}
+
+/**
+ * Return pallets currently in a zone (FIFO ordered)
+ * @param {Object} params
+ *  - zoneName {string}
+ *  - status {string} optional
+ *  - limit {number} optional
+ */
+function getPalletsInZone(params) {
+  if (!params || !params.zoneName) {
+    throw new Error('zoneName is required.');
+  }
+  const zoneName = params.zoneName.trim();
+  const statusFilter = (params.status || '').trim();
+  const limit = params.limit ? Number(params.limit) : null;
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return createResponse({ success: true, pallets: [] });
+  }
+  const headers = data[0];
+  const zoneCol = headers.indexOf('CurrentZone');
+  const statusCol = headers.indexOf('Status');
+  const createdAtCol = headers.indexOf('CreatedAt');
+  if (zoneCol === -1 || createdAtCol === -1) {
+    throw new Error('Pallets sheet missing required columns.');
+  }
+  const pallets = data.slice(1).filter(function(row) {
+    if ((row[zoneCol] || '').toString().trim() !== zoneName) return false;
+    if (statusFilter && statusCol >= 0) {
+      const rowStatus = (row[statusCol] || '').toString().trim();
+      if (rowStatus.toLowerCase() !== statusFilter.toLowerCase()) {
+        return false;
+      }
+    }
+    return true;
+  }).map(function(row) {
+    return rowToObject(headers, row);
+  }).sort(function(a, b) {
+    const aDate = new Date(a.CreatedAt || a.CreatedDate || 0);
+    const bDate = new Date(b.CreatedAt || b.CreatedDate || 0);
+    return aDate - bDate;
+  });
+  const finalList = limit ? pallets.slice(0, limit) : pallets;
+  return createResponse({
+    success: true,
+    zone: zoneName,
+    count: finalList.length,
+    pallets: finalList
+  });
+}
+
+function rowToObject(headers, row) {
+  const obj = {};
+  headers.forEach(function(header, idx) {
+    obj[header] = row[idx];
+  });
+  return obj;
+}
+
+function getSkuZoneMappingData(forceRefresh) {
+  const now = Date.now();
+  if (!forceRefresh && SKU_ZONE_CACHE.data && (now - SKU_ZONE_CACHE.timestamp) < SKU_ZONE_CACHE_TTL_MS) {
+    return SKU_ZONE_CACHE.data;
+  }
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'SKUZoneMapping', STOCK_MOVEMENT_SHEETS.SKUZoneMapping);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const mapping = [];
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    const entry = {};
+    headers.forEach(function(header, idx) {
+      entry[header] = data[i][idx];
+    });
+    entry.allowedZones = parseAllowedZones(entry.AllowedZones);
+    entry.requiresBanding = parseBoolean(entry.RequiresBanding);
+    entry.shelfLifeDays = entry.ShelfLifeDays || '';
+    entry.SKU = (entry.SKU || '').toString().trim();
+    if (entry.SKU) {
+      mapping.push(entry);
+    }
+  }
+  SKU_ZONE_CACHE.data = mapping;
+  SKU_ZONE_CACHE.timestamp = now;
+  return mapping;
+}
+
+function findSkuZoneEntry(sku) {
+  const normalizedSku = sku.toString().trim().toUpperCase();
+  if (!normalizedSku) {
+    return null;
+  }
+  const mapping = getSkuZoneMappingData();
+  let exactMatch = mapping.find(function(entry) {
+    return entry.SKU.toUpperCase() === normalizedSku;
+  });
+  if (exactMatch) {
+    return exactMatch;
+  }
+  // Allow wildcard entries using trailing *
+  const wildcardMatch = mapping.find(function(entry) {
+    const skuValue = entry.SKU.toUpperCase();
+    if (skuValue.endsWith('*')) {
+      const prefix = skuValue.slice(0, -1);
+      return normalizedSku.startsWith(prefix);
+    }
+    return false;
+  });
+  return wildcardMatch || null;
+}
+
+function parseAllowedZones(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.filter(Boolean);
+  }
+  return value.toString().split(/[,\n]/).map(function(zone) {
+    return zone.trim();
+  }).filter(function(zone) {
+    return zone.length > 0;
+  });
+}
+
+function parseBoolean(value) {
+  if (value === true || value === false) return value;
+  if (value === undefined || value === null) return false;
+  const str = value.toString().trim().toLowerCase();
+  return str === 'true' || str === 'yes' || str === '1';
 }
 

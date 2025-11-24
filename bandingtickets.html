@@ -618,6 +618,200 @@
             transform: scale(0.9);
             transform-origin: top left;
         }
+
+        .movement-toggle {
+            max-width: 1200px;
+            margin: 30px auto 0;
+            text-align: center;
+        }
+
+        .movement-panel {
+            display: none;
+                max-width: 1200px;
+                margin: 20px auto 60px;
+                background: white;
+                border-radius: 18px;
+                padding: 28px;
+                box-shadow: 0 25px 60px rgba(15, 23, 42, 0.15);
+        }
+
+        .movement-panel.active {
+            display: block;
+        }
+
+        .movement-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .movement-panel-header h2 {
+            margin: 0;
+            font-size: 24px;
+            color: #1f2937;
+        }
+
+        .movement-panel-header p {
+            margin: 6px 0 0;
+            color: #475569;
+            font-size: 14px;
+        }
+
+        .movement-grid {
+            margin-top: 25px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 24px;
+        }
+
+        .movement-column {
+            background: #f8fafc;
+            border-radius: 14px;
+            padding: 18px;
+        }
+
+        .movement-section h3 {
+            margin-top: 0;
+            color: #1f2937;
+        }
+
+        .movement-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 16px;
+        }
+
+        .movement-controls label {
+            display: block;
+            font-size: 12px;
+            color: #475569;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .movement-controls select,
+        .movement-controls input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: 'Cascadia Mono', monospace;
+        }
+
+        .movement-zone-meta {
+            font-size: 13px;
+            color: #475569;
+            margin-bottom: 12px;
+            border-left: 4px solid #6366f1;
+            padding-left: 10px;
+        }
+
+        .movement-pallet-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        .movement-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .movement-card:hover {
+            border-color: #6366f1;
+            box-shadow: 0 10px 25px rgba(79, 70, 229, 0.12);
+        }
+
+        .movement-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .movement-card-header strong {
+            font-size: 16px;
+            color: #1e1e2f;
+        }
+
+        .movement-card .badge {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .movement-card-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
+            font-size: 13px;
+            color: #475569;
+        }
+
+        .movement-card-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .movement-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .movement-form-grid input,
+        .movement-form-grid select,
+        .movement-form-grid textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #cbd5e0;
+            border-radius: 8px;
+            font-family: 'Cascadia Mono', monospace;
+        }
+
+        .movement-form-grid textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .movement-form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .movement-status {
+            margin-top: 12px;
+            font-size: 13px;
+        }
+
+        .movement-status.error {
+            color: #c53030;
+        }
+
+        .movement-status.success {
+            color: #2f855a;
+        }
+
+        @media (max-width: 1024px) {
+            .movement-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -884,6 +1078,102 @@
         </div>
     </div>
 
+    <div class="movement-toggle">
+        <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
+            🚚 Open Stock Movement Control
+        </button>
+    </div>
+
+    <div class="movement-panel" id="movementPanel">
+        <div class="movement-panel-header">
+            <div>
+                <h2>📦 Stock Movement Control</h2>
+                <p>Monitor pallets per zone, enforce FIFO, and log movements in real time.</p>
+            </div>
+            <button type="button" class="btn-reset" onclick="toggleMovementPanel(false)">Close</button>
+        </div>
+
+        <div class="movement-grid">
+            <div class="movement-column">
+                <div class="movement-section">
+                    <h3>Zone Monitor</h3>
+                    <div class="movement-controls">
+                        <div>
+                            <label for="movementZoneSelect">Zone</label>
+                            <select id="movementZoneSelect"></select>
+                        </div>
+                        <div>
+                            <label for="movementStatusFilter">Status</label>
+                            <select id="movementStatusFilter">
+                                <option value="">Any status</option>
+                                <option value="Active">Active</option>
+                                <option value="Hold">Hold</option>
+                                <option value="Rework">Rework</option>
+                                <option value="Dispatch">Dispatch</option>
+                                <option value="Shipped">Shipped</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="movementLimit">Limit</label>
+                            <input type="number" id="movementLimit" min="1" max="100" value="25">
+                        </div>
+                        <button type="button" class="btn-generate" onclick="refreshMovementZone()">🔄 Refresh</button>
+                    </div>
+                    <div id="movementZoneMeta" class="movement-zone-meta"></div>
+                    <div id="movementPalletList" class="movement-pallet-list">
+                        <div style="color:#94a3b8;">Select a zone to view pallets.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="movement-column movement-column-form">
+                <div class="movement-section">
+                    <h3>Move Pallet</h3>
+                    <form id="movementForm" onsubmit="event.preventDefault(); submitMovementForm();">
+                        <div class="movement-form-grid">
+                            <div>
+                                <label for="movementPalletId">Pallet ID</label>
+                                <input type="text" id="movementPalletId" placeholder="FG-DET-00001" required>
+                            </div>
+                            <div>
+                                <label for="movementCurrentZone">Current Zone</label>
+                                <input type="text" id="movementCurrentZone" placeholder="Auto-detected" readonly>
+                            </div>
+                            <div>
+                                <label for="movementToZoneSelect">Move To</label>
+                                <select id="movementToZoneSelect" required></select>
+                            </div>
+                            <div>
+                                <label for="movementMovedBy">Moved By</label>
+                                <input type="text" id="movementMovedBy" placeholder="Clerk name / badge" required>
+                            </div>
+                            <div>
+                                <label for="movementQuantity">Quantity (optional)</label>
+                                <input type="number" id="movementQuantity" min="0" step="1" placeholder="Leave blank to keep full qty">
+                            </div>
+                            <div>
+                                <label for="movementOrderRef">Order Reference (optional)</label>
+                                <input type="text" id="movementOrderRef" placeholder="MT/Dispatch reference">
+                            </div>
+                            <div style="grid-column: 1 / -1;">
+                                <label for="movementReason">Reason / Notes</label>
+                                <textarea id="movementReason" rows="3" placeholder="Reason for movement, QA notes, etc."></textarea>
+                            </div>
+                            <div style="grid-column: 1 / -1;">
+                                <label for="movementOverrideReason">Override Reason (required when bypassing FIFO)</label>
+                                <textarea id="movementOverrideReason" rows="2" placeholder="Explain why FIFO is bypassed. Leave blank to enforce FIFO."></textarea>
+                            </div>
+                        </div>
+                        <div class="movement-form-actions">
+                            <button type="submit" class="btn-generate">Move Pallet</button>
+                            <button type="button" class="btn-reset" onclick="resetMovementForm()">Clear</button>
+                        </div>
+                        <div id="movementStatusMessage" class="movement-status"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -893,6 +1183,10 @@
         const SERIES_PREFIX = 'BND';
         let selectedColor = 'blue';
         let currentSerial = 1;
+        let movementPanelInitialized = false;
+        let movementZones = [];
+        let movementLastPallets = [];
+        let movementSelectedPallet = null;
         
         // HARDCODED: GitHub Pages URL - Update this with your actual GitHub Pages URL
         const DEFAULT_SCAN_BASE_URL = 'https://nexgridcoredatalabs.github.io/Nexers-Banding-Tickets/bandingtickets.html';
@@ -1050,6 +1344,10 @@
             } else {
                 banner.style.display = 'none';
                 text.textContent = '';
+            }
+            const movementMovedByInput = document.getElementById('movementMovedBy');
+            if (movementMovedByInput && isUserLoggedIn() && !movementMovedByInput.value) {
+                movementMovedByInput.value = loggedInUser.name || loggedInUser.id || '';
             }
         }
 
@@ -2920,6 +3218,287 @@
                 merchHistory: merchHistoryEntries,
                 modifiedBy: loggedInUser?.name || loggedInUser?.id || 'Unknown User'
             };
+        }
+
+        // --- Stock Movement Interface ---
+
+        function setMovementStatus(message, type = 'info') {
+            const statusEl = document.getElementById('movementStatusMessage');
+            if (!statusEl) return;
+            statusEl.textContent = message || '';
+            statusEl.classList.remove('error', 'success');
+            if (type === 'error') {
+                statusEl.classList.add('error');
+            } else if (type === 'success') {
+                statusEl.classList.add('success');
+            }
+        }
+
+        function setMovementListLoading(message) {
+            const list = document.getElementById('movementPalletList');
+            if (!list) return;
+            list.innerHTML = `<div style="color:#475569;">${message}</div>`;
+        }
+
+        function toggleMovementPanel(forceOpen) {
+            const panel = document.getElementById('movementPanel');
+            const toggleBtn = document.getElementById('movementToggleBtn');
+            if (!panel || !toggleBtn) return;
+            const shouldOpen = forceOpen !== undefined ? forceOpen : !panel.classList.contains('active');
+            if (shouldOpen) {
+                panel.classList.add('active');
+                toggleBtn.textContent = '🚫 Close Stock Movement Control';
+                ensureMovementPanelLoaded();
+            } else {
+                panel.classList.remove('active');
+                toggleBtn.textContent = '🚚 Open Stock Movement Control';
+            }
+        }
+
+        async function ensureMovementPanelLoaded() {
+            if (movementPanelInitialized) {
+                autoFillMovementOperator();
+                return;
+            }
+            try {
+                setMovementStatus('Loading zones...');
+                const result = await callAppsScript(new URLSearchParams({ action: 'getZoneConfig' }));
+                movementZones = (result.zones || []).filter(zone => zone.ZoneName);
+                populateMovementZoneOptions();
+                movementPanelInitialized = true;
+                setMovementStatus('');
+                await refreshMovementZone();
+            } catch (error) {
+                console.error('Movement init error:', error);
+                setMovementStatus(error.message || 'Failed to load zones', 'error');
+            }
+        }
+
+        function populateMovementZoneOptions() {
+            const zoneSelect = document.getElementById('movementZoneSelect');
+            const toZoneSelect = document.getElementById('movementToZoneSelect');
+            if (!zoneSelect || !toZoneSelect) return;
+            movementZones.sort((a, b) => (a.ZoneName || '').localeCompare(b.ZoneName || ''));
+            zoneSelect.innerHTML = '';
+            toZoneSelect.innerHTML = '';
+            movementZones.forEach(zone => {
+                const option = document.createElement('option');
+                option.value = zone.ZoneName;
+                option.textContent = `${zone.ZoneName} (${zone.Prefix || 'N/A'})`;
+                zoneSelect.appendChild(option.cloneNode(true));
+                toZoneSelect.appendChild(option);
+            });
+            if (!zoneSelect.value && movementZones.length) {
+                zoneSelect.value = movementZones[0].ZoneName;
+            }
+            if (!toZoneSelect.value && movementZones.length) {
+                toZoneSelect.value = movementZones[0].ZoneName;
+            }
+            updateMovementZoneMeta(zoneSelect.value);
+            autoFillMovementOperator();
+        }
+
+        function updateMovementZoneMeta(zoneName) {
+            const metaEl = document.getElementById('movementZoneMeta');
+            if (!metaEl) return;
+            const zone = movementZones.find(z => z.ZoneName === zoneName);
+            if (!zone) {
+                metaEl.textContent = '';
+                return;
+            }
+            const fifoText = parseBooleanFlag(zone.FIFORequired) ? 'FIFO enforced' : 'FIFO not enforced';
+            const splitText = parseBooleanFlag(zone.AllowsSplitting) ? 'Splitting allowed' : 'Splitting blocked';
+            metaEl.textContent = `${zone.ZoneName} • Prefix ${zone.Prefix || 'N/A'} • ${fifoText} • ${splitText}`;
+        }
+
+        async function refreshMovementZone() {
+            if (!movementPanelInitialized) {
+                await ensureMovementPanelLoaded();
+                return;
+            }
+            const zoneSelect = document.getElementById('movementZoneSelect');
+            if (!zoneSelect || !zoneSelect.value) {
+                setMovementListLoading('Select a zone to view pallets.');
+                return;
+            }
+            const zoneName = zoneSelect.value;
+            updateMovementZoneMeta(zoneName);
+            const statusFilter = document.getElementById('movementStatusFilter')?.value || '';
+            const limitValue = document.getElementById('movementLimit')?.value || '';
+            setMovementListLoading('Loading pallets...');
+            try {
+                const params = new URLSearchParams({
+                    action: 'getPalletsInZone',
+                    zoneName: zoneName
+                });
+                if (statusFilter) params.append('status', statusFilter);
+                if (limitValue) params.append('limit', limitValue);
+                const result = await callAppsScript(params);
+                movementLastPallets = result.pallets || [];
+                renderMovementPalletList(movementLastPallets);
+                setMovementStatus(`Loaded ${movementLastPallets.length} pallet(s) from ${zoneName}`, 'success');
+            } catch (error) {
+                console.error('Failed to load pallets:', error);
+                setMovementStatus(error.message || 'Failed to load pallets', 'error');
+                setMovementListLoading(error.message || 'Unable to load pallets.');
+            }
+        }
+
+        function renderMovementPalletList(pallets) {
+            const list = document.getElementById('movementPalletList');
+            if (!list) return;
+            if (!pallets.length) {
+                list.innerHTML = '<div style="color:#94a3b8;">No pallets found for this zone.</div>';
+                return;
+            }
+            list.innerHTML = pallets.map(pallet => {
+                const status = escapeHtml(pallet.Status || 'Active');
+                const sku = escapeHtml(pallet.SKU || 'N/A');
+                const qty = pallet.RemainingQuantity ?? pallet.Quantity ?? '';
+                const created = formatMovementDate(pallet.CreatedAt || pallet.CreatedDate);
+                const lastMoved = formatMovementDate(pallet.LastMovedAt);
+                return `
+                    <div class="movement-card">
+                        <div class="movement-card-header">
+                            <strong>${escapeHtml(pallet.PalletID || 'Unknown ID')}</strong>
+                            <span class="badge">${status}</span>
+                        </div>
+                        <div class="movement-card-meta">
+                            <div><strong>SKU:</strong> ${sku}</div>
+                            <div><strong>Qty:</strong> ${qty || 'N/A'}</div>
+                            <div><strong>Zone:</strong> ${escapeHtml(pallet.CurrentZone || 'N/A')}</div>
+                            <div><strong>Created:</strong> ${created}</div>
+                            <div><strong>Last Move:</strong> ${lastMoved}</div>
+                        </div>
+                        <div class="movement-card-actions">
+                            <button type="button" class="btn-reset" onclick="selectMovementPallet('${escapeHtml(pallet.PalletID || '')}')">Select</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectMovementPallet(palletId) {
+            const pallet = movementLastPallets.find(p => (p.PalletID || '').toString() === palletId);
+            if (!pallet) return;
+            movementSelectedPallet = pallet;
+            const palletInput = document.getElementById('movementPalletId');
+            const currentZoneInput = document.getElementById('movementCurrentZone');
+            const reasonInput = document.getElementById('movementReason');
+            if (palletInput) palletInput.value = pallet.PalletID || '';
+            if (currentZoneInput) currentZoneInput.value = pallet.CurrentZone || '';
+            if (reasonInput && !reasonInput.value) {
+                reasonInput.value = `Move from ${pallet.CurrentZone || 'unknown zone'}`;
+            }
+            const toZoneSelect = document.getElementById('movementToZoneSelect');
+            if (toZoneSelect && pallet.CurrentZone && toZoneSelect.value === pallet.CurrentZone) {
+                const alternative = movementZones.find(zone => zone.ZoneName !== pallet.CurrentZone);
+                if (alternative) {
+                    toZoneSelect.value = alternative.ZoneName;
+                }
+            }
+            setMovementStatus(`Selected ${pallet.PalletID} (currently ${pallet.CurrentZone || 'N/A'})`);
+        }
+
+        function resetMovementForm() {
+            movementSelectedPallet = null;
+            const form = document.getElementById('movementForm');
+            if (form) form.reset();
+            const currentZoneInput = document.getElementById('movementCurrentZone');
+            if (currentZoneInput) currentZoneInput.value = '';
+            autoFillMovementOperator();
+            setMovementStatus('');
+        }
+
+        async function submitMovementForm() {
+            const palletId = document.getElementById('movementPalletId')?.value.trim();
+            const toZone = document.getElementById('movementToZoneSelect')?.value;
+            const movedBy = document.getElementById('movementMovedBy')?.value.trim();
+            if (!palletId) {
+                setMovementStatus('Enter pallet ID.', 'error');
+                return;
+            }
+            if (!toZone) {
+                setMovementStatus('Select destination zone.', 'error');
+                return;
+            }
+            if (!movedBy) {
+                setMovementStatus('Enter the user moving the pallet.', 'error');
+                return;
+            }
+            const reason = document.getElementById('movementReason')?.value || '';
+            const overrideReason = document.getElementById('movementOverrideReason')?.value || '';
+            const quantity = document.getElementById('movementQuantity')?.value || '';
+            const orderReference = document.getElementById('movementOrderRef')?.value || '';
+            try {
+                setMovementStatus('Moving pallet...');
+                const params = new URLSearchParams({
+                    action: 'movePallet',
+                    palletId: palletId,
+                    toZone: toZone,
+                    movedBy: movedBy
+                });
+                if (reason) params.append('reason', reason);
+                if (overrideReason) params.append('overrideReason', overrideReason);
+                if (quantity) params.append('quantity', quantity);
+                if (orderReference) params.append('orderReference', orderReference);
+                const result = await callAppsScript(params);
+                setMovementStatus(result.message || 'Pallet moved successfully', 'success');
+                resetMovementForm();
+                refreshMovementZone();
+            } catch (error) {
+                console.error('Move pallet error:', error);
+                setMovementStatus(error.message || 'Failed to move pallet', 'error');
+                if ((error.message || '').toLowerCase().includes('fifo')) {
+                    document.getElementById('movementOverrideReason')?.focus();
+                }
+            }
+        }
+
+        async function callAppsScript(params) {
+            if (!GOOGLE_APPS_SCRIPT_URL) {
+                throw new Error('Google Apps Script URL not configured');
+            }
+            const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            const text = await response.text();
+            let result;
+            try {
+                result = JSON.parse(text);
+            } catch (error) {
+                console.error('Apps Script raw response:', text);
+                throw new Error('Invalid response from Apps Script. Please redeploy the latest backend.');
+            }
+            if (!result.success) {
+                throw new Error(result.error || 'Apps Script call failed');
+            }
+            return result;
+        }
+
+        function parseBooleanFlag(value) {
+            if (value === true || value === false) return value;
+            if (value === undefined || value === null) return false;
+            const str = value.toString().toLowerCase();
+            return str === 'true' || str === 'yes' || str === '1';
+        }
+
+        function formatMovementDate(value) {
+            if (!value) return 'N/A';
+            const date = new Date(value);
+            if (isNaN(date.getTime())) {
+                return value;
+            }
+            return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        }
+
+        function autoFillMovementOperator() {
+            const field = document.getElementById('movementMovedBy');
+            if (field && !field.value && isUserLoggedIn()) {
+                field.value = loggedInUser.name || loggedInUser.id || '';
+            }
         }
 
         function renderFilledTicket(data) {

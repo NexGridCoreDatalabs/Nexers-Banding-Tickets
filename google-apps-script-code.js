@@ -3777,25 +3777,6 @@ function createInventorySnapshot() {
   const timestamp = new Date();
   sheet.getRange('A1:I1').merge().setValue('Inventory Snapshot 📦').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c');
   sheet.getRange('A2:I2').merge().setValue('Refreshed: ' + Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'MMM d, yyyy HH:mm')).setFontColor('#4c51bf').setHorizontalAlignment('center');
-  const cardData = [
-    { range: 'A4:C6', title: 'Total Received', value: formatNumber(facilityTotals.received), subtitle: 'All pallets birthed', color: '#4dabf7' },
-    { range: 'D4:F6', title: 'In Stock', value: formatNumber(facilityTotals.current), subtitle: facilityTotals.currentPallets + ' pallets', color: '#48bb78' },
-    { range: 'G4:I6', title: 'Outbounded', value: formatNumber(facilityTotals.outbound), subtitle: facilityTotals.outboundPallets + ' pallets shipped', color: '#f6ad55' },
-    { range: 'A7:C9', title: 'Active SKUs', value: formatNumber(facilityTotals.activeSkuSet.size), subtitle: 'SKUs with stock', color: '#9f7aea' }
-  ];
-  cardData.forEach(function(card) {
-    const range = sheet.getRange(card.range);
-    range.merge();
-    range.setValue(card.title + '\n' + card.value + '\n' + card.subtitle);
-    range.setBackground(card.color);
-    range.setFontColor('#ffffff');
-    range.setFontSize(13);
-    range.setFontWeight('bold');
-    range.setVerticalAlignment('middle');
-    range.setHorizontalAlignment('left');
-    range.setWrap(true);
-  });
-
   let rowCursor = 11;
   sheet.getRange(rowCursor, 1, 1, 5).setValues([['Zone', 'Current Qty', 'Current Pallets', 'Outbound Qty', 'Outbound Pallets']]);
   sheet.getRange(rowCursor, 1, 1, 5).setBackground('#1f2937').setFontColor('#ffffff').setFontWeight('bold');
@@ -3888,6 +3869,28 @@ function createInventorySnapshot() {
         rowCursor += 1;
       });
     });
+  });
+
+  const receivingZone = zoneStats['Receiving Area'];
+  const receivingQty = receivingZone ? receivingZone.totals.current : 0;
+  const receivingPallets = receivingZone ? receivingZone.totals.palletsCurrent : 0;
+  const cardData = [
+    { range: 'A4:C6', title: 'Receiving Area', value: formatNumber(receivingQty), subtitle: receivingPallets + ' pallets awaiting processing', color: '#4dabf7' },
+    { range: 'D4:F6', title: 'In Stock', value: formatNumber(facilityTotals.current), subtitle: facilityTotals.currentPallets + ' pallets', color: '#48bb78' },
+    { range: 'G4:I6', title: 'Outbounded', value: formatNumber(facilityTotals.outbound), subtitle: facilityTotals.outboundPallets + ' pallets shipped', color: '#f6ad55' },
+    { range: 'A7:C9', title: 'Active SKUs', value: formatNumber(facilityTotals.activeSkuSet.size), subtitle: 'SKUs with stock', color: '#9f7aea' }
+  ];
+  cardData.forEach(function(card) {
+    const range = sheet.getRange(card.range);
+    range.merge();
+    range.setValue(card.title + '\n' + card.value + '\n' + card.subtitle);
+    range.setBackground(card.color);
+    range.setFontColor('#ffffff');
+    range.setFontSize(13);
+    range.setFontWeight('bold');
+    range.setVerticalAlignment('middle');
+    range.setHorizontalAlignment('left');
+    range.setWrap(true);
   });
 
   return createResponse({ success: true, message: 'InventorySnapshot sheet rebuilt.' });

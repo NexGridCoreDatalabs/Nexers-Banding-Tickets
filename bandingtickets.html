@@ -1146,10 +1146,10 @@
                                         <label for="movementMovedBy">Moved By</label>
                                         <input type="text" id="movementMovedBy" placeholder="Clerk name / badge" required>
                                     </div>
-                                    <div>
-                                        <label for="movementQuantity">Quantity (optional)</label>
-                                        <input type="number" id="movementQuantity" min="0" step="1" placeholder="Leave blank to keep full qty">
-                                    </div>
+                            <div id="movementQuantityWrapper">
+                                <label for="movementQuantity">Quantity (optional)</label>
+                                <input type="number" id="movementQuantity" min="0" step="1" placeholder="Leave blank to keep full qty">
+                            </div>
                                     <div>
                                         <label for="movementOrderRef">Order Reference (optional)</label>
                                         <input type="text" id="movementOrderRef" placeholder="MT/Dispatch reference">
@@ -1163,10 +1163,11 @@
                                         <textarea id="movementOverrideReason" rows="2" placeholder="Explain why FIFO is bypassed. Leave blank to enforce FIFO."></textarea>
                                     </div>
                                 </div>
-                                <div class="movement-form-actions">
-                                    <button type="submit" class="btn-generate">Move Pallet</button>
-                                    <button type="button" class="btn-reset" onclick="resetMovementForm()">Clear</button>
-                                </div>
+                        <div class="movement-form-actions">
+                            <button type="button" class="btn-reset" id="toggleChildModeBtn" onclick="toggleMovementMode()">✨ Create Child Pallet</button>
+                            <button type="submit" class="btn-generate" id="movementSubmitBtn">Move Pallet</button>
+                            <button type="button" class_name="btn-reset" onclick="resetMovementForm()">Clear</button>
+                        </div>
                                 <div id="movementStatusMessage" class="movement-status"></div>
                             </form>
                         </div>
@@ -3237,7 +3238,8 @@
                 sachetType: formData.get('sachetType') || '',
                 tabletType: formData.get('tabletType') || '',
                 merchHistory: merchHistoryEntries,
-                modifiedBy: loggedInUser?.name || loggedInUser?.id || 'Unknown User'
+                modifiedBy: loggedInUser?.name || loggedInUser?.id || 'Unknown User',
+                status: 'Received'
             };
         }
 
@@ -3434,6 +3436,39 @@
             if (currentZoneInput) currentZoneInput.value = '';
             autoFillMovementOperator();
             setMovementStatus('');
+        }
+
+        let isChildMode = false;
+
+        function toggleMovementMode() {
+            isChildMode = !isChildMode;
+            const toggleBtn = document.getElementById('toggleChildModeBtn');
+            const submitBtn = document.getElementById('movementSubmitBtn');
+            const quantityWrapper = document.getElementById('movementQuantityWrapper');
+            const toZoneSelect = document.getElementById('movementToZoneSelect');
+            if (isChildMode) {
+                toggleBtn.textContent = '↩️ Back to Full-Pallet Move';
+                submitBtn.textContent = 'Create Child Pallet';
+                if (quantityWrapper) {
+                    quantityWrapper.querySelector('label').textContent = 'Child Quantity';
+                    const input = document.getElementById('movementQuantity');
+                    if (input) {
+                        input.placeholder = 'Enter child pallet qty';
+                        input.required = true;
+                    }
+                }
+            } else {
+                toggleBtn.textContent = '✨ Create Child Pallet';
+                submitBtn.textContent = 'Move Pallet';
+                if (quantityWrapper) {
+                    quantityWrapper.querySelector('label').textContent = 'Quantity (optional)';
+                    const input = document.getElementById('movementQuantity');
+                    if (input) {
+                        input.placeholder = 'Leave blank to keep full qty';
+                        input.required = false;
+                    }
+                }
+            }
         }
 
         async function submitMovementForm() {

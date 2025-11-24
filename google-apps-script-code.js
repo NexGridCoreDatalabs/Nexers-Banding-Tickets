@@ -1,3 +1,84 @@
+function ensurePalletRow(palletId) {
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const index = headers.indexOf('PalletID');
+  if (index === -1) {
+    throw new Error('Pallets sheet missing PalletID column.');
+  }
+  for (let i = 1; i < data.length; i++) {
+    if ((data[i][index] || '').toString() === palletId) {
+      return { sheet: sheet, rowIndex: i + 1, rowValues: data[i] };
+    }
+  }
+  // Create placeholder row if not exists
+  const empty = new Array(headers.length).fill('');
+  empty[index] = palletId;
+  sheet.appendRow(empty);
+  const newIndex = sheet.getLastRow();
+  return { sheet: sheet, rowIndex: newIndex, rowValues: empty };
+}
+
+function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) {
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const palletSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const parentInfo = ensurePalletRow(parentTicket.serial);
+  const parentRow = parentInfo.rowValues;
+  const headers = palletSheet.getRange(1, 1, 1, palletSheet.getLastColumn()).getValues()[0];
+  const parentQty = Number(parentRow[headers.indexOf('RemainingQuantity')]) || 0;
+  const childQty = Number(quantity) || 0;
+  if (childQty <= 0) {
+    throw new Error('Child quantity must be greater than zero.');
+  }
+  if (parentQty < childQty) {
+    throw new Error('Not enough quantity to create child pallet.');
+  }
+  const childId = generatePalletId('SM');
+  const childTicket = Object.assign({}, parentTicket);
+  childTicket.serial = childId;
+  childTicket.qty = childQty;
+  childTicket.notes = (parentTicket.notes ? parentTicket.notes + '\n' : '') + (reason || '') + ' [Child of ' + parentTicket.serial + ']';
+  childTicket.modifiedBy = movedBy || 'System';
+  createOrUpdatePalletFromTicket(childTicket, {
+    currentZone: targetZone,
+    status: 'Active',
+    parentId: parentTicket.serial,
+    lastMovedAt: new Date(),
+    lastMovedBy: movedBy || 'System'
+  });
+  // Update parent remaining qty
+  const newRemaining = parentQty - childQty;
+  const remainingCol = headers.indexOf('RemainingQuantity');
+  const notesCol = headers.indexOf('Notes');
+  const lastMovedAtCol = headers.indexOf('LastMovedAt');
+  const lastMovedByCol = headers.indexOf('LastMovedBy');
+  if (remainingCol >= 0) {
+    palletSheet.getRange(parentInfo.rowIndex, remainingCol + 1).setValue(newRemaining);
+  }
+  if (notesCol >= 0) {
+    const existingNotes = parentRow[notesCol] || '';
+    palletSheet.getRange(parentInfo.rowIndex, notesCol + 1).setValue(existingNotes + '\nSplit: created child ' + childId + ' qty ' + childQty);
+  }
+  if (lastMovedAtCol >= 0) {
+    palletSheet.getRange(parentInfo.rowIndex, lastMovedAtCol + 1).setValue(new Date());
+  }
+  if (lastMovedByCol >= 0) {
+    palletSheet.getRange(parentInfo.rowIndex, lastMovedByCol + 1).setValue(movedBy || 'System');
+  }
+  logZoneMovement({
+    palletId: childId,
+    fromZone: parentRow[headers.indexOf('CurrentZone')],
+    toZone: targetZone,
+    movedBy: movedBy || 'System',
+    reason: reason || 'Child pallet created',
+    overrideReason: '',
+    quantity: childQty,
+    orderReference: '',
+    movementDate: new Date()
+  });
+  return childId;
+}
 /**
  * Google Apps Script Code for Banding Tickets System
  * 
@@ -126,6 +207,17 @@ const STOCK_MOVEMENT_SHEETS = {
 };
 
 const DEFAULT_ZONE_CONFIG = [
+  {
+    ZoneName: 'Receiving Area',
+    Prefix: 'REC',
+    AllowsSplitting: false,
+    FIFORequired: false,
+    ShelfLifeDays: '',
+    MaxCapacity: '',
+    CurrentOccupancy: 0,
+    NextPalletNumber: 1,
+    DefaultStatus: 'Received'
+  },
   {
     ZoneName: 'Detergents Zone',
     Prefix: 'DET',
@@ -3168,7 +3260,7 @@ function seedZoneConfig(workbook) {
   }
   const rowsToAppend = [];
   DEFAULT_ZONE_CONFIG.forEach(function(zone) {
-    if (!existingPrefixes.has(zone.Prefix.toUpperCase())) {
+  if (!existingPrefixes.has(zone.Prefix.toUpperCase())) {
       rowsToAppend.push(buildZoneConfigRow(zone));
     }
   });

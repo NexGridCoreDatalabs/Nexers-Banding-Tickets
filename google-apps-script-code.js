@@ -3655,6 +3655,7 @@ function createInventorySnapshot() {
   const zoneStats = {};
   const receivingSummary = {};
   const movementSummary = {};
+  const movementDetails = [];
   const facilityTotals = {
     current: 0,
     outbound: 0,
@@ -3787,12 +3788,32 @@ function createInventorySnapshot() {
     if (moveDate && (!skuStats.lastMovement || moveDate > skuStats.lastMovement)) {
       skuStats.lastMovement = moveDate;
     }
+    const toZone = (row[movementIndex.ToZone] || '').toString().trim();
+    const movementTimestamp = moveDate
+      ? Utilities.formatDate(moveDate, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')
+      : (row[movementIndex.MovementTime]
+        ? Utilities.formatDate(new Date(row[movementIndex.MovementDate] + 'T' + row[movementIndex.MovementTime]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')
+        : '');
+    movementDetails.push({
+      movementDate: movementTimestamp || (moveDate ? moveDate.toISOString() : ''),
+      dateKey: moveDate ? Utilities.formatDate(moveDate, Session.getScriptTimeZone(), 'yyyy-MM-dd') : '',
+      movementId: row[movementIndex.MovementID] || '',
+      palletId: palletId,
+      sku: sku,
+      fromZone: fromZone || 'Unknown Zone',
+      toZone: toZone || 'Unknown Zone',
+      quantity: qty,
+      movedBy: row[movementIndex.MovedBy] || '',
+      orderReference: row[movementIndex.OrderReference] || '',
+      reason: row[movementIndex.Reason] || '',
+      overrideReason: row[movementIndex.OverrideReason] || '',
+      notes: row[movementIndex.Notes] || ''
+    });
     if (moveDate) {
       const dateKey = Utilities.formatDate(moveDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
       if (fromZone) {
         addMovementMetric(dateKey, fromZone, sku, 'movedOut', qty);
       }
-      const toZone = (row[movementIndex.ToZone] || '').toString().trim();
       if (toZone && toZone.toUpperCase() !== 'OUTBOUNDING') {
         addMovementMetric(dateKey, toZone, sku, 'movedIn', qty);
       }
@@ -3951,6 +3972,44 @@ function createInventorySnapshot() {
         rowCursor += 1;
       });
     });
+  });
+
+  rowCursor += 2;
+  sheet.getRange(rowCursor, 1, 1, 10).merge()
+    .setValue('Movement History Detail')
+    .setFontWeight('bold')
+    .setFontSize(13)
+    .setFontColor('#1a202c');
+  rowCursor += 1;
+  sheet.getRange(rowCursor, 1, 1, 10).merge()
+    .setValue('End-to-end trail of every movement with its source, destination, movement ID, and notes.')
+    .setFontStyle('italic')
+    .setFontColor('#4a5568');
+  rowCursor += 1;
+  const movementDetailHeader = ['Movement Date', 'Movement ID', 'Pallet ID', 'SKU', 'From Zone', 'To Zone', 'Quantity (Cartons)', 'Moved By', 'Order Ref', 'Reason / Notes'];
+  sheet.getRange(rowCursor, 1, 1, movementDetailHeader.length).setValues([movementDetailHeader]);
+  sheet.getRange(rowCursor, 1, 1, movementDetailHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');
+  rowCursor += 1;
+
+  movementDetails.sort(function(a, b) {
+    return (b.dateKey || '').localeCompare(a.dateKey || '');
+  }).forEach(function(detail) {
+    const reasonNotes = [detail.reason, detail.overrideReason, detail.notes].filter(function(part) {
+      return part && part.toString().trim().length;
+    }).join(' | ');
+    sheet.getRange(rowCursor, 1, 1, movementDetailHeader.length).setValues([[
+      detail.movementDate || detail.dateKey || '',
+      detail.movementId,
+      detail.palletId,
+      detail.sku,
+      detail.fromZone,
+      detail.toZone,
+      detail.quantity,
+      detail.movedBy,
+      detail.orderReference,
+      reasonNotes || ''
+    ]]);
+    rowCursor += 1;
   });
 
   const receivingZone = zoneStats['Receiving Area'];

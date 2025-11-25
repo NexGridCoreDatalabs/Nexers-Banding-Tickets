@@ -3871,6 +3871,17 @@ function createInventorySnapshot() {
   });
 
   rowCursor += 1;
+  sheet.getRange(rowCursor, 1, 1, 7).merge()
+    .setValue('Daily Receiving Log')
+    .setFontWeight('bold')
+    .setFontSize(13)
+    .setFontColor('#1a202c');
+  rowCursor += 1;
+  sheet.getRange(rowCursor, 1, 1, 7).merge()
+    .setValue('Captures every pallet birthed into the warehouse from Receiving Area.')
+    .setFontStyle('italic')
+    .setFontColor('#4a5568');
+  rowCursor += 1;
   const receivingHeader = ['Date', 'Zone', 'SKU', 'Received (Cartons)', 'Pallets'];
   sheet.getRange(rowCursor, 1, 1, receivingHeader.length).setValues([receivingHeader]);
   sheet.getRange(rowCursor, 1, 1, receivingHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');
@@ -3895,6 +3906,17 @@ function createInventorySnapshot() {
   });
 
   rowCursor += 2;
+  sheet.getRange(rowCursor, 1, 1, 7).merge()
+    .setValue('Daily Zone Movements')
+    .setFontWeight('bold')
+    .setFontSize(13)
+    .setFontColor('#1a202c');
+  rowCursor += 1;
+  sheet.getRange(rowCursor, 1, 1, 7).merge()
+    .setValue('Tracks inter-zone transfers, dispatch staging, and outbound shipments (FIFO monitored).')
+    .setFontStyle('italic')
+    .setFontColor('#4a5568');
+  rowCursor += 1;
   const movementHeader = ['Date', 'Zone', 'SKU', 'Moved In (Cartons)', 'Moved Out (Cartons)', 'Shipped (Cartons)', 'Current Stock (Cartons)'];
   sheet.getRange(rowCursor, 1, 1, movementHeader.length).setValues([movementHeader]);
   sheet.getRange(rowCursor, 1, 1, movementHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');

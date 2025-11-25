@@ -79,6 +79,7 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
     movementDate: new Date()
   };
   logZoneMovement(childLog);
+  refreshInventorySnapshotSilently();
   const childCol = headers.indexOf('ChildPallets');
   if (childCol >= 0) {
     const existingChildren = parentRow[childCol] ? parentRow[childCol].toString().split(',').map(function(val) { return val.trim(); }).filter(Boolean) : [];
@@ -3556,6 +3557,7 @@ function movePallet(params) {
     movementDate: now
   });
   logUserActivity('MOVE PALLET: ' + palletId, 'Moved from ' + currentZone + ' to ' + toZone + ' by ' + movedBy);
+  refreshInventorySnapshotSilently();
   return createResponse({
     success: true,
     message: 'Pallet moved successfully',
@@ -4045,6 +4047,23 @@ function createInventorySnapshot() {
   return createResponse({ success: true, message: 'InventorySnapshot sheet rebuilt.' });
 }
 
+function refreshInventorySnapshotSilently() {
+  try {
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(5000)) {
+      Logger.log('Snapshot refresh skipped: unable to acquire lock.');
+      return;
+    }
+    try {
+      createInventorySnapshot();
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    Logger.log('Snapshot refresh error: ' + err);
+  }
+}
+
 function generateMovementId() {
   const ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
   const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
@@ -4484,5 +4503,6 @@ function createOrUpdatePalletFromTicket(ticket, overrides) {
   } else {
     palletSheet.appendRow(rowValues);
   }
+  refreshInventorySnapshotSilently();
 }
 

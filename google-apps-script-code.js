@@ -3653,7 +3653,8 @@ function createInventorySnapshot() {
   const palletIndex = buildHeaderIndexMap(palletHeaders);
   const palletInfoMap = {};
   const zoneStats = {};
-  const dailySummary = {};
+  const receivingSummary = {};
+  const movementSummary = {};
   const facilityTotals = {
     current: 0,
     outbound: 0,
@@ -3686,18 +3687,30 @@ function createInventorySnapshot() {
     return zone.skuStats[sku];
   }
 
-function addDailyMetric(dateKey, zoneName, sku, field, amount) {
-    if (!dateKey || !zoneName || !sku || amount === undefined || amount === null) return;
-    if (!dailySummary[dateKey]) {
-      dailySummary[dateKey] = {};
+  function addReceivingMetric(dateKey, sku, cartons, pallets) {
+    if (!dateKey || !sku) return;
+    if (!receivingSummary[dateKey]) {
+      receivingSummary[dateKey] = {};
     }
-    if (!dailySummary[dateKey][zoneName]) {
-      dailySummary[dateKey][zoneName] = {};
+    if (!receivingSummary[dateKey][sku]) {
+      receivingSummary[dateKey][sku] = { received: 0, pallets: 0 };
     }
-    if (!dailySummary[dateKey][zoneName][sku]) {
-      dailySummary[dateKey][zoneName][sku] = { received: 0, moved: 0 };
+    receivingSummary[dateKey][sku].received += cartons || 0;
+    receivingSummary[dateKey][sku].pallets += pallets || 0;
+  }
+
+  function addMovementMetric(dateKey, zoneName, sku, field, amount) {
+    if (!dateKey || !zoneName || !sku || !amount) return;
+    if (!movementSummary[dateKey]) {
+      movementSummary[dateKey] = {};
     }
-    dailySummary[dateKey][zoneName][sku][field] += amount;
+    if (!movementSummary[dateKey][zoneName]) {
+      movementSummary[dateKey][zoneName] = {};
+    }
+    if (!movementSummary[dateKey][zoneName][sku]) {
+      movementSummary[dateKey][zoneName][sku] = { movedIn: 0, movedOut: 0, shipped: 0 };
+    }
+    movementSummary[dateKey][zoneName][sku][field] += amount;
   }
 
   for (let i = 1; i < palletsData.length; i++) {
@@ -3724,7 +3737,7 @@ function addDailyMetric(dateKey, zoneName, sku, field, amount) {
     }
     if (isOriginalPallet && createdAt) {
       const dateKey = Utilities.formatDate(createdAt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-      addDailyMetric(dateKey, 'Receiving Area', sku, 'received', originalQty);
+      addReceivingMetric(dateKey, sku, originalQty, 1);
     }
 
     const skuStats = ensureZoneSku(zoneName, sku);
@@ -3776,15 +3789,23 @@ function addDailyMetric(dateKey, zoneName, sku, field, amount) {
     }
     if (moveDate) {
       const dateKey = Utilities.formatDate(moveDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-      addDailyMetric(dateKey, fromZone, sku, 'moved', qty);
+      if (fromZone) {
+        addMovementMetric(dateKey, fromZone, sku, 'movedOut', qty);
+      }
       const toZone = (row[movementIndex.ToZone] || '').toString().trim();
-      addDailyMetric(dateKey, toZone || 'Unknown Zone', sku, 'received', qty);
+      if (toZone && toZone.toUpperCase() !== 'OUTBOUNDING') {
+        addMovementMetric(dateKey, toZone, sku, 'movedIn', qty);
+      }
+      if (toZone && toZone.toUpperCase() === 'OUTBOUNDING') {
+        addMovementMetric(dateKey, 'Outbounding', sku, 'shipped', qty);
+      }
     }
   }
 
   const timestamp = new Date();
   sheet.getRange('A1:I1').merge().setValue('Inventory Snapshot 📦').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c');
   sheet.getRange('A2:I2').merge().setValue('Refreshed: ' + Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'MMM d, yyyy HH:mm')).setFontColor('#4c51bf').setHorizontalAlignment('center');
+  sheet.getRange('A3:I3').merge().setValue('Powered by NexGridCore DataLabs').setFontColor('#718096').setHorizontalAlignment('center').setFontStyle('italic');
   let rowCursor = 11;
   sheet.getRange(rowCursor, 1, 1, 5).setValues([['Zone', 'Current Qty', 'Current Pallets', 'Outbound Qty', 'Outbound Pallets']]);
   sheet.getRange(rowCursor, 1, 1, 5).setBackground('#1f2937').setFontColor('#ffffff').setFontWeight('bold');
@@ -3850,31 +3871,56 @@ function addDailyMetric(dateKey, zoneName, sku, field, amount) {
   });
 
   rowCursor += 1;
-  const summaryHeader = ['Date', 'Zone', 'SKU', 'Received (Cartons)', 'Moved Out (Cartons)', 'Current Stock (Cartons)'];
-  sheet.getRange(rowCursor, 1, 1, summaryHeader.length).setValues([summaryHeader]);
-  sheet.getRange(rowCursor, 1, 1, summaryHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');
+  const receivingHeader = ['Date', 'Zone', 'SKU', 'Received (Cartons)', 'Pallets'];
+  sheet.getRange(rowCursor, 1, 1, receivingHeader.length).setValues([receivingHeader]);
+  sheet.getRange(rowCursor, 1, 1, receivingHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');
   rowCursor += 1;
 
-  const sortedDates = Object.keys(dailySummary).sort(function(a, b) {
+  const receivingDates = Object.keys(receivingSummary).sort(function(a, b) {
+    return b.localeCompare(a);
+  });
+  receivingDates.forEach(function(dateKey) {
+    const skus = Object.keys(receivingSummary[dateKey]).sort();
+    skus.forEach(function(sku) {
+      const stats = receivingSummary[dateKey][sku];
+      sheet.getRange(rowCursor, 1, 1, receivingHeader.length).setValues([[
+        dateKey,
+        'Receiving Area',
+        sku,
+        stats.received,
+        stats.pallets
+      ]]);
+      rowCursor += 1;
+    });
+  });
+
+  rowCursor += 2;
+  const movementHeader = ['Date', 'Zone', 'SKU', 'Moved In (Cartons)', 'Moved Out (Cartons)', 'Shipped (Cartons)', 'Current Stock (Cartons)'];
+  sheet.getRange(rowCursor, 1, 1, movementHeader.length).setValues([movementHeader]);
+  sheet.getRange(rowCursor, 1, 1, movementHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');
+  rowCursor += 1;
+
+  const movementDates = Object.keys(movementSummary).sort(function(a, b) {
     return b.localeCompare(a);
   });
   const currentStockDisplayed = {};
-  sortedDates.forEach(function(dateKey) {
-    const zones = Object.keys(dailySummary[dateKey]).sort();
+  movementDates.forEach(function(dateKey) {
+    const zones = Object.keys(movementSummary[dateKey]).sort();
     zones.forEach(function(zoneName) {
-      const skus = Object.keys(dailySummary[dateKey][zoneName]).sort();
+      const skus = Object.keys(movementSummary[dateKey][zoneName]).sort();
       skus.forEach(function(sku) {
-        const summaryStats = dailySummary[dateKey][zoneName][sku];
+        const summaryStats = movementSummary[dateKey][zoneName][sku];
         const currentNow = zoneStats[zoneName] && zoneStats[zoneName].skuStats[sku]
           ? zoneStats[zoneName].skuStats[sku].currentQty : 0;
         const stockKey = zoneName + '||' + sku;
         const currentColumnValue = currentStockDisplayed[stockKey] ? '' : currentNow;
-        sheet.getRange(rowCursor, 1, 1, summaryHeader.length).setValues([[
+        sheet.getRange(rowCursor, 1, 1, movementHeader.length).setValues([[
           dateKey,
           zoneName,
           sku,
-          summaryStats.received || 0,
-          summaryStats.moved || 0,
+          summaryStats.movedIn || 0,
+          summaryStats.movedOut || 0,
+          summaryStats.shipped || 0,
           currentColumnValue
         ]]);
         if (!currentStockDisplayed[stockKey]) {

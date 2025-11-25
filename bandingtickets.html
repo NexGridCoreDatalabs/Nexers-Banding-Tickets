@@ -2778,8 +2778,8 @@
                 if (!palletSizeStr || quantityValue <= 0) return null;
                 const palletSizes = palletSizeStr.split(',').map(ps => ps.trim()).filter(ps => ps !== '');
                 if (!palletSizes.length) return null;
-                const palletSize = palletSizes[0];
-                const config = palletConfig[palletSize];
+                    const palletSize = palletSizes[0];
+                    const config = palletConfig[palletSize];
                 if (!config) return null;
                 const cartonsPerLayer = config.cartonsPerLayer;
                 const calculatedLayers = Math.ceil(quantityValue / cartonsPerLayer);
@@ -3406,7 +3406,7 @@
                 const params = new URLSearchParams({
                     action: 'getPalletsInZone',
                     zoneName: zoneName,
-                    limit: 25
+                    limit: 500
                 });
                 if (statusFilter) params.append('status', statusFilter);
                 const result = await callAppsScript(params);

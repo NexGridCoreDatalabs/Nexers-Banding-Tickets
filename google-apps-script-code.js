@@ -3975,6 +3975,14 @@ function createInventorySnapshot() {
     range.setWrap(true);
   });
 
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  if (lastRow > 0 && lastColumn > 0) {
+    sheet.getRange(1, 1, lastRow, lastColumn).setWrap(true);
+    sheet.autoResizeColumns(1, lastColumn);
+    sheet.autoResizeRows(1, lastRow);
+  }
+
   return createResponse({ success: true, message: 'InventorySnapshot sheet rebuilt.' });
 }
 

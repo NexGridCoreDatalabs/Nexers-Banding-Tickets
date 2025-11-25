@@ -3858,6 +3858,7 @@ function addDailyMetric(dateKey, zoneName, sku, field, amount) {
   const sortedDates = Object.keys(dailySummary).sort(function(a, b) {
     return b.localeCompare(a);
   });
+  const currentStockDisplayed = {};
   sortedDates.forEach(function(dateKey) {
     const zones = Object.keys(dailySummary[dateKey]).sort();
     zones.forEach(function(zoneName) {
@@ -3866,14 +3867,19 @@ function addDailyMetric(dateKey, zoneName, sku, field, amount) {
         const summaryStats = dailySummary[dateKey][zoneName][sku];
         const currentNow = zoneStats[zoneName] && zoneStats[zoneName].skuStats[sku]
           ? zoneStats[zoneName].skuStats[sku].currentQty : 0;
+        const stockKey = zoneName + '||' + sku;
+        const currentColumnValue = currentStockDisplayed[stockKey] ? '' : currentNow;
         sheet.getRange(rowCursor, 1, 1, summaryHeader.length).setValues([[
           dateKey,
           zoneName,
           sku,
           summaryStats.received || 0,
           summaryStats.moved || 0,
-          currentNow
+          currentColumnValue
         ]]);
+        if (!currentStockDisplayed[stockKey]) {
+          currentStockDisplayed[stockKey] = true;
+        }
         rowCursor += 1;
       });
     });

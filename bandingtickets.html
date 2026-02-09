@@ -1379,21 +1379,21 @@
             text-align: center;
         }
 
-        /* Glassmorphism movement panel with responsive design */
+        /* Elegant gold & dark blue movement panel */
         .movement-panel {
             display: none;
             max-width: 1400px;
             margin: 20px auto 60px;
-            background: rgba(255, 255, 255, 0.95);
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 58, 95, 0.98));
             backdrop-filter: blur(20px) saturate(180%);
             -webkit-backdrop-filter: blur(20px) saturate(180%);
             border-radius: 24px;
             padding: 20px;
             box-shadow: 
-                0 8px 32px rgba(31, 38, 135, 0.15),
-                0 2px 8px rgba(0, 0, 0, 0.1),
-                inset 0 1px 0 rgba(255, 255, 255, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+                0 16px 64px rgba(0, 0, 0, 0.5),
+                0 8px 32px rgba(245, 158, 11, 0.2),
+                inset 0 1px 0 rgba(245, 158, 11, 0.15);
+            border: 2px solid rgba(245, 158, 11, 0.4);
             transition: all 0.3s ease;
             animation: fadeInUp 0.5s ease-out;
         }
@@ -1420,15 +1420,22 @@
         .movement-panel-header h2 {
             margin: 0;
             font-size: 20px;
-            color: #1e293b;
-            font-weight: 700;
+            background: linear-gradient(135deg, #fbbf24, #f59e0b, #fcd34d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .movement-panel-header p {
             margin: 6px 0 0;
-            color: #475569;
+            color: rgba(251, 191, 36, 0.8);
             font-size: 14px;
             line-height: 1.5;
+            font-weight: 500;
         }
         
         @media (min-width: 768px) {
@@ -1459,19 +1466,20 @@
             }
         }
 
-        /* Glassmorphism movement columns */
+        /* Elegant gold & dark blue movement columns */
         .movement-column {
-            background: rgba(248, 250, 252, 0.8);
+            background: rgba(30, 58, 95, 0.3);
             backdrop-filter: blur(10px);
             border-radius: 16px;
             padding: 18px;
-            border: 1px solid rgba(203, 213, 224, 0.3);
+            border: 2px solid rgba(245, 158, 11, 0.3);
             transition: all 0.3s ease;
         }
         
         .movement-column:hover {
-            background: rgba(248, 250, 252, 0.95);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            background: rgba(30, 58, 95, 0.4);
+            box-shadow: 0 8px 24px rgba(245, 158, 11, 0.2);
+            border-color: rgba(245, 158, 11, 0.5);
         }
         
         @media (min-width: 768px) {
@@ -1482,7 +1490,11 @@
 
         .movement-section h3 {
             margin-top: 0;
-            color: #1f2937;
+            color: #fbbf24;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 16px;
         }
 
         /* Responsive movement controls */
@@ -1509,32 +1521,36 @@
         .movement-controls label {
             display: block;
             font-size: 12px;
-            color: #475569;
+            color: #fbbf24;
             margin-bottom: 6px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.8px;
+            font-weight: 600;
         }
 
-        /* Touch-friendly movement controls */
+        /* Touch-friendly movement controls with elegant styling */
         .movement-controls select,
         .movement-controls input {
             width: 100%;
             padding: 12px 14px;
             min-height: 48px;
-            border: 2px solid rgba(226, 232, 240, 0.8);
-            border-radius: 10px;
+            border: 2px solid rgba(245, 158, 11, 0.3);
+            border-radius: 12px;
             font-size: 15px;
             font-family: 'Cascadia Mono', monospace;
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
+            color: #0f172a;
+            font-weight: 600;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .movement-controls select:focus,
         .movement-controls input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2);
+            transform: translateY(-1px);
         }
         
         @media (min-width: 1024px) {
@@ -1548,10 +1564,11 @@
 
         .movement-zone-meta {
             font-size: 13px;
-            color: #475569;
+            color: rgba(251, 191, 36, 0.9);
             margin-bottom: 12px;
-            border-left: 4px solid #6366f1;
+            border-left: 4px solid #f59e0b;
             padding-left: 10px;
+            font-weight: 600;
         }
 
         .movement-pallet-list {
@@ -1562,13 +1579,13 @@
             overflow-y: auto;
         }
 
-        /* Glassmorphism movement cards */
+        /* Elegant movement cards with gold accents */
         .movement-card {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(15, 23, 42, 0.6);
             backdrop-filter: blur(10px);
             border-radius: 14px;
             padding: 16px;
-            border: 1px solid rgba(226, 232, 240, 0.5);
+            border: 2px solid rgba(245, 158, 11, 0.3);
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -1577,11 +1594,11 @@
         }
 
         .movement-card:hover {
-            background: rgba(255, 255, 255, 0.95);
-            border-color: #667eea;
+            background: rgba(15, 23, 42, 0.8);
+            border-color: #f59e0b;
             box-shadow: 
-                0 8px 24px rgba(102, 126, 234, 0.15),
-                0 2px 8px rgba(0, 0, 0, 0.05);
+                0 8px 24px rgba(245, 158, 11, 0.25),
+                0 2px 8px rgba(0, 0, 0, 0.3);
             transform: translateY(-2px);
         }
         
@@ -1599,7 +1616,8 @@
 
         .movement-card-header strong {
             font-size: 16px;
-            color: #1e1e2f;
+            color: #fbbf24;
+            font-weight: 700;
         }
 
         .movement-card .badge {
@@ -1614,7 +1632,8 @@
             grid-template-columns: 1fr;
             gap: 8px;
             font-size: 13px;
-            color: #475569;
+            color: rgba(255, 255, 255, 0.85);
+            font-weight: 500;
         }
         
         @media (min-width: 640px) {
@@ -1655,19 +1674,21 @@
             }
         }
 
-        /* Touch-friendly movement form inputs */
+        /* Touch-friendly movement form inputs with elegant styling */
         .movement-form-grid input,
         .movement-form-grid select,
         .movement-form-grid textarea {
             width: 100%;
             padding: 14px 16px;
             min-height: 48px;
-            border: 2px solid rgba(203, 213, 224, 0.5);
+            border: 2px solid rgba(245, 158, 11, 0.3);
             border-radius: 12px;
             font-size: 16px;
             font-family: 'Cascadia Mono', monospace;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
+            color: #0f172a;
+            font-weight: 600;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
@@ -1675,11 +1696,11 @@
         .movement-form-grid select:focus,
         .movement-form-grid textarea:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #f59e0b;
             background: rgba(255, 255, 255, 1);
             box-shadow: 
-                0 0 0 4px rgba(102, 126, 234, 0.15),
-                0 4px 12px rgba(102, 126, 234, 0.2);
+                0 0 0 4px rgba(245, 158, 11, 0.2),
+                0 4px 12px rgba(245, 158, 11, 0.3);
             transform: translateY(-1px);
         }
         
@@ -1707,14 +1728,15 @@
         .movement-status {
             margin-top: 12px;
             font-size: 13px;
+            font-weight: 600;
         }
 
         .movement-status.error {
-            color: #c53030;
+            color: #fca5a5;
         }
 
         .movement-status.success {
-            color: #2f855a;
+            color: #86efac;
         }
 
         /* View mode responsive grids */

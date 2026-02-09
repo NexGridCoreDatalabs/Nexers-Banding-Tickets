@@ -4999,6 +4999,103 @@
             }
         }
 
+        // Zone eligibility function - STRICTLY follows all rules (GLOBAL - accessible everywhere)
+        function getAllowedDestinations(fromZoneName) {
+            if (!movementZones || movementZones.length === 0) return [];
+            const fromZone = (fromZoneName || '').toLowerCase();
+            const allowed = [];
+            
+            // Rule 1: From Receiving Area (REC) - can move to ALL except OUT and OBD
+            if (fromZone.includes('receiving area')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (!zName.includes('outbounding') && zName !== 'outbonded') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 2: From Product Zones (DET, FAT, LIQ, SOP) - only SM, DSP, QAH
+            if (fromZone.includes('detergents zone') || fromZone.includes('fats zone') || 
+                fromZone.includes('liquids/oils zone') || fromZone.includes('soaps zone')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('supermarket area') || zName.includes('dispatch loading area') || 
+                        zName === 'qa hold') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 3: From Rework Zone (REW) - can move to REC, QAH, SM (NOT DSP)
+            if (fromZone.includes('rework zone') || fromZone.includes('rework')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('receiving area') || zName === 'qa hold' || 
+                        zName.includes('supermarket area')) {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 4: From SuperMarket Area (SM) - can move to SM (itself), DSP, QAH
+            if (fromZone.includes('supermarket area')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('supermarket area') || zName.includes('dispatch loading area') || 
+                        zName === 'qa hold') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 5: From QA Hold (QAH) - can move to REW, DSP, SM, QAH (itself)
+            if (fromZone === 'qa hold') {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('rework') || zName.includes('dispatch loading area') || 
+                        zName.includes('supermarket area') || zName === 'qa hold') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 6: From Dispatch Loading Area (DSP) - can move to OUT, REW, QAH, SM (NOT itself)
+            if (fromZone.includes('dispatch loading area')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('outbounding') || zName.includes('rework') || 
+                        zName === 'qa hold' || zName.includes('supermarket area')) {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 7: From Outbounding (OUT) - can move to OBD, REW, QAH
+            if (fromZone.includes('outbounding')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName === 'outbonded' || zName.includes('rework') || zName === 'qa hold') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 8: From OUTBONDED (OBD) - FINAL, no movement allowed
+            if (fromZone === 'outbonded') {
+                return []; // No destinations allowed
+            }
+            
+            return allowed;
+        }
+        
         function populateMovementZoneOptions(filterForOutbounding = false) {
             const zoneSelect = document.getElementById('movementZoneSelect');
             const toZoneSelect = document.getElementById('movementToZoneSelect');
@@ -5095,6 +5192,103 @@
         }
         
         // NEW: Comprehensive zone overview table with FIFO indicators
+        // Zone eligibility function - STRICTLY follows all rules (GLOBAL - accessible everywhere)
+        function getAllowedDestinations(fromZoneName) {
+            if (!movementZones || movementZones.length === 0) return [];
+            const fromZone = (fromZoneName || '').toLowerCase();
+            const allowed = [];
+            
+            // Rule 1: From Receiving Area (REC) - can move to ALL except OUT and OBD
+            if (fromZone.includes('receiving area')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (!zName.includes('outbounding') && zName !== 'outbonded') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 2: From Product Zones (DET, FAT, LIQ, SOP) - only SM, DSP, QAH
+            if (fromZone.includes('detergents zone') || fromZone.includes('fats zone') || 
+                fromZone.includes('liquids/oils zone') || fromZone.includes('soaps zone')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('supermarket area') || zName.includes('dispatch loading area') || 
+                        zName === 'qa hold') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 3: From Rework Zone (REW) - can move to REC, QAH, SM (NOT DSP)
+            if (fromZone.includes('rework zone') || fromZone.includes('rework')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('receiving area') || zName === 'qa hold' || 
+                        zName.includes('supermarket area')) {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 4: From SuperMarket Area (SM) - can move to SM (itself), DSP, QAH
+            if (fromZone.includes('supermarket area')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('supermarket area') || zName.includes('dispatch loading area') || 
+                        zName === 'qa hold') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 5: From QA Hold (QAH) - can move to REW, DSP, SM, QAH (itself)
+            if (fromZone === 'qa hold') {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('rework') || zName.includes('dispatch loading area') || 
+                        zName.includes('supermarket area') || zName === 'qa hold') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 6: From Dispatch Loading Area (DSP) - can move to OUT, REW, QAH, SM (NOT itself)
+            if (fromZone.includes('dispatch loading area')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName.includes('outbounding') || zName.includes('rework') || 
+                        zName === 'qa hold' || zName.includes('supermarket area')) {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 7: From Outbounding (OUT) - can move to OBD, REW, QAH
+            if (fromZone.includes('outbounding')) {
+                movementZones.forEach(z => {
+                    const zName = z.ZoneName.toLowerCase();
+                    if (zName === 'outbonded' || zName.includes('rework') || zName === 'qa hold') {
+                        allowed.push(z.ZoneName);
+                    }
+                });
+                return allowed;
+            }
+            
+            // Rule 8: From OUTBONDED (OBD) - FINAL, no movement allowed
+            if (fromZone === 'outbonded') {
+                return []; // No destinations allowed
+            }
+            
+            return allowed;
+        }
+        
         async function refreshZoneOverview() {
             const tableContainer = document.getElementById('zoneOverviewTable');
             const palletList = document.getElementById('movementPalletList');
@@ -5234,104 +5428,8 @@
                 const allZoneNames = movementZones.map(z => z.ZoneName).filter(Boolean).sort();
                 console.log('📋 All Zones in System:', allZoneNames);
                 
-                // Zone eligibility function - STRICTLY follows all rules (made global for use in submitMovementForm)
-                window.getAllowedDestinations = function(fromZoneName) {
-                    const fromZone = fromZoneName.toLowerCase();
-                    const allowed = [];
-                    
-                    // Rule 1: From Receiving Area (REC) - can move to ALL except OUT and OBD
-                    if (fromZone.includes('receiving area')) {
-                        movementZones.forEach(z => {
-                            const zName = z.ZoneName.toLowerCase();
-                            if (!zName.includes('outbounding') && zName !== 'outbonded') {
-                                allowed.push(z.ZoneName);
-                            }
-                        });
-                        return allowed;
-                    }
-                    
-                    // Rule 2: From Product Zones (DET, FAT, LIQ, SOP) - only SM, DSP, QAH
-                    if (fromZone.includes('detergents zone') || fromZone.includes('fats zone') || 
-                        fromZone.includes('liquids/oils zone') || fromZone.includes('soaps zone')) {
-                        movementZones.forEach(z => {
-                            const zName = z.ZoneName.toLowerCase();
-                            if (zName.includes('supermarket area') || zName.includes('dispatch loading area') || 
-                                zName === 'qa hold') {
-                                allowed.push(z.ZoneName);
-                            }
-                        });
-                        return allowed;
-                    }
-                    
-                    // Rule 3: From Rework Zone (REW) - can move to REC, QAH, SM (NOT DSP)
-                    if (fromZone.includes('rework zone') || fromZone.includes('rework')) {
-                        movementZones.forEach(z => {
-                            const zName = z.ZoneName.toLowerCase();
-                            if (zName.includes('receiving area') || zName === 'qa hold' || 
-                                zName.includes('supermarket area')) {
-                                allowed.push(z.ZoneName);
-                            }
-                        });
-                        return allowed;
-                    }
-                    
-                    // Rule 4: From SuperMarket Area (SM) - can move to SM (itself), DSP, QAH
-                    if (fromZone.includes('supermarket area')) {
-                        movementZones.forEach(z => {
-                            const zName = z.ZoneName.toLowerCase();
-                            if (zName.includes('supermarket area') || zName.includes('dispatch loading area') || 
-                                zName === 'qa hold') {
-                                allowed.push(z.ZoneName);
-                            }
-                        });
-                        return allowed;
-                    }
-                    
-                    // Rule 5: From QA Hold (QAH) - can move to REW, DSP, SM, QAH (itself)
-                    if (fromZone === 'qa hold') {
-                        movementZones.forEach(z => {
-                            const zName = z.ZoneName.toLowerCase();
-                            if (zName.includes('rework') || zName.includes('dispatch loading area') || 
-                                zName.includes('supermarket area') || zName === 'qa hold') {
-                                allowed.push(z.ZoneName);
-                            }
-                        });
-                        return allowed;
-                    }
-                    
-                    // Rule 6: From Dispatch Loading Area (DSP) - can move to OUT, REW, QAH, SM (NOT itself)
-                    if (fromZone.includes('dispatch loading area')) {
-                        movementZones.forEach(z => {
-                            const zName = z.ZoneName.toLowerCase();
-                            if (zName.includes('outbounding') || zName.includes('rework') || 
-                                zName === 'qa hold' || zName.includes('supermarket area')) {
-                                allowed.push(z.ZoneName);
-                            }
-                        });
-                        return allowed;
-                    }
-                    
-                    // Rule 7: From Outbounding (OUT) - can move to OBD, REW, QAH
-                    if (fromZone.includes('outbounding')) {
-                        movementZones.forEach(z => {
-                            const zName = z.ZoneName.toLowerCase();
-                            if (zName === 'outbonded' || zName.includes('rework') || zName === 'qa hold') {
-                                allowed.push(z.ZoneName);
-                            }
-                        });
-                        return allowed;
-                    }
-                    
-                    // Rule 8: From OUTBONDED (OBD) - FINAL, no movement allowed
-                    if (fromZone === 'outbonded') {
-                        return []; // No destinations allowed
-                    }
-                    
-                    return allowed;
-                };
-                
                 // Helper function to recommend destination zone based on forward movement flow - STRICTLY follows rules
-                window.recommendDestination = function(currentZone, palletStatus) {
+                const recommendDestination = function(currentZone, palletStatus) {
                     const status = (palletStatus || '').toLowerCase();
                     const zoneName = currentZone.ZoneName || currentZone;
                     
@@ -5947,9 +6045,9 @@
             const currentZoneInput = document.getElementById('movementCurrentZone')?.value;
             const currentZoneName = currentZoneInput || (movementSelectedPallet ? movementSelectedPallet.CurrentZone : '');
             
-            if (currentZoneName && typeof window.getAllowedDestinations === 'function') {
+            if (currentZoneName && typeof getAllowedDestinations === 'function') {
                 // Check if movement is allowed according to strict rules
-                const allowedDestinations = window.getAllowedDestinations(currentZoneName);
+                const allowedDestinations = getAllowedDestinations(currentZoneName);
                 const toZoneLower = toZone.toLowerCase();
                 const isAllowed = allowedDestinations.some(allowed => 
                     allowed.toLowerCase() === toZoneLower

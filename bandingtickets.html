@@ -5078,7 +5078,103 @@
                 const allZoneNames = movementZones.map(z => z.ZoneName).filter(Boolean).sort();
                 console.log('📋 All Zones in System:', allZoneNames);
                 
-                // Helper function to recommend destination zone based on forward movement flow
+                // Zone eligibility function - STRICTLY follows all rules
+                const getAllowedDestinations = (fromZoneName) => {
+                    const fromZone = fromZoneName.toLowerCase();
+                    const allowed = [];
+                    
+                    // Rule 1: From Receiving Area (REC) - can move to ALL except OUT and OBD
+                    if (fromZone.includes('receiving area')) {
+                        movementZones.forEach(z => {
+                            const zName = z.ZoneName.toLowerCase();
+                            if (!zName.includes('outbounding') && zName !== 'outbonded') {
+                                allowed.push(z.ZoneName);
+                            }
+                        });
+                        return allowed;
+                    }
+                    
+                    // Rule 2: From Product Zones (DET, FAT, LIQ, SOP) - only SM, DSP, QAH
+                    if (fromZone.includes('detergents zone') || fromZone.includes('fats zone') || 
+                        fromZone.includes('liquids/oils zone') || fromZone.includes('soaps zone')) {
+                        movementZones.forEach(z => {
+                            const zName = z.ZoneName.toLowerCase();
+                            if (zName.includes('supermarket area') || zName.includes('dispatch loading area') || 
+                                zName === 'qa hold') {
+                                allowed.push(z.ZoneName);
+                            }
+                        });
+                        return allowed;
+                    }
+                    
+                    // Rule 3: From Rework Zone (REW) - can move to REC, DSP, QAH, SM
+                    if (fromZone.includes('rework zone') || fromZone.includes('rework')) {
+                        movementZones.forEach(z => {
+                            const zName = z.ZoneName.toLowerCase();
+                            if (zName.includes('receiving area') || zName.includes('dispatch loading area') || 
+                                zName === 'qa hold' || zName.includes('supermarket area')) {
+                                allowed.push(z.ZoneName);
+                            }
+                        });
+                        return allowed;
+                    }
+                    
+                    // Rule 4: From SuperMarket Area (SM) - can move to SM (itself), DSP, QAH
+                    if (fromZone.includes('supermarket area')) {
+                        movementZones.forEach(z => {
+                            const zName = z.ZoneName.toLowerCase();
+                            if (zName.includes('supermarket area') || zName.includes('dispatch loading area') || 
+                                zName === 'qa hold') {
+                                allowed.push(z.ZoneName);
+                            }
+                        });
+                        return allowed;
+                    }
+                    
+                    // Rule 5: From QA Hold (QAH) - can move to REW, DSP, SM, QAH (itself)
+                    if (fromZone === 'qa hold') {
+                        movementZones.forEach(z => {
+                            const zName = z.ZoneName.toLowerCase();
+                            if (zName.includes('rework') || zName.includes('dispatch loading area') || 
+                                zName.includes('supermarket area') || zName === 'qa hold') {
+                                allowed.push(z.ZoneName);
+                            }
+                        });
+                        return allowed;
+                    }
+                    
+                    // Rule 6: From Dispatch Loading Area (DSP) - can move to OUT, REW, QAH, SM (NOT itself)
+                    if (fromZone.includes('dispatch loading area')) {
+                        movementZones.forEach(z => {
+                            const zName = z.ZoneName.toLowerCase();
+                            if (zName.includes('outbounding') || zName.includes('rework') || 
+                                zName === 'qa hold' || zName.includes('supermarket area')) {
+                                allowed.push(z.ZoneName);
+                            }
+                        });
+                        return allowed;
+                    }
+                    
+                    // Rule 7: From Outbounding (OUT) - can move to OBD, REW, QAH
+                    if (fromZone.includes('outbounding')) {
+                        movementZones.forEach(z => {
+                            const zName = z.ZoneName.toLowerCase();
+                            if (zName === 'outbonded' || zName.includes('rework') || zName === 'qa hold') {
+                                allowed.push(z.ZoneName);
+                            }
+                        });
+                        return allowed;
+                    }
+                    
+                    // Rule 8: From OUTBONDED (OBD) - FINAL, no movement allowed
+                    if (fromZone === 'outbonded') {
+                        return []; // No destinations allowed
+                    }
+                    
+                    return allowed;
+                };
+                
+                // Helper function to recommend destination zone based on forward movement flow - STRICTLY follows rules
                 const recommendDestination = (currentZone, palletStatus) => {
                     const status = (palletStatus || '').toLowerCase();
                     const zoneName = currentZone.ZoneName || currentZone;
@@ -5128,33 +5224,74 @@
                         }
                     }
                     
-                    // Forward movement flow
-                    const forwardFlow = {
-                        'Receiving Area': ['Detergents Zone', 'Fats Zone', 'Liquids/Oils Zone', 'Soaps Zone'],
-                        'Detergents Zone': ['SuperMarket Area', 'Dispatch Loading Area'],
-                        'Fats Zone': ['SuperMarket Area', 'Dispatch Loading Area'],
-                        'Liquids/Oils Zone': ['SuperMarket Area', 'Dispatch Loading Area'],
-                        'Soaps Zone': ['SuperMarket Area', 'Dispatch Loading Area'],
-                        'SuperMarket Area': ['Dispatch Loading Area'],
-                        'Dispatch Loading Area': ['Outbounding'],  // Next is Outbounding (OUT), not OUTBONDED
-                        'Outbounding': ['OUTBONDED'],  // Outbounding zone → OUTBONDED (final consumer)
-                        'Dispatch': ['Outbounding'],  // Dispatch status → Outbounding zone
-                        'Shipped': ['Outbounding']  // Shipped status → Outbounding zone
-                    };
+                    // Get allowed destinations based on strict rules
+                    const allowedDestinations = getAllowedDestinations(zoneName);
                     
-                    const nextZones = forwardFlow[zoneName];
+                    // Priority recommendations based on forward flow
+                    const zoneLower = zoneName.toLowerCase();
                     
-                    if (nextZones && nextZones.length > 0) {
-                        // Find first available next zone
-                        for (const nextZone of nextZones) {
-                            const zoneExists = movementZones.some(z => z.ZoneName === nextZone);
-                            if (zoneExists) {
-                                return nextZone;
-                            }
+                    // Forward flow priority: REC → Product Zones → SM → DSP → OUT → OBD
+                    if (zoneLower.includes('receiving area')) {
+                        // Prefer product zones first
+                        const productZones = ['Detergents Zone', 'Fats Zone', 'Liquids/Oils Zone', 'Soaps Zone'];
+                        for (const pz of productZones) {
+                            if (allowedDestinations.includes(pz)) return pz;
+                        }
+                        // Then SM, QAH, REW, DSP
+                        if (allowedDestinations.includes('SuperMarket Area')) return 'SuperMarket Area';
+                        if (allowedDestinations.includes('QA Hold')) return 'QA Hold';
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('rework'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('rework'));
+                        }
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'));
+                        }
+                    } else if (zoneLower.includes('detergents zone') || zoneLower.includes('fats zone') || 
+                               zoneLower.includes('liquids/oils zone') || zoneLower.includes('soaps zone')) {
+                        // Product zones → SM first, then DSP, then QAH
+                        if (allowedDestinations.includes('SuperMarket Area')) return 'SuperMarket Area';
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'));
+                        }
+                        if (allowedDestinations.includes('QA Hold')) return 'QA Hold';
+                    } else if (zoneLower.includes('supermarket area')) {
+                        // SM → DSP first
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'));
+                        }
+                        if (allowedDestinations.includes('QA Hold')) return 'QA Hold';
+                    } else if (zoneLower.includes('dispatch loading area')) {
+                        // DSP → OUT first
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('outbounding'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('outbounding'));
+                        }
+                        // Then REW, QAH, SM
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('rework'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('rework'));
+                        }
+                        if (allowedDestinations.includes('QA Hold')) return 'QA Hold';
+                        if (allowedDestinations.includes('SuperMarket Area')) return 'SuperMarket Area';
+                    } else if (zoneLower.includes('outbounding')) {
+                        // OUT → OBD first
+                        if (allowedDestinations.includes('OUTBONDED')) return 'OUTBONDED';
+                        // Then REW, QAH
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('rework'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('rework'));
+                        }
+                        if (allowedDestinations.includes('QA Hold')) return 'QA Hold';
+                    } else if (zoneLower.includes('rework') || zoneLower === 'qa hold') {
+                        // REW/QAH → DSP first, then SM, then REC (for REW)
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'));
+                        }
+                        if (allowedDestinations.includes('SuperMarket Area')) return 'SuperMarket Area';
+                        if (zoneLower.includes('rework') && allowedDestinations.find(z => z.toLowerCase().includes('receiving area'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('receiving area'));
                         }
                     }
                     
-                    return null; // No recommendation
+                    // Return first allowed destination if no priority match
+                    return allowedDestinations.length > 0 ? allowedDestinations[0] : null;
                 };
                 
                 // Get allowed destinations for Outbounding status
@@ -5191,17 +5328,31 @@
                     const oldestId = zoneData.oldestPallet ? (zoneData.oldestPallet.PalletID || 'N/A') : 'N/A';
                     const hasError = zoneData.error;
                     
-                    // Count unique SKUs in this zone
+                    // Count unique SKUs in this zone and build SKU details map
                     const uniqueSKUs = new Set();
+                    const skuDetails = new Map(); // SKU -> { totalQty, palletCount }
                     if (!hasError && zoneData.pallets.length > 0) {
                         zoneData.pallets.forEach(pallet => {
-                            const sku = pallet.SKU || pallet.sku;
-                            if (sku && sku.trim()) {
-                                uniqueSKUs.add(sku.trim());
+                            const sku = (pallet.SKU || pallet.sku || '').trim();
+                            if (sku) {
+                                uniqueSKUs.add(sku);
+                                const qty = parseFloat(pallet.RemainingQuantity ?? pallet.Quantity ?? 0) || 0;
+                                if (skuDetails.has(sku)) {
+                                    const existing = skuDetails.get(sku);
+                                    existing.totalQty += qty;
+                                    existing.palletCount += 1;
+                                } else {
+                                    skuDetails.set(sku, { totalQty: qty, palletCount: 1 });
+                                }
                             }
                         });
                     }
                     const skuCount = uniqueSKUs.size;
+                    const skuDetailsArray = Array.from(skuDetails.entries()).map(([sku, data]) => ({
+                        sku,
+                        totalQty: data.totalQty,
+                        palletCount: data.palletCount
+                    })).sort((a, b) => a.sku.localeCompare(b.sku));
                     
                     // Determine action recommendation - ALWAYS show if there are pallets
                     let actionHTML = '<span style="color: rgba(255, 255, 255, 0.5);">—</span>';
@@ -5302,7 +5453,14 @@
                                 ${hasError ? `<br><small style="color: #fca5a5; font-size: 10px;">⚠️ ${escapeHtml(zoneData.error)}</small>` : ''}
                             </td>
                             <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : zoneData.pallets.length}</td>
-                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : skuCount}</td>
+                            <td style="padding: 12px; text-align: center;">
+                                ${hasError ? '—' : 
+                                    (skuCount > 0 ? 
+                                        `<span style="color: #fbbf24; font-weight: 700; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(251, 191, 36, 0.5); transition: all 0.2s ease;" onmouseover="this.style.color='#fcd34d'; this.style.textDecorationColor='rgba(252, 211, 77, 0.8)'" onmouseout="this.style.color='#fbbf24'; this.style.textDecorationColor='rgba(251, 191, 36, 0.5)'" onclick="showSKUModal('${escapeHtml(zone.ZoneName)}', ${JSON.stringify(skuDetailsArray).replace(/"/g, '&quot;')})" title="Click to view SKU details">${skuCount}</span>` :
+                                        '<span style="color: rgba(255, 255, 255, 0.5);">0</span>'
+                                    )
+                                }
+                            </td>
                             <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : zoneData.totalQty.toLocaleString()}</td>
                             <td style="padding: 12px; color: rgba(255, 255, 255, 0.85); font-size: 12px;">
                                 ${hasError ? '—' : escapeHtml(oldestId)}<br>
@@ -5329,9 +5487,10 @@
                     </div>
                     <div style="margin-top: 16px; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid #f59e0b;">
                         <p style="margin: 0; color: rgba(251, 191, 36, 0.9); font-size: 12px; line-height: 1.6;">
-                            <strong>📋 Action Column:</strong> Shows which pallet ID to move first and recommended destination zone.<br>
+                            <strong>📋 Action Column:</strong> Shows which pallet ID to move first and recommended destination zone (follows strict zone flow rules).<br>
                             <strong>⚠️ FIFO Zones:</strong> Oldest pallets (by creation date) should be moved first.<br>
-                            <strong>🚚 Outbounding Status:</strong> Can ONLY move to: <strong>OUTBONDED</strong> (consumer), <strong>Rework Zone</strong>, or <strong>QA Hold</strong>.
+                            <strong>🚚 Outbounding Status:</strong> Can ONLY move to: <strong>OUTBONDED</strong> (consumer), <strong>Rework Zone</strong>, or <strong>QA Hold</strong>.<br>
+                            <strong>📦 SKUs Column:</strong> Click on the number to view detailed SKU breakdown with quantities.
                         </p>
                     </div>
                 `;
@@ -5809,6 +5968,108 @@
             if (modal) {
                 modal.classList.remove('active');
                 document.body.style.overflow = ''; // Re-enable scroll
+            }
+        }
+        
+        // SKU Modal Functions
+        function showSKUModal(zoneName, skuDetails) {
+            // Create or get modal
+            let modal = document.getElementById('skuModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'skuModal';
+                modal.className = 'sku-modal';
+                document.body.appendChild(modal);
+            }
+            
+            // Build table HTML
+            let tableHTML = '';
+            if (skuDetails && skuDetails.length > 0) {
+                const totalQty = skuDetails.reduce((sum, item) => sum + item.totalQty, 0);
+                const totalPallets = skuDetails.reduce((sum, item) => sum + item.palletCount, 0);
+                
+                tableHTML = `
+                    <div class="sku-modal-content">
+                        <div class="sku-modal-header">
+                            <h3>⬥ ${escapeHtml(zoneName)} - SKU Details</h3>
+                            <button class="sku-modal-close" onclick="closeSKUModal()" aria-label="Close">×</button>
+                        </div>
+                        <div style="margin-bottom: 16px; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid #f59e0b;">
+                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                                <div>
+                                    <strong style="color: #fbbf24; font-size: 12px;">Total SKUs:</strong>
+                                    <span style="color: rgba(255, 255, 255, 0.95); font-weight: 700; margin-left: 8px;">${skuDetails.length}</span>
+                                </div>
+                                <div>
+                                    <strong style="color: #fbbf24; font-size: 12px;">Total Quantity:</strong>
+                                    <span style="color: rgba(255, 255, 255, 0.95); font-weight: 700; margin-left: 8px;">${totalQty.toLocaleString()}</span>
+                                </div>
+                                <div>
+                                    <strong style="color: #fbbf24; font-size: 12px;">Total Pallets:</strong>
+                                    <span style="color: rgba(255, 255, 255, 0.95); font-weight: 700; margin-left: 8px;">${totalPallets}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <table class="sku-table">
+                            <thead>
+                                <tr>
+                                    <th>SKU Code</th>
+                                    <th style="text-align: center;">Pallets</th>
+                                    <th style="text-align: right;">Total Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${skuDetails.map(item => `
+                                    <tr>
+                                        <td class="sku-code">${escapeHtml(item.sku)}</td>
+                                        <td class="sku-pallets">${item.palletCount}</td>
+                                        <td class="sku-qty">${item.totalQty.toLocaleString()}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                tableHTML = `
+                    <div class="sku-modal-content">
+                        <div class="sku-modal-header">
+                            <h3>⬥ ${escapeHtml(zoneName)} - SKU Details</h3>
+                            <button class="sku-modal-close" onclick="closeSKUModal()" aria-label="Close">×</button>
+                        </div>
+                        <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                            <p>No SKUs found in this zone.</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            modal.innerHTML = tableHTML;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // Close on background click
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeSKUModal();
+                }
+            });
+            
+            // Close on Escape key
+            const escapeHandler = function(e) {
+                if (e.key === 'Escape') {
+                    closeSKUModal();
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+        }
+        
+        function closeSKUModal() {
+            const modal = document.getElementById('skuModal');
+            if (modal) {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
             }
         }
         

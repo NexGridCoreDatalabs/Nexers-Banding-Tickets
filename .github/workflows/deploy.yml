@@ -1,0 +1,63 @@
+name: Deploy to GitHub Pages with Secure Config
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Create config.js from GitHub Secrets
+        run: |
+          cat > config.js << 'EOF'
+          window.BANDFLOW_CONFIG = {
+            GENERATOR_PASSWORD: '${{ secrets.GENERATOR_PASSWORD }}',
+            GOOGLE_SHEET_ID: '${{ secrets.GOOGLE_SHEET_ID }}',
+            GOOGLE_API_KEY: '${{ secrets.GOOGLE_API_KEY }}',
+            GOOGLE_APPS_SCRIPT_URL: '${{ secrets.GOOGLE_APPS_SCRIPT_URL }}',
+            SCAN_BASE_URL: '${{ secrets.SCAN_BASE_URL }}',
+            SECURITY: {
+              MAX_LOGIN_ATTEMPTS: 5,
+              LOCKOUT_DURATION: 900000,
+              SESSION_TIMEOUT: 1800000,
+              DEBUG_MODE: false
+            },
+            API: {
+              TIMEOUT: 30000,
+              MAX_RETRIES: 3,
+              RETRY_DELAY: 1000
+            }
+          };
+          
+          // Validate configuration
+          (function validateConfig() {
+            const config = window.BANDFLOW_CONFIG;
+            if (!config.GENERATOR_PASSWORD || !config.GOOGLE_SHEET_ID || !config.GOOGLE_APPS_SCRIPT_URL) {
+              console.error('❌ Configuration incomplete');
+            } else {
+              console.log('✅ Configuration loaded successfully');
+            }
+          })();
+          EOF
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

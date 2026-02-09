@@ -4804,7 +4804,34 @@
             try {
                 setMovementStatus('Loading zones...');
                 const result = await callAppsScript(new URLSearchParams({ action: 'getZoneConfig' }));
-                movementZones = (result.zones || []).filter(zone => zone.ZoneName);
+                const allZones = (result.zones || []).filter(zone => zone.ZoneName);
+                
+                // DEDUPLICATE: Remove duplicate zones (case-insensitive, trim whitespace)
+                const zoneMap = new Map();
+                allZones.forEach(zone => {
+                    const normalizedName = (zone.ZoneName || '').trim();
+                    if (!normalizedName) return;
+                    
+                    // Check for existing zone (case-insensitive)
+                    const existingKey = Array.from(zoneMap.keys()).find(
+                        key => key.toLowerCase() === normalizedName.toLowerCase()
+                    );
+                    
+                    if (existingKey) {
+                        // Keep the one with better formatting (prefer exact match, then shorter name)
+                        const existing = zoneMap.get(existingKey);
+                        if (normalizedName === existingKey || normalizedName.length < existingKey.length) {
+                            zoneMap.delete(existingKey);
+                            zoneMap.set(normalizedName, { ...zone, ZoneName: normalizedName });
+                        }
+                        // Otherwise keep existing
+                    } else {
+                        zoneMap.set(normalizedName, { ...zone, ZoneName: normalizedName });
+                    }
+                });
+                
+                movementZones = Array.from(zoneMap.values());
+                console.log(`✅ Loaded ${movementZones.length} unique zones (deduplicated from ${allZones.length} total)`);
                 populateMovementZoneOptions();
                 movementPanelInitialized = true;
                 setMovementStatus('');
@@ -4820,32 +4847,41 @@
             const toZoneSelect = document.getElementById('movementToZoneSelect');
             if (!zoneSelect || !toZoneSelect) return;
             
-            // Ensure OUTBOUNDED zone exists
-            const hasOutbounded = movementZones.some(z => z.ZoneName === 'Outbounded');
-            if (!hasOutbounded) {
+            // Ensure Outbounding zone exists (note: it's "Outbounding" not "Outbounded" based on sheet)
+            const hasOutbounding = movementZones.some(z => 
+                z.ZoneName.toLowerCase() === 'outbounding' || 
+                z.ZoneName.toLowerCase() === 'outbounded'
+            );
+            if (!hasOutbounding) {
                 movementZones.push({
-                    ZoneName: 'Outbounded',
+                    ZoneName: 'Outbounding',
                     Prefix: 'OUT',
                     FIFORequired: false,
                     AllowsSplitting: false
                 });
             }
             
-            // Ensure Rework and QA Hold zones exist (if they don't, they'll be added when user provides sequence)
-            const hasRework = movementZones.some(z => z.ZoneName === 'Rework');
+            // Ensure Rework Zone exists (check for both "Rework Zone" and "Rework")
+            const hasRework = movementZones.some(z => 
+                z.ZoneName.toLowerCase().includes('rework')
+            );
             if (!hasRework) {
                 movementZones.push({
-                    ZoneName: 'Rework',
-                    Prefix: 'RWK',
+                    ZoneName: 'Rework Zone',
+                    Prefix: 'REW',
                     FIFORequired: false,
                     AllowsSplitting: true
                 });
             }
-            const hasQAHold = movementZones.some(z => z.ZoneName === 'QA Hold');
+            
+            // Ensure QA Hold zone exists
+            const hasQAHold = movementZones.some(z => 
+                z.ZoneName.toLowerCase() === 'qa hold'
+            );
             if (!hasQAHold) {
                 movementZones.push({
                     ZoneName: 'QA Hold',
-                    Prefix: 'QA',
+                    Prefix: 'QAH',
                     FIFORequired: false,
                     AllowsSplitting: false
                 });
@@ -4857,7 +4893,10 @@
             
             // Filter zones for "Move To" if Outbounding status
             const zonesToShow = filterForOutbounding 
-                ? movementZones.filter(z => ['Outbounded', 'Rework', 'QA Hold'].includes(z.ZoneName))
+                ? movementZones.filter(z => {
+                    const name = z.ZoneName.toLowerCase();
+                    return name.includes('outbounding') || name.includes('rework') || name === 'qa hold';
+                })
                 : movementZones;
             
             movementZones.forEach(zone => {
@@ -5031,24 +5070,36 @@
                     const status = (palletStatus || '').toLowerCase();
                     const zoneName = currentZone.ZoneName || currentZone;
                     
-                    // SPECIAL RULE: Outbounding status can ONLY move to: Outbounded, Rework, or QA Hold
-                    if (status.includes('outbounding')) {
-                        // Priority: Outbounded first, then Rework, then QA Hold
-                        const allowedZones = ['Outbounded', 'Rework', 'QA Hold'];
-                        for (const allowedZone of allowedZones) {
-                            const zoneExists = movementZones.some(z => z.ZoneName === allowedZone);
+                    // SPECIAL RULE: Outbounding status can ONLY move to: Outbounding zone, Rework Zone, or QA Hold
+                    // Note: "Outbounding" is a zone name, not just a status
+                    if (status.includes('outbounding') || status === 'shipped') {
+                        // Priority: Outbounding zone first, then Rework Zone, then QA Hold
+                        // Match zones case-insensitively and handle "Rework Zone" vs "Rework"
+                        const allowedZoneNames = ['Outbounding', 'Rework Zone', 'Rework', 'QA Hold'];
+                        for (const allowedZone of allowedZoneNames) {
+                            const zoneExists = movementZones.some(z => 
+                                z.ZoneName.toLowerCase() === allowedZone.toLowerCase() ||
+                                z.ZoneName.toLowerCase().includes(allowedZone.toLowerCase())
+                            );
                             if (zoneExists) {
-                                return allowedZone;
+                                // Return the actual zone name from movementZones
+                                const foundZone = movementZones.find(z => 
+                                    z.ZoneName.toLowerCase() === allowedZone.toLowerCase() ||
+                                    z.ZoneName.toLowerCase().includes(allowedZone.toLowerCase())
+                                );
+                                return foundZone ? foundZone.ZoneName : allowedZone;
                             }
                         }
                         return null; // No allowed zones found
                     }
                     
-                    // Dispatch or Shipped -> Outbounded
+                    // Dispatch or Shipped -> Outbounding zone
                     if (status === 'dispatch' || status === 'shipped') {
-                        const outboundedExists = movementZones.some(z => z.ZoneName === 'Outbounded');
-                        if (outboundedExists) {
-                            return 'Outbounded';
+                        const outboundingZone = movementZones.find(z => 
+                            z.ZoneName.toLowerCase().includes('outbounding')
+                        );
+                        if (outboundingZone) {
+                            return outboundingZone.ZoneName;
                         }
                     }
                     
@@ -5122,9 +5173,12 @@
                             if (status.includes('outbounding')) {
                                 return true; // Always needs movement
                             }
-                            // Dispatch, Shipped should go to Outbounded
+                            // Dispatch, Shipped should go to Outbounding zone
                             if (status === 'dispatch' || status === 'shipped') {
-                                return p.CurrentZone !== 'Outbounded';
+                                const outboundingZone = movementZones.find(z => 
+                                    z.ZoneName.toLowerCase().includes('outbounding')
+                                );
+                                return outboundingZone && p.CurrentZone !== outboundingZone.ZoneName;
                             }
                             // FIFO zones with multiple pallets - oldest should move
                             if (fifoRequired && zoneData.pallets.length > 1) {
@@ -5173,7 +5227,7 @@
                                             <span style="color: rgba(255, 255, 255, 0.95); font-weight: 600; font-size: 11px;">${escapeHtml(recommendedDest)}</span>
                                         </div>
                                         ${palletStatus.toLowerCase().includes('outbounding') ? 
-                                            `<small style="color: rgba(251, 191, 36, 0.7); font-size: 9px; display: block; margin-top: 4px;">Can also: Rework, QA Hold</small>` : 
+                                            `<small style="color: rgba(251, 191, 36, 0.7); font-size: 9px; display: block; margin-top: 4px;">Can also: Rework Zone, QA Hold</small>` : 
                                             ''
                                         }
                                     </div>
@@ -5227,7 +5281,7 @@
                         <p style="margin: 0; color: rgba(251, 191, 36, 0.9); font-size: 12px; line-height: 1.6;">
                             <strong>📋 Action Column:</strong> Shows which pallet ID to move first and recommended destination zone.<br>
                             <strong>⚠️ FIFO Zones:</strong> Oldest pallets (by creation date) should be moved first.<br>
-                            <strong>🚚 Outbounding Status:</strong> Can ONLY move to: <strong>Outbounded</strong>, <strong>Rework</strong>, or <strong>QA Hold</strong>.<br>
+                            <strong>🚚 Outbounding Status:</strong> Can ONLY move to: <strong>Outbounding</strong> zone, <strong>Rework Zone</strong>, or <strong>QA Hold</strong>.<br>
                             <strong>📦 All Zones:</strong> ${allZoneNames.length > 0 ? allZoneNames.join(', ') : 'Loading...'}<br>
                             <strong>➡️ Forward Flow:</strong> <em>Sequence will be configured after you provide zone order</em>
                         </p>
@@ -5337,12 +5391,15 @@
             if (toZoneSelect) {
                 const palletStatus = (pallet.Status || '').toLowerCase();
                 
-                // SPECIAL RULE: If status is "Outbounding", only allow: Outbounded, Rework, QA Hold
+                // SPECIAL RULE: If status is "Outbounding", only allow: Outbounding zone, Rework Zone, QA Hold
                 if (palletStatus.includes('outbounding')) {
-                    const allowedZones = ['Outbounded', 'Rework', 'QA Hold'];
+                    // Match zones case-insensitively - "Outbounding", "Rework Zone" (or "Rework"), "QA Hold"
+                    const allowedZonePatterns = ['outbounding', 'rework', 'qa hold'];
                     toZoneSelect.innerHTML = '';
-                    allowedZones.forEach(zoneName => {
-                        const zone = movementZones.find(z => z.ZoneName === zoneName);
+                    allowedZonePatterns.forEach(pattern => {
+                        const zone = movementZones.find(z => 
+                            z.ZoneName.toLowerCase().includes(pattern)
+                        );
                         if (zone) {
                             const option = document.createElement('option');
                             option.value = zone.ZoneName;
@@ -5350,16 +5407,21 @@
                             toZoneSelect.appendChild(option);
                         }
                     });
-                    // Auto-select Outbounded if available
+                    // Auto-select Outbounding if available
                     if (toZoneSelect.options.length > 0) {
-                        const outboundedOption = Array.from(toZoneSelect.options).find(opt => opt.value === 'Outbounded');
-                        if (outboundedOption) {
-                            toZoneSelect.value = 'Outbounded';
+                        const outboundingOption = Array.from(toZoneSelect.options).find(opt => 
+                            opt.value.toLowerCase().includes('outbounding')
+                        );
+                        if (outboundingOption) {
+                            toZoneSelect.value = outboundingOption.value;
                         } else {
                             toZoneSelect.value = toZoneSelect.options[0].value;
                         }
                     }
-                    setMovementStatus(`Selected ${pallet.PalletID} (Outbounding status - can only move to: ${allowedZones.filter(z => movementZones.some(mz => mz.ZoneName === z)).join(', ')})`);
+                    const foundZones = movementZones.filter(z => 
+                        allowedZonePatterns.some(pattern => z.ZoneName.toLowerCase().includes(pattern))
+                    ).map(z => z.ZoneName);
+                    setMovementStatus(`Selected ${pallet.PalletID} (Outbounding status - can only move to: ${foundZones.join(', ')})`);
                 } else {
                     // Normal flow - repopulate with all zones (not filtered)
                     populateMovementZoneOptions(false);

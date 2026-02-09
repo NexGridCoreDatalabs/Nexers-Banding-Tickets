@@ -4856,7 +4856,10 @@
             const tableContainer = document.getElementById('zoneOverviewTable');
             const palletList = document.getElementById('movementPalletList');
             
-            if (!tableContainer) return;
+            if (!tableContainer) {
+                showToast('Zone overview table not found', 'error');
+                return;
+            }
             
             // Toggle visibility
             const isVisible = tableContainer.style.display !== 'none';
@@ -4865,11 +4868,43 @@
             
             if (isVisible) return; // Hide table
             
-            tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p></div>';
+            // Ensure zones are loaded first
+            if (!movementPanelInitialized || !movementZones || movementZones.length === 0) {
+                tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><p>Loading zones...</p></div>';
+                try {
+                    await ensureMovementPanelLoaded();
+                } catch (error) {
+                    tableContainer.innerHTML = `<div style="color: #fca5a5; padding: 20px; text-align: center;">Error loading zones: ${error.message}</div>`;
+                    return;
+                }
+            }
+            
+            if (!movementZones || movementZones.length === 0) {
+                tableContainer.innerHTML = '<div style="color: #fca5a5; padding: 20px; text-align: center;">No zones found. Please configure zones first.</div>';
+                return;
+            }
+            
+            tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">This may take a moment</p></div>';
             
             try {
-                // Get pallets for all zones
+                // Get pallets for all zones with progress tracking
                 const allZonesData = [];
+                const totalZones = movementZones.length;
+                let loadedZones = 0;
+                
+                // Update progress
+                const updateProgress = () => {
+                    const progress = Math.round((loadedZones / totalZones) * 100);
+                    tableContainer.innerHTML = `
+                        <div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);">
+                            <div class="loading-spinner"></div>
+                            <p>Loading zone overview...</p>
+                            <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">${loadedZones} of ${totalZones} zones loaded (${progress}%)</p>
+                        </div>
+                    `;
+                };
+                
+                // Process zones with timeout protection
                 for (const zone of movementZones) {
                     try {
                         const params = new URLSearchParams({
@@ -4877,7 +4912,17 @@
                             zoneName: zone.ZoneName,
                             limit: 10000
                         });
-                        const result = await callAppsScript(params);
+                        
+                        // Add timeout to prevent hanging
+                        const timeoutPromise = new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error(`Timeout loading zone ${zone.ZoneName}`)), 10000)
+                        );
+                        
+                        const result = await Promise.race([
+                            callAppsScript(params),
+                            timeoutPromise
+                        ]);
+                        
                         const pallets = result.pallets || [];
                         
                         // Sort by CreatedAt for FIFO (oldest first)
@@ -4894,6 +4939,9 @@
                             oldestPallet: pallets[0] || null,
                             needsMovement: pallets.length > 0 && parseBooleanFlag(zone.FIFORequired) && pallets.length > 1
                         });
+                        
+                        loadedZones++;
+                        updateProgress();
                     } catch (error) {
                         console.error(`Error loading zone ${zone.ZoneName}:`, error);
                         allZonesData.push({
@@ -4901,8 +4949,11 @@
                             pallets: [],
                             totalQty: 0,
                             oldestPallet: null,
-                            needsMovement: false
+                            needsMovement: false,
+                            error: error.message
                         });
+                        loadedZones++;
+                        updateProgress();
                     }
                 }
                 
@@ -4929,30 +4980,35 @@
                     const fifoRequired = parseBooleanFlag(zone.FIFORequired);
                     const oldestDate = zoneData.oldestPallet ? formatMovementDate(zoneData.oldestPallet.CreatedAt || zoneData.oldestPallet.CreatedDate) : 'N/A';
                     const oldestId = zoneData.oldestPallet ? (zoneData.oldestPallet.PalletID || 'N/A') : 'N/A';
-                    const priorityClass = zoneData.needsMovement ? 'priority-high' : '';
+                    const hasError = zoneData.error;
                     
                     tableHTML += `
                         <tr style="border-bottom: 1px solid rgba(245, 158, 11, 0.2); ${index % 2 === 0 ? 'background: rgba(15, 23, 42, 0.3);' : ''}">
                             <td style="padding: 12px; color: rgba(255, 255, 255, 0.95); font-weight: 600;">
                                 ${escapeHtml(zone.ZoneName)}<br>
                                 <small style="color: rgba(251, 191, 36, 0.7); font-size: 11px;">Prefix: ${zone.Prefix || 'N/A'}</small>
+                                ${hasError ? `<br><small style="color: #fca5a5; font-size: 10px;">⚠️ ${escapeHtml(zoneData.error)}</small>` : ''}
                             </td>
-                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${zoneData.pallets.length}</td>
-                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${zoneData.totalQty.toLocaleString()}</td>
+                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : zoneData.pallets.length}</td>
+                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : zoneData.totalQty.toLocaleString()}</td>
                             <td style="padding: 12px; color: rgba(255, 255, 255, 0.85); font-size: 12px;">
-                                ${escapeHtml(oldestId)}<br>
-                                <small style="color: rgba(251, 191, 36, 0.6);">${oldestDate}</small>
+                                ${hasError ? '—' : escapeHtml(oldestId)}<br>
+                                ${!hasError ? `<small style="color: rgba(251, 191, 36, 0.6);">${oldestDate}</small>` : ''}
                             </td>
                             <td style="padding: 12px; text-align: center;">
-                                ${fifoRequired ? 
-                                    `<span style="color: #fbbf24; font-weight: 700;">✓ Enforced</span>` : 
-                                    `<span style="color: rgba(255, 255, 255, 0.5);">—</span>`
+                                ${hasError ? '<span style="color: rgba(255, 255, 255, 0.5);">—</span>' : 
+                                    (fifoRequired ? 
+                                        `<span style="color: #fbbf24; font-weight: 700;">✓ Enforced</span>` : 
+                                        `<span style="color: rgba(255, 255, 255, 0.5);">—</span>`
+                                    )
                                 }
                             </td>
                             <td style="padding: 12px; text-align: center;">
-                                ${zoneData.needsMovement ? 
-                                    `<span style="background: rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; text-transform: uppercase;">⚠️ Move Fast</span>` : 
-                                    `<span style="color: rgba(255, 255, 255, 0.5);">—</span>`
+                                ${hasError ? '<span style="color: rgba(255, 255, 255, 0.5);">—</span>' :
+                                    (zoneData.needsMovement ? 
+                                        `<span style="background: rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; text-transform: uppercase;">⚠️ Move Fast</span>` : 
+                                        `<span style="color: rgba(255, 255, 255, 0.5);">—</span>`
+                                    )
                                 }
                             </td>
                         </tr>

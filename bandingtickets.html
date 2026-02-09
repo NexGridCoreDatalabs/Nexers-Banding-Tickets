@@ -2553,7 +2553,7 @@
         // SECURITY FIX: Load from config.js (fallback to defaults for backward compatibility)
         const CONFIG = window.BANDFLOW_CONFIG || {};
         const DEFAULT_GOOGLE_SHEET_ID = CONFIG.GOOGLE_SHEET_ID || '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
-        const DEFAULT_GOOGLE_API_KEY = CONFIG.GOOGLE_API_KEY || 'AIzaSyBUSYg78PSD47OWJkzEa4kMQknjROGulLI';
+        const DEFAULT_GOOGLE_API_KEY = CONFIG.GOOGLE_API_KEY || ''; // SECURITY: Never hardcode API keys!
         const DEFAULT_GOOGLE_APPS_SCRIPT_URL = CONFIG.GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxbujRsVW-vVwt34GVCOlCm145mjgp4uV11-YhSy1CQtXPKiqdlPycfTj7q8GvIHg0a0g/exec';
         
         const USER_SESSION_KEY = 'bandingUserSession';

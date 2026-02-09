@@ -2,3 +2,12 @@
 config.js
 *.config.js
 !config.example.js
+
+# Security files - NEVER commit secrets
+SETUP_SECRETS.md
+*SECRETS*.md
+*SECRET*.md
+*.secret
+*.key
+.env
+.env.local

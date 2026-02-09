@@ -4040,14 +4040,14 @@
                                 <div><strong style="color: ${colors.text}; font-weight: 600;">SKU:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(ticket.SKU || '')}</span></div>
                                 <div>
                                     <strong style="color: ${colors.text};">Quantity (Original):</strong>
-                                    <span style="color: #2d3748;">${escapeHtml(originalQty.toString())}</span>
+                                    <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(originalQty.toString())}</span>
                                 </div>
                                 <div>
                                     <strong style="color: ${colors.text};">Quantity (Remaining):</strong>
-                                    <span style="color: #2d3748;">${escapeHtml(remainingQty.toString())}</span>
+                                    <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(remainingQty.toString())}</span>
                                 </div>
                                 <div><strong style="color: ${colors.text};">Layers:</strong> 
-                                    <span style="color: #2d3748;">
+                                    <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">
                                         ${layersInfo ? escapeHtml(layersInfo.calculatedLayers.toString()) : escapeHtml(ticket.Layers || '')}
                                     </span>
                                 </div>
@@ -4069,15 +4069,15 @@
                         <div style="background: ${colors.bg}; padding: 20px; border-radius: 8px; border-left: 4px solid ${colors.border};">
                             <h3 style="margin: 0 0 15px 0; color: ${colors.text}; font-size: 18px; font-weight: 600;">📊 Layer Calculations</h3>
                             <div style="display: grid; gap: 10px;">
-                                <div><strong style="color: ${colors.text};">Pallet Size:</strong> <span style="color: #2d3748;">${escapeHtml(layersInfo.palletSize)} cartons</span></div>
-                                <div><strong style="color: ${colors.text};">Cartons per Layer:</strong> <span style="color: #2d3748; font-weight: 600;">${escapeHtml(layersInfo.cartonsPerLayer.toString())} cartons/layer</span></div>
+                                <div><strong style="color: ${colors.text};">Pallet Size:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(layersInfo.palletSize)} cartons</span></div>
+                                <div><strong style="color: ${colors.text};">Cartons per Layer:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 600;">${escapeHtml(layersInfo.cartonsPerLayer.toString())} cartons/layer</span></div>
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40; margin-top: 8px;">
-                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Remaining Quantity:</strong> <span style="color: #2d3748; font-weight: 600;">${escapeHtml(remainingQty.toString())} cartons</span></div>
-                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Calculated Layers:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 16px;">${escapeHtml(layersInfo.calculatedLayers.toString())} layers</span></div>
+                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Remaining Quantity:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 600;">${escapeHtml(remainingQty.toString())} cartons</span></div>
+                                    <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Calculated Layers:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 700; font-size: 16px;">${escapeHtml(layersInfo.calculatedLayers.toString())} layers</span></div>
                                     ${layersInfo.fullLayers > 0 || layersInfo.remainderUnits > 0 ? `
                                         <div style="margin-bottom: 5px; padding-top: 8px; border-top: 1px solid ${colors.accent}20;">
                                             <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Breakdown:</strong></div>
-                                            <div style="color: #4a5568; font-size: 14px; margin-left: 10px;">
+                                            <div style="color: rgba(255, 255, 255, 0.85); font-size: 14px; margin-left: 10px; font-weight: 500;">
                                                 ${layersInfo.fullLayers > 0 ? `${escapeHtml(layersInfo.fullLayers.toString())} full layer(s)` : ''}
                                                 ${layersInfo.remainderUnits > 0 ? (layersInfo.fullLayers > 0 ? ` + ${escapeHtml(layersInfo.remainderUnits.toString())} units` : `${escapeHtml(layersInfo.remainderUnits.toString())} units`) : ''}
                                                 ${layersInfo.remainderUnits > 0 && layersInfo.fullLayers > 0 ? (() => {
@@ -4093,7 +4093,7 @@
                                     ` : ''}
                                 </div>
                                 ${layersInfoOriginal ? `
-                                <div style="padding-top: 8px; border-top: 1px dashed ${colors.accent}40; margin-top: 12px; font-size: 13px; color: #4a5568;">
+                                <div style="padding-top: 8px; border-top: 1px dashed ${colors.accent}40; margin-top: 12px; font-size: 13px; color: rgba(255, 255, 255, 0.85); font-weight: 500;">
                                     <strong>Original Quantity:</strong> ${escapeHtml(originalQty.toString())} cartons •
                                     <strong>Original Layers:</strong> ${escapeHtml(layersInfoOriginal.calculatedLayers.toString())}
                                 </div>
@@ -4112,37 +4112,37 @@
                                 ${ticket.SachetType ? `<div><strong style="color: ${colors.text}; font-weight: 600;">Sachet Type:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(ticket.SachetType)}</span></div>` : ''}
                                 ${ticket.TabletType ? `<div><strong style="color: ${colors.text}; font-weight: 600;">Tablet Type:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(ticket.TabletType)}</span></div>` : ''}
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40;">
-                                    <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Conversion:</strong> <span style="color: #4a5568; font-size: 14px;">${escapeHtml(remainingQty.toString())} Cartons × ${has1KG ? '6' : '12'} = </span></div>
-                                    <div><strong style="color: ${colors.text};">Total Pieces Remaining:</strong> <span style="color: #2d3748; font-weight: 700; font-size: 18px;">${pieces.toLocaleString()} Pieces</span></div>
-                                    ${originalQty !== remainingQty ? `<div style="margin-top: 6px; color: #718096; font-size: 13px;">Original pieces: ${( (originalQty) * (has1KG ? 6 : 12)).toLocaleString()}</div>` : ''}
+                                    <div style="margin-bottom: 5px;"><strong style="color: ${colors.text};">Conversion:</strong> <span style="color: rgba(255, 255, 255, 0.85); font-size: 14px; font-weight: 500;">${escapeHtml(remainingQty.toString())} Cartons × ${has1KG ? '6' : '12'} = </span></div>
+                                    <div><strong style="color: ${colors.text};">Total Pieces Remaining:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 700; font-size: 18px;">${pieces.toLocaleString()} Pieces</span></div>
+                                    ${originalQty !== remainingQty ? `<div style="margin-top: 6px; color: rgba(255, 255, 255, 0.75); font-size: 13px; font-weight: 500;">Original pieces: ${( (originalQty) * (has1KG ? 6 : 12)).toLocaleString()}</div>` : ''}
                                 </div>
                                 <div style="padding-top: 8px; border-top: 1px solid ${colors.accent}40; margin-top: 8px;">
                                     <div style="margin-bottom: 8px;"><strong style="color: ${colors.text};">Carton to Sachet/Tablet Conversion:</strong></div>
                                     ${has1KG ? `
-                                    <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">1 Carton = 6 Sachets + 6 Tablet Pieces</div>
-                                    <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">100 Cartons = 600 Sachets + 600 Tablet Pieces</div>
+                                    <div style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.85); font-size: 14px; font-weight: 500;">1 Carton = 6 Sachets + 6 Tablet Pieces</div>
+                                    <div style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.85); font-size: 14px; font-weight: 500;">100 Cartons = 600 Sachets + 600 Tablet Pieces</div>
                                     ` : `
-                                    <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">1 Carton = 12 Sachets + 12 Tablet Pieces</div>
-                                    <div style="margin-bottom: 5px; color: #4a5568; font-size: 14px;">100 Cartons = 1,200 Sachets + 1,200 Tablet Pieces</div>
+                                    <div style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.85); font-size: 14px; font-weight: 500;">1 Carton = 12 Sachets + 12 Tablet Pieces</div>
+                                    <div style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.85); font-size: 14px; font-weight: 500;">100 Cartons = 1,200 Sachets + 1,200 Tablet Pieces</div>
                                     `}
                                     ${(ticket.SachetType || ticket.TabletType) ? `
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
                                         ${ticket.SachetType ? `
                                         <div>
-                                            <div style="font-size: 12px; color: #718096; margin-bottom: 3px;">Sachets</div>
-                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${(remainingQty * (has1KG ? 6 : 12)).toLocaleString()}</div>
+                                            <div style="font-size: 12px; color: rgba(251, 191, 36, 0.8); margin-bottom: 3px; font-weight: 600;">Sachets</div>
+                                            <div style="color: rgba(255, 255, 255, 0.95); font-weight: 700; font-size: 16px;">${(remainingQty * (has1KG ? 6 : 12)).toLocaleString()}</div>
                                         </div>
                                         ` : ''}
                                         ${ticket.TabletType ? `
                                         <div>
-                                            <div style="font-size: 12px; color: #718096; margin-bottom: 3px;">Tablet Pieces</div>
-                                            <div style="color: #2d3748; font-weight: 700; font-size: 16px;">${(remainingQty * (has1KG ? 6 : 12)).toLocaleString()}</div>
+                                            <div style="font-size: 12px; color: rgba(251, 191, 36, 0.8); margin-bottom: 3px; font-weight: 600;">Tablet Pieces</div>
+                                            <div style="color: rgba(255, 255, 255, 0.95); font-weight: 700; font-size: 16px;">${(remainingQty * (has1KG ? 6 : 12)).toLocaleString()}</div>
                                         </div>
                                         ` : ''}
                                     </div>
                                     ` : `
-                                    <div style="margin-top: 10px; padding: 10px; background: #f7fafc; border-radius: 6px;">
-                                        <div style="color: #718096; font-size: 13px;">Sachet Type and Tablet Type not specified</div>
+                                    <div style="margin-top: 10px; padding: 10px; background: rgba(30, 58, 95, 0.4); border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.3);">
+                                        <div style="color: rgba(255, 255, 255, 0.75); font-size: 13px; font-weight: 500;">Sachet Type and Tablet Type not specified</div>
                                     </div>
                                     `}
                                 </div>

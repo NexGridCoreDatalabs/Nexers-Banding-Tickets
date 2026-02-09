@@ -5107,12 +5107,12 @@
                         return allowed;
                     }
                     
-                    // Rule 3: From Rework Zone (REW) - can move to REC, DSP, QAH, SM
+                    // Rule 3: From Rework Zone (REW) - can move to REC, QAH, SM (NOT DSP)
                     if (fromZone.includes('rework zone') || fromZone.includes('rework')) {
                         movementZones.forEach(z => {
                             const zName = z.ZoneName.toLowerCase();
-                            if (zName.includes('receiving area') || zName.includes('dispatch loading area') || 
-                                zName === 'qa hold' || zName.includes('supermarket area')) {
+                            if (zName.includes('receiving area') || zName === 'qa hold' || 
+                                zName.includes('supermarket area')) {
                                 allowed.push(z.ZoneName);
                             }
                         });
@@ -5279,15 +5279,22 @@
                             return allowedDestinations.find(z => z.toLowerCase().includes('rework'));
                         }
                         if (allowedDestinations.includes('QA Hold')) return 'QA Hold';
-                    } else if (zoneLower.includes('rework') || zoneLower === 'qa hold') {
-                        // REW/QAH → DSP first, then SM, then REC (for REW)
+                    } else if (zoneLower.includes('rework')) {
+                        // REW → REC first (for repositioning), then SM, then QAH (NOT DSP)
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('receiving area'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('receiving area'));
+                        }
+                        if (allowedDestinations.includes('SuperMarket Area')) return 'SuperMarket Area';
+                        if (allowedDestinations.includes('QA Hold')) return 'QA Hold';
+                    } else if (zoneLower === 'qa hold') {
+                        // QAH → REW first, then DSP, then SM
+                        if (allowedDestinations.find(z => z.toLowerCase().includes('rework'))) {
+                            return allowedDestinations.find(z => z.toLowerCase().includes('rework'));
+                        }
                         if (allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'))) {
                             return allowedDestinations.find(z => z.toLowerCase().includes('dispatch loading area'));
                         }
                         if (allowedDestinations.includes('SuperMarket Area')) return 'SuperMarket Area';
-                        if (zoneLower.includes('rework') && allowedDestinations.find(z => z.toLowerCase().includes('receiving area'))) {
-                            return allowedDestinations.find(z => z.toLowerCase().includes('receiving area'));
-                        }
                     }
                     
                     // Return first allowed destination if no priority match

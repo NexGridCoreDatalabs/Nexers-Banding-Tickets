@@ -6174,6 +6174,9 @@
         }
         
         // SKU Modal Functions
+        // Store escape handler reference for cleanup
+        let skuModalEscapeHandler = null;
+        
         function showSKUModal(zoneName, skuDetails) {
             // Parse skuDetails if it's a string (from onclick JSON)
             if (typeof skuDetails === 'string') {
@@ -6185,20 +6188,25 @@
                 }
             }
             
-            // Create or get modal
+            // Close any existing modal first
+            closeSKUModal();
+            
+            // Create modal element
             let modal = document.getElementById('skuModal');
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = 'skuModal';
-                modal.className = 'sku-modal';
-                document.body.appendChild(modal);
+            if (modal) {
+                modal.remove(); // Remove existing modal to prevent duplicate event listeners
             }
+            
+            modal = document.createElement('div');
+            modal.id = 'skuModal';
+            modal.className = 'sku-modal';
+            document.body.appendChild(modal);
             
             // Build table HTML
             let tableHTML = '';
             if (skuDetails && Array.isArray(skuDetails) && skuDetails.length > 0) {
-                const totalQty = skuDetails.reduce((sum, item) => sum + item.totalQty, 0);
-                const totalPallets = skuDetails.reduce((sum, item) => sum + item.palletCount, 0);
+                const totalQty = skuDetails.reduce((sum, item) => sum + (item.totalQty || 0), 0);
+                const totalPallets = skuDetails.reduce((sum, item) => sum + (item.palletCount || 0), 0);
                 
                 tableHTML = `
                     <div class="sku-modal-content">
@@ -6233,9 +6241,9 @@
                             <tbody>
                                 ${skuDetails.map(item => `
                                     <tr>
-                                        <td class="sku-code">${escapeHtml(item.sku)}</td>
-                                        <td class="sku-pallets">${item.palletCount}</td>
-                                        <td class="sku-qty">${item.totalQty.toLocaleString()}</td>
+                                        <td class="sku-code">${escapeHtml(item.sku || 'N/A')}</td>
+                                        <td class="sku-pallets">${item.palletCount || 0}</td>
+                                        <td class="sku-qty">${(item.totalQty || 0).toLocaleString()}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -6260,21 +6268,26 @@
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
             
-            // Close on background click
-            modal.addEventListener('click', function(e) {
+            // Close on background click - use once to prevent multiple listeners
+            const backgroundClickHandler = function(e) {
                 if (e.target === modal) {
+                    e.stopPropagation();
                     closeSKUModal();
-                }
-            });
-            
-            // Close on Escape key
-            const escapeHandler = function(e) {
-                if (e.key === 'Escape') {
-                    closeSKUModal();
-                    document.removeEventListener('keydown', escapeHandler);
                 }
             };
-            document.addEventListener('keydown', escapeHandler);
+            modal.addEventListener('click', backgroundClickHandler, { once: true });
+            
+            // Close on Escape key - remove old handler first
+            if (skuModalEscapeHandler) {
+                document.removeEventListener('keydown', skuModalEscapeHandler);
+            }
+            
+            skuModalEscapeHandler = function(e) {
+                if (e.key === 'Escape') {
+                    closeSKUModal();
+                }
+            };
+            document.addEventListener('keydown', skuModalEscapeHandler);
         }
         
         function closeSKUModal() {
@@ -6282,6 +6295,17 @@
             if (modal) {
                 modal.classList.remove('active');
                 document.body.style.overflow = '';
+                // Remove escape handler
+                if (skuModalEscapeHandler) {
+                    document.removeEventListener('keydown', skuModalEscapeHandler);
+                    skuModalEscapeHandler = null;
+                }
+                // Remove modal after animation
+                setTimeout(() => {
+                    if (modal && modal.parentNode) {
+                        modal.remove();
+                    }
+                }, 300);
             }
         }
         

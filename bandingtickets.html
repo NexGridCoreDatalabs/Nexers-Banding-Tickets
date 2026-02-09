@@ -2179,6 +2179,132 @@
         let movementLastPallets = [];
         let movementSelectedPallet = null;
         
+        // PERFORMANCE OPTIMIZATION: Request caching system
+        const requestCache = new Map();
+        const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+        
+        function getCachedRequest(key) {
+            const cached = requestCache.get(key);
+            if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                return cached.data;
+            }
+            requestCache.delete(key);
+            return null;
+        }
+        
+        function setCachedRequest(key, data) {
+            requestCache.set(key, {
+                data: data,
+                timestamp: Date.now()
+            });
+        }
+        
+        function clearCache(pattern = null) {
+            if (pattern) {
+                // Clear specific pattern
+                for (const key of requestCache.keys()) {
+                    if (key.includes(pattern)) {
+                        requestCache.delete(key);
+                    }
+                }
+            } else {
+                // Clear all cache
+                requestCache.clear();
+            }
+        }
+        
+        // PERFORMANCE OPTIMIZATION: Elegant toast notification system
+        function showToast(message, type = 'info', duration = 4000) {
+            // Remove existing toasts
+            const existingToasts = document.querySelectorAll('.toast-notification');
+            existingToasts.forEach(toast => toast.remove());
+            
+            const toast = document.createElement('div');
+            toast.className = 'toast-notification';
+            toast.setAttribute('role', 'alert');
+            
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            const colors = {
+                success: { bg: 'rgba(34, 197, 94, 0.95)', border: '#22c55e', text: '#ffffff' },
+                error: { bg: 'rgba(239, 68, 68, 0.95)', border: '#ef4444', text: '#ffffff' },
+                warning: { bg: 'rgba(245, 158, 11, 0.95)', border: '#f59e0b', text: '#0f172a' },
+                info: { bg: 'rgba(59, 130, 246, 0.95)', border: '#3b82f6', text: '#ffffff' }
+            };
+            
+            const style = colors[type] || colors.info;
+            
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${style.bg};
+                color: ${style.text};
+                padding: 16px 24px;
+                border-radius: 12px;
+                border: 2px solid ${style.border};
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.2);
+                z-index: 10000;
+                font-family: 'Cascadia Mono', monospace;
+                font-size: 14px;
+                font-weight: 600;
+                max-width: 400px;
+                animation: slideInRight 0.3s ease-out;
+                backdrop-filter: blur(10px);
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            `;
+            
+            toast.innerHTML = `
+                <span style="font-size: 20px;">${icons[type] || icons.info}</span>
+                <span style="flex: 1;">${escapeHtml(message)}</span>
+                <button onclick="this.parentElement.remove()" style="background: transparent; border: none; color: ${style.text}; cursor: pointer; font-size: 18px; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">×</button>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Auto-remove after duration
+            setTimeout(() => {
+                toast.style.animation = 'slideOutRight 0.3s ease-in';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+            
+            // Add CSS animations if not already added
+            if (!document.getElementById('toast-animations')) {
+                const styleSheet = document.createElement('style');
+                styleSheet.id = 'toast-animations';
+                styleSheet.textContent = `
+                    @keyframes slideInRight {
+                        from {
+                            transform: translateX(100%);
+                            opacity: 0;
+                        }
+                        to {
+                            transform: translateX(0);
+                            opacity: 1;
+                        }
+                    }
+                    @keyframes slideOutRight {
+                        from {
+                            transform: translateX(0);
+                            opacity: 1;
+                        }
+                        to {
+                            transform: translateX(100%);
+                            opacity: 0;
+                        }
+                    }
+                `;
+                document.head.appendChild(styleSheet);
+            }
+        }
+        
         // HARDCODED: GitHub Pages URL - Update this with your actual GitHub Pages URL
         const DEFAULT_SCAN_BASE_URL = 'https://nexgridcoredatalabs.github.io/Nexers-Banding-Tickets/bandingtickets.html';
         
@@ -2221,7 +2347,7 @@
             if (url) {
                 // Basic validation
                 if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                    alert('URL must start with http:// or https://');
+                    showToast('URL must start with http:// or https://', 'error');
                     return;
                 }
                 if (url.includes('localhost') || url.includes('127.0.0.1')) {
@@ -2231,9 +2357,9 @@
                 }
                 SCAN_BASE_URL = url;
                 localStorage.setItem('scanBaseUrl', url);
-                alert('QR URL saved! Regenerate tickets for the new URL to take effect.');
+                showToast('QR URL saved! Regenerate tickets for the new URL to take effect.', 'success');
             } else {
-                alert('Please enter a URL');
+                showToast('Please enter a URL', 'warning');
             }
         }
         const urlParams = new URLSearchParams(window.location.search);
@@ -2620,12 +2746,22 @@
             const ticketCount = parseInt(document.getElementById('ticketCount').value, 10);
             
             if (ticketCount % 4 !== 0) {
-                alert('Number of tickets must be a multiple of 4');
+                showToast('Number of tickets must be a multiple of 4', 'warning');
                 return;
             }
 
             const container = document.getElementById('printContainer');
-            container.innerHTML = '';
+            const generateBtn = document.querySelector('.btn-generate[onclick="generateTickets()"]');
+            const originalBtnText = generateBtn ? generateBtn.innerHTML : '';
+            
+            // Show loading state
+            if (generateBtn) {
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '⏳ Generating Tickets...';
+                generateBtn.style.opacity = '0.7';
+            }
+            
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p style="margin-top: 20px; font-weight: 600;">Generating tickets...</p></div>';
 
             const ticketsPerPage = 4;
             const pages = Math.ceil(ticketCount / ticketsPerPage);
@@ -2651,6 +2787,13 @@
                 container.appendChild(pageDiv);
             }
 
+            // Restore button state
+            if (generateBtn) {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = originalBtnText;
+                generateBtn.style.opacity = '1';
+            }
+            
             renderTicketQRCodes(container);
 
             // Show print dialog
@@ -2701,7 +2844,7 @@
                             `
                         });
                     } else {
-                        alert('⚠️ Print cancelled. Serial counter NOT updated.\n\nCurrent serial remains: ' + formatSerial(currentSerial));
+                        showToast('Print cancelled. Serial counter NOT updated. Current serial: ' + formatSerial(currentSerial), 'warning', 5000);
                     }
                 }, 500);
             }, 100);
@@ -2709,7 +2852,7 @@
 
         async function generateAllColorTicketsPDF() {
             if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
-                alert('PDF libraries not loaded. Please refresh the page.');
+                showToast('PDF libraries not loaded. Please refresh the page.', 'error');
                 return;
             }
 
@@ -2725,7 +2868,7 @@
 
             try {
                 const container = document.getElementById('printContainer');
-                container.innerHTML = '';
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p style="margin-top: 20px; font-weight: 600;">Generating PDF tickets...</p><p style="margin-top: 10px; font-size: 13px; opacity: 0.8;">This may take a moment for large batches</p></div>';
                 container.style.display = 'block';
 
                 // Generate all tickets: 52 serials per color × 4 colors = 208 unique serials total
@@ -2908,7 +3051,7 @@
                             `
                         });
                     } else {
-                        alert('⚠️ Download failed. Serial counter NOT updated.\n\nCurrent serial remains: ' + formatSerial(currentSerial));
+                        showToast('Download failed. Serial counter NOT updated. Current serial: ' + formatSerial(currentSerial), 'warning', 5000);
                     }
                 }, 500);
 
@@ -2924,7 +3067,7 @@
                 alert(`✅ PDF generated successfully!\n\n${ticketCount} serials per color × 4 colors = ${allTicketPairs.length} unique serials total\n${totalPages} pages generated\n\nSerial ranges:\n• ${firstSerial} to ${formatSerial(currentSerial - (ticketCount * 3) - 1)}: RED\n• ${formatSerial(currentSerial - (ticketCount * 3))} to ${formatSerial(currentSerial - (ticketCount * 2) - 1)}: GREEN\n• ${formatSerial(currentSerial - (ticketCount * 2))} to ${formatSerial(currentSerial - ticketCount - 1)}: BLUE\n• ${formatSerial(currentSerial - ticketCount)} to ${lastSerial}: YELLOW\n\nFile: ${fileName}`);
             } catch (error) {
                 console.error('Error generating PDF:', error);
-                alert('Error generating PDF: ' + error.message);
+                showToast('Error generating PDF: ' + error.message, 'error', 6000);
                 originalButton.innerHTML = originalText;
                 originalButton.disabled = false;
             }
@@ -3201,53 +3344,96 @@
             }).join('\n');
         }
 
+        // OPTIMIZED: Batch QR code rendering for better performance
         function renderTicketQRCodes(rootElement = document) {
             if (typeof QRCode === 'undefined') {
                 console.error('❌ QRCode library not loaded!');
                 return;
             }
-            const elements = rootElement.querySelectorAll('.ticket-qr');
-            console.log(`📱 Rendering ${elements.length} QR codes...`);
+            const elements = Array.from(rootElement.querySelectorAll('.ticket-qr'));
+            const totalElements = elements.length;
+            console.log(`📱 Rendering ${totalElements} QR codes (batched for performance)...`);
+            
+            if (totalElements === 0) return;
+            
+            // Show loading indicator
             elements.forEach(container => {
-                const serial = container.dataset.serial;
-                const isDuplicate = container.dataset.duplicate === 'true';
-                const ticketColor = container.dataset.color || 'blue';
-                if (!serial) {
-                    console.warn('⚠️ Missing serial number for QR code');
-                    return;
+                if (!container.querySelector('.qr-loading')) {
+                    const loadingDiv = document.createElement('div');
+                    loadingDiv.className = 'qr-loading';
+                    loadingDiv.style.cssText = 'display: flex; align-items: center; justify-content: center; height: 100%; color: rgba(251, 191, 36, 0.6); font-size: 10px;';
+                    loadingDiv.textContent = '⏳';
+                    container.innerHTML = '';
+                    container.appendChild(loadingDiv);
                 }
-                // Use data-mode attribute if present, otherwise fall back to duplicate logic
-                const mode = container.dataset.mode || (isDuplicate ? 'edit' : 'view');
-                const link = buildScanUrl(serial, mode, ticketColor);
+            });
+            
+            // Batch processing configuration
+            const BATCH_SIZE = 10; // Process 10 QR codes per frame
+            let currentIndex = 0;
+            let completedCount = 0;
+            
+            function processBatch() {
+                const batchEnd = Math.min(currentIndex + BATCH_SIZE, totalElements);
+                const batch = elements.slice(currentIndex, batchEnd);
                 
-                if (!link || link === '') {
-                    console.error(`❌ Failed to generate URL for serial ${serial}`);
-                    container.textContent = 'QR ERROR';
-                    return;
-                }
-                
-                container.innerHTML = '';
-                const canvas = document.createElement('canvas');
-                QRCode.toCanvas(canvas, link, {
-                    width: 140,
-                    margin: 0,
-                    color: {
-                        dark: '#1a202c',
-                        light: '#ffffff'
-                    }
-                }, (error) => {
-                    if (error) {
-                        console.error(`❌ QR code generation failed for ${serial}:`, error);
-                        container.textContent = 'QR ERROR';
+                batch.forEach(container => {
+                    const serial = container.dataset.serial;
+                    const isDuplicate = container.dataset.duplicate === 'true';
+                    const ticketColor = container.dataset.color || 'blue';
+                    
+                    if (!serial) {
+                        console.warn('⚠️ Missing serial number for QR code');
+                        container.innerHTML = '<span style="color: #fca5a5; font-size: 10px;">ERROR</span>';
+                        completedCount++;
                         return;
                     }
-                    canvas.style.width = '100%';
-                    canvas.style.height = '100%';
-                    container.appendChild(canvas);
-                    console.log(`✅ QR code generated for ${serial} (${mode})`);
+                    
+                    const mode = container.dataset.mode || (isDuplicate ? 'edit' : 'view');
+                    const link = buildScanUrl(serial, mode, ticketColor);
+                    
+                    if (!link || link === '') {
+                        console.error(`❌ Failed to generate URL for serial ${serial}`);
+                        container.innerHTML = '<span style="color: #fca5a5; font-size: 10px;">QR ERROR</span>';
+                        completedCount++;
+                        return;
+                    }
+                    
+                    const canvas = document.createElement('canvas');
+                    QRCode.toCanvas(canvas, link, {
+                        width: 140,
+                        margin: 0,
+                        color: {
+                            dark: '#1a202c',
+                            light: '#ffffff'
+                        }
+                    }, (error) => {
+                        completedCount++;
+                        if (error) {
+                            console.error(`❌ QR code generation failed for ${serial}:`, error);
+                            container.innerHTML = '<span style="color: #fca5a5; font-size: 10px;">ERROR</span>';
+                            return;
+                        }
+                        canvas.style.width = '100%';
+                        canvas.style.height = '100%';
+                        container.innerHTML = '';
+                        container.appendChild(canvas);
+                        container.title = `Scan to ${mode === 'view' ? 'view' : 'edit'} ${serial}`;
+                    });
                 });
-                container.title = `Scan to ${mode === 'view' ? 'view' : 'edit'} ${serial}`;
-            });
+                
+                currentIndex = batchEnd;
+                
+                // Continue with next batch if there are more elements
+                if (currentIndex < totalElements) {
+                    requestAnimationFrame(processBatch);
+                } else if (completedCount === totalElements) {
+                    console.log(`✅ All ${totalElements} QR codes rendered successfully`);
+                }
+            }
+            
+            // Start batch processing
+            requestAnimationFrame(processBatch);
         }
 
         function createTicketHTML(serialNum, color, isDuplicate, data = {}, qrMode = 'edit') {
@@ -3358,11 +3544,22 @@
             `;
         }
 
-        // Google Sheets API Functions - Using Apps Script
-        async function readTicketFromSheet(serial) {
+        // Google Sheets API Functions - Using Apps Script with CACHING
+        async function readTicketFromSheet(serial, useCache = true) {
             if (!GOOGLE_APPS_SCRIPT_URL) {
                 throw new Error('Google Apps Script URL not configured');
             }
+            
+            // Check cache first
+            const cacheKey = `ticket_${serial}`;
+            if (useCache) {
+                const cached = getCachedRequest(cacheKey);
+                if (cached !== null) {
+                    console.log(`📦 Cache hit for ticket: ${serial}`);
+                    return cached;
+                }
+            }
+            
             try {
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=read&serial=${encodeURIComponent(serial)}`;
                 const response = await fetch(url);
@@ -3475,6 +3672,12 @@
                 // Merge normalized fields back
                 Object.assign(ticket, normalizedTicket);
                 
+                // Cache the result
+                if (useCache) {
+                    setCachedRequest(cacheKey, ticket);
+                    console.log(`💾 Cached ticket: ${serial}`);
+                }
+                
                 return ticket;
             } catch (error) {
                 throw error;
@@ -3484,6 +3687,12 @@
         async function saveTicketToSheet(ticketData, isUpdate = false, existingTicket = null) {
             if (!GOOGLE_APPS_SCRIPT_URL) {
                 throw new Error('Google Apps Script URL not configured');
+            }
+            
+            // Clear cache for this ticket after save
+            const serial = ticketData.serial;
+            if (serial) {
+                clearCache(`ticket_${serial}`);
             }
             
             const timestamp = new Date().toISOString();
@@ -4396,10 +4605,17 @@
                         await new Promise(resolve => setTimeout(resolve, 50));
                         await downloadFilledTicket(pageElement, data.serial);
                         setFillStatus('✅ Saved to Google Sheets and download complete!');
+                        showToast('Ticket saved successfully!', 'success');
                     } catch (error) {
                         setFillStatus(`❌ Error: ${error.message}`);
                         console.error('Save error:', error);
-                        alert(`Error saving to Google Sheets: ${error.message}\n\nCheck browser console for details.`);
+                        showToast(`Error saving to Google Sheets: ${error.message}`, 'error', 6000);
+                        
+                        // Restore button state on error
+                        const submitBtn = document.getElementById('movementSubmitBtn') || document.querySelector('#ticketForm button[type="submit"]');
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                        }
                     }
                 });
             }

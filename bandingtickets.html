@@ -5106,32 +5106,40 @@
                         return null; // No allowed zones found
                     }
                     
-                    // Dispatch or Shipped -> OUTBONDED (final consumer)
+                    // Dispatch or Shipped -> Outbounding zone first, then OUTBONDED
                     if (status === 'dispatch' || status === 'shipped') {
-                        const outbondedZone = movementZones.find(z => 
-                            z.ZoneName.toLowerCase() === 'outbonded'
-                        );
-                        if (outbondedZone) {
-                            return outbondedZone.ZoneName;
+                        // First check if current zone is Dispatch Loading Area → should go to Outbounding
+                        if (zoneName.toLowerCase().includes('dispatch loading area')) {
+                            const outboundingZone = movementZones.find(z => 
+                                z.ZoneName.toLowerCase().includes('outbounding')
+                            );
+                            if (outboundingZone) {
+                                return outboundingZone.ZoneName;
+                            }
                         }
-                        // Fallback to Outbounding zone if OUTBONDED doesn't exist
-                        const outboundingZone = movementZones.find(z => 
-                            z.ZoneName.toLowerCase().includes('outbounding')
-                        );
-                        if (outboundingZone) {
-                            return outboundingZone.ZoneName;
+                        // Otherwise, if already in Outbounding, go to OUTBONDED
+                        if (zoneName.toLowerCase().includes('outbounding')) {
+                            const outbondedZone = movementZones.find(z => 
+                                z.ZoneName.toLowerCase() === 'outbonded'
+                            );
+                            if (outbondedZone) {
+                                return outbondedZone.ZoneName;
+                            }
                         }
                     }
                     
-                    // Forward movement flow (will be customized by user)
-                    // PLACEHOLDER - user will provide sequence
+                    // Forward movement flow
                     const forwardFlow = {
-                        // User will provide sequence - keeping example for now
-                        'Receiving Area': ['Cold Storage', 'Ambient Zone'],
-                        'Cold Storage': ['Ambient Zone', 'Dispatch'],
-                        'Ambient Zone': ['Dispatch'],
-                        'Dispatch': ['Outbounded'],
-                        'Shipped': ['Outbounded']
+                        'Receiving Area': ['Detergents Zone', 'Fats Zone', 'Liquids/Oils Zone', 'Soaps Zone'],
+                        'Detergents Zone': ['SuperMarket Area', 'Dispatch Loading Area'],
+                        'Fats Zone': ['SuperMarket Area', 'Dispatch Loading Area'],
+                        'Liquids/Oils Zone': ['SuperMarket Area', 'Dispatch Loading Area'],
+                        'Soaps Zone': ['SuperMarket Area', 'Dispatch Loading Area'],
+                        'SuperMarket Area': ['Dispatch Loading Area'],
+                        'Dispatch Loading Area': ['Outbounding'],  // Next is Outbounding (OUT), not OUTBONDED
+                        'Outbounding': ['OUTBONDED'],  // Outbounding zone → OUTBONDED (final consumer)
+                        'Dispatch': ['Outbounding'],  // Dispatch status → Outbounding zone
+                        'Shipped': ['Outbounding']  // Shipped status → Outbounding zone
                     };
                     
                     const nextZones = forwardFlow[zoneName];
@@ -5166,6 +5174,7 @@
                                 <tr style="background: rgba(245, 158, 11, 0.2); border-bottom: 2px solid rgba(245, 158, 11, 0.4);">
                                     <th style="padding: 12px; text-align: left; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Zone</th>
                                     <th style="padding: 12px; text-align: center; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Pallets</th>
+                                    <th style="padding: 12px; text-align: center; color: #fbbf24; font-weight: 700; text-transform: uppercase;">SKUs</th>
                                     <th style="padding: 12px; text-align: center; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Total Qty</th>
                                     <th style="padding: 12px; text-align: left; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Oldest Pallet</th>
                                     <th style="padding: 12px; text-align: center; color: #fbbf24; font-weight: 700; text-transform: uppercase;">FIFO</th>
@@ -5182,6 +5191,18 @@
                     const oldestId = zoneData.oldestPallet ? (zoneData.oldestPallet.PalletID || 'N/A') : 'N/A';
                     const hasError = zoneData.error;
                     
+                    // Count unique SKUs in this zone
+                    const uniqueSKUs = new Set();
+                    if (!hasError && zoneData.pallets.length > 0) {
+                        zoneData.pallets.forEach(pallet => {
+                            const sku = pallet.SKU || pallet.sku;
+                            if (sku && sku.trim()) {
+                                uniqueSKUs.add(sku.trim());
+                            }
+                        });
+                    }
+                    const skuCount = uniqueSKUs.size;
+                    
                     // Determine action recommendation - ALWAYS show if there are pallets
                     let actionHTML = '<span style="color: rgba(255, 255, 255, 0.5);">—</span>';
                     
@@ -5193,12 +5214,20 @@
                             if (status.includes('outbounding')) {
                                 return true; // Always needs movement
                             }
-                            // Dispatch, Shipped should go to OUTBONDED (final consumer)
+                            // Dispatch, Shipped: If in Dispatch Loading Area → Outbounding, if in Outbounding → OUTBONDED
                             if (status === 'dispatch' || status === 'shipped') {
-                                const outbondedZone = movementZones.find(z => 
-                                    z.ZoneName.toLowerCase() === 'outbonded'
-                                );
-                                return outbondedZone && p.CurrentZone !== outbondedZone.ZoneName;
+                                const currentZoneLower = (p.CurrentZone || '').toLowerCase();
+                                if (currentZoneLower.includes('dispatch loading area')) {
+                                    const outboundingZone = movementZones.find(z => 
+                                        z.ZoneName.toLowerCase().includes('outbounding')
+                                    );
+                                    return outboundingZone && p.CurrentZone !== outboundingZone.ZoneName;
+                                } else if (currentZoneLower.includes('outbounding')) {
+                                    const outbondedZone = movementZones.find(z => 
+                                        z.ZoneName.toLowerCase() === 'outbonded'
+                                    );
+                                    return outbondedZone && p.CurrentZone !== outbondedZone.ZoneName;
+                                }
                             }
                             // FIFO zones with multiple pallets - oldest should move
                             if (fifoRequired && zoneData.pallets.length > 1) {
@@ -5273,6 +5302,7 @@
                                 ${hasError ? `<br><small style="color: #fca5a5; font-size: 10px;">⚠️ ${escapeHtml(zoneData.error)}</small>` : ''}
                             </td>
                             <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : zoneData.pallets.length}</td>
+                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : skuCount}</td>
                             <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : zoneData.totalQty.toLocaleString()}</td>
                             <td style="padding: 12px; color: rgba(255, 255, 255, 0.85); font-size: 12px;">
                                 ${hasError ? '—' : escapeHtml(oldestId)}<br>

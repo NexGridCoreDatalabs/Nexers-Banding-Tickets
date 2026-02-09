@@ -4119,6 +4119,15 @@ function checkZoneEligibility(config) {
     return { allowed: false, message: 'Target zone required' };
   }
   const toZone = config.toZone.trim();
+  const toZoneUpper = toZone.toUpperCase();
+  // OUTBONDED is the final consumer destination - accepts all SKUs from Outbounding
+  if (toZoneUpper === 'OUTBONDED' || toZoneUpper === 'OUTBOUNDED') {
+    return {
+      allowed: true,
+      targetStatus: 'Outbounded',
+      info: 'OUTBONDED is final destination - accepts all pallets.'
+    };
+  }
   if (toZone === 'Outbounding') {
     return {
       allowed: true,

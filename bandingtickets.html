@@ -2102,11 +2102,14 @@
                                         <option value="Rework">Rework</option>
                                         <option value="Dispatch">Dispatch</option>
                                         <option value="Shipped">Shipped</option>
+                                        <option value="Outbounded">Outbounded</option>
                                     </select>
                                 </div>
                                 <button type="button" class="btn-generate" onclick="refreshMovementZone()">🔄 Refresh</button>
+                                <button type="button" class="btn-reset" onclick="refreshZoneOverview()" style="margin-top: 10px;">📊 View All Zones</button>
                             </div>
                             <div id="movementZoneMeta" class="movement-zone-meta"></div>
+                            <div id="zoneOverviewTable" style="display: none; margin-top: 20px; background: rgba(15, 23, 42, 0.6); border-radius: 12px; padding: 16px; border: 2px solid rgba(245, 158, 11, 0.3);"></div>
                             <div id="movementPalletList" class="movement-pallet-list">
                                 <div style="color:#94a3b8;">Select a zone to view pallets.</div>
                             </div>
@@ -2754,14 +2757,15 @@
             const generateBtn = document.querySelector('.btn-generate[onclick="generateTickets()"]');
             const originalBtnText = generateBtn ? generateBtn.innerHTML : '';
             
-            // Show loading state
+            // Show loading state on button only (not in container to avoid breaking layout)
             if (generateBtn) {
                 generateBtn.disabled = true;
                 generateBtn.innerHTML = '⏳ Generating Tickets...';
                 generateBtn.style.opacity = '0.7';
             }
             
-            container.innerHTML = '<div style="text-align: center; padding: 40px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p style="margin-top: 20px; font-weight: 600;">Generating tickets...</p></div>';
+            // Clear container immediately without loading message (to maintain 8 tickets per page)
+            container.innerHTML = '';
 
             const ticketsPerPage = 4;
             const pages = Math.ceil(ticketCount / ticketsPerPage);
@@ -4815,6 +4819,18 @@
             const zoneSelect = document.getElementById('movementZoneSelect');
             const toZoneSelect = document.getElementById('movementToZoneSelect');
             if (!zoneSelect || !toZoneSelect) return;
+            
+            // Ensure OUTBOUNDED zone exists
+            const hasOutbounded = movementZones.some(z => z.ZoneName === 'Outbounded');
+            if (!hasOutbounded) {
+                movementZones.push({
+                    ZoneName: 'Outbounded',
+                    Prefix: 'OUT',
+                    FIFORequired: false,
+                    AllowsSplitting: false
+                });
+            }
+            
             movementZones.sort((a, b) => (a.ZoneName || '').localeCompare(b.ZoneName || ''));
             zoneSelect.innerHTML = '';
             toZoneSelect.innerHTML = '';
@@ -4833,6 +4849,133 @@
             }
             updateMovementZoneMeta(zoneSelect.value);
             autoFillMovementOperator();
+        }
+        
+        // NEW: Comprehensive zone overview table with FIFO indicators
+        async function refreshZoneOverview() {
+            const tableContainer = document.getElementById('zoneOverviewTable');
+            const palletList = document.getElementById('movementPalletList');
+            
+            if (!tableContainer) return;
+            
+            // Toggle visibility
+            const isVisible = tableContainer.style.display !== 'none';
+            tableContainer.style.display = isVisible ? 'none' : 'block';
+            if (palletList) palletList.style.display = isVisible ? 'flex' : 'none';
+            
+            if (isVisible) return; // Hide table
+            
+            tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p></div>';
+            
+            try {
+                // Get pallets for all zones
+                const allZonesData = [];
+                for (const zone of movementZones) {
+                    try {
+                        const params = new URLSearchParams({
+                            action: 'getPalletsInZone',
+                            zoneName: zone.ZoneName,
+                            limit: 10000
+                        });
+                        const result = await callAppsScript(params);
+                        const pallets = result.pallets || [];
+                        
+                        // Sort by CreatedAt for FIFO (oldest first)
+                        pallets.sort((a, b) => {
+                            const dateA = new Date(a.CreatedAt || a.CreatedDate || 0);
+                            const dateB = new Date(b.CreatedAt || b.CreatedDate || 0);
+                            return dateA - dateB;
+                        });
+                        
+                        allZonesData.push({
+                            zone: zone,
+                            pallets: pallets,
+                            totalQty: pallets.reduce((sum, p) => sum + (parseFloat(p.RemainingQuantity ?? p.Quantity ?? 0) || 0), 0),
+                            oldestPallet: pallets[0] || null,
+                            needsMovement: pallets.length > 0 && parseBooleanFlag(zone.FIFORequired) && pallets.length > 1
+                        });
+                    } catch (error) {
+                        console.error(`Error loading zone ${zone.ZoneName}:`, error);
+                        allZonesData.push({
+                            zone: zone,
+                            pallets: [],
+                            totalQty: 0,
+                            oldestPallet: null,
+                            needsMovement: false
+                        });
+                    }
+                }
+                
+                // Build comprehensive table
+                let tableHTML = `
+                    <h3 style="color: #fbbf24; margin: 0 0 16px 0; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">⬥ Zone Overview & FIFO Status</h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                            <thead>
+                                <tr style="background: rgba(245, 158, 11, 0.2); border-bottom: 2px solid rgba(245, 158, 11, 0.4);">
+                                    <th style="padding: 12px; text-align: left; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Zone</th>
+                                    <th style="padding: 12px; text-align: center; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Pallets</th>
+                                    <th style="padding: 12px; text-align: center; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Total Qty</th>
+                                    <th style="padding: 12px; text-align: left; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Oldest Pallet</th>
+                                    <th style="padding: 12px; text-align: center; color: #fbbf24; font-weight: 700; text-transform: uppercase;">FIFO</th>
+                                    <th style="padding: 12px; text-align: center; color: #fbbf24; font-weight: 700; text-transform: uppercase;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                allZonesData.forEach((zoneData, index) => {
+                    const zone = zoneData.zone;
+                    const fifoRequired = parseBooleanFlag(zone.FIFORequired);
+                    const oldestDate = zoneData.oldestPallet ? formatMovementDate(zoneData.oldestPallet.CreatedAt || zoneData.oldestPallet.CreatedDate) : 'N/A';
+                    const oldestId = zoneData.oldestPallet ? (zoneData.oldestPallet.PalletID || 'N/A') : 'N/A';
+                    const priorityClass = zoneData.needsMovement ? 'priority-high' : '';
+                    
+                    tableHTML += `
+                        <tr style="border-bottom: 1px solid rgba(245, 158, 11, 0.2); ${index % 2 === 0 ? 'background: rgba(15, 23, 42, 0.3);' : ''}">
+                            <td style="padding: 12px; color: rgba(255, 255, 255, 0.95); font-weight: 600;">
+                                ${escapeHtml(zone.ZoneName)}<br>
+                                <small style="color: rgba(251, 191, 36, 0.7); font-size: 11px;">Prefix: ${zone.Prefix || 'N/A'}</small>
+                            </td>
+                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${zoneData.pallets.length}</td>
+                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${zoneData.totalQty.toLocaleString()}</td>
+                            <td style="padding: 12px; color: rgba(255, 255, 255, 0.85); font-size: 12px;">
+                                ${escapeHtml(oldestId)}<br>
+                                <small style="color: rgba(251, 191, 36, 0.6);">${oldestDate}</small>
+                            </td>
+                            <td style="padding: 12px; text-align: center;">
+                                ${fifoRequired ? 
+                                    `<span style="color: #fbbf24; font-weight: 700;">✓ Enforced</span>` : 
+                                    `<span style="color: rgba(255, 255, 255, 0.5);">—</span>`
+                                }
+                            </td>
+                            <td style="padding: 12px; text-align: center;">
+                                ${zoneData.needsMovement ? 
+                                    `<span style="background: rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; text-transform: uppercase;">⚠️ Move Fast</span>` : 
+                                    `<span style="color: rgba(255, 255, 255, 0.5);">—</span>`
+                                }
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tableHTML += `
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 16px; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid #f59e0b;">
+                        <p style="margin: 0; color: rgba(251, 191, 36, 0.9); font-size: 12px; line-height: 1.6;">
+                            <strong>⚠️ Move Fast:</strong> Zones with FIFO enabled and multiple pallets. Oldest pallets should be moved first.<br>
+                            <strong>Outbounded:</strong> Final destination for dispatched merchandise.
+                        </p>
+                    </div>
+                `;
+                
+                tableContainer.innerHTML = tableHTML;
+            } catch (error) {
+                console.error('Error loading zone overview:', error);
+                tableContainer.innerHTML = `<div style="color: #fca5a5; padding: 20px; text-align: center;">Error loading zone overview: ${error.message}</div>`;
+            }
         }
 
         function updateMovementZoneMeta(zoneName) {
@@ -4866,7 +5009,7 @@
                 const params = new URLSearchParams({
                     action: 'getPalletsInZone',
                     zoneName: zoneName,
-                    limit: 500
+                    limit: 10000  // Increased limit to show ALL pallets
                 });
                 if (statusFilter) params.append('status', statusFilter);
                 const result = await callAppsScript(params);

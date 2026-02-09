@@ -4887,25 +4887,11 @@
             tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">This may take a moment</p></div>';
             
             try {
-                // Get pallets for all zones with progress tracking
-                const allZonesData = [];
+                // OPTIMIZED: Load all zones in parallel instead of sequentially
                 const totalZones = movementZones.length;
-                let loadedZones = 0;
                 
-                // Update progress
-                const updateProgress = () => {
-                    const progress = Math.round((loadedZones / totalZones) * 100);
-                    tableContainer.innerHTML = `
-                        <div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);">
-                            <div class="loading-spinner"></div>
-                            <p>Loading zone overview...</p>
-                            <p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">${loadedZones} of ${totalZones} zones loaded (${progress}%)</p>
-                        </div>
-                    `;
-                };
-                
-                // Process zones with timeout protection
-                for (const zone of movementZones) {
+                // Create all zone loading promises at once
+                const zonePromises = movementZones.map(async (zone) => {
                     try {
                         const params = new URLSearchParams({
                             action: 'getPalletsInZone',
@@ -4913,9 +4899,9 @@
                             limit: 10000
                         });
                         
-                        // Add timeout to prevent hanging
+                        // Reduced timeout since we're loading in parallel
                         const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error(`Timeout loading zone ${zone.ZoneName}`)), 10000)
+                            setTimeout(() => reject(new Error(`Timeout`)), 5000)
                         );
                         
                         const result = await Promise.race([
@@ -4932,30 +4918,78 @@
                             return dateA - dateB;
                         });
                         
-                        allZonesData.push({
+                        return {
                             zone: zone,
                             pallets: pallets,
                             totalQty: pallets.reduce((sum, p) => sum + (parseFloat(p.RemainingQuantity ?? p.Quantity ?? 0) || 0), 0),
                             oldestPallet: pallets[0] || null,
-                            needsMovement: pallets.length > 0 && parseBooleanFlag(zone.FIFORequired) && pallets.length > 1
-                        });
-                        
-                        loadedZones++;
-                        updateProgress();
+                            needsMovement: pallets.length > 0 && parseBooleanFlag(zone.FIFORequired) && pallets.length > 1,
+                            error: null
+                        };
                     } catch (error) {
                         console.error(`Error loading zone ${zone.ZoneName}:`, error);
-                        allZonesData.push({
+                        return {
                             zone: zone,
                             pallets: [],
                             totalQty: 0,
                             oldestPallet: null,
                             needsMovement: false,
                             error: error.message
-                        });
-                        loadedZones++;
-                        updateProgress();
+                        };
                     }
-                }
+                });
+                
+                // Show loading state
+                tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Loading all zones in parallel...</p></div>';
+                
+                // Wait for all zones to load in parallel
+                const allZonesData = await Promise.all(zonePromises);
+                
+                // Helper function to recommend destination zone based on forward movement flow
+                const recommendDestination = (currentZone, palletStatus) => {
+                    // If status is "Outbounding", "Dispatch", or "Shipped" -> move to Outbounded
+                    if (palletStatus && (palletStatus.toLowerCase().includes('outbound') || 
+                        palletStatus.toLowerCase() === 'dispatch' || 
+                        palletStatus.toLowerCase() === 'shipped')) {
+                        return 'Outbounded';
+                    }
+                    
+                    // Forward movement flow (can be customized based on your warehouse flow)
+                    // Example: Receiving Area -> Cold Storage -> Ambient Zone -> Dispatch -> Outbounded
+                    const forwardFlow = {
+                        'Receiving Area': ['Cold Storage', 'Ambient Zone'],
+                        'Cold Storage': ['Ambient Zone', 'Dispatch'],
+                        'Ambient Zone': ['Dispatch'],
+                        'Dispatch': ['Outbounded'],
+                        'Shipped': ['Outbounded']
+                    };
+                    
+                    const zoneName = currentZone.ZoneName || currentZone;
+                    const nextZones = forwardFlow[zoneName];
+                    
+                    if (nextZones && nextZones.length > 0) {
+                        // Find first available next zone
+                        for (const nextZone of nextZones) {
+                            const zoneExists = movementZones.some(z => z.ZoneName === nextZone);
+                            if (zoneExists) {
+                                return nextZone;
+                            }
+                        }
+                    }
+                    
+                    // Default: if no forward flow defined, suggest Outbounded for dispatch status
+                    if (palletStatus && palletStatus.toLowerCase().includes('dispatch')) {
+                        return 'Outbounded';
+                    }
+                    
+                    // If Outbounded exists and current zone is not Outbounded, suggest it
+                    const outboundedExists = movementZones.some(z => z.ZoneName === 'Outbounded');
+                    if (outboundedExists && zoneName !== 'Outbounded') {
+                        return 'Outbounded';
+                    }
+                    
+                    return null; // No recommendation
+                };
                 
                 // Build comprehensive table
                 let tableHTML = `
@@ -4982,6 +5016,61 @@
                     const oldestId = zoneData.oldestPallet ? (zoneData.oldestPallet.PalletID || 'N/A') : 'N/A';
                     const hasError = zoneData.error;
                     
+                    // Determine action recommendation
+                    let actionHTML = '<span style="color: rgba(255, 255, 255, 0.5);">—</span>';
+                    
+                    if (!hasError && zoneData.pallets.length > 0) {
+                        // Find pallets that need movement (forward flow)
+                        const palletsNeedingMovement = zoneData.pallets.filter(p => {
+                            const status = (p.Status || '').toLowerCase();
+                            // Outbounding, Dispatch, Shipped should go to Outbounded
+                            if (status.includes('outbound') || status === 'dispatch' || status === 'shipped') {
+                                return p.CurrentZone !== 'Outbounded';
+                            }
+                            // FIFO zones with multiple pallets - oldest should move
+                            if (fifoRequired && zoneData.pallets.length > 1) {
+                                return p.PalletID === oldestId;
+                            }
+                            return false;
+                        });
+                        
+                        if (palletsNeedingMovement.length > 0) {
+                            // Get the priority pallet (oldest if FIFO, or first outbounding)
+                            const priorityPallet = palletsNeedingMovement.find(p => 
+                                (p.Status || '').toLowerCase().includes('outbound') || 
+                                (p.Status || '').toLowerCase() === 'dispatch' ||
+                                (p.Status || '').toLowerCase() === 'shipped'
+                            ) || palletsNeedingMovement[0];
+                            
+                            const palletId = priorityPallet.PalletID || 'N/A';
+                            const palletStatus = priorityPallet.Status || '';
+                            const recommendedDest = recommendDestination(zone, palletStatus);
+                            
+                            if (recommendedDest) {
+                                actionHTML = `
+                                    <div style="text-align: left; font-size: 11px; line-height: 1.6;">
+                                        <div style="margin-bottom: 4px;">
+                                            <strong style="color: #fbbf24;">Move First:</strong><br>
+                                            <span style="color: rgba(255, 255, 255, 0.95); font-family: 'Courier New', monospace; font-weight: 600;">${escapeHtml(palletId)}</span>
+                                        </div>
+                                        <div>
+                                            <strong style="color: #fbbf24;">→ To:</strong><br>
+                                            <span style="color: rgba(255, 255, 255, 0.95); font-weight: 600;">${escapeHtml(recommendedDest)}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            } else if (zoneData.needsMovement) {
+                                actionHTML = `
+                                    <div style="text-align: left; font-size: 11px;">
+                                        <strong style="color: #fbbf24;">Move First:</strong><br>
+                                        <span style="color: rgba(255, 255, 255, 0.95); font-family: 'Courier New', monospace; font-weight: 600;">${escapeHtml(oldestId)}</span><br>
+                                        <small style="color: rgba(251, 191, 36, 0.7);">(FIFO - oldest first)</small>
+                                    </div>
+                                `;
+                            }
+                        }
+                    }
+                    
                     tableHTML += `
                         <tr style="border-bottom: 1px solid rgba(245, 158, 11, 0.2); ${index % 2 === 0 ? 'background: rgba(15, 23, 42, 0.3);' : ''}">
                             <td style="padding: 12px; color: rgba(255, 255, 255, 0.95); font-weight: 600;">
@@ -5003,13 +5092,8 @@
                                     )
                                 }
                             </td>
-                            <td style="padding: 12px; text-align: center;">
-                                ${hasError ? '<span style="color: rgba(255, 255, 255, 0.5);">—</span>' :
-                                    (zoneData.needsMovement ? 
-                                        `<span style="background: rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; text-transform: uppercase;">⚠️ Move Fast</span>` : 
-                                        `<span style="color: rgba(255, 255, 255, 0.5);">—</span>`
-                                    )
-                                }
+                            <td style="padding: 12px; text-align: left; min-width: 180px;">
+                                ${actionHTML}
                             </td>
                         </tr>
                     `;
@@ -5021,8 +5105,10 @@
                     </div>
                     <div style="margin-top: 16px; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid #f59e0b;">
                         <p style="margin: 0; color: rgba(251, 191, 36, 0.9); font-size: 12px; line-height: 1.6;">
-                            <strong>⚠️ Move Fast:</strong> Zones with FIFO enabled and multiple pallets. Oldest pallets should be moved first.<br>
-                            <strong>Outbounded:</strong> Final destination for dispatched merchandise.
+                            <strong>📋 Action Column:</strong> Shows which pallet ID to move first and recommended destination zone.<br>
+                            <strong>⚠️ FIFO Zones:</strong> Oldest pallets (by creation date) should be moved first.<br>
+                            <strong>🚚 Outbounding/Dispatch:</strong> Automatically recommends moving to "Outbounded" zone.<br>
+                            <strong>➡️ Forward Flow:</strong> Receiving → Storage → Dispatch → Outbounded
                         </p>
                     </div>
                 `;

@@ -5396,7 +5396,7 @@
                         
                         // Priority: Outbounding > Dispatch/Shipped > FIFO oldest
                         let priorityPallet = null;
-                        let recommendedDest = null;
+                        let allAllowedDestinations = [];
                         
                         if (palletsNeedingMovement.length > 0) {
                             // Get the priority pallet (Outbounding first, then Dispatch/Shipped, then FIFO oldest)
@@ -5408,47 +5408,72 @@
                             ) || palletsNeedingMovement[0];
                             
                             const palletStatus = priorityPallet.Status || '';
-                            recommendedDest = recommendDestination(zone, palletStatus);
+                            // Get ALL allowed destinations for this zone
+                            allAllowedDestinations = getAllowedDestinations(zone.ZoneName);
+                            
+                            // Filter based on pallet status if needed (e.g., Outbounding status has special rules)
+                            if (palletStatus.toLowerCase().includes('outbounding')) {
+                                // Outbounding status can ONLY move to: OUTBONDED, Rework Zone, QA Hold
+                                allAllowedDestinations = allAllowedDestinations.filter(z => {
+                                    const zLower = z.toLowerCase();
+                                    return zLower === 'outbonded' || zLower.includes('rework') || zLower === 'qa hold';
+                                });
+                            }
                         } else if (zoneData.pallets.length > 0) {
                             // Even if no specific movement needed, show oldest pallet for FIFO zones
                             if (fifoRequired && oldestId !== 'N/A') {
                                 priorityPallet = zoneData.oldestPallet;
-                                recommendedDest = recommendDestination(zone, '');
+                                // Get ALL allowed destinations for this zone
+                                allAllowedDestinations = getAllowedDestinations(zone.ZoneName);
                             }
                         }
                         
                         // Build action HTML - ALWAYS show if we have a pallet
-                        if (priorityPallet) {
+                        if (priorityPallet && allAllowedDestinations.length > 0) {
                             const palletId = priorityPallet.PalletID || oldestId || 'N/A';
                             const palletStatus = priorityPallet.Status || '';
                             
-                            if (recommendedDest) {
-                                actionHTML = `
-                                    <div style="text-align: left; font-size: 11px; line-height: 1.6;">
-                                        <div style="margin-bottom: 6px;">
-                                            <strong style="color: #fbbf24; font-size: 10px;">Move First:</strong><br>
-                                            <span style="color: rgba(255, 255, 255, 0.95); font-family: 'Courier New', monospace; font-weight: 700; font-size: 12px;">${escapeHtml(palletId)}</span>
-                                        </div>
-                                        <div>
-                                            <strong style="color: #fbbf24; font-size: 10px;">→ To:</strong><br>
-                                            <span style="color: rgba(255, 255, 255, 0.95); font-weight: 600; font-size: 11px;">${escapeHtml(recommendedDest)}</span>
-                                        </div>
-                                        ${palletStatus.toLowerCase().includes('outbounding') ? 
-                                            `<small style="color: rgba(251, 191, 36, 0.7); font-size: 9px; display: block; margin-top: 4px;">Can also: Rework Zone, QA Hold</small>` : 
+                            // Get recommended destination (first priority)
+                            const recommendedDest = recommendDestination(zone, palletStatus);
+                            
+                            // Build list of all options
+                            const otherOptions = allAllowedDestinations.filter(dest => dest !== recommendedDest);
+                            
+                            actionHTML = `
+                                <div style="text-align: left; font-size: 11px; line-height: 1.6;">
+                                    <div style="margin-bottom: 6px;">
+                                        <strong style="color: #fbbf24; font-size: 10px;">Move First:</strong><br>
+                                        <span style="color: rgba(255, 255, 255, 0.95); font-family: 'Courier New', monospace; font-weight: 700; font-size: 12px;">${escapeHtml(palletId)}</span>
+                                    </div>
+                                    <div style="margin-bottom: 4px;">
+                                        <strong style="color: #fbbf24; font-size: 10px;">→ Options:</strong><br>
+                                        ${recommendedDest ? 
+                                            `<span style="color: #fcd34d; font-weight: 700; font-size: 11px;">★ ${escapeHtml(recommendedDest)}</span>` : 
+                                            ''
+                                        }
+                                        ${otherOptions.length > 0 ? 
+                                            otherOptions.map(dest => 
+                                                `<br><span style="color: rgba(255, 255, 255, 0.85); font-weight: 600; font-size: 10px;">• ${escapeHtml(dest)}</span>`
+                                            ).join('') : 
                                             ''
                                         }
                                     </div>
-                                `;
-                            } else {
-                                // Show pallet ID even if no destination recommendation
-                                actionHTML = `
-                                    <div style="text-align: left; font-size: 11px;">
-                                        <strong style="color: #fbbf24; font-size: 10px;">Move First:</strong><br>
-                                        <span style="color: rgba(255, 255, 255, 0.95); font-family: 'Courier New', monospace; font-weight: 700; font-size: 12px;">${escapeHtml(palletId)}</span>
-                                        ${fifoRequired ? `<br><small style="color: rgba(251, 191, 36, 0.7); font-size: 9px;">(FIFO - oldest)</small>` : ''}
-                                    </div>
-                                `;
-                            }
+                                    ${fifoRequired && zoneData.pallets.length > 1 ? 
+                                        `<small style="color: rgba(251, 191, 36, 0.7); font-size: 9px; display: block; margin-top: 4px;">(FIFO - oldest first)</small>` : 
+                                        ''
+                                    }
+                                </div>
+                            `;
+                        } else if (priorityPallet) {
+                            // Show pallet ID even if no destinations available
+                            actionHTML = `
+                                <div style="text-align: left; font-size: 11px;">
+                                    <strong style="color: #fbbf24; font-size: 10px;">Move First:</strong><br>
+                                    <span style="color: rgba(255, 255, 255, 0.95); font-family: 'Courier New', monospace; font-weight: 700; font-size: 12px;">${escapeHtml(priorityPallet.PalletID || oldestId || 'N/A')}</span>
+                                    ${fifoRequired ? `<br><small style="color: rgba(251, 191, 36, 0.7); font-size: 9px;">(FIFO - oldest)</small>` : ''}
+                                    ${allAllowedDestinations.length === 0 ? `<br><small style="color: rgba(252, 165, 165, 0.8); font-size: 9px;">No movement options</small>` : ''}
+                                </div>
+                            `;
                         }
                     }
                     

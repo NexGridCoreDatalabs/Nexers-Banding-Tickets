@@ -19,7 +19,7 @@ jobs:
       
       - name: Create config.js from GitHub Secrets
         run: |
-          cat > config.js << 'EOF'
+          cat > config.js << EOF
           window.BANDFLOW_CONFIG = {
             GENERATOR_PASSWORD: '${{ secrets.GENERATOR_PASSWORD }}',
             GOOGLE_SHEET_ID: '${{ secrets.GOOGLE_SHEET_ID }}',

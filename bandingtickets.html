@@ -2102,7 +2102,8 @@
                                         <option value="Rework">Rework</option>
                                         <option value="Dispatch">Dispatch</option>
                                         <option value="Shipped">Shipped</option>
-                                        <option value="Outbounded">Outbounded</option>
+                                        <option value="Outbounding">Outbounding</option>
+                                        <option value="Outbonded">Outbonded</option>
                                     </select>
                                 </div>
                                 <button type="button" class="btn-generate" onclick="refreshMovementZone()">🔄 Refresh</button>
@@ -4849,13 +4850,25 @@
             
             // Ensure Outbounding zone exists (note: it's "Outbounding" not "Outbounded" based on sheet)
             const hasOutbounding = movementZones.some(z => 
-                z.ZoneName.toLowerCase() === 'outbounding' || 
-                z.ZoneName.toLowerCase() === 'outbounded'
+                z.ZoneName.toLowerCase() === 'outbounding'
             );
             if (!hasOutbounding) {
                 movementZones.push({
                     ZoneName: 'Outbounding',
                     Prefix: 'OUT',
+                    FIFORequired: false,
+                    AllowsSplitting: false
+                });
+            }
+            
+            // Ensure OUTBONDED zone exists (final consumer destination)
+            const hasOutbonded = movementZones.some(z => 
+                z.ZoneName.toLowerCase() === 'outbonded'
+            );
+            if (!hasOutbonded) {
+                movementZones.push({
+                    ZoneName: 'OUTBONDED',
+                    Prefix: 'OBD',
                     FIFORequired: false,
                     AllowsSplitting: false
                 });
@@ -4895,7 +4908,7 @@
             const zonesToShow = filterForOutbounding 
                 ? movementZones.filter(z => {
                     const name = z.ZoneName.toLowerCase();
-                    return name.includes('outbounding') || name.includes('rework') || name === 'qa hold';
+                    return name === 'outbonded' || name.includes('rework') || name === 'qa hold';
                 })
                 : movementZones;
             
@@ -5070,12 +5083,12 @@
                     const status = (palletStatus || '').toLowerCase();
                     const zoneName = currentZone.ZoneName || currentZone;
                     
-                    // SPECIAL RULE: Outbounding status can ONLY move to: Outbounding zone, Rework Zone, or QA Hold
+                    // SPECIAL RULE: Outbounding status can ONLY move to: OUTBONDED (consumer), Rework Zone, or QA Hold
                     // Note: "Outbounding" is a zone name, not just a status
                     if (status.includes('outbounding') || status === 'shipped') {
-                        // Priority: Outbounding zone first, then Rework Zone, then QA Hold
+                        // Priority: OUTBONDED first (final consumer), then Rework Zone, then QA Hold
                         // Match zones case-insensitively and handle "Rework Zone" vs "Rework"
-                        const allowedZoneNames = ['Outbounding', 'Rework Zone', 'Rework', 'QA Hold'];
+                        const allowedZoneNames = ['OUTBONDED', 'Outbonded', 'Rework Zone', 'Rework', 'QA Hold'];
                         for (const allowedZone of allowedZoneNames) {
                             const zoneExists = movementZones.some(z => 
                                 z.ZoneName.toLowerCase() === allowedZone.toLowerCase() ||
@@ -5093,8 +5106,15 @@
                         return null; // No allowed zones found
                     }
                     
-                    // Dispatch or Shipped -> Outbounding zone
+                    // Dispatch or Shipped -> OUTBONDED (final consumer)
                     if (status === 'dispatch' || status === 'shipped') {
+                        const outbondedZone = movementZones.find(z => 
+                            z.ZoneName.toLowerCase() === 'outbonded'
+                        );
+                        if (outbondedZone) {
+                            return outbondedZone.ZoneName;
+                        }
+                        // Fallback to Outbounding zone if OUTBONDED doesn't exist
                         const outboundingZone = movementZones.find(z => 
                             z.ZoneName.toLowerCase().includes('outbounding')
                         );
@@ -5173,12 +5193,12 @@
                             if (status.includes('outbounding')) {
                                 return true; // Always needs movement
                             }
-                            // Dispatch, Shipped should go to Outbounding zone
+                            // Dispatch, Shipped should go to OUTBONDED (final consumer)
                             if (status === 'dispatch' || status === 'shipped') {
-                                const outboundingZone = movementZones.find(z => 
-                                    z.ZoneName.toLowerCase().includes('outbounding')
+                                const outbondedZone = movementZones.find(z => 
+                                    z.ZoneName.toLowerCase() === 'outbonded'
                                 );
-                                return outboundingZone && p.CurrentZone !== outboundingZone.ZoneName;
+                                return outbondedZone && p.CurrentZone !== outbondedZone.ZoneName;
                             }
                             // FIFO zones with multiple pallets - oldest should move
                             if (fifoRequired && zoneData.pallets.length > 1) {
@@ -5281,7 +5301,7 @@
                         <p style="margin: 0; color: rgba(251, 191, 36, 0.9); font-size: 12px; line-height: 1.6;">
                             <strong>📋 Action Column:</strong> Shows which pallet ID to move first and recommended destination zone.<br>
                             <strong>⚠️ FIFO Zones:</strong> Oldest pallets (by creation date) should be moved first.<br>
-                            <strong>🚚 Outbounding Status:</strong> Can ONLY move to: <strong>Outbounding</strong> zone, <strong>Rework Zone</strong>, or <strong>QA Hold</strong>.<br>
+                            <strong>🚚 Outbounding Status:</strong> Can ONLY move to: <strong>OUTBONDED</strong> (consumer), <strong>Rework Zone</strong>, or <strong>QA Hold</strong>.<br>
                             <strong>📦 All Zones:</strong> ${allZoneNames.length > 0 ? allZoneNames.join(', ') : 'Loading...'}<br>
                             <strong>➡️ Forward Flow:</strong> <em>Sequence will be configured after you provide zone order</em>
                         </p>
@@ -5391,10 +5411,10 @@
             if (toZoneSelect) {
                 const palletStatus = (pallet.Status || '').toLowerCase();
                 
-                // SPECIAL RULE: If status is "Outbounding", only allow: Outbounding zone, Rework Zone, QA Hold
+                // SPECIAL RULE: If status is "Outbounding", only allow: OUTBONDED (consumer), Rework Zone, QA Hold
                 if (palletStatus.includes('outbounding')) {
-                    // Match zones case-insensitively - "Outbounding", "Rework Zone" (or "Rework"), "QA Hold"
-                    const allowedZonePatterns = ['outbounding', 'rework', 'qa hold'];
+                    // Match zones case-insensitively - "OUTBONDED" (priority), "Rework Zone" (or "Rework"), "QA Hold"
+                    const allowedZonePatterns = ['outbonded', 'rework', 'qa hold'];
                     toZoneSelect.innerHTML = '';
                     allowedZonePatterns.forEach(pattern => {
                         const zone = movementZones.find(z => 
@@ -5407,13 +5427,13 @@
                             toZoneSelect.appendChild(option);
                         }
                     });
-                    // Auto-select Outbounding if available
+                    // Auto-select OUTBONDED if available (final consumer)
                     if (toZoneSelect.options.length > 0) {
-                        const outboundingOption = Array.from(toZoneSelect.options).find(opt => 
-                            opt.value.toLowerCase().includes('outbounding')
+                        const outbondedOption = Array.from(toZoneSelect.options).find(opt => 
+                            opt.value.toLowerCase() === 'outbonded'
                         );
-                        if (outboundingOption) {
-                            toZoneSelect.value = outboundingOption.value;
+                        if (outbondedOption) {
+                            toZoneSelect.value = outbondedOption.value;
                         } else {
                             toZoneSelect.value = toZoneSelect.options[0].value;
                         }

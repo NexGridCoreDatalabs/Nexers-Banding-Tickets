@@ -4833,6 +4833,36 @@
                 
                 movementZones = Array.from(zoneMap.values());
                 console.log(`✅ Loaded ${movementZones.length} unique zones (deduplicated from ${allZones.length} total)`);
+                
+                // Extract all unique DefaultStatus values from zones for status filter dropdown
+                const allStatuses = new Set();
+                movementZones.forEach(zone => {
+                    const defaultStatus = (zone.DefaultStatus || '').trim();
+                    if (defaultStatus) {
+                        allStatuses.add(defaultStatus);
+                    }
+                });
+                // Add common statuses that might not be in DefaultStatus
+                allStatuses.add('Active');
+                allStatuses.add('Hold');
+                allStatuses.add('Rework');
+                allStatuses.add('Dispatch');
+                allStatuses.add('Shipped');
+                allStatuses.add('Outbounding');
+                allStatuses.add('Outbonded');
+                
+                // Update status filter dropdown with statuses from ZoneConfig
+                const statusFilter = document.getElementById('movementStatusFilter');
+                if (statusFilter) {
+                    statusFilter.innerHTML = '<option value="">Any status</option>';
+                    Array.from(allStatuses).sort().forEach(status => {
+                        const option = document.createElement('option');
+                        option.value = status;
+                        option.textContent = status;
+                        statusFilter.appendChild(option);
+                    });
+                }
+                
                 populateMovementZoneOptions();
                 movementPanelInitialized = true;
                 setMovementStatus('');
@@ -5586,12 +5616,25 @@
                 list.innerHTML = '<div style="color:#94a3b8;">No pallets found for this zone.</div>';
                 return;
             }
+            
+            // Get current zone to find its DefaultStatus
+            const zoneSelect = document.getElementById('movementZoneSelect');
+            const currentZoneName = zoneSelect ? zoneSelect.value : '';
+            const currentZone = movementZones.find(z => z.ZoneName === currentZoneName);
+            const zoneDefaultStatus = currentZone ? (currentZone.DefaultStatus || 'Active') : 'Active';
+            
             list.innerHTML = pallets.map(pallet => {
-                const status = escapeHtml(pallet.Status || 'Active');
+                // Use pallet Status if available, otherwise use zone's DefaultStatus
+                const status = escapeHtml(pallet.Status || zoneDefaultStatus);
                 const sku = escapeHtml(pallet.SKU || 'N/A');
                 const qty = pallet.RemainingQuantity ?? pallet.Quantity ?? '';
                 const created = formatMovementDate(pallet.CreatedAt || pallet.CreatedDate);
                 const lastMoved = formatMovementDate(pallet.LastMovedAt);
+                
+                // Get zone's DefaultStatus for display
+                const palletZone = movementZones.find(z => z.ZoneName === pallet.CurrentZone);
+                const palletZoneDefaultStatus = palletZone ? (palletZone.DefaultStatus || 'Active') : 'Active';
+                
                 return `
                     <div class="movement-card">
                         <div class="movement-card-header">
@@ -5602,6 +5645,7 @@
                             <div><strong>SKU:</strong> ${sku}</div>
                             <div><strong>Qty:</strong> ${qty || 'N/A'}</div>
                             <div><strong>Zone:</strong> ${escapeHtml(pallet.CurrentZone || 'N/A')}</div>
+                            <div><strong>Zone Default Status:</strong> <span style="color: rgba(251, 191, 36, 0.8);">${escapeHtml(palletZoneDefaultStatus)}</span></div>
                             <div><strong>Created:</strong> ${created}</div>
                             <div><strong>Last Move:</strong> ${lastMoved}</div>
                         </div>

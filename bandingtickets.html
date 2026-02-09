@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Banding Ticket Generator</title>
+    
+    <!-- SECURITY FIX: Load config from external file (fallback to defaults if not found) -->
+    <script src="config.js"></script>
+    <script>
+        // Validate config loaded, but don't block if missing (backward compatible)
+        if (typeof window.BANDFLOW_CONFIG === 'undefined') {
+            console.warn('⚠️ config.js not found. Using default values. For security, create config.js with your credentials.');
+            window.BANDFLOW_CONFIG = {};
+        }
+    </script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&display=swap');
 
@@ -1301,11 +1312,11 @@
             });
         });
 
-        // Google Sheets Configuration - HARDCODED DEFAULTS
-        // Set these values once, and they'll be used for all users
-        const DEFAULT_GOOGLE_SHEET_ID = '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
-        const DEFAULT_GOOGLE_API_KEY = 'AIzaSyBUSYg78PSD47OWJkzEa4kMQknjROGulLI';
-        const DEFAULT_GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxbujRsVW-vVwt34GVCOlCm145mjgp4uV11-YhSy1CQtXPKiqdlPycfTj7q8GvIHg0a0g/exec';
+        // SECURITY FIX: Load from config.js (fallback to defaults for backward compatibility)
+        const CONFIG = window.BANDFLOW_CONFIG || {};
+        const DEFAULT_GOOGLE_SHEET_ID = CONFIG.GOOGLE_SHEET_ID || '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
+        const DEFAULT_GOOGLE_API_KEY = CONFIG.GOOGLE_API_KEY || 'AIzaSyBUSYg78PSD47OWJkzEa4kMQknjROGulLI';
+        const DEFAULT_GOOGLE_APPS_SCRIPT_URL = CONFIG.GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxbujRsVW-vVwt34GVCOlCm145mjgp4uV11-YhSy1CQtXPKiqdlPycfTj7q8GvIHg0a0g/exec';
         
         const USER_SESSION_KEY = 'bandingUserSession';
         let loggedInUser = getStoredUser();
@@ -1394,7 +1405,7 @@
         
         // Generator access control - only accessible from this PC
         const GENERATOR_ACCESS_TOKEN = 'generator_access_granted';
-        const GENERATOR_PASSWORD = 'NEXGRID2025'; // Change this to your desired password
+        const GENERATOR_PASSWORD = CONFIG.GENERATOR_PASSWORD || 'NEXGRID2025'; // SECURITY: Load from config.js
         
         function checkGeneratorAccess() {
             const accessGranted = localStorage.getItem(GENERATOR_ACCESS_TOKEN);

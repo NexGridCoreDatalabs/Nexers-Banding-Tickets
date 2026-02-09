@@ -1,0 +1,4 @@
+# Configuration files (contains secrets)
+config.js
+*.config.js
+!config.example.js

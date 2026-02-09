@@ -1225,6 +1225,132 @@
             justify-content: center;
         }
         
+        /* SKU Details Modal */
+        .sku-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 10001;
+            padding: 20px;
+            overflow-y: auto;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .sku-modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .sku-modal-content {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 58, 95, 0.98));
+            border: 2px solid rgba(245, 158, 11, 0.4);
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(245, 158, 11, 0.2);
+            animation: fadeInUp 0.4s ease-out;
+        }
+        
+        .sku-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+        }
+        
+        .sku-modal-header h3 {
+            margin: 0;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .sku-modal-close {
+            background: rgba(245, 158, 11, 0.2);
+            border: 2px solid rgba(245, 158, 11, 0.4);
+            color: #fbbf24;
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        .sku-modal-close:hover {
+            background: rgba(245, 158, 11, 0.4);
+            border-color: #f59e0b;
+            transform: scale(1.1);
+        }
+        
+        .sku-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        
+        .sku-table th {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+            padding: 12px;
+            text-align: left;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid rgba(245, 158, 11, 0.4);
+        }
+        
+        .sku-table th:last-child,
+        .sku-table td:last-child {
+            text-align: right;
+        }
+        
+        .sku-table td {
+            padding: 12px;
+            color: rgba(255, 255, 255, 0.95);
+            border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+        }
+        
+        .sku-table tr:hover {
+            background: rgba(245, 158, 11, 0.1);
+        }
+        
+        .sku-table .sku-code {
+            font-family: 'Courier New', monospace;
+            font-weight: 700;
+            color: #fbbf24;
+        }
+        
+        .sku-table .sku-qty {
+            text-align: right;
+            font-weight: 600;
+        }
+        
+        .sku-table .sku-pallets {
+            text-align: center;
+            color: rgba(251, 191, 36, 0.8);
+        }
+        
         .preview-modal-content {
             background: #ffffff;
             border-radius: 20px;
@@ -6049,6 +6175,16 @@
         
         // SKU Modal Functions
         function showSKUModal(zoneName, skuDetails) {
+            // Parse skuDetails if it's a string (from onclick JSON)
+            if (typeof skuDetails === 'string') {
+                try {
+                    skuDetails = JSON.parse(skuDetails.replace(/&quot;/g, '"'));
+                } catch (e) {
+                    console.error('Error parsing SKU details:', e);
+                    skuDetails = [];
+                }
+            }
+            
             // Create or get modal
             let modal = document.getElementById('skuModal');
             if (!modal) {
@@ -6060,7 +6196,7 @@
             
             // Build table HTML
             let tableHTML = '';
-            if (skuDetails && skuDetails.length > 0) {
+            if (skuDetails && Array.isArray(skuDetails) && skuDetails.length > 0) {
                 const totalQty = skuDetails.reduce((sum, item) => sum + item.totalQty, 0);
                 const totalPallets = skuDetails.reduce((sum, item) => sum + item.palletCount, 0);
                 

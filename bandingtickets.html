@@ -5234,8 +5234,8 @@
                 const allZoneNames = movementZones.map(z => z.ZoneName).filter(Boolean).sort();
                 console.log('📋 All Zones in System:', allZoneNames);
                 
-                // Zone eligibility function - STRICTLY follows all rules
-                const getAllowedDestinations = (fromZoneName) => {
+                // Zone eligibility function - STRICTLY follows all rules (made global for use in submitMovementForm)
+                window.getAllowedDestinations = function(fromZoneName) {
                     const fromZone = fromZoneName.toLowerCase();
                     const allowed = [];
                     
@@ -5331,7 +5331,7 @@
                 };
                 
                 // Helper function to recommend destination zone based on forward movement flow - STRICTLY follows rules
-                const recommendDestination = (currentZone, palletStatus) => {
+                window.recommendDestination = function(currentZone, palletStatus) {
                     const status = (palletStatus || '').toLowerCase();
                     const zoneName = currentZone.ZoneName || currentZone;
                     
@@ -5942,6 +5942,63 @@
                 setMovementStatus('Enter the user moving the pallet.', 'error');
                 return;
             }
+            
+            // VALIDATE ZONE FLOW RULES - Get current zone from pallet or form
+            const currentZoneInput = document.getElementById('movementCurrentZone')?.value;
+            const currentZoneName = currentZoneInput || (movementSelectedPallet ? movementSelectedPallet.CurrentZone : '');
+            
+            if (currentZoneName && typeof window.getAllowedDestinations === 'function') {
+                // Check if movement is allowed according to strict rules
+                const allowedDestinations = window.getAllowedDestinations(currentZoneName);
+                const toZoneLower = toZone.toLowerCase();
+                const isAllowed = allowedDestinations.some(allowed => 
+                    allowed.toLowerCase() === toZoneLower
+                );
+                
+                if (!isAllowed) {
+                    const allowedList = allowedDestinations.length > 0 
+                        ? allowedDestinations.join(', ') 
+                        : 'None (this zone cannot move pallets)';
+                    setMovementStatus(`❌ Movement not allowed! From "${currentZoneName}" you can only move to: ${allowedList}`, 'error');
+                    return;
+                }
+                
+                // Special rule: Rework Zone can ONLY receive from QAH and DSP
+                if (toZoneLower.includes('rework')) {
+                    const fromZoneLower = currentZoneName.toLowerCase();
+                    if (!fromZoneLower.includes('qa hold') && !fromZoneLower.includes('dispatch loading area')) {
+                        setMovementStatus('❌ Rework Zone can ONLY receive pallets from QA Hold or Dispatch Loading Area!', 'error');
+                        return;
+                    }
+                }
+                
+                // Special rule: DSP cannot move to itself
+                if (currentZoneName.toLowerCase().includes('dispatch loading area') && 
+                    toZoneLower.includes('dispatch loading area')) {
+                    setMovementStatus('❌ Dispatch Loading Area cannot move to itself!', 'error');
+                    return;
+                }
+                
+                // Special rule: OUTBONDED is final - no movement out
+                if (currentZoneName.toLowerCase() === 'outbonded') {
+                    setMovementStatus('❌ OUTBONDED is a final destination - no movement allowed out!', 'error');
+                    return;
+                }
+                
+                // Special rule: Check pallet status for Outbounding status restrictions
+                const palletStatus = movementSelectedPallet ? (movementSelectedPallet.Status || '').toLowerCase() : '';
+                if (palletStatus.includes('outbounding')) {
+                    const allowedForOutbounding = ['outbonded', 'rework', 'qa hold'];
+                    const toZoneAllowed = allowedForOutbounding.some(allowed => 
+                        toZoneLower.includes(allowed)
+                    );
+                    if (!toZoneAllowed) {
+                        setMovementStatus('❌ Outbounding status pallets can ONLY move to: OUTBONDED, Rework Zone, or QA Hold!', 'error');
+                        return;
+                    }
+                }
+            }
+            
             const reason = document.getElementById('movementReason')?.value || '';
             const overrideReason = document.getElementById('movementOverrideReason')?.value || '';
             const quantity = document.getElementById('movementQuantity')?.value || '';

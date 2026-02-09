@@ -4919,14 +4919,13 @@
                 return;
             }
             
-            tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">This may take a moment</p></div>';
-            
             try {
-                // OPTIMIZED: Load all zones in parallel instead of sequentially
+                // OPTIMIZED: Load all zones in parallel with better error handling
                 const totalZones = movementZones.length;
+                let loadedCount = 0;
                 
                 // Create all zone loading promises at once
-                const zonePromises = movementZones.map(async (zone) => {
+                const zonePromises = movementZones.map(async (zone, index) => {
                     try {
                         const params = new URLSearchParams({
                             action: 'getPalletsInZone',
@@ -4934,9 +4933,9 @@
                             limit: 10000
                         });
                         
-                        // Reduced timeout since we're loading in parallel
+                        // Increased timeout to 15 seconds per zone (more realistic for large datasets)
                         const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error(`Timeout`)), 5000)
+                            setTimeout(() => reject(new Error(`Timeout after 15s`)), 15000)
                         );
                         
                         const result = await Promise.race([
@@ -4953,6 +4952,13 @@
                             return dateA - dateB;
                         });
                         
+                        loadedCount++;
+                        // Update progress
+                        if (loadedCount % Math.max(1, Math.floor(totalZones / 4)) === 0 || loadedCount === totalZones) {
+                            const progress = Math.round((loadedCount / totalZones) * 100);
+                            tableContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">${loadedCount} of ${totalZones} zones loaded (${progress}%)</p></div>`;
+                        }
+                        
                         return {
                             zone: zone,
                             pallets: pallets,
@@ -4963,22 +4969,58 @@
                         };
                     } catch (error) {
                         console.error(`Error loading zone ${zone.ZoneName}:`, error);
+                        loadedCount++;
+                        // Update progress even on error
+                        const progress = Math.round((loadedCount / totalZones) * 100);
+                        if (loadedCount % Math.max(1, Math.floor(totalZones / 4)) === 0 || loadedCount === totalZones) {
+                            tableContainer.innerHTML = `<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">${loadedCount} of ${totalZones} zones loaded (${progress}%)</p><p style="font-size: 11px; margin-top: 4px; color: rgba(252, 165, 165, 0.8);">Some zones may have errors</p></div>`;
+                        }
                         return {
                             zone: zone,
                             pallets: [],
                             totalQty: 0,
                             oldestPallet: null,
                             needsMovement: false,
-                            error: error.message
+                            error: error.message || 'Failed to load'
                         };
                     }
                 });
                 
-                // Show loading state
-                tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Loading all zones in parallel...</p></div>';
+                // Show initial loading state
+                tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Loading zones in batches to avoid API limits...</p></div>';
                 
-                // Wait for all zones to load in parallel
-                const allZonesData = await Promise.all(zonePromises);
+                // Load zones in batches of 5 to avoid overwhelming the API
+                const BATCH_SIZE = 5;
+                const allSettledResults = [];
+                
+                for (let i = 0; i < zonePromises.length; i += BATCH_SIZE) {
+                    const batch = zonePromises.slice(i, i + BATCH_SIZE);
+                    const batchResults = await Promise.allSettled(batch);
+                    allSettledResults.push(...batchResults);
+                    
+                    // Small delay between batches to avoid rate limiting
+                    if (i + BATCH_SIZE < zonePromises.length) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+                
+                // Extract results (both fulfilled and rejected)
+                const allZonesData = allSettledResults.map((result, index) => {
+                    if (result.status === 'fulfilled') {
+                        return result.value;
+                    } else {
+                        // If promise itself was rejected (shouldn't happen due to try-catch, but safety)
+                        const zone = movementZones[index];
+                        return {
+                            zone: zone || { ZoneName: 'Unknown' },
+                            pallets: [],
+                            totalQty: 0,
+                            oldestPallet: null,
+                            needsMovement: false,
+                            error: result.reason?.message || 'Unknown error'
+                        };
+                    }
+                });
                 
                 // List all zones for user reference
                 const allZoneNames = movementZones.map(z => z.ZoneName).filter(Boolean).sort();

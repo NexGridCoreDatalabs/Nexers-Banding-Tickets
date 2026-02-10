@@ -5935,7 +5935,11 @@
                 `;
                 tableContainer.innerHTML = tableHTML;
             } catch (error) {
-                tableContainer.innerHTML = `<div style="color: #fca5a5; padding: 20px; text-align: center;">Error loading recent movements: ${escapeHtml(error.message || 'Unknown error')}</div>`;
+                const testUrl = GOOGLE_APPS_SCRIPT_URL ? `${GOOGLE_APPS_SCRIPT_URL.split('?')[0]}?action=version` : '';
+                tableContainer.innerHTML = `<div style="color: #fca5a5; padding: 20px; text-align: center;">
+                    <p><strong>Error loading recent movements:</strong> ${escapeHtml(error.message || 'Unknown error')}</p>
+                    ${testUrl ? `<p style="font-size: 12px; margin-top: 12px; color: rgba(251, 191, 36, 0.9);">Verify deployment: <a href="${testUrl}" target="_blank" rel="noopener" style="color: #fbbf24;">Open version check</a> — if it shows "Deployment has getRecentMovements", redeploy your Apps Script as a new version.</p>` : ''}
+                </div>`;
             }
         }
 

@@ -623,10 +623,14 @@ function logUserActivity(action, additionalInfo) {
  */
 function doGet(e) {
   try {
-    // Removed verbose logging for performance
-    
+    var action = (e && e.parameter && e.parameter.action) ? String(e.parameter.action).trim() : 'read';
+    if (action === 'version' || action === 'ping') {
+      return createResponse({ success: true, version: '2026-02-10-getRecentMovements', msg: 'Deployment has getRecentMovements' });
+    }
+    if (action === 'getRecentMovements') {
+      return getRecentMovements(parseInt(e.parameter.limit || '10', 10));
+    }
     const sheet = SpreadsheetApp.openById(SHEET_ID);
-    const action = e.parameter.action || 'read';
     const serial = e.parameter.serial || '';
     
     // Log user activity
@@ -889,9 +893,6 @@ function doGet(e) {
         quantity: e.parameter.quantity || '',
         orderReference: e.parameter.orderReference || ''
       });
-    }
-    else if (action === 'getRecentMovements') {
-      return getRecentMovements(parseInt(e.parameter.limit || '10', 10));
     }
     
     return createResponse({ success: false, error: 'Invalid action' });

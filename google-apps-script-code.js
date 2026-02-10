@@ -890,6 +890,9 @@ function doGet(e) {
         orderReference: e.parameter.orderReference || ''
       });
     }
+    else if (action === 'getRecentMovements') {
+      return getRecentMovements(parseInt(e.parameter.limit || '10', 10));
+    }
     
     return createResponse({ success: false, error: 'Invalid action' });
   } catch (error) {
@@ -3589,6 +3592,43 @@ function logZoneMovement(entry) {
     }
   });
   sheet.appendRow(row);
+}
+
+function getRecentMovements(limit) {
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var sheet = workbook.getSheetByName('ZoneMovements');
+  if (!sheet) {
+    return createResponse({ success: true, movements: [] });
+  }
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return createResponse({ success: true, movements: [] });
+  }
+  var headers = data[0];
+  var idx = buildHeaderIndexMap(headers);
+  var rows = [];
+  for (var i = 1; i < data.length; i++) {
+    var r = data[i];
+    if (!r || (!r[idx.PalletID] && !r[idx.MovementID])) continue;
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      var v = r[j];
+      if (v instanceof Date) {
+        obj[headers[j]] = v.toISOString ? v.toISOString() : String(v);
+      } else {
+        obj[headers[j]] = v;
+      }
+    }
+    rows.push(obj);
+  }
+  var sortKey = idx.CreatedAt >= 0 ? 'CreatedAt' : (idx.MovementDate >= 0 ? 'MovementDate' : headers[0]);
+  rows.sort(function(a, b) {
+    var da = a[sortKey] ? new Date(a[sortKey]).getTime() : 0;
+    var db = b[sortKey] ? new Date(b[sortKey]).getTime() : 0;
+    return db - da;
+  });
+  var recent = rows.slice(0, Math.min(limit || 10, rows.length));
+  return createResponse({ success: true, movements: recent });
 }
 
 function createInventorySnapshot() {

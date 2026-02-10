@@ -5856,6 +5856,89 @@
             }
         }
 
+        async function refreshRecentMovements() {
+            const tableContainer = document.getElementById('recentMovementsTable');
+            const palletList = document.getElementById('movementPalletList');
+            const zoneOverviewTable = document.getElementById('zoneOverviewTable');
+            
+            if (!tableContainer) {
+                showToast('Recent movements table not found', 'error');
+                return;
+            }
+            
+            const isVisible = tableContainer.style.display !== 'none';
+            tableContainer.style.display = isVisible ? 'none' : 'block';
+            if (palletList) palletList.style.display = isVisible ? 'flex' : 'none';
+            if (zoneOverviewTable) zoneOverviewTable.style.display = 'none';
+            
+            if (isVisible) return;
+            
+            if (!movementPanelInitialized) {
+                try {
+                    await ensureMovementPanelLoaded();
+                } catch (error) {
+                    tableContainer.innerHTML = `<div style="color: #fca5a5; padding: 20px; text-align: center;">Error: ${error.message}</div>`;
+                    return;
+                }
+            }
+            
+            tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading recent movements...</p></div>';
+            
+            try {
+                const params = new URLSearchParams({ action: 'getRecentMovements', limit: '10' });
+                const result = await callAppsScript(params);
+                const movements = result.movements || [];
+                
+                if (movements.length === 0) {
+                    tableContainer.innerHTML = '<div style="color: rgba(251, 191, 36, 0.9); padding: 24px; text-align: center;"><p style="font-size: 15px;">No recent movements recorded yet.</p><p style="font-size: 13px; margin-top: 8px; opacity: 0.8;">Zone movements will appear here after pallets are moved.</p></div>';
+                    return;
+                }
+                
+                const fmt = (val) => val === undefined || val === null || val === '' ? '—' : String(val);
+                const fmtDate = (val) => {
+                    if (!val) return '—';
+                    const d = new Date(val);
+                    return isNaN(d.getTime()) ? fmt(val) : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+                };
+                
+                const cols = ['MovementID', 'PalletID', 'FromZone', 'ToZone', 'MovementDate', 'MovementTime', 'MovedBy', 'Quantity', 'OrderReference', 'Reason', 'OverrideReason', 'Notes', 'CreatedAt'];
+                const labels = { MovementID: 'ID', PalletID: 'Pallet', FromZone: 'From', ToZone: 'To', MovementDate: 'Date', MovementTime: 'Time', MovedBy: 'Moved By', Quantity: 'Qty', OrderReference: 'Order Ref', Reason: 'Reason', OverrideReason: 'FIFO Override', Notes: 'Notes', CreatedAt: 'Logged At' };
+                const dateCols = ['MovementDate', 'MovementTime', 'CreatedAt'];
+                
+                const tableHTML = `
+                    <div style="margin-bottom: 16px;">
+                        <h3 style="margin: 0; color: rgba(251, 191, 36, 0.95); font-size: 16px;">📋 Last 10 Zone Movements</h3>
+                        <p style="margin: 8px 0 0 0; font-size: 12px; color: rgba(148, 163, 184, 0.9);">Most recent first — full details</p>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                            <thead>
+                                <tr style="background: rgba(245, 158, 11, 0.2); border-bottom: 2px solid rgba(245, 158, 11, 0.5);">
+                                    ${cols.map(c => `<th style="padding: 10px 12px; text-align: left; color: #fbbf24; white-space: nowrap;">${labels[c] || c}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${movements.map((m, i) => `
+                                <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.2); background: ${i % 2 ? 'rgba(15, 23, 42, 0.3)' : 'transparent'};">
+                                    ${cols.map(c => {
+                                        const raw = m[c];
+                                        const v = dateCols.includes(c) ? fmtDate(raw) : fmt(raw);
+                                        const cellClass = c === 'FromZone' ? 'color: #fca5a5;' : (c === 'ToZone' ? 'color: #86efac; font-weight: 600;' : '');
+                                        return `<td style="padding: 10px 12px; ${cellClass}">${escapeHtml(v)}</td>`;
+                                    }).join('')}
+                                </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn-reset" onclick="refreshRecentMovements()" style="margin-top: 16px;">🔽 Hide Recent Movements</button>
+                `;
+                tableContainer.innerHTML = tableHTML;
+            } catch (error) {
+                tableContainer.innerHTML = `<div style="color: #fca5a5; padding: 20px; text-align: center;">Error loading recent movements: ${escapeHtml(error.message || 'Unknown error')}</div>`;
+            }
+        }
+
         function updateMovementZoneMeta(zoneName) {
             const metaEl = document.getElementById('movementZoneMeta');
             if (!metaEl) return;

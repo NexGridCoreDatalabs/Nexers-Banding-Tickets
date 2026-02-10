@@ -4071,32 +4071,83 @@ function getZoneConfigDataResponse(includeRecentMovements) {
   return createResponse(payload);
 }
 
+function normalizeMovementRow(raw) {
+  var alias = {
+    'Movement ID': 'MovementID', 'MovementId': 'MovementID',
+    'Pallet ID': 'PalletID', 'PalletId': 'PalletID',
+    'From Zone': 'FromZone', 'From zone': 'FromZone',
+    'To Zone': 'ToZone', 'To zone': 'ToZone',
+    'Movement Date': 'MovementDate', 'Date': 'MovementDate',
+    'Movement Time': 'MovementTime', 'Time': 'MovementTime',
+    'Moved By': 'MovedBy', 'Moved by': 'MovedBy',
+    'Order Reference': 'OrderReference', 'Order Ref': 'OrderReference',
+    'Override Reason': 'OverrideReason', 'FIFO Override': 'OverrideReason',
+    'Created At': 'CreatedAt', 'Created': 'CreatedAt', 'Logged At': 'CreatedAt'
+  };
+  var obj = {};
+  var canonicalKeys = ['MovementID', 'PalletID', 'FromZone', 'ToZone', 'MovementDate', 'MovementTime', 'MovedBy', 'Reason', 'OverrideReason', 'Quantity', 'OrderReference', 'Notes', 'CreatedAt'];
+  canonicalKeys.forEach(function(k) {
+    obj[k] = raw[k];
+    if (obj[k] === undefined) {
+      for (var h in raw) {
+        if (h && (h.replace(/\s/g, '') === k || alias[h] === k)) {
+          obj[k] = raw[h];
+          break;
+        }
+      }
+    }
+  });
+  return obj;
+}
+
 function getRecentMovementsData(limit) {
-  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('ZoneMovements');
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var sheet = workbook.getSheetByName('ZoneMovements') || workbook.getSheetByName('Zone Movements');
+  if (!sheet) {
+    var sheets = workbook.getSheets();
+    for (var s = 0; s < sheets.length; s++) {
+      var name = (sheets[s].getName() || '').toLowerCase().replace(/\s/g, '');
+      if (name === 'zonemovements' || name.indexOf('zonemovement') >= 0) {
+        sheet = sheets[s];
+        break;
+      }
+    }
+  }
   if (!sheet) return [];
   var data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
   var headers = data[0];
-  var idx = buildHeaderIndexMap(headers);
   var rows = [];
   for (var i = 1; i < data.length; i++) {
     var r = data[i];
-    if (!r || (!r[idx.PalletID] && !r[idx.MovementID])) continue;
-    var obj = {};
+    if (!r) continue;
+    var hasData = false;
+    for (var c = 0; c < (r || []).length; c++) {
+      if (r[c] !== undefined && r[c] !== null && String(r[c]).trim()) {
+        hasData = true;
+        break;
+      }
+    }
+    if (!hasData) continue;
+    var raw = {};
     for (var j = 0; j < headers.length; j++) {
       var v = r[j];
       if (v instanceof Date) {
-        obj[headers[j]] = v.toISOString ? v.toISOString() : String(v);
+        raw[headers[j]] = v.toISOString ? v.toISOString() : String(v);
       } else {
-        obj[headers[j]] = v;
+        raw[headers[j]] = v;
       }
     }
+    var obj = normalizeMovementRow(raw);
     rows.push(obj);
   }
-  var sortKey = idx.CreatedAt >= 0 ? 'CreatedAt' : (idx.MovementDate >= 0 ? 'MovementDate' : headers[0]);
   rows.sort(function(a, b) {
-    var da = a[sortKey] ? new Date(a[sortKey]).getTime() : 0;
-    var db = b[sortKey] ? new Date(b[sortKey]).getTime() : 0;
+    var da = (a.CreatedAt ? new Date(a.CreatedAt).getTime() : NaN) ||
+             (a.MovementDate ? new Date(a.MovementDate).getTime() : NaN) ||
+             (a.MovementTime ? new Date(a.MovementTime).getTime() : NaN) || 0;
+    var db = (b.CreatedAt ? new Date(b.CreatedAt).getTime() : NaN) ||
+             (b.MovementDate ? new Date(b.MovementDate).getTime() : NaN) ||
+             (b.MovementTime ? new Date(b.MovementTime).getTime() : NaN) || 0;
     return db - da;
   });
   return rows.slice(0, Math.min(limit || 10, rows.length));

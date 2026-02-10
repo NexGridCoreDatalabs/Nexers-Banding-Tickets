@@ -2487,6 +2487,71 @@
                 showToast('Please enter a URL', 'warning');
             }
         }
+
+        // Geofence - BIDCO Africa General Kago Rd, Thika, Kenya (hardcoded)
+        var GEOFENCE = {
+            lat: -1.049636,
+            lng: 37.085402,
+            radiusMeters: 200,
+            maxAccuracyMeters: 50
+        };
+        // Bypass: add ?geofence=bypass&t=BIDCO_BYPASS to URL when away from facility
+        var GEOFENCE_BYPASS_TOKEN = 'BIDCO_BYPASS';
+
+        function haversineDistanceMeters(lat1, lng1, lat2, lng2) {
+            var R = 6371000;
+            var dLat = (lat2 - lat1) * Math.PI / 180;
+            var dLng = (lng2 - lng1) * Math.PI / 180;
+            var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function checkGeofenceAccess() {
+            return new Promise(function(resolve) {
+                if (!navigator.geolocation) {
+                    resolve({ ok: false, reason: 'Geolocation not supported' });
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    function(pos) {
+                        var accuracy = pos.coords.accuracy;
+                        if (accuracy > GEOFENCE.maxAccuracyMeters) {
+                            resolve({ ok: false, reason: 'GPS accuracy too low', accuracy: accuracy, required: GEOFENCE.maxAccuracyMeters });
+                            return;
+                        }
+                        var dist = haversineDistanceMeters(
+                            GEOFENCE.lat, GEOFENCE.lng,
+                            pos.coords.latitude, pos.coords.longitude
+                        );
+                        if (dist > GEOFENCE.radiusMeters) {
+                            resolve({ ok: false, reason: 'Outside allowed area', distance: Math.round(dist), limit: GEOFENCE.radiusMeters });
+                            return;
+                        }
+                        resolve({ ok: true, accuracy: Math.round(accuracy), distance: Math.round(dist) });
+                    },
+                    function(err) {
+                        var msg = err.code === 1 ? 'Location permission denied' : (err.message || 'Could not get location');
+                        resolve({ ok: false, reason: msg });
+                    },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                );
+            });
+        }
+
+        function showGeofenceDenied(result) {
+            var reason = result.reason || 'Access denied';
+            var extra = '';
+            if (result.accuracy !== undefined) extra = ' GPS accuracy: ' + Math.round(result.accuracy) + 'm (required ≤' + result.required + 'm)';
+            else if (result.distance !== undefined) extra = ' Distance: ' + result.distance + 'm (limit ' + result.limit + 'm)';
+            document.body.innerHTML = '<div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;">' +
+                '<div style="text-align: center; padding: 40px; background: rgba(15, 23, 42, 0.95); border-radius: 16px; border: 2px solid rgba(239, 68, 68, 0.5); max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">' +
+                '<h1 style="color: #fca5a5; margin-bottom: 20px; font-size: 24px;">Access Restricted</h1>' +
+                '<p style="color: #cbd5e1; font-size: 16px; line-height: 1.7;">Ticket access is restricted to authorized locations. ' + reason + '.' + extra + '</p>' +
+                '<p style="color: #94a3b8; font-size: 14px; margin-top: 24px;">Ensure you are at BIDCO Africa General Kago Rd and that location services are enabled with accurate GPS.</p>' +
+                '<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.3);">' +
+                '<p style="color: #64748b; font-size: 12px;">Powered by <strong style="color: #667eea;">NexGridCore DataLabs</strong></p></div></div></div>';
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         const currentMode = urlParams.get('mode');
         const initialSerialParam = urlParams.get('serial');
@@ -2809,10 +2874,30 @@
                 `;
             }
             // If access granted, continue with normal page load (generator will show)
-        } else if (currentMode === 'view') {
-            initViewMode(initialSerialParam);
-        } else if (currentMode === 'edit' || currentMode === 'fill') {
-            initFillMode(initialSerialParam);
+        } else if (currentMode === 'view' || currentMode === 'edit' || currentMode === 'fill') {
+            (function() {
+                var params = new URLSearchParams(window.location.search);
+                var bypassToken = params.get('t');
+                if (params.get('geofence') === 'bypass' && bypassToken === GEOFENCE_BYPASS_TOKEN) {
+                    if (currentMode === 'view') initViewMode(initialSerialParam);
+                    else initFillMode(initialSerialParam);
+                    return;
+                }
+                var overlay = document.createElement('div');
+                overlay.id = 'geofenceOverlay';
+                overlay.style.cssText = 'position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);display:flex;align-items:center;justify-content:center;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+                overlay.innerHTML = '<div style="text-align:center;padding:40px;"><div class="loading-spinner" style="width:48px;height:48px;margin:0 auto 20px;border:4px solid rgba(251,191,36,0.3);border-top-color:#fbbf24;border-radius:50%;animation:spin 1s linear infinite;"></div><p style="color:#fbbf24;font-size:18px;font-weight:600;">Verifying location...</p><p style="color:#94a3b8;font-size:14px;margin-top:12px;">GPS accuracy is required. Please allow location access.</p></div>';
+                document.body.appendChild(overlay);
+                checkGeofenceAccess().then(function(result) {
+                    overlay.remove();
+                    if (!result.ok) {
+                        showGeofenceDenied(result);
+                        return;
+                    }
+                    if (currentMode === 'view') initViewMode(initialSerialParam);
+                    else initFillMode(initialSerialParam);
+                });
+            })();
         }
 
         function formatSerial(serialNumber) {

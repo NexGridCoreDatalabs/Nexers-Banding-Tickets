@@ -4072,8 +4072,11 @@ function checkZoneEligibility(config) {
   }
   const toZone = config.toZone.trim();
   const toZoneUpper = toZone.toUpperCase();
+  const toZoneLower = toZone.toLowerCase();
   // OUTBONDED is the final consumer destination - accepts all SKUs from Outbounding
-  if (toZoneUpper === 'OUTBONDED' || toZoneUpper === 'OUTBOUNDED') {
+  // Handle all case variations: OUTBONDED, Outbonded, outbonded, OUTBOUNDED, Outbounded
+  if (toZoneUpper === 'OUTBONDED' || toZoneUpper === 'OUTBOUNDED' || 
+      toZoneLower === 'outbonded' || toZoneLower === 'outbounded') {
     return {
       allowed: true,
       targetStatus: 'Outbounded',

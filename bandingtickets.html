@@ -2554,7 +2554,7 @@
         const CONFIG = window.BANDFLOW_CONFIG || {};
         const DEFAULT_GOOGLE_SHEET_ID = CONFIG.GOOGLE_SHEET_ID || '1QXkL2K5hAfyvHKQ6mCFckmIu73lLw_XyENKSuqyFQgE';
         const DEFAULT_GOOGLE_API_KEY = CONFIG.GOOGLE_API_KEY || ''; // SECURITY: Never hardcode API keys!
-        const DEFAULT_GOOGLE_APPS_SCRIPT_URL = CONFIG.GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxbujRsVW-vVwt34GVCOlCm145mjgp4uV11-YhSy1CQtXPKiqdlPycfTj7q8GvIHg0a0g/exec';
+        const DEFAULT_GOOGLE_APPS_SCRIPT_URL = CONFIG.GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxVjIcc8M5_5bsqcnsyyE0SBWYa7AUVU3ws4bl70loqacX9GsS_ZvVifF3kG9GcGcmfmg/exec';
         
         const USER_SESSION_KEY = 'bandingUserSession';
         let loggedInUser = getStoredUser();
@@ -4253,6 +4253,35 @@
             const viewData = document.getElementById('viewData');
             
             try {
+                // Ensure ZoneConfig is loaded for status lookup
+                if (!movementZones || movementZones.length === 0) {
+                    try {
+                        const result = await callAppsScript(new URLSearchParams({ action: 'getZoneConfig' }));
+                        const allZones = (result.zones || []).filter(zone => zone.ZoneName);
+                        // Deduplicate zones (case-insensitive)
+                        const zoneMap = new Map();
+                        allZones.forEach(zone => {
+                            const normalizedName = (zone.ZoneName || '').trim();
+                            if (!normalizedName) return;
+                            const existingKey = Array.from(zoneMap.keys()).find(
+                                key => key.toLowerCase() === normalizedName.toLowerCase()
+                            );
+                            if (existingKey) {
+                                const existing = zoneMap.get(existingKey);
+                                if (normalizedName === existingKey || normalizedName.length < existingKey.length) {
+                                    zoneMap.delete(existingKey);
+                                    zoneMap.set(normalizedName, { ...zone, ZoneName: normalizedName });
+                                }
+                            } else {
+                                zoneMap.set(normalizedName, { ...zone, ZoneName: normalizedName });
+                            }
+                        });
+                        movementZones = Array.from(zoneMap.values());
+                    } catch (zoneError) {
+                        console.warn('Could not load ZoneConfig for status lookup:', zoneError);
+                    }
+                }
+                
                 const ticket = await readTicketFromSheet(serialValue);
                 if (viewLoading) viewLoading.style.display = 'none';
                 if (viewData) {
@@ -4317,7 +4346,24 @@
                 return originalQty;
             })();
             const palletZone = palletInfo && palletInfo.CurrentZone ? palletInfo.CurrentZone : 'Receiving Area';
-            const palletStatus = palletInfo && palletInfo.Status ? palletInfo.Status : 'Received';
+            
+            // Get DefaultStatus from ZoneConfig for the pallet's current zone
+            let palletStatus = 'Received'; // Default fallback
+            if (palletZone && movementZones && movementZones.length > 0) {
+                // Find zone config for current zone (case-insensitive match)
+                const zoneConfig = movementZones.find(z => 
+                    z.ZoneName && z.ZoneName.toLowerCase() === palletZone.toLowerCase()
+                );
+                if (zoneConfig && zoneConfig.DefaultStatus) {
+                    palletStatus = zoneConfig.DefaultStatus;
+                } else if (palletInfo && palletInfo.Status) {
+                    // Fallback to pallet's Status if zone config not found
+                    palletStatus = palletInfo.Status;
+                }
+            } else if (palletInfo && palletInfo.Status) {
+                // Fallback to pallet's Status if ZoneConfig not loaded
+                palletStatus = palletInfo.Status;
+            }
             const palletRemaining = palletInfo && (palletInfo.RemainingQuantity ?? palletInfo.Quantity) ? (palletInfo.RemainingQuantity ?? palletInfo.Quantity) : '—';
             const palletLastMove = palletInfo && palletInfo.LastMovedAt ? formatMovementDate(palletInfo.LastMovedAt) : 'Not moved yet';
             const palletCreated = palletInfo && palletInfo.CreatedAt ? formatMovementDate(palletInfo.CreatedAt) : 'Pending';
@@ -5009,7 +5055,8 @@
             if (fromZone.includes('receiving area')) {
                 movementZones.forEach(z => {
                     const zName = z.ZoneName.toLowerCase();
-                    if (!zName.includes('outbounding') && zName !== 'outbonded') {
+                    // Case-insensitive check: exclude outbounding and all OUTBONDED variations
+                    if (!zName.includes('outbounding') && zName !== 'outbonded' && zName !== 'outbounded') {
                         allowed.push(z.ZoneName);
                     }
                 });
@@ -5081,7 +5128,8 @@
             if (fromZone.includes('outbounding')) {
                 movementZones.forEach(z => {
                     const zName = z.ZoneName.toLowerCase();
-                    if (zName === 'outbonded' || zName.includes('rework') || zName === 'qa hold') {
+                    // Case-insensitive matching for OUTBONDED (handles: outbonded, OUTBONDED, Outbonded, OUTBOUNDED, Outbounded)
+                    if (zName === 'outbonded' || zName === 'outbounded' || zName.includes('rework') || zName === 'qa hold') {
                         allowed.push(z.ZoneName);
                     }
                 });
@@ -5089,7 +5137,8 @@
             }
             
             // Rule 8: From OUTBONDED (OBD) - FINAL, no movement allowed
-            if (fromZone === 'outbonded') {
+            // Case-insensitive check for all OUTBONDED variations
+            if (fromZone === 'outbonded' || fromZone === 'outbounded') {
                 return []; // No destinations allowed
             }
             
@@ -5202,7 +5251,8 @@
             if (fromZone.includes('receiving area')) {
                 movementZones.forEach(z => {
                     const zName = z.ZoneName.toLowerCase();
-                    if (!zName.includes('outbounding') && zName !== 'outbonded') {
+                    // Case-insensitive check: exclude outbounding and all OUTBONDED variations
+                    if (!zName.includes('outbounding') && zName !== 'outbonded' && zName !== 'outbounded') {
                         allowed.push(z.ZoneName);
                     }
                 });
@@ -5274,7 +5324,8 @@
             if (fromZone.includes('outbounding')) {
                 movementZones.forEach(z => {
                     const zName = z.ZoneName.toLowerCase();
-                    if (zName === 'outbonded' || zName.includes('rework') || zName === 'qa hold') {
+                    // Case-insensitive matching for OUTBONDED (handles: outbonded, OUTBONDED, Outbonded, OUTBOUNDED, Outbounded)
+                    if (zName === 'outbonded' || zName === 'outbounded' || zName.includes('rework') || zName === 'qa hold') {
                         allowed.push(z.ZoneName);
                     }
                 });
@@ -5282,7 +5333,8 @@
             }
             
             // Rule 8: From OUTBONDED (OBD) - FINAL, no movement allowed
-            if (fromZone === 'outbonded') {
+            // Case-insensitive check for all OUTBONDED variations
+            if (fromZone === 'outbonded' || fromZone === 'outbounded') {
                 return []; // No destinations allowed
             }
             
@@ -6083,15 +6135,21 @@
                     return;
                 }
                 
-                // Special rule: Check pallet status for Outbounding status restrictions
+                // Special rule: Check pallet status AND current zone for Outbounding restrictions
                 const palletStatus = movementSelectedPallet ? (movementSelectedPallet.Status || '').toLowerCase() : '';
-                if (palletStatus.includes('outbounding')) {
-                    const allowedForOutbounding = ['outbonded', 'rework', 'qa hold'];
-                    const toZoneAllowed = allowedForOutbounding.some(allowed => 
-                        toZoneLower.includes(allowed)
-                    );
-                    if (!toZoneAllowed) {
-                        setMovementStatus('❌ Outbounding status pallets can ONLY move to: OUTBONDED, Rework Zone, or QA Hold!', 'error');
+                const currentZoneLower = currentZoneName.toLowerCase();
+                const isOutboundingStatus = palletStatus.includes('outbounding') || palletStatus === 'shipped';
+                const isOutboundingZone = currentZoneLower.includes('outbounding') && !currentZoneLower.includes('outbonded');
+                
+                // Apply Outbounding restrictions if status is "Outbounding" OR zone is "Outbounding"
+                if (isOutboundingStatus || isOutboundingZone) {
+                    // Case-insensitive matching for OUTBONDED (handles all variations)
+                    const isOutbonded = toZoneLower === 'outbonded' || toZoneLower === 'outbounded';
+                    const isRework = toZoneLower.includes('rework');
+                    const isQAHold = toZoneLower === 'qa hold' || toZoneLower.includes('qa hold');
+                    
+                    if (!isOutbonded && !isRework && !isQAHold) {
+                        setMovementStatus('❌ Outbounding pallets can ONLY move to: OUTBONDED, Rework Zone, or QA Hold!', 'error');
                         return;
                     }
                 }

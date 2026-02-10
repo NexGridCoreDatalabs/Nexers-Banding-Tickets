@@ -2234,9 +2234,11 @@
                                 </div>
                                 <button type="button" class="btn-generate" onclick="refreshMovementZone()">🔄 Refresh</button>
                                 <button type="button" class="btn-reset" onclick="refreshZoneOverview()" style="margin-top: 10px;">📊 View All Zones</button>
+                                <button type="button" class="btn-reset" onclick="refreshRecentMovements()" style="margin-top: 10px;">📋 Recent Movements</button>
                             </div>
                             <div id="movementZoneMeta" class="movement-zone-meta"></div>
                             <div id="zoneOverviewTable" style="display: none; margin-top: 20px; background: rgba(15, 23, 42, 0.6); border-radius: 12px; padding: 16px; border: 2px solid rgba(245, 158, 11, 0.3);"></div>
+                            <div id="recentMovementsTable" style="display: none; margin-top: 20px; background: rgba(15, 23, 42, 0.6); border-radius: 12px; padding: 16px; border: 2px solid rgba(245, 158, 11, 0.3);"></div>
                             <div id="movementPalletList" class="movement-pallet-list">
                                 <div style="color:#94a3b8;">Select a zone to view pallets.</div>
                             </div>
@@ -2447,23 +2449,16 @@
             
             // If accessing via file:// protocol, use default URL or prompt user
             if (protocol === 'file:') {
-                console.warn('⚠️ Accessing via file:// protocol. QR codes will use default URL.');
-                console.warn('💡 For local testing, use a web server: python -m http.server 8000');
-                console.warn('💡 Then access via: http://localhost:8000/bandingtickets.html');
                 // Use default URL so QR codes still generate (user can change in config)
                 SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL;
                 localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
             } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                // Local server - use it but warn about phone access
                 SCAN_BASE_URL = `${origin}${pathname}`;
                 localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
-                console.warn('⚠️ Using localhost URL. QR codes will only work if phone is on same network.');
-                console.warn('💡 For phone access, use your computer IP: http://YOUR-IP:PORT/bandingtickets.html');
             } else {
                 // Web server (GitHub Pages, etc.) - use current URL
                 SCAN_BASE_URL = `${origin}${pathname}`;
                 localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
-                console.log('✅ Auto-detected URL:', SCAN_BASE_URL);
             }
         }
         
@@ -3218,7 +3213,6 @@
             // Remove any existing query parameters from base URL
             const baseUrl = SCAN_BASE_URL.split('?')[0];
             const url = `${baseUrl}?mode=${mode}&serial=${encodeURIComponent(serial)}&color=${encodeURIComponent(color)}`;
-            console.log(`🔗 Generated QR URL for ${serial}: ${url}`);
             return url;
         }
         
@@ -3483,7 +3477,6 @@
             }
             const elements = Array.from(rootElement.querySelectorAll('.ticket-qr'));
             const totalElements = elements.length;
-            console.log(`📱 Rendering ${totalElements} QR codes (batched for performance)...`);
             
             if (totalElements === 0) return;
             
@@ -3514,7 +3507,6 @@
                     const ticketColor = container.dataset.color || 'blue';
                     
                     if (!serial) {
-                        console.warn('⚠️ Missing serial number for QR code');
                         container.innerHTML = '<span style="color: #fca5a5; font-size: 10px;">ERROR</span>';
                         completedCount++;
                         return;
@@ -3559,7 +3551,6 @@
                 if (currentIndex < totalElements) {
                     requestAnimationFrame(processBatch);
                 } else if (completedCount === totalElements) {
-                    console.log(`✅ All ${totalElements} QR codes rendered successfully`);
                 }
             }
             
@@ -3686,7 +3677,6 @@
             if (useCache) {
                 const cached = getCachedRequest(cacheKey);
                 if (cached !== null) {
-                    console.log(`📦 Cache hit for ticket: ${serial}`);
                     return cached;
                 }
             }
@@ -3806,7 +3796,6 @@
                 // Cache the result
                 if (useCache) {
                     setCachedRequest(cacheKey, ticket);
-                    console.log(`💾 Cached ticket: ${serial}`);
                 }
                 
                 return ticket;
@@ -3892,7 +3881,6 @@
                 });
                 
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
-                console.log('Calling Apps Script with GET:', url.substring(0, 200) + '...');
                 
                 let response;
                 try {
@@ -3912,9 +3900,6 @@
                 
                 // Get response as text first, then parse
                 const responseText = await response.text();
-                console.log('Raw response from Apps Script:', responseText);
-                console.log('Response length:', responseText.length);
-                console.log('Response starts with:', responseText.substring(0, 50));
                 
                 // Check if Apps Script returned the raw form data (indicates it didn't process)
                 if (responseText.startsWith('data=') || responseText.includes('%7B')) {
@@ -3936,7 +3921,6 @@
                     throw new Error(result.error || 'Failed to save ticket');
                 }
                 
-                console.log('Successfully saved to sheet:', result);
                 return result;
             } catch (error) {
                 console.error('Error saving ticket:', error);
@@ -4210,7 +4194,6 @@
         async function updateSKUCalculations(sku, qty) {
             // This function is kept for compatibility but calculations are handled by Apps Script
             // when saving tickets (see saveTicketToSheet function)
-            console.log('SKU calculations handled by Apps Script');
         }
         
         // View Mode Functions
@@ -4278,7 +4261,7 @@
                         });
                         movementZones = Array.from(zoneMap.values());
                     } catch (zoneError) {
-                        console.warn('Could not load ZoneConfig for status lookup:', zoneError);
+                        // ZoneConfig optional for status lookup
                     }
                 }
                 
@@ -4731,7 +4714,6 @@
                     populateFormFromTicket(existingTicket);
                 }
             } catch (error) {
-                console.log('No existing ticket or error loading:', error);
             }
 
 
@@ -4764,7 +4746,6 @@
                         
                         // Save to Google Sheets (pass existingTicket for timestamp handling)
                         const saveResult = await saveTicketToSheet(data, isUpdate, existingTicket);
-                        console.log('Save result:', saveResult);
                         
                         // Update SKU calculations
                         if (data.sku && data.qty) {
@@ -5004,7 +4985,6 @@
                 });
                 
                 movementZones = Array.from(zoneMap.values());
-                console.log(`✅ Loaded ${movementZones.length} unique zones (deduplicated from ${allZones.length} total)`);
                 
                 // Extract all unique DefaultStatus values from zones for status filter dropdown
                 const allStatuses = new Set();
@@ -5041,7 +5021,8 @@
                 await refreshMovementZone();
             } catch (error) {
                 console.error('Movement init error:', error);
-                setMovementStatus(error.message || 'Failed to load zones', 'error');
+                showToast(error.message || 'Failed to load zones', 'error', 6000);
+                setMovementStatus('');
             }
         }
 
@@ -5478,7 +5459,6 @@
                 
                 // List all zones for user reference
                 const allZoneNames = movementZones.map(z => z.ZoneName).filter(Boolean).sort();
-                console.log('📋 All Zones in System:', allZoneNames);
                 
                 // Helper function to recommend destination zone based on forward movement flow - STRICTLY follows rules
                 const recommendDestination = function(currentZone, palletStatus) {
@@ -5877,11 +5857,13 @@
                 const result = await callAppsScript(params);
                 movementLastPallets = result.pallets || [];
                 renderMovementPalletList(movementLastPallets);
-                setMovementStatus(`Loaded ${movementLastPallets.length} pallet(s) from ${zoneName}`, 'success');
+                showToast(`Loaded ${movementLastPallets.length} pallet(s) from ${zoneName}`, 'success', 4000);
+                setMovementStatus('');
             } catch (error) {
                 console.error('Failed to load pallets:', error);
-                setMovementStatus(error.message || 'Failed to load pallets', 'error');
+                showToast(error.message || 'Failed to load pallets', 'error', 6000);
                 setMovementListLoading(error.message || 'Unable to load pallets.');
+                setMovementStatus('');
             }
         }
 
@@ -6081,15 +6063,15 @@
             const toZone = document.getElementById('movementToZoneSelect')?.value;
             const movedBy = document.getElementById('movementMovedBy')?.value.trim();
             if (!palletId) {
-                setMovementStatus('Enter pallet ID.', 'error');
+                showToast('Enter pallet ID.', 'error', 5000);
                 return;
             }
             if (!toZone) {
-                setMovementStatus('Select destination zone.', 'error');
+                showToast('Select destination zone.', 'error', 5000);
                 return;
             }
             if (!movedBy) {
-                setMovementStatus('Enter the user moving the pallet.', 'error');
+                showToast('Enter the user moving the pallet.', 'error', 5000);
                 return;
             }
             
@@ -6109,7 +6091,7 @@
                     const allowedList = allowedDestinations.length > 0 
                         ? allowedDestinations.join(', ') 
                         : 'None (this zone cannot move pallets)';
-                    setMovementStatus(`❌ Movement not allowed! From "${currentZoneName}" you can only move to: ${allowedList}`, 'error');
+                    showToast(`Movement not allowed! From "${currentZoneName}" you can only move to: ${allowedList}`, 'error', 6000);
                     return;
                 }
                 
@@ -6117,7 +6099,7 @@
                 if (toZoneLower.includes('rework')) {
                     const fromZoneLower = currentZoneName.toLowerCase();
                     if (!fromZoneLower.includes('qa hold') && !fromZoneLower.includes('dispatch loading area')) {
-                        setMovementStatus('❌ Rework Zone can ONLY receive pallets from QA Hold or Dispatch Loading Area!', 'error');
+                        showToast('Rework Zone can ONLY receive pallets from QA Hold or Dispatch Loading Area!', 'error', 6000);
                         return;
                     }
                 }
@@ -6125,13 +6107,13 @@
                 // Special rule: DSP cannot move to itself
                 if (currentZoneName.toLowerCase().includes('dispatch loading area') && 
                     toZoneLower.includes('dispatch loading area')) {
-                    setMovementStatus('❌ Dispatch Loading Area cannot move to itself!', 'error');
+                    showToast('Dispatch Loading Area cannot move to itself!', 'error', 6000);
                     return;
                 }
                 
                 // Special rule: OUTBONDED is final - no movement out
                 if (currentZoneName.toLowerCase() === 'outbonded') {
-                    setMovementStatus('❌ OUTBONDED is a final destination - no movement allowed out!', 'error');
+                    showToast('OUTBONDED is a final destination - no movement allowed out!', 'error', 6000);
                     return;
                 }
                 
@@ -6149,7 +6131,7 @@
                     const isQAHold = toZoneLower === 'qa hold' || toZoneLower.includes('qa hold');
                     
                     if (!isOutbonded && !isRework && !isQAHold) {
-                        setMovementStatus('❌ Outbounding pallets can ONLY move to: OUTBONDED, Rework Zone, or QA Hold!', 'error');
+                        showToast('Outbounding pallets can ONLY move to: OUTBONDED, Rework Zone, or QA Hold!', 'error', 6000);
                         return;
                     }
                 }
@@ -6161,7 +6143,7 @@
             const orderReference = document.getElementById('movementOrderRef')?.value || '';
             if (isChildMode) {
                 if (!quantity || Number(quantity) <= 0) {
-                    setMovementStatus('Enter child quantity greater than zero.', 'error');
+                    showToast('Enter child quantity greater than zero.', 'error', 5000);
                     return;
                 }
             }
@@ -6183,15 +6165,17 @@
                 }
                 const result = await callAppsScript(params);
                 if (isChildMode) {
-                    setMovementStatus(result.message || 'Child pallet created successfully', 'success');
+                    showToast(result.message || 'Child pallet created successfully', 'success', 5000);
                 } else {
-                    setMovementStatus(result.message || 'Pallet moved successfully', 'success');
+                    const destZone = result.toZone || toZone;
+                    showToast(`Pallet ${palletId} successfully moved to ${destZone}`, 'success', 5000);
                 }
                 resetMovementForm();
                 refreshMovementZone();
             } catch (error) {
                 console.error('Move pallet error:', error);
-                setMovementStatus(error.message || 'Failed to move pallet', 'error');
+                showToast(error.message || 'Failed to move pallet', 'error', 6000);
+                setMovementStatus('');
                 if ((error.message || '').toLowerCase().includes('fifo')) {
                     document.getElementById('movementOverrideReason')?.focus();
                 }

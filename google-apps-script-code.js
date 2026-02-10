@@ -874,7 +874,8 @@ function doGet(e) {
       return initializeStockMovementSheets();
     }
     else if (action === 'getZoneConfig') {
-      return getZoneConfigDataResponse();
+      var includeRecent = (e.parameter.includeRecentMovements || e.parameter.includeRecent) === 'true' || e.parameter.includeRecentMovements === true;
+      return getZoneConfigDataResponse(includeRecent);
     }
     else if (action === 'getPalletsInZone') {
       return getPalletsInZone({
@@ -3596,40 +3597,8 @@ function logZoneMovement(entry) {
 }
 
 function getRecentMovements(limit) {
-  var workbook = SpreadsheetApp.openById(SHEET_ID);
-  var sheet = workbook.getSheetByName('ZoneMovements');
-  if (!sheet) {
-    return createResponse({ success: true, movements: [] });
-  }
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) {
-    return createResponse({ success: true, movements: [] });
-  }
-  var headers = data[0];
-  var idx = buildHeaderIndexMap(headers);
-  var rows = [];
-  for (var i = 1; i < data.length; i++) {
-    var r = data[i];
-    if (!r || (!r[idx.PalletID] && !r[idx.MovementID])) continue;
-    var obj = {};
-    for (var j = 0; j < headers.length; j++) {
-      var v = r[j];
-      if (v instanceof Date) {
-        obj[headers[j]] = v.toISOString ? v.toISOString() : String(v);
-      } else {
-        obj[headers[j]] = v;
-      }
-    }
-    rows.push(obj);
-  }
-  var sortKey = idx.CreatedAt >= 0 ? 'CreatedAt' : (idx.MovementDate >= 0 ? 'MovementDate' : headers[0]);
-  rows.sort(function(a, b) {
-    var da = a[sortKey] ? new Date(a[sortKey]).getTime() : 0;
-    var db = b[sortKey] ? new Date(b[sortKey]).getTime() : 0;
-    return db - da;
-  });
-  var recent = rows.slice(0, Math.min(limit || 10, rows.length));
-  return createResponse({ success: true, movements: recent });
+  var movements = getRecentMovementsData(limit || 10);
+  return createResponse({ success: true, movements: movements });
 }
 
 function createInventorySnapshot() {
@@ -4080,7 +4049,7 @@ function getZoneConfigMap() {
   return map;
 }
 
-function getZoneConfigDataResponse() {
+function getZoneConfigDataResponse(includeRecentMovements) {
   const workbook = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ensureSheetWithHeaders(workbook, 'ZoneConfig', STOCK_MOVEMENT_SHEETS.ZoneConfig);
   const data = sheet.getDataRange().getValues();
@@ -4094,10 +4063,43 @@ function getZoneConfigDataResponse() {
     });
     zones.push(zone);
   }
-  return createResponse({
-    success: true,
-    zones: zones
+  var payload = { success: true, zones: zones };
+  if (includeRecentMovements) {
+    var movementsResult = getRecentMovementsData(10);
+    payload.movements = movementsResult;
+  }
+  return createResponse(payload);
+}
+
+function getRecentMovementsData(limit) {
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('ZoneMovements');
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+  var headers = data[0];
+  var idx = buildHeaderIndexMap(headers);
+  var rows = [];
+  for (var i = 1; i < data.length; i++) {
+    var r = data[i];
+    if (!r || (!r[idx.PalletID] && !r[idx.MovementID])) continue;
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      var v = r[j];
+      if (v instanceof Date) {
+        obj[headers[j]] = v.toISOString ? v.toISOString() : String(v);
+      } else {
+        obj[headers[j]] = v;
+      }
+    }
+    rows.push(obj);
+  }
+  var sortKey = idx.CreatedAt >= 0 ? 'CreatedAt' : (idx.MovementDate >= 0 ? 'MovementDate' : headers[0]);
+  rows.sort(function(a, b) {
+    var da = a[sortKey] ? new Date(a[sortKey]).getTime() : 0;
+    var db = b[sortKey] ? new Date(b[sortKey]).getTime() : 0;
+    return db - da;
   });
+  return rows.slice(0, Math.min(limit || 10, rows.length));
 }
 
 /**

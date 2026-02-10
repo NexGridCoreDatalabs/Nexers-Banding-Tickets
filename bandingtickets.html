@@ -5885,7 +5885,7 @@
             tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading recent movements...</p></div>';
             
             try {
-                const params = new URLSearchParams({ action: 'getRecentMovements', limit: '10' });
+                const params = new URLSearchParams({ action: 'getZoneConfig', includeRecentMovements: 'true' });
                 const result = await callAppsScript(params);
                 const movements = result.movements || [];
                 

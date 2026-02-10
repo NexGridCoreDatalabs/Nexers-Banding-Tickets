@@ -915,7 +915,8 @@ function doGet(e) {
       return initializeStockMovementSheets();
     }
     else if (action === 'getZoneConfig') {
-      return getZoneConfigDataResponse();
+      var includeRecent = (e.parameter.includeRecentMovements || e.parameter.includeRecent) === 'true' || e.parameter.includeRecentMovements === true;
+      return getZoneConfigDataResponse(includeRecent);
     }
     else if (action === 'getPalletsInZone') {
       return getPalletsInZone({
@@ -3642,16 +3643,11 @@ function logZoneMovement(entry) {
   sheet.appendRow(row);
 }
 
-function getRecentMovements(limit) {
-  var workbook = SpreadsheetApp.openById(SHEET_ID);
-  var sheet = workbook.getSheetByName('ZoneMovements');
-  if (!sheet) {
-    return createResponse({ success: true, movements: [] });
-  }
+function getRecentMovementsData(limit) {
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('ZoneMovements');
+  if (!sheet) return [];
   var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) {
-    return createResponse({ success: true, movements: [] });
-  }
+  if (data.length <= 1) return [];
   var headers = data[0];
   var idx = buildHeaderIndexMap(headers);
   var rows = [];
@@ -3675,8 +3671,12 @@ function getRecentMovements(limit) {
     var db = b[sortKey] ? new Date(b[sortKey]).getTime() : 0;
     return db - da;
   });
-  var recent = rows.slice(0, Math.min(limit || 10, rows.length));
-  return createResponse({ success: true, movements: recent });
+  return rows.slice(0, Math.min(limit || 10, rows.length));
+}
+
+function getRecentMovements(limit) {
+  var movements = getRecentMovementsData(limit || 10);
+  return createResponse({ success: true, movements: movements });
 }
 
 function createInventorySnapshot() {
@@ -4127,7 +4127,7 @@ function getZoneConfigMap() {
   return map;
 }
 
-function getZoneConfigDataResponse() {
+function getZoneConfigDataResponse(includeRecentMovements) {
   const workbook = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ensureSheetWithHeaders(workbook, 'ZoneConfig', STOCK_MOVEMENT_SHEETS.ZoneConfig);
   const data = sheet.getDataRange().getValues();
@@ -4141,10 +4141,11 @@ function getZoneConfigDataResponse() {
     });
     zones.push(zone);
   }
-  return createResponse({
-    success: true,
-    zones: zones
-  });
+  var payload = { success: true, zones: zones };
+  if (includeRecentMovements) {
+    payload.movements = getRecentMovementsData(10);
+  }
+  return createResponse(payload);
 }
 
 /**

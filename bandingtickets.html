@@ -4134,14 +4134,22 @@
             return result.data;
         }
 
-        function showLoginCard() {
+        let authorizedUsersLoaded = false;
+        async function showLoginCard() {
             const loginCard = document.getElementById('loginCard');
             const editCard = document.getElementById('editCard');
             if (loginCard) loginCard.style.display = 'block';
             if (editCard) editCard.style.display = 'none';
-            // Preview is now in modal - no longer needed here
             const banner = document.getElementById('loggedInUserBanner');
             if (banner) banner.style.display = 'none';
+            if (!authorizedUsersLoaded) {
+                const loginSelect = document.getElementById('loginUser');
+                if (loginSelect && loginSelect.options.length <= 1) {
+                    const { users } = await loadAuthorizedUsers();
+                    populateAuthorizedUserSelects(users);
+                    authorizedUsersLoaded = true;
+                }
+            }
         }
 
         function showEditCard() {
@@ -4647,6 +4655,9 @@
             const viewCard = document.getElementById('viewCard');
             const editCard = document.getElementById('editCard');
             if (viewCard) viewCard.style.display = 'none';
+            const { users, skus, sachetTypes, tabletTypes } = await loadAuthorizedUsers();
+            populateAuthorizedUserSelects(users);
+            authorizedUsersLoaded = true;
             if (isUserLoggedIn()) {
                 showEditCard();
             } else {
@@ -4689,9 +4700,6 @@
                 fillColorSelect.style.cursor = 'not-allowed';
             }
             
-            // Load authorized users
-            const { users, skus, sachetTypes, tabletTypes } = await loadAuthorizedUsers();
-            populateAuthorizedUserSelects(users);
             populateSKUDropdown(skus);
             populateDropdown('sachetType', sachetTypes, 'Select sachet type...');
             populateDropdown('tabletType', tabletTypes, 'Select tablet type...');
@@ -5015,8 +5023,27 @@
                     });
                 }
                 
-                populateMovementZoneOptions();
+                populateMovementZoneOptions(false, null);
                 movementPanelInitialized = true;
+                const palletIdInput = document.getElementById('movementPalletId');
+                if (palletIdInput) {
+                    palletIdInput.addEventListener('blur', function() {
+                        const pid = this.value.trim();
+                        if (!pid) return;
+                        const pallet = movementLastPallets.find(p => (p.PalletID || '').toLowerCase() === pid.toLowerCase());
+                        if (pallet) {
+                            movementSelectedPallet = pallet;
+                            const cz = document.getElementById('movementCurrentZone');
+                            if (cz) cz.value = pallet.CurrentZone || '';
+                            const status = (pallet.Status || '').toLowerCase();
+                            if (status.includes('outbounding')) {
+                                populateMovementZoneOptions(true, null);
+                            } else {
+                                populateMovementZoneOptions(false, pallet.CurrentZone || null);
+                            }
+                        }
+                    });
+                }
                 setMovementStatus('');
                 await refreshMovementZone();
             } catch (error) {
@@ -5126,7 +5153,7 @@
             return allowed;
         }
         
-        function populateMovementZoneOptions(filterForOutbounding = false) {
+        function populateMovementZoneOptions(filterForOutbounding = false, fromZoneName = null) {
             const zoneSelect = document.getElementById('movementZoneSelect');
             const toZoneSelect = document.getElementById('movementToZoneSelect');
             if (!zoneSelect || !toZoneSelect) return;
@@ -5184,16 +5211,8 @@
             }
             
             movementZones.sort((a, b) => (a.ZoneName || '').localeCompare(b.ZoneName || ''));
+            const savedZoneValue = zoneSelect.value;
             zoneSelect.innerHTML = '';
-            toZoneSelect.innerHTML = '';
-            
-            // Filter zones for "Move To" if Outbounding status
-            const zonesToShow = filterForOutbounding 
-                ? movementZones.filter(z => {
-                    const name = z.ZoneName.toLowerCase();
-                    return name === 'outbonded' || name.includes('rework') || name === 'qa hold';
-                })
-                : movementZones;
             
             movementZones.forEach(zone => {
                 const option = document.createElement('option');
@@ -5202,20 +5221,37 @@
                 zoneSelect.appendChild(option.cloneNode(true));
             });
             
-            zonesToShow.forEach(zone => {
-                const option = document.createElement('option');
-                option.value = zone.ZoneName;
-                option.textContent = `${zone.ZoneName} (${zone.Prefix || 'N/A'})`;
-                toZoneSelect.appendChild(option);
-            });
-            
-            if (!zoneSelect.value && movementZones.length) {
-                zoneSelect.value = movementZones[0].ZoneName;
+            let zonesToShow = [];
+            if (filterForOutbounding) {
+                zonesToShow = movementZones.filter(z => {
+                    const name = z.ZoneName.toLowerCase();
+                    return name === 'outbonded' || name.includes('rework') || name === 'qa hold';
+                });
+            } else if (fromZoneName) {
+                const allowedNames = getAllowedDestinations(fromZoneName);
+                zonesToShow = movementZones.filter(z => allowedNames.includes(z.ZoneName));
             }
-            if (!toZoneSelect.value && zonesToShow.length) {
-                // Prefer Outbounded for Outbounding, otherwise first zone
-                const outboundedOption = zonesToShow.find(z => z.ZoneName === 'Outbounded');
+            
+            toZoneSelect.innerHTML = '';
+            if (zonesToShow.length === 0) {
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = fromZoneName ? 'No destinations allowed from this zone' : 'Select a pallet first';
+                toZoneSelect.appendChild(placeholder);
+            } else {
+                zonesToShow.forEach(zone => {
+                    const option = document.createElement('option');
+                    option.value = zone.ZoneName;
+                    option.textContent = `${zone.ZoneName} (${zone.Prefix || 'N/A'})`;
+                    toZoneSelect.appendChild(option);
+                });
+                const outboundedOption = zonesToShow.find(z => z.ZoneName.toLowerCase() === 'outbonded' || z.ZoneName.toLowerCase() === 'outbounded');
                 toZoneSelect.value = outboundedOption ? outboundedOption.ZoneName : zonesToShow[0].ZoneName;
+            }
+            
+            if (movementZones.length) {
+                const toRestore = movementZones.find(z => z.ZoneName === savedZoneValue);
+                zoneSelect.value = toRestore ? savedZoneValue : movementZones[0].ZoneName;
             }
             updateMovementZoneMeta(zoneSelect.value);
             autoFillMovementOperator();
@@ -5971,44 +6007,14 @@
                 
                 // SPECIAL RULE: If status is "Outbounding", only allow: OUTBONDED (consumer), Rework Zone, QA Hold
                 if (palletStatus.includes('outbounding')) {
-                    // Match zones case-insensitively - "OUTBONDED" (priority), "Rework Zone" (or "Rework"), "QA Hold"
-                    const allowedZonePatterns = ['outbonded', 'rework', 'qa hold'];
-                    toZoneSelect.innerHTML = '';
-                    allowedZonePatterns.forEach(pattern => {
-                        const zone = movementZones.find(z => 
-                            z.ZoneName.toLowerCase().includes(pattern)
-                        );
-                        if (zone) {
-                            const option = document.createElement('option');
-                            option.value = zone.ZoneName;
-                            option.textContent = `${zone.ZoneName} (${zone.Prefix || 'N/A'})`;
-                            toZoneSelect.appendChild(option);
-                        }
-                    });
-                    // Auto-select OUTBONDED if available (final consumer)
-                    if (toZoneSelect.options.length > 0) {
-                        const outbondedOption = Array.from(toZoneSelect.options).find(opt => 
-                            opt.value.toLowerCase() === 'outbonded'
-                        );
-                        if (outbondedOption) {
-                            toZoneSelect.value = outbondedOption.value;
-                        } else {
-                            toZoneSelect.value = toZoneSelect.options[0].value;
-                        }
-                    }
-                    const foundZones = movementZones.filter(z => 
-                        allowedZonePatterns.some(pattern => z.ZoneName.toLowerCase().includes(pattern))
-                    ).map(z => z.ZoneName);
-                    setMovementStatus(`Selected ${pallet.PalletID} (Outbounding status - can only move to: ${foundZones.join(', ')})`);
+                    populateMovementZoneOptions(true, null);
+                    setMovementStatus(`Selected ${pallet.PalletID} (Outbounding status - can only move to: OUTBONDED, Rework Zone, or QA Hold)`);
                 } else {
-                    // Normal flow - repopulate with all zones (not filtered)
-                    populateMovementZoneOptions(false);
-                    // Set a different zone if current is selected
+                    populateMovementZoneOptions(false, pallet.CurrentZone || null);
                     if (pallet.CurrentZone && toZoneSelect.value === pallet.CurrentZone) {
-                        const alternative = movementZones.find(zone => zone.ZoneName !== pallet.CurrentZone);
-                        if (alternative) {
-                            toZoneSelect.value = alternative.ZoneName;
-                        }
+                        const allowed = getAllowedDestinations(pallet.CurrentZone);
+                        const alternative = movementZones.find(z => allowed.includes(z.ZoneName) && z.ZoneName !== pallet.CurrentZone);
+                        if (alternative) toZoneSelect.value = alternative.ZoneName;
                     }
                     setMovementStatus(`Selected ${pallet.PalletID} (currently ${pallet.CurrentZone || 'N/A'})`);
                 }
@@ -6021,6 +6027,9 @@
             if (form) form.reset();
             const currentZoneInput = document.getElementById('movementCurrentZone');
             if (currentZoneInput) currentZoneInput.value = '';
+            if (movementPanelInitialized) {
+                populateMovementZoneOptions(false, null);
+            }
             autoFillMovementOperator();
             setMovementStatus('');
         }

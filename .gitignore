@@ -12,10 +12,8 @@ SETUP_SECRETS.md
 .env
 .env.local
 
-# Documentation (block most, allow important ones)
+# Documentation (not in repo)
 *.md
-!README.md
-!RetiFlux_IMS_Positioning_Summary.md
 docs/
 
 # OS and editor

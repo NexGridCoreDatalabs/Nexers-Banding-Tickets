@@ -2583,7 +2583,7 @@ function organizeSheetsWithLanding(workbook, hideSensitive) {
   });
 
   landing.clear();
-  landing.getRange(1, 1, 1, 3).merge().setValue('Nexers Banding • Sheet Index').setFontSize(18).setFontWeight('bold').setBackground('#1e293b').setFontColor('#ffffff');
+  landing.getRange(1, 1, 1, 3).merge().setValue('RetiFlux™ IMS Sheet Index').setFontSize(18).setFontWeight('bold').setBackground('#1e293b').setFontColor('#ffffff');
   landing.getRange(2, 1, 2, 3).merge().setValue('Use links below to navigate. Config & Backend sheets hidden by default.').setFontSize(11).setFontColor('#64748b');
   if (tocRows.length > 0) {
     landing.getRange(4, 1, tocRows.length, 3).setValues(tocRows);

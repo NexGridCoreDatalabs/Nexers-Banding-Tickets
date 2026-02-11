@@ -1983,7 +1983,7 @@
 
     <div class="fill-mode" id="fillContainer">
         <div class="fill-card" id="viewCard" style="display: none;">
-            <h2>⬥ View Ticket</h2>
+            <h2>⬥ View Ticket <button type="button" class="btn-reset" id="viewRefreshBtn" onclick="refreshViewTicket()" style="margin-left: 12px; padding: 6px 12px; font-size: 13px;" title="Reload ticket data">🔄 Refresh</button></h2>
             <p class="fill-intro">Viewing ticket: <strong id="viewSerialDisplay"></strong></p>
             <div id="viewContent" class="fill-form">
                 <div id="viewLoading" style="text-align: center; padding: 60px 20px;">
@@ -4444,6 +4444,31 @@
             }
         }
         
+        async function refreshViewTicket() {
+            var serialEl = document.getElementById('viewSerialDisplay');
+            var serial = serialEl ? serialEl.textContent.trim() : '';
+            if (!serial) return;
+            var viewLoading = document.getElementById('viewLoading');
+            var viewData = document.getElementById('viewData');
+            if (viewLoading) viewLoading.style.display = 'block';
+            if (viewData) { viewData.style.display = 'none'; viewData.innerHTML = ''; }
+            clearCache('ticket_' + serial);
+            try {
+                var ticket = await readTicketFromSheet(serial, false);
+                if (viewLoading) viewLoading.style.display = 'none';
+                if (viewData) {
+                    viewData.style.display = 'block';
+                    viewData.innerHTML = ticket ? renderViewMode(ticket) : '<p style="text-align: center; padding: 40px; color: #718096;">No data found for this ticket.</p>';
+                }
+            } catch (err) {
+                if (viewLoading) viewLoading.style.display = 'none';
+                if (viewData) {
+                    viewData.style.display = 'block';
+                    viewData.innerHTML = '<p style="text-align: center; padding: 40px; color: #e53e3e;">Error: ' + (err.message || 'Failed to refresh') + '</p>';
+                }
+            }
+        }
+
         function renderViewMode(ticket) {
             const merchHistory = ticket.MerchHistory ? (typeof ticket.MerchHistory === 'string' ? JSON.parse(ticket.MerchHistory) : ticket.MerchHistory) : [];
             

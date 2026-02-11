@@ -536,6 +536,17 @@ function handleWriteOperation(data, sheet) {
         updateCalculations(data.sku, parseFloat(data.qty) || 0, pt, 0, false);
       }
       
+      // Auto-refresh analytics every 10 new tickets
+      try {
+        var props = PropertiesService.getScriptProperties();
+        var count = parseInt(props.getProperty('TICKETS_SINCE_LAST_RECALC') || '0', 10) + 1;
+        props.setProperty('TICKETS_SINCE_LAST_RECALC', String(count));
+        if (count >= 10) {
+          props.setProperty('TICKETS_SINCE_LAST_RECALC', '0');
+          recalculateAllCalculations(sheet, false);
+        }
+      } catch (autoErr) {}
+      
       return createResponse({ success: true, message: 'Data saved successfully' });
     } 
     else if (data.action === 'update') {
@@ -2060,6 +2071,7 @@ function buildVariantComparisonSheet(workbook, analyticsData) {
   sheet.getRange('A1:J1').merge().setValue('Variant Comparison ⚖️').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c');
   sheet.getRange('A2:J2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
   sheet.getRange('A3:J3').merge().setValue('0.5KG vs 1KG performance across time windows').setFontColor('#718096').setHorizontalAlignment('center');
+  sheet.getRange('A4:J4').merge().setValue('Last refreshed: ' + (analyticsData.labels.refreshedAt || '—')).setFontSize(10).setFontColor('#94a3b8').setHorizontalAlignment('center');
   
   const variants = analyticsData.variantStats || [];
   if (!variants.length) {
@@ -2074,7 +2086,7 @@ function buildVariantComparisonSheet(workbook, analyticsData) {
     { key: 'all', label: 'All Time', color: '#9f7aea' }
   ];
   
-  let cardStartRow = 5;
+  let cardStartRow = 6;
   periods.forEach(function(period, pIndex) {
     variants.forEach(function(variant, vIndex) {
       const row = cardStartRow + pIndex * 4;
@@ -2164,6 +2176,7 @@ function buildVisualsSheet(workbook, analyticsData) {
   
   sheet.getRange('A1:L1').merge().setValue('NexGridCore Visual Intelligence 🎨').setFontSize(20).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#1a202c').setFontColor('#f7fafc');
   sheet.getRange('A2:L2').merge().setValue('Powered by NexGridCore DataLabs ⚡ | Complete visual storytelling for banding operations').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  sheet.getRange('A3:L3').merge().setValue('Last refreshed: ' + (analyticsData.labels.refreshedAt || '—')).setFontSize(10).setFontColor('#94a3b8').setHorizontalAlignment('center');
   
   const filterConfig = setupVisualFilterControls(sheet, preservedFilters);
   const visuals = analyticsData.visuals || {};
@@ -2505,6 +2518,7 @@ function onOpen() {
     .addItem('Apply Filters', 'refreshVisualsDashboard')
     .addToUi();
   ui.createMenu('Data')
+    .addItem('Refresh Analytics', 'runRefreshAnalyticsFromMenu')
     .addItem('Organize Sheets (Landing, Colors, Order)', 'runOrganizeSheetsFromMenu')
     .addSeparator()
     .addItem('Show Config & Backend Sheets…', 'showPasswordDialogForSensitiveSheets')
@@ -2512,6 +2526,19 @@ function onOpen() {
     .addSeparator()
     .addItem('Set Admin Password…', 'showSetAdminPasswordDialog')
     .addToUi();
+}
+
+function runRefreshAnalyticsFromMenu() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SHEET_ID);
+  SpreadsheetApp.getUi().alert('Refreshing analytics. This may take a minute…');
+  var result = recalculateAllCalculations(ss, false);
+  if (result && result.success) {
+    var summary = ss.getSheetByName('Summary');
+    if (summary) ss.setActiveSheet(summary);
+    SpreadsheetApp.getUi().alert('Analytics refreshed. Last refresh time is shown on each sheet.');
+  } else {
+    SpreadsheetApp.getUi().alert(result && result.error ? result.error : 'Refresh failed. Try again or run Recalculate from the web app.');
+  }
 }
 
 /**
@@ -2678,21 +2705,6 @@ function runHideSensitiveSheetsFromMenu() {
   SpreadsheetApp.getUi().alert('Config & Backend sheets are now hidden.');
 }
 
-function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu('Visual Controls')
-    .addItem('Apply Filters', 'refreshVisualsDashboard')
-    .addToUi();
-  ui.createMenu('Data')
-    .addItem('Organize Sheets (Landing, Colors, Order)', 'runOrganizeSheetsFromMenu')
-    .addSeparator()
-    .addItem('Show Config & Backend Sheets…', 'showPasswordDialogForSensitiveSheets')
-    .addItem('Hide Config & Backend Sheets', 'runHideSensitiveSheetsFromMenu')
-    .addSeparator()
-    .addItem('Set Admin Password…', 'showSetAdminPasswordDialog')
-    .addToUi();
-}
-
 /**
  * Build shift-level intelligence sheet
  */
@@ -2709,6 +2721,7 @@ function buildShiftSummarySheet(workbook, analyticsData) {
   shiftSheet.getRange('A1:J1').merge().setValue('Shift Intelligence Hub 🌗').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c').setNote('Shift-by-shift performance with leader accountability and SKU mix.');
   shiftSheet.getRange('A2:J2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontSize(12).setFontColor('#4c51bf').setHorizontalAlignment('center');
   shiftSheet.getRange('A3:J3').merge().setValue('Shifts auto-classified: Day (08:00-18:00) • Night (18:00-08:00)').setFontColor('#718096').setHorizontalAlignment('center');
+  shiftSheet.getRange('A4:J4').merge().setValue('Last refreshed: ' + (analyticsData.labels.refreshedAt || '—')).setFontSize(10).setFontColor('#94a3b8').setHorizontalAlignment('center');
   
   const headers = ['Date', 'Shift', 'Cartons', 'Pieces', 'Tickets', 'Issues', 'Group Leaders (cartons)', 'SKU Output (cartons)', 'Banding Mix', 'Time Window'];
   const rows = (analyticsData.shiftTable || []).map(function(shift) {
@@ -2726,7 +2739,7 @@ function buildShiftSummarySheet(workbook, analyticsData) {
     ];
   });
   
-  const startRow = 4;
+  const startRow = 5;
   buildTable(shiftSheet, '🌗 Shift Performance', headers, rows, startRow, {
     numericColumns: [3, 4, 5, 6],
     textColumns: [10]

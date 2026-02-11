@@ -94,7 +94,10 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
   };
 }
 /**
- * Google Apps Script Code for Banding Tickets System
+ * RetiFlux™ - Google Apps Script Backend
+ * Retis Fluxit, Data Vincit (The Network Flows, Data Conquers)
+ * 
+ * Powered by NexGridCore DataLabs
  * 
  * INSTRUCTIONS:
  * 1. Go to https://script.google.com/
@@ -106,7 +109,7 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
  * 7. Execute as: "Me"
  * 8. Who has access: "Anyone"
  * 9. Click "Deploy"
- * 10. Copy the Web App URL and use it in bandingtickets.html
+ * 10. Copy the Web App URL and use it in your RetiFlux™ deployment
  */
 
 // Your Google Sheet ID (update this)

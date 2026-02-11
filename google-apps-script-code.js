@@ -224,6 +224,17 @@ const STOCK_MOVEMENT_SHEETS = {
   ]
 };
 
+/** Sheet groups for organization: Landing, Analytics (green), Backend (blue), Config (amber) */
+const SHEET_GROUPS = {
+  Landing: { color: '9ca3af', sheets: ['Landing'] },
+  Analytics: { color: '34d399', sheets: ['Summary', 'Variant_Comparison', 'Visuals', 'Shift_Summary', 'SKU_Index', 'InventorySnapshot', 'Unpaired SKU Review'] },
+  Backend: { color: '60a5fa', sheets: ['Tickets', 'Calculations', 'Pallets', 'ZoneMovements', 'Zone Movements', 'User Activity Log', 'QAHold', 'Rework', 'Dispatch'] },
+  Config: { color: 'fbbf24', sheets: ['SKUZoneMapping', 'ZoneConfig', 'Authorized Users', 'Config'] }
+};
+
+const SENSITIVE_SHEETS = [].concat(SHEET_GROUPS.Backend.sheets, SHEET_GROUPS.Config.sheets);
+const ADMIN_PASSWORD_KEY = 'ADMIN_SHEET_PASSWORD';
+
 const INVENTORY_ZONE_ORDER = [
   'Receiving Area',
   'Detergents Zone',
@@ -693,6 +704,12 @@ function doGet(e) {
       const result = harmonizeSkuProductInfo(sheet);
       return createResponse({ success: true, result: result });
     }
+    if (action === 'organizeSheets') {
+      const sheet = SpreadsheetApp.openById(SHEET_ID);
+      const hideSensitive = parseBoolean(e.parameter.hideSensitive);
+      const result = organizeSheetsWithLanding(sheet, hideSensitive);
+      return createResponse(result);
+    }
     const sheet = SpreadsheetApp.openById(SHEET_ID);
     const serial = e.parameter.serial || '';
     
@@ -894,7 +911,8 @@ function doGet(e) {
       });
     } else if (action === 'recalculate') {
       // Full recalculation of Calculations sheet from all tickets
-      return recalculateAllCalculations(sheet);
+      var skipAnalytics = parseBoolean(e.parameter.skipAnalytics);
+      return recalculateAllCalculations(sheet, skipAnalytics);
     } else if (action === 'login') {
       const userId = (e.parameter.userId || '').trim();
       const passcode = (e.parameter.passcode || '').trim();
@@ -1006,7 +1024,7 @@ function formatTimestamp(timestamp) {
  * Full recalculation of Calculations sheet from all tickets
  * Creates comprehensive analytics sorted by Date, then SKU
  */
-function recalculateAllCalculations(sheet) {
+function recalculateAllCalculations(sheet, skipAnalytics) {
   try {
     sheet = sheet || SpreadsheetApp.openById(SHEET_ID);
     
@@ -1218,7 +1236,13 @@ function recalculateAllCalculations(sheet) {
     });
     
     if (rows.length > 0) {
-      calcSheet.getRange(2, 1, rows.length, 18).setValues(rows);
+      var calcBatchSize = 400;
+      for (var rOff = 0; rOff < rows.length; rOff += calcBatchSize) {
+        var rChunk = rows.slice(rOff, rOff + calcBatchSize);
+        calcSheet.getRange(2 + rOff, 1, rChunk.length, 18).setValues(rChunk);
+        SpreadsheetApp.flush();
+        if (rOff + calcBatchSize < rows.length) Utilities.sleep(200);
+      }
     }
     
     // Apply filters and sorting
@@ -1235,10 +1259,12 @@ function recalculateAllCalculations(sheet) {
       sortRange.sort([{column: 1, ascending: true}, {column: 2, ascending: true}]);
     }
     
-    try {
-      buildAnalyticsCenter(sheet, sortedData, ticketsValues);
-    } catch (dashboardError) {
-      // Analytics build failed silently - non-critical
+    if (!skipAnalytics) {
+      try {
+        buildAnalyticsCenter(sheet, sortedData, ticketsValues);
+      } catch (dashboardError) {
+        Logger.log('Analytics build failed: ' + (dashboardError && dashboardError.toString ? dashboardError.toString() : dashboardError));
+      }
     }
     
     return createResponse({ 
@@ -1383,11 +1409,19 @@ function buildAnalyticsCenter(workbook, groupedData, ticketsValues) {
   
   ensureConfigSheet(workbook);
   buildSummarySheet(workbook, analyticsData);
+  SpreadsheetApp.flush();
   buildVariantComparisonSheet(workbook, analyticsData);
+  SpreadsheetApp.flush();
   buildVisualsSheet(workbook, analyticsData);
+  SpreadsheetApp.flush();
   buildShiftSummarySheet(workbook, analyticsData);
+  SpreadsheetApp.flush();
+  Utilities.sleep(150);
   const skuSheetMeta = buildSkuDetailSheets(workbook, analyticsData);
+  SpreadsheetApp.flush();
+  Utilities.sleep(150);
   buildSkuIndexSheet(workbook, analyticsData, skuSheetMeta);
+  SpreadsheetApp.flush();
   storeAnalyticsCache({
     totals: analyticsData.totals,
     variantStats: analyticsData.variantStats,
@@ -2466,8 +2500,196 @@ function refreshVisualsDashboard() {
 }
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Visual Controls')
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('Visual Controls')
     .addItem('Apply Filters', 'refreshVisualsDashboard')
+    .addToUi();
+  ui.createMenu('Data')
+    .addItem('Organize Sheets (Landing, Colors, Order)', 'runOrganizeSheetsFromMenu')
+    .addSeparator()
+    .addItem('Show Config & Backend Sheets…', 'showPasswordDialogForSensitiveSheets')
+    .addItem('Hide Config & Backend Sheets', 'runHideSensitiveSheetsFromMenu')
+    .addSeparator()
+    .addItem('Set Admin Password…', 'showSetAdminPasswordDialog')
+    .addToUi();
+}
+
+/**
+ * Organize sheets: Landing page, tab colors, logical order. Hide sensitive sheets.
+ * Call from menu or API (action=organizeSheets).
+ */
+function organizeSheetsWithLanding(workbook, hideSensitive) {
+  workbook = workbook || SpreadsheetApp.openById(SHEET_ID);
+  hideSensitive = hideSensitive !== false;
+  var sheets = workbook.getSheets();
+  var sheetMap = {};
+  sheets.forEach(function(s) { sheetMap[s.getName()] = s; });
+
+  // Ensure Landing sheet exists
+  var landing = sheetMap['Landing'] || workbook.insertSheet('Landing', 0);
+  if (!sheetMap['Landing']) sheetMap['Landing'] = landing;
+
+  // Build table of contents on Landing
+  var tocRows = [['Section', 'Sheet', 'Link']];
+  var sectionOrder = ['Landing', 'Analytics', 'Backend', 'Config'];
+  sectionOrder.forEach(function(sectionKey) {
+    var group = SHEET_GROUPS[sectionKey];
+    if (!group) return;
+    tocRows.push(['', '── ' + sectionKey + ' ──', '']);
+    var toProcess = group.sheets.slice();
+    if (sectionKey === 'Analytics') {
+      sheets.forEach(function(s) {
+        var n = s.getName();
+        if (n.indexOf('SKU_') === 0 && toProcess.indexOf(n) < 0) toProcess.push(n);
+      });
+    }
+    toProcess.forEach(function(name) {
+      var sh = sheetMap[name] || workbook.getSheetByName(name);
+      if (!sh) return;
+      var gid = sh.getSheetId();
+      tocRows.push([sectionKey, name, '=HYPERLINK("#gid=' + gid + '","Open")']);
+    });
+    tocRows.push(['', '', '']);
+  });
+
+  landing.clear();
+  landing.getRange(1, 1, 1, 3).merge().setValue('Nexers Banding • Sheet Index').setFontSize(18).setFontWeight('bold').setBackground('#1e293b').setFontColor('#ffffff');
+  landing.getRange(2, 1, 2, 3).merge().setValue('Use links below to navigate. Config & Backend sheets hidden by default.').setFontSize(11).setFontColor('#64748b');
+  if (tocRows.length > 0) {
+    landing.getRange(4, 1, tocRows.length, 3).setValues(tocRows);
+  }
+  landing.getRange(4, 1, 4, 3).setFontWeight('bold').setBackground('#e2e8f0');
+  landing.setColumnWidths(1, 3, 120);
+
+  // Set tab colors by group
+  var colorMap = {};
+  Object.keys(SHEET_GROUPS).forEach(function(k) {
+    var c = SHEET_GROUPS[k].color || '9ca3af';
+    (SHEET_GROUPS[k].sheets || []).forEach(function(n) { colorMap[n] = c; });
+  });
+  workbook.getSheets().forEach(function(s) {
+    var n = s.getName();
+    var col = colorMap[n] || (n.indexOf('SKU_') === 0 ? '34d399' : '9ca3af');
+    try { s.setTabColor(col); } catch (e) {}
+  });
+
+  // Ensure Landing is first
+  if (landing.getIndex() !== 1) {
+    try {
+      workbook.setActiveSheet(landing);
+      workbook.moveActiveSheet(0);
+    } catch (err) {}
+  }
+
+  if (hideSensitive) {
+    SENSITIVE_SHEETS.forEach(function(name) {
+      var sh = sheetMap[name] || workbook.getSheetByName(name);
+      if (sh && !sh.isSheetHidden()) try { sh.hideSheet(); } catch (e) {}
+    });
+  }
+  SpreadsheetApp.flush();
+  return { success: true, message: 'Sheets organized. Landing updated.' };
+}
+
+function runOrganizeSheetsFromMenu() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SHEET_ID);
+  organizeSheetsWithLanding(ss, true);
+  SpreadsheetApp.getUi().alert('Sheets organized. Landing is first. Config & Backend are hidden.');
+}
+
+function hideSensitiveSheets(workbook) {
+  workbook = workbook || SpreadsheetApp.openById(SHEET_ID);
+  var sheetMap = {};
+  workbook.getSheets().forEach(function(s) { sheetMap[s.getName()] = s; });
+  SENSITIVE_SHEETS.forEach(function(name) {
+    var sh = sheetMap[name] || workbook.getSheetByName(name);
+    if (sh && !sh.isSheetHidden()) try { sh.hideSheet(); } catch (e) {}
+  });
+  SpreadsheetApp.flush();
+}
+
+function showSensitiveSheets(workbook) {
+  workbook = workbook || SpreadsheetApp.openById(SHEET_ID);
+  var sheetMap = {};
+  workbook.getSheets().forEach(function(s) { sheetMap[s.getName()] = s; });
+  SENSITIVE_SHEETS.forEach(function(name) {
+    var sh = sheetMap[name] || workbook.getSheetByName(name);
+    if (sh && sh.isSheetHidden()) try { sh.showSheet(); } catch (e) {}
+  });
+  SpreadsheetApp.flush();
+}
+
+function getAdminSheetPassword() {
+  try {
+    return PropertiesService.getScriptProperties().getProperty(ADMIN_PASSWORD_KEY) || '';
+  } catch (e) { return ''; }
+}
+
+function setAdminSheetPassword(newPassword) {
+  var p = (newPassword || '').toString().trim();
+  PropertiesService.getScriptProperties().setProperty(ADMIN_PASSWORD_KEY, p);
+  return true;
+}
+
+function checkPasswordAndShowSheets(password) {
+  var stored = getAdminSheetPassword();
+  if (!stored) {
+    SpreadsheetApp.getUi().alert('No admin password set. Use Data > Set Admin Password… first.');
+    return false;
+  }
+  if (password !== stored) {
+    SpreadsheetApp.getUi().alert('Incorrect password.');
+    return false;
+  }
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SHEET_ID);
+  showSensitiveSheets(ss);
+  SpreadsheetApp.getUi().alert('Config & Backend sheets are now visible.');
+  return true;
+}
+
+function showPasswordDialogForSensitiveSheets() {
+  var html = HtmlService.createHtmlOutput(
+    '<div style="font-family:Arial;padding:16px;min-width:260px">' +
+    '<p><strong>Enter Admin Password</strong></p>' +
+    '<input type="password" id="pwd" style="width:100%;margin:8px 0;padding:6px" placeholder="Password" />' +
+    '<br/><button onclick="submitPwd()" style="margin-top:8px;padding:6px 14px">OK</button>' +
+    '</div>' +
+    '<script>function submitPwd(){var p=document.getElementById("pwd").value;if(!p){alert("Enter password");return;}google.script.run.withSuccessHandler(function(ok){if(ok)google.script.host.close();}).withFailureHandler(function(e){alert("Error: "+e);}).checkPasswordAndShowSheets(p);}</script>'
+  ).setWidth(300).setHeight(140);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Show Config & Backend Sheets');
+}
+
+function showSetAdminPasswordDialog() {
+  var html = HtmlService.createHtmlOutput(
+    '<div style="font-family:Arial;padding:16px;min-width:260px">' +
+    '<p><strong>Set Admin Password</strong></p>' +
+    '<p style="font-size:11px;color:#666">Used to show Config & Backend sheets.</p>' +
+    '<input type="password" id="pwd" style="width:100%;margin:8px 0;padding:6px" placeholder="New password" />' +
+    '<br/><button onclick="submitPwd()" style="margin-top:8px;padding:6px 14px">Save</button>' +
+    '</div>' +
+    '<script>function submitPwd(){var p=document.getElementById("pwd").value;if(!p){alert("Enter a password");return;}google.script.run.withSuccessHandler(function(){alert("Password saved.");google.script.host.close();}).withFailureHandler(function(e){alert("Error: "+e);}).setAdminSheetPassword(p);}</script>'
+  ).setWidth(300).setHeight(160);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Set Admin Password');
+}
+
+function runHideSensitiveSheetsFromMenu() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SHEET_ID);
+  hideSensitiveSheets(ss);
+  SpreadsheetApp.getUi().alert('Config & Backend sheets are now hidden.');
+}
+
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu('Visual Controls')
+    .addItem('Apply Filters', 'refreshVisualsDashboard')
+    .addToUi();
+  ui.createMenu('Data')
+    .addItem('Organize Sheets (Landing, Colors, Order)', 'runOrganizeSheetsFromMenu')
+    .addSeparator()
+    .addItem('Show Config & Backend Sheets…', 'showPasswordDialogForSensitiveSheets')
+    .addItem('Hide Config & Backend Sheets', 'runHideSensitiveSheetsFromMenu')
+    .addSeparator()
+    .addItem('Set Admin Password…', 'showSetAdminPasswordDialog')
     .addToUi();
 }
 
@@ -4426,6 +4648,8 @@ function getSkuProductInfo(sku) {
 }
 
 function harmonizeSkuProductInfo(workbook) {
+  workbook = workbook || SpreadsheetApp.openById(SHEET_ID);
+  if (!workbook) throw new Error('Could not open workbook');
   var unpaired = [];
   var ticketsSheet = workbook.getSheetByName('Tickets');
   if (ticketsSheet) {
@@ -4441,15 +4665,16 @@ function harmonizeSkuProductInfo(workbook) {
       uomCol = headers.length - 1;
       ticketsSheet.getRange(1, uomCol + 1).setValue('UoM');
     }
+    var placeholder = '\u2014'; // em dash when catalog has no value
     for (var i = 1; i < data.length; i++) {
       var sku = (data[i][skuCol] || '').toString().trim();
       if (!sku) continue;
       var info = findSkuZoneEntry(sku) ? getSkuProductInfo(sku) : null;
       if (info && info.productType) {
         data[i][ptCol] = info.productType;
-        if (sachetCol >= 0) data[i][sachetCol] = info.sachetType;
-        if (tabletCol >= 0) data[i][tabletCol] = info.tabletType;
-        if (uomCol >= 0) data[i][uomCol] = info.uom;
+        if (sachetCol >= 0) data[i][sachetCol] = info.sachetType || placeholder;
+        if (tabletCol >= 0) data[i][tabletCol] = info.tabletType || placeholder;
+        if (uomCol >= 0) data[i][uomCol] = info.uom || placeholder;
       } else {
         if (ptCol >= 0) data[i][ptCol] = 'NOT IN CATALOG';
         if (sachetCol >= 0) data[i][sachetCol] = 'NOT IN CATALOG';
@@ -4458,7 +4683,18 @@ function harmonizeSkuProductInfo(workbook) {
         unpaired.push({ sheet: 'Tickets', row: i + 1, sku: sku });
       }
     }
-    ticketsSheet.getRange(2, 1, data.length, data[0].length).setValues(data.slice(1));
+    var numDataRows = data.length - 1;
+    if (numDataRows > 0) {
+      var batchSize = 400;
+      var rows = data.slice(1);
+      for (var off = 0; off < rows.length; off += batchSize) {
+        var chunk = rows.slice(off, off + batchSize);
+        if (chunk.length === 0) break;
+        ticketsSheet.getRange(2 + off, 1, chunk.length, data[0].length).setValues(chunk);
+        SpreadsheetApp.flush();
+        if (off + batchSize < rows.length) Utilities.sleep(200);
+      }
+    }
   }
   var calcSheet = workbook.getSheetByName('Calculations');
   if (calcSheet) {
@@ -4468,14 +4704,15 @@ function harmonizeSkuProductInfo(workbook) {
     var cPtCol = calcHeaders.indexOf('Product Type') >= 0 ? calcHeaders.indexOf('Product Type') : 2;
     var cSachetCol = calcHeaders.indexOf('Sachet Type') >= 0 ? calcHeaders.indexOf('Sachet Type') : 13;
     var cTabletCol = calcHeaders.indexOf('Tablet Type') >= 0 ? calcHeaders.indexOf('Tablet Type') : 14;
+    var calcPlaceholder = '\u2014'; // em dash when catalog has no value
     for (var j = 1; j < calcData.length; j++) {
       var cSku = (calcData[j][cSkuCol] || '').toString().trim();
       if (!cSku) continue;
       var cInfo = findSkuZoneEntry(cSku) ? getSkuProductInfo(cSku) : null;
       if (cInfo && cInfo.productType) {
         calcData[j][cPtCol] = cInfo.productType;
-        if (cSachetCol >= 0) calcData[j][cSachetCol] = cInfo.sachetType;
-        if (cTabletCol >= 0) calcData[j][cTabletCol] = cInfo.tabletType;
+        if (cSachetCol >= 0) calcData[j][cSachetCol] = cInfo.sachetType || calcPlaceholder;
+        if (cTabletCol >= 0) calcData[j][cTabletCol] = cInfo.tabletType || calcPlaceholder;
       } else {
         if (cPtCol >= 0) calcData[j][cPtCol] = 'NOT IN CATALOG';
         if (cSachetCol >= 0) calcData[j][cSachetCol] = 'NOT IN CATALOG';
@@ -4483,7 +4720,18 @@ function harmonizeSkuProductInfo(workbook) {
         unpaired.push({ sheet: 'Calculations', row: j + 1, sku: cSku });
       }
     }
-    calcSheet.getRange(2, 1, calcData.length, calcData[0].length).setValues(calcData.slice(1));
+    var numCalcRows = calcData.length - 1;
+    if (numCalcRows > 0) {
+      var calcBatchSize = 400;
+      var calcRows = calcData.slice(1);
+      for (var cOff = 0; cOff < calcRows.length; cOff += calcBatchSize) {
+        var cChunk = calcRows.slice(cOff, cOff + calcBatchSize);
+        if (cChunk.length === 0) break;
+        calcSheet.getRange(2 + cOff, 1, cChunk.length, calcData[0].length).setValues(cChunk);
+        SpreadsheetApp.flush();
+        if (cOff + calcBatchSize < calcRows.length) Utilities.sleep(200);
+      }
+    }
   }
   var reviewSheet = workbook.getSheetByName('Unpaired SKU Review');
   if (!reviewSheet) reviewSheet = workbook.insertSheet('Unpaired SKU Review');
@@ -4492,7 +4740,7 @@ function harmonizeSkuProductInfo(workbook) {
   reviewSheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#f59e0b').setFontColor('#ffffff');
   var reviewRows = unpaired.map(function(u) { return [u.sheet, u.row, u.sku, 'Add to SKUZoneMapping']; });
   if (reviewRows.length) {
-    reviewSheet.getRange(2, 1, reviewRows.length + 1, 4).setValues(reviewRows);
+    reviewSheet.getRange(2, 1, reviewRows.length, 4).setValues(reviewRows);
   }
   return { updated: true, unpairedCount: unpaired.length };
 }

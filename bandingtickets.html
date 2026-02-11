@@ -2542,15 +2542,13 @@
         }
 
         function showGeofenceDenied(result) {
-            var reason = result.reason || 'Access denied';
-            var extra = '';
-            if (result.accuracy !== undefined) extra = ' GPS accuracy: ' + Math.round(result.accuracy) + 'm (required ≤' + result.required + 'm)';
-            else if (result.distance !== undefined) extra = ' Distance: ' + result.distance + 'm (limit ' + result.limit + 'm)';
             document.body.innerHTML = '<div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;">' +
-                '<div style="text-align: center; padding: 40px; background: rgba(15, 23, 42, 0.95); border-radius: 16px; border: 2px solid rgba(239, 68, 68, 0.5); max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">' +
-                '<h1 style="color: #fca5a5; margin-bottom: 20px; font-size: 24px;">Access Restricted</h1>' +
-                '<p style="color: #cbd5e1; font-size: 16px; line-height: 1.7;">Ticket access is restricted to authorized locations. ' + reason + '.' + extra + '</p>' +
-                '<p style="color: #94a3b8; font-size: 14px; margin-top: 24px;">Ensure you are at BIDCO Africa General Kago Rd and that location services are enabled with accurate GPS.</p>' +
+                '<div style="text-align: center; padding: 48px 40px; background: rgba(15, 23, 42, 0.95); border-radius: 16px; border: 2px solid rgba(239, 68, 68, 0.5); max-width: 440px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">' +
+                '<div style="font-size: 48px; margin-bottom: 16px;">🔒</div>' +
+                '<h1 style="color: #fca5a5; margin-bottom: 16px; font-size: 22px; font-weight: 700;">Access Denied</h1>' +
+                '<p style="color: #cbd5e1; font-size: 15px; line-height: 1.7;">We couldn\'t verify your location for this session. Please try again when you\'re in an authorized area.</p>' +
+                '<p style="color: #94a3b8; font-size: 14px; margin-top: 24px;">Tip: Make sure location services are enabled for this browser.</p>' +
+                '<button onclick="window.location.reload()" style="margin-top: 28px; padding: 12px 24px; background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);">Try Again</button>' +
                 '<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.3);">' +
                 '<p style="color: #64748b; font-size: 12px;">Powered by <strong style="color: #667eea;">NexGridCore DataLabs</strong></p></div></div></div>';
         }

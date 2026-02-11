@@ -1981,7 +1981,7 @@ function buildSummarySheet(workbook, analyticsData) {
   summarySheet.setColumnWidths(1, 8, 200);
   
   summarySheet.getRange('A1:H1').merge().setValue('Banding Analytics Center 📈').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setFontColor('#1a202c').setBackground('#f8fafc');
-  summarySheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontSize(12).setFontColor('#4c51bf').setHorizontalAlignment('center');
+  summarySheet.getRange('A2:H2').merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs ⚡').setFontSize(12).setFontColor('#4c51bf').setHorizontalAlignment('center');
   summarySheet.getRange('A3:H3').merge().setValue('Refreshed: ' + analyticsData.labels.refreshedAt).setFontSize(10).setFontColor('#718096').setHorizontalAlignment('center');
   
   const cards = [
@@ -2052,7 +2052,7 @@ function buildSummarySheet(workbook, analyticsData) {
     return [item.sku, item.productType, item.count, item.types];
   }), startRow, { numericColumns: [3] });
   
-  summarySheet.getRange(startRow + analyticsData.issuesSummary.length + 3, 1, 1, 8).merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  summarySheet.getRange(startRow + analyticsData.issuesSummary.length + 3, 1, 1, 8).merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
   
   try {
     buildSummaryCharts(summarySheet, perDayTableStart, perDayRows.length);
@@ -2072,7 +2072,7 @@ function buildVariantComparisonSheet(workbook, analyticsData) {
   sheet.setColumnWidths(1, 10, 150);
   
   sheet.getRange('A1:J1').merge().setValue('Variant Comparison ⚖️').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c');
-  sheet.getRange('A2:J2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  sheet.getRange('A2:J2').merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
   sheet.getRange('A3:J3').merge().setValue('0.5KG vs 1KG performance across time windows').setFontColor('#718096').setHorizontalAlignment('center');
   sheet.getRange('A4:J4').merge().setValue('Last refreshed: ' + (analyticsData.labels.refreshedAt || '—')).setFontSize(10).setFontColor('#94a3b8').setHorizontalAlignment('center');
   
@@ -2178,7 +2178,7 @@ function buildVisualsSheet(workbook, analyticsData) {
   sheet.setColumnWidths(1, 12, 165);
   
   sheet.getRange('A1:L1').merge().setValue('NexGridCore Visual Intelligence 🎨').setFontSize(20).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#1a202c').setFontColor('#f7fafc');
-  sheet.getRange('A2:L2').merge().setValue('Powered by NexGridCore DataLabs ⚡ | Complete visual storytelling for banding operations').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  sheet.getRange('A2:L2').merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs ⚡ | Complete visual storytelling for operations').setFontColor('#4c51bf').setHorizontalAlignment('center');
   sheet.getRange('A3:L3').merge().setValue('Last refreshed: ' + (analyticsData.labels.refreshedAt || '—')).setFontSize(10).setFontColor('#94a3b8').setHorizontalAlignment('center');
   
   const filterConfig = setupVisualFilterControls(sheet, preservedFilters);
@@ -2722,7 +2722,7 @@ function buildShiftSummarySheet(workbook, analyticsData) {
   shiftSheet.setColumnWidths(1, 10, 190);
   
   shiftSheet.getRange('A1:J1').merge().setValue('Shift Intelligence Hub 🌗').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c').setNote('Shift-by-shift performance with leader accountability and SKU mix.');
-  shiftSheet.getRange('A2:J2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontSize(12).setFontColor('#4c51bf').setHorizontalAlignment('center');
+  shiftSheet.getRange('A2:J2').merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs ⚡').setFontSize(12).setFontColor('#4c51bf').setHorizontalAlignment('center');
   shiftSheet.getRange('A3:J3').merge().setValue('Shifts auto-classified: Day (08:00-18:00) • Night (18:00-08:00)').setFontColor('#718096').setHorizontalAlignment('center');
   shiftSheet.getRange('A4:J4').merge().setValue('Last refreshed: ' + (analyticsData.labels.refreshedAt || '—')).setFontSize(10).setFontColor('#94a3b8').setHorizontalAlignment('center');
   
@@ -2922,7 +2922,7 @@ function buildSkuDetailSheets(workbook, analyticsData) {
     skuSheet.setColumnWidths(1, 12, 190);
     
     skuSheet.getRange('A1:H1').merge().setValue('SKU Analytics • ' + entry.sku + ' • ' + entry.productType).setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#edf2f7');
-    skuSheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+    skuSheet.getRange('A2:H2').merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
     
     const skuCards = [
       { range: 'A4:C6', title: '📦 Cartons Today', value: formatNumber(entry.todayCartons), subtitle: 'Today', color: '#4dabf7' },
@@ -3007,7 +3007,7 @@ function buildSkuIndexSheet(workbook, analyticsData, sheetMeta) {
   indexSheet.setColumnWidths(1, 8, 190);
   
   indexSheet.getRange('A1:H1').merge().setValue('SKU Directory 📚').setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#edf2f7');
-  indexSheet.getRange('A2:H2').merge().setValue('Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
+  indexSheet.getRange('A2:H2').merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs ⚡').setFontColor('#4c51bf').setHorizontalAlignment('center');
   
   const header = ['SKU', 'Product Type', 'Cartons (7d)', 'Cartons (30d)', 'Last Production', 'Leaders', 'Status', 'Open'];
   const rows = analyticsData.perSku.map(function(entry) {
@@ -4091,7 +4091,7 @@ function createInventorySnapshot() {
   const timestamp = new Date();
   sheet.getRange('A1:I1').merge().setValue('Inventory Snapshot 📦').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c');
   sheet.getRange('A2:I2').merge().setValue('Refreshed: ' + Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'MMM d, yyyy HH:mm')).setFontColor('#4c51bf').setHorizontalAlignment('center');
-  sheet.getRange('A3:I3').merge().setValue('Powered by NexGridCore DataLabs').setFontColor('#718096').setHorizontalAlignment('center').setFontStyle('italic');
+  sheet.getRange('A3:I3').merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs').setFontColor('#718096').setHorizontalAlignment('center').setFontStyle('italic');
   let rowCursor = 11;
   sheet.getRange(rowCursor, 1, 1, 5).setValues([['Zone', 'Current Qty', 'Current Pallets', 'Outbound Qty', 'Outbound Pallets']]);
   sheet.getRange(rowCursor, 1, 1, 5).setBackground('#1f2937').setFontColor('#ffffff').setFontWeight('bold');

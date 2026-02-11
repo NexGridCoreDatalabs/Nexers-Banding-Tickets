@@ -2541,16 +2541,42 @@
             });
         }
 
+        var GEOFENCE_DENIED_MESSAGES = [
+            'Looks like you\'re not quite where you need to be. When you\'re ready, come find us — we\'ll be waiting.',
+            'Our GPS sensors are picky. They only wave you through when you\'re in the right spot. Try again when you\'ve arrived.',
+            'Access denied — but don\'t take it personally. Even the best of us have been told to come back later.',
+            'You\'re in the wrong neighborhood for this party. Swing by the right place and we\'ll roll out the welcome mat.',
+            'The system says no for now. Location says you\'re not there yet. When you are, give it another shot.',
+            'Oops — we can\'t verify where you are. Head to the right place, enable location, and try again.',
+            'Almost there isn\'t close enough. Get to the spot, and we\'ll unlock the gate.',
+            'Our virtual bouncer is strict. Show up at the right location and you\'re in.',
+            'Location check failed. No worries — find the right spot, hit Try Again, and we\'ll sort it out.',
+            'We couldn\'t place you. Make sure location\'s on, get where you need to be, and try again.'
+        ];
+
         function showGeofenceDenied(result) {
+            var idx = 1;
+            function nextMessage() {
+                var msg = GEOFENCE_DENIED_MESSAGES[idx % GEOFENCE_DENIED_MESSAGES.length];
+                var el = document.getElementById('geofenceMsgRotate');
+                if (el) {
+                    el.style.opacity = '0';
+                    setTimeout(function() {
+                        if (el) { el.textContent = msg; el.style.opacity = '1'; }
+                    }, 200);
+                }
+                idx++;
+            }
             document.body.innerHTML = '<div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;">' +
                 '<div style="text-align: center; padding: 48px 40px; background: rgba(15, 23, 42, 0.95); border-radius: 16px; border: 2px solid rgba(239, 68, 68, 0.5); max-width: 440px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">' +
                 '<div style="font-size: 48px; margin-bottom: 16px;">🔒</div>' +
                 '<h1 style="color: #fca5a5; margin-bottom: 16px; font-size: 22px; font-weight: 700;">Access Denied</h1>' +
-                '<p style="color: #cbd5e1; font-size: 15px; line-height: 1.7;">We couldn\'t verify your location for this session. Please try again when you\'re in an authorized area.</p>' +
-                '<p style="color: #94a3b8; font-size: 14px; margin-top: 24px;">Tip: Make sure location services are enabled for this browser.</p>' +
+                '<p id="geofenceMsgRotate" style="color: #cbd5e1; font-size: 15px; line-height: 1.7; min-height: 4.5em; transition: opacity 0.4s ease;">' + GEOFENCE_DENIED_MESSAGES[0] + '</p>' +
+                '<p style="color: #94a3b8; font-size: 13px; margin-top: 20px;">💡 Ensure location services are enabled for this browser.</p>' +
                 '<button onclick="window.location.reload()" style="margin-top: 28px; padding: 12px 24px; background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);">Try Again</button>' +
                 '<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.3);">' +
                 '<p style="color: #64748b; font-size: 12px;">Powered by <strong style="color: #667eea;">NexGridCore DataLabs</strong></p></div></div></div>';
+            setInterval(nextMessage, 4500);
         }
 
         const urlParams = new URLSearchParams(window.location.search);

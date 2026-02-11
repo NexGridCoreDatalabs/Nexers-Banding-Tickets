@@ -742,6 +742,7 @@ function doGet(e) {
     
     if (action === 'read') {
       const serial = e.parameter.serial;
+      const includePallet = e.parameter.includePallet !== '0' && e.parameter.includePallet !== 'false';
       const ticketsSheet = sheet.getSheetByName('Tickets');
       
       if (!ticketsSheet) {
@@ -752,7 +753,6 @@ function doGet(e) {
       const values = dataRange.getValues();
       
       if (serial) {
-        // Find specific ticket by serial (case-insensitive)
         const serialUpper = serial.toString().toUpperCase();
         for (let i = 1; i < values.length; i++) {
           const rowSerial = (values[i][0] || '').toString().toUpperCase();
@@ -760,23 +760,24 @@ function doGet(e) {
             const headers = values[0];
             const row = values[i];
             const ticket = {};
-            headers.forEach((header, index) => {
+            headers.forEach(function(header, index) {
               ticket[header] = row[index] || '';
             });
-            let palletRecord = null;
-            const palletsSheet = sheet.getSheetByName('Pallets');
-            if (palletsSheet) {
-              const palletRange = palletsSheet.getDataRange();
-              const palletValues = palletRange.getValues();
-              const palletHeaders = palletValues[0] || [];
-              for (let p = 1; p < palletValues.length; p++) {
-                const palletId = (palletValues[p][0] || '').toString().toUpperCase();
-                if (palletId === serialUpper) {
-                  palletRecord = {};
-                  palletHeaders.forEach(function(header, idx) {
-                    palletRecord[header] = palletValues[p][idx];
-                  });
-                  break;
+            var palletRecord = null;
+            if (includePallet) {
+              var palletsSheet = sheet.getSheetByName('Pallets');
+              if (palletsSheet) {
+                var palletRange = palletsSheet.getDataRange();
+                var palletValues = palletRange.getValues();
+                var palletHeaders = palletValues[0] || [];
+                for (var p = 1; p < palletValues.length; p++) {
+                  if ((palletValues[p][0] || '').toString().toUpperCase() === serialUpper) {
+                    palletRecord = {};
+                    palletHeaders.forEach(function(header, idx) {
+                      palletRecord[header] = palletValues[p][idx];
+                    });
+                    break;
+                  }
                 }
               }
             }
@@ -1390,8 +1391,7 @@ function updateCalculations(sku, newQty, productType, oldQty, isUpdate) {
       return;
     }
     
-    // For incremental updates, trigger full recalculation to ensure accuracy
-    recalculateAllCalculations(sheet);
+    // Skip full recalc on save for speed; run action=recalculate to refresh Calculations
   } catch (error) {
     // Silent fail - calculations will be recalculated on next operation
   }

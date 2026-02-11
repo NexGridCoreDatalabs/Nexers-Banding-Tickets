@@ -12,6 +12,10 @@ SETUP_SECRETS.md
 .env
 .env.local
 
+# Documentation (not in repo)
+*.md
+docs/
+
 # OS and editor
 .DS_Store
 Thumbs.db

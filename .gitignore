@@ -1,9 +1,9 @@
-# Configuration files (contains secrets)
+# Configuration (contains secrets)
 config.js
 *.config.js
 !config.example.js
 
-# Security files - NEVER commit secrets
+# Security - NEVER commit secrets
 SETUP_SECRETS.md
 *SECRETS*.md
 *SECRET*.md
@@ -11,3 +11,8 @@ SETUP_SECRETS.md
 *.key
 .env
 .env.local
+
+# OS and editor
+.DS_Store
+Thumbs.db
+*.log

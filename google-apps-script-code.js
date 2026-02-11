@@ -172,7 +172,11 @@ const STOCK_MOVEMENT_SHEETS = {
     'DefaultZone',
     'RequiresBanding',
     'ShelfLifeDays',
-    'Notes'
+    'Notes',
+    'ProductType',
+    'Sachet Type',
+    'Tablet Type',
+    'UoM'
   ],
   QAHold: [
     'HoldID',
@@ -493,6 +497,20 @@ function handleWriteOperation(data, sheet) {
         newRow[0] = data.values[0]; // Serial in first column
         ticketsSheet.appendRow(newRow);
       } else {
+        // Overwrite product info from SKUZoneMapping
+        const sku = (data.values[3] || data.sku || '').toString().trim();
+        if (sku) {
+          const entry = findSkuZoneEntry(sku);
+          if (!entry) {
+            return createResponse({ success: false, error: 'SKU "' + sku + '" is not in the catalog. Add it to SKUZoneMapping first.' });
+          }
+          const info = getSkuProductInfo(sku);
+          data.values[7] = info.productType;
+          data.values[13] = info.sachetType;
+          data.values[14] = info.tabletType;
+          if (data.values.length < 16) while (data.values.length < 16) data.values.push('');
+          data.values[15] = info.uom;
+        }
         // Full row data provided
         ticketsSheet.appendRow(data.values);
         const ticketPayload = mapTicketRowToObject(data.values);
@@ -502,8 +520,9 @@ function handleWriteOperation(data, sheet) {
       }
       
       // Update Calculations sheet if SKU and productType provided
-      if (data.sku && data.qty && data.productType) {
-        updateCalculations(data.sku, parseFloat(data.qty) || 0, data.productType, 0, false);
+      var pt = (data.values && data.values[7]) ? data.values[7] : data.productType;
+      if (data.sku && data.qty && pt) {
+        updateCalculations(data.sku, parseFloat(data.qty) || 0, pt, 0, false);
       }
       
       return createResponse({ success: true, message: 'Data saved successfully' });
@@ -523,17 +542,32 @@ function handleWriteOperation(data, sheet) {
       let found = false;
       for (let i = 1; i < values.length; i++) {
         if (values[i][0] === serial) {
+          // Overwrite product info from SKUZoneMapping
+          const sku = (data.values[3] || data.sku || '').toString().trim();
+          if (sku) {
+            const entry = findSkuZoneEntry(sku);
+            if (!entry) {
+              return createResponse({ success: false, error: 'SKU "' + sku + '" is not in the catalog. Add it to SKUZoneMapping first.' });
+            }
+            const info = getSkuProductInfo(sku);
+            data.values[7] = info.productType;
+            data.values[13] = info.sachetType;
+            data.values[14] = info.tabletType;
+            if (data.values.length < 16) while (data.values.length < 16) data.values.push('');
+            data.values[15] = info.uom;
+          }
           // Get old quantity from existing row (column E = index 4)
           const oldQty = parseFloat(values[i][4]) || 0;
           const newQty = parseFloat(data.qty) || 0;
           
           // Update the row
           const rowNum = i + 1;
-          ticketsSheet.getRange(rowNum, 1, 1, data.values.length).setValues([data.values]);
+          ticketsSheet.getRange(rowNum, 1, rowNum, data.values.length).setValues([data.values]);
           
           // Update Calculations if SKU and productType provided
-          if (data.sku && data.qty && data.productType) {
-            updateCalculations(data.sku, newQty, data.productType, oldQty, true);
+          var ptUpdate = (data.values && data.values[7]) ? data.values[7] : data.productType;
+          if (data.sku && data.qty && ptUpdate) {
+            updateCalculations(data.sku, newQty, ptUpdate, oldQty, true);
           }
           
           const ticketPayload = mapTicketRowToObject(data.values);
@@ -547,6 +581,20 @@ function handleWriteOperation(data, sheet) {
       
       // If not found, append as new ticket
       if (!found) {
+        // Overwrite product info from SKUZoneMapping
+        const skuAppend = (data.values[3] || data.sku || '').toString().trim();
+        if (skuAppend) {
+          const entryAppend = findSkuZoneEntry(skuAppend);
+          if (!entryAppend) {
+            return createResponse({ success: false, error: 'SKU "' + skuAppend + '" is not in the catalog. Add it to SKUZoneMapping first.' });
+          }
+          const infoAppend = getSkuProductInfo(skuAppend);
+          data.values[7] = infoAppend.productType;
+          data.values[13] = infoAppend.sachetType;
+          data.values[14] = infoAppend.tabletType;
+          if (data.values.length < 16) while (data.values.length < 16) data.values.push('');
+          data.values[15] = infoAppend.uom;
+        }
         ticketsSheet.appendRow(data.values);
         const ticketPayload = mapTicketRowToObject(data.values);
         if (ticketPayload) {
@@ -554,8 +602,9 @@ function handleWriteOperation(data, sheet) {
         }
         
         // Update Calculations sheet if SKU and productType provided
-        if (data.sku && data.qty && data.productType) {
-          updateCalculations(data.sku, parseFloat(data.qty) || 0, data.productType, 0, false);
+        var ptNew = (data.values && data.values[7]) ? data.values[7] : data.productType;
+        if (data.sku && data.qty && ptNew) {
+          updateCalculations(data.sku, parseFloat(data.qty) || 0, ptNew, 0, false);
         }
         
         return createResponse({ success: true, message: 'Data saved as new ticket' });
@@ -629,6 +678,20 @@ function doGet(e) {
     }
     if (action === 'getRecentMovements') {
       return getRecentMovements(parseInt(e.parameter.limit || '10', 10));
+    }
+    if (action === 'getSkus') {
+      const skus = getSkusFromZoneMapping();
+      return createResponse({ success: true, skus: skus });
+    }
+    if (action === 'getSkuProductInfo') {
+      const sku = (e.parameter.sku || '').toString().trim();
+      const info = getSkuProductInfo(sku);
+      return createResponse({ success: true, info: info });
+    }
+    if (action === 'harmonizeSkuProductInfo') {
+      const sheet = SpreadsheetApp.openById(SHEET_ID);
+      const result = harmonizeSkuProductInfo(sheet);
+      return createResponse({ success: true, result: result });
     }
     const sheet = SpreadsheetApp.openById(SHEET_ID);
     const serial = e.parameter.serial || '';
@@ -4336,6 +4399,102 @@ function findSkuZoneEntry(sku) {
     return false;
   });
   return wildcardMatch || null;
+}
+
+function normalizeProductType(val) {
+  if (!val) return '';
+  const v = (val + '').toUpperCase().replace(/\s/g, '');
+  if (v === '1KG') return '1KG';
+  if (v === '0.5KG' || v === '05KG') return '0.5KG';
+  return (val + '').trim();
+}
+
+function getSkusFromZoneMapping() {
+  const mapping = getSkuZoneMappingData();
+  return mapping.map(function(e) { return (e.SKU || '').trim(); }).filter(Boolean).sort();
+}
+
+function getSkuProductInfo(sku) {
+  const entry = findSkuZoneEntry(sku);
+  if (!entry) return { productType: '', sachetType: '', tabletType: '', uom: '' };
+  return {
+    productType: normalizeProductType(entry.ProductType || entry['Product Type'] || ''),
+    sachetType: (entry['Sachet Type'] || entry.SachetType || '').toString().trim(),
+    tabletType: (entry['Tablet Type'] || entry.TabletType || '').toString().trim(),
+    uom: (entry.UoM || entry.uom || '').toString().trim()
+  };
+}
+
+function harmonizeSkuProductInfo(workbook) {
+  var unpaired = [];
+  var ticketsSheet = workbook.getSheetByName('Tickets');
+  if (ticketsSheet) {
+    var data = ticketsSheet.getDataRange().getValues();
+    var headers = data[0] || [];
+    var skuCol = headers.indexOf('SKU') >= 0 ? headers.indexOf('SKU') : 3;
+    var ptCol = headers.indexOf('Product Type') >= 0 ? headers.indexOf('Product Type') : (headers.indexOf('ProductType') >= 0 ? headers.indexOf('ProductType') : 7);
+    var sachetCol = headers.indexOf('Sachet Type') >= 0 ? headers.indexOf('Sachet Type') : (headers.indexOf('SachetType') >= 0 ? headers.indexOf('SachetType') : 13);
+    var tabletCol = headers.indexOf('Tablet Type') >= 0 ? headers.indexOf('Tablet Type') : (headers.indexOf('TabletType') >= 0 ? headers.indexOf('TabletType') : 14);
+    var uomCol = headers.indexOf('UoM') >= 0 ? headers.indexOf('UoM') : (headers.length > 15 ? 15 : -1);
+    if (uomCol < 0 && headers.length <= 15) {
+      headers.push('UoM');
+      uomCol = headers.length - 1;
+      ticketsSheet.getRange(1, uomCol + 1).setValue('UoM');
+    }
+    for (var i = 1; i < data.length; i++) {
+      var sku = (data[i][skuCol] || '').toString().trim();
+      if (!sku) continue;
+      var info = findSkuZoneEntry(sku) ? getSkuProductInfo(sku) : null;
+      if (info && info.productType) {
+        data[i][ptCol] = info.productType;
+        if (sachetCol >= 0) data[i][sachetCol] = info.sachetType;
+        if (tabletCol >= 0) data[i][tabletCol] = info.tabletType;
+        if (uomCol >= 0) data[i][uomCol] = info.uom;
+      } else {
+        if (ptCol >= 0) data[i][ptCol] = 'NOT IN CATALOG';
+        if (sachetCol >= 0) data[i][sachetCol] = 'NOT IN CATALOG';
+        if (tabletCol >= 0) data[i][tabletCol] = 'NOT IN CATALOG';
+        if (uomCol >= 0) data[i][uomCol] = 'NOT IN CATALOG';
+        unpaired.push({ sheet: 'Tickets', row: i + 1, sku: sku });
+      }
+    }
+    ticketsSheet.getRange(2, 1, data.length, data[0].length).setValues(data.slice(1));
+  }
+  var calcSheet = workbook.getSheetByName('Calculations');
+  if (calcSheet) {
+    var calcData = calcSheet.getDataRange().getValues();
+    var calcHeaders = calcData[0] || [];
+    var cSkuCol = calcHeaders.indexOf('SKU') >= 0 ? calcHeaders.indexOf('SKU') : 1;
+    var cPtCol = calcHeaders.indexOf('Product Type') >= 0 ? calcHeaders.indexOf('Product Type') : 2;
+    var cSachetCol = calcHeaders.indexOf('Sachet Type') >= 0 ? calcHeaders.indexOf('Sachet Type') : 13;
+    var cTabletCol = calcHeaders.indexOf('Tablet Type') >= 0 ? calcHeaders.indexOf('Tablet Type') : 14;
+    for (var j = 1; j < calcData.length; j++) {
+      var cSku = (calcData[j][cSkuCol] || '').toString().trim();
+      if (!cSku) continue;
+      var cInfo = findSkuZoneEntry(cSku) ? getSkuProductInfo(cSku) : null;
+      if (cInfo && cInfo.productType) {
+        calcData[j][cPtCol] = cInfo.productType;
+        if (cSachetCol >= 0) calcData[j][cSachetCol] = cInfo.sachetType;
+        if (cTabletCol >= 0) calcData[j][cTabletCol] = cInfo.tabletType;
+      } else {
+        if (cPtCol >= 0) calcData[j][cPtCol] = 'NOT IN CATALOG';
+        if (cSachetCol >= 0) calcData[j][cSachetCol] = 'NOT IN CATALOG';
+        if (cTabletCol >= 0) calcData[j][cTabletCol] = 'NOT IN CATALOG';
+        unpaired.push({ sheet: 'Calculations', row: j + 1, sku: cSku });
+      }
+    }
+    calcSheet.getRange(2, 1, calcData.length, calcData[0].length).setValues(calcData.slice(1));
+  }
+  var reviewSheet = workbook.getSheetByName('Unpaired SKU Review');
+  if (!reviewSheet) reviewSheet = workbook.insertSheet('Unpaired SKU Review');
+  else reviewSheet.clear();
+  reviewSheet.getRange(1, 1, 1, 4).setValues([['Sheet', 'Row', 'SKU', 'Notes']]);
+  reviewSheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#f59e0b').setFontColor('#ffffff');
+  var reviewRows = unpaired.map(function(u) { return [u.sheet, u.row, u.sku, 'Add to SKUZoneMapping']; });
+  if (reviewRows.length) {
+    reviewSheet.getRange(2, 1, reviewRows.length + 1, 4).setValues(reviewRows);
+  }
+  return { updated: true, unpairedCount: unpaired.length };
 }
 
 function parseAllowedZones(value) {

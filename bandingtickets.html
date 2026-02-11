@@ -2064,7 +2064,7 @@
                     </div>
                     <div class="fill-form-group">
                         <label for="fillSku">SKU</label>
-                        <select id="fillSku" name="sku" style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; background: white;">
+                        <select id="fillSku" name="sku" required style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; background: white;">
                             <option value="">Select or type SKU...</option>
                         </select>
                         <input type="text" id="fillSkuCustom" name="skuCustom" placeholder="Or enter custom SKU..." style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; margin-top: 8px; display: none;">
@@ -2083,10 +2083,10 @@
                         <label><input type="checkbox" name="bandingType" value="online"> Online</label>
                         <label><input type="checkbox" name="bandingType" value="offline"> Offline</label>
                     </div>
-                    <div class="fill-form-group fill-checkbox-group">
-                        <span class="fill-group-label">Product Type</span>
-                        <label><input type="checkbox" name="productType" value="1kg"> 1kg</label>
-                        <label><input type="checkbox" name="productType" value="0.5kg"> 0.5kg</label>
+                    <div class="fill-form-group" id="productTypeDisplayGroup">
+                        <label>Product Type</label>
+                        <div id="productTypeDisplay" style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: #64748b; font-weight: 600;">— Select SKU first</div>
+                        <input type="hidden" name="productType" id="productTypeHidden" value="">
                     </div>
                     <div class="fill-form-group fill-checkbox-group">
                         <span class="fill-group-label">Pallet Size</span>
@@ -2101,19 +2101,22 @@
                     </div>
                     
                     <div class="fill-form-group" style="grid-column: 1 / -1; margin-top: 10px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
-                        <label style="font-size: 15px; font-weight: 700; margin-bottom: 15px;">Sachet & Tablet Information</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <label style="font-size: 15px; font-weight: 700; margin-bottom: 15px;">Product Information (from SKU)</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                             <div class="fill-form-group">
-                                <label for="sachetType">Sachet Type</label>
-                                <select id="sachetType" name="sachetType" style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; background: white;">
-                                    <option value="">Select sachet type...</option>
-                                </select>
+                                <label>Sachet Type</label>
+                                <div id="sachetTypeDisplay" style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: #64748b; font-weight: 600;">—</div>
+                                <input type="hidden" name="sachetType" id="sachetTypeHidden" value="">
                             </div>
                             <div class="fill-form-group">
-                                <label for="tabletType">Tablet Type</label>
-                                <select id="tabletType" name="tabletType" style="width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 14px; background: white;">
-                                    <option value="">Select tablet type...</option>
-                                </select>
+                                <label>Tablet Type</label>
+                                <div id="tabletTypeDisplay" style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: #64748b; font-weight: 600;">—</div>
+                                <input type="hidden" name="tabletType" id="tabletTypeHidden" value="">
+                            </div>
+                            <div class="fill-form-group">
+                                <label>UoM</label>
+                                <div id="uomDisplay" style="padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: #f8fafc; color: #64748b; font-weight: 600;">—</div>
+                                <input type="hidden" name="uom" id="uomHidden" value="">
                             </div>
                         </div>
                     </div>
@@ -3648,7 +3651,7 @@
             const ticketColor = data.color || color;
             const duplicateBadge = isDuplicate ? '<span class="duplicate-label">DUPLICATE</span>' : '';
             const bandingSelections = new Set((data.bandingType || []).map(value => value.toLowerCase()));
-            const productSelections = new Set((data.productType || []).map(value => value.toLowerCase()));
+            const productSelections = new Set((Array.isArray(data.productType) ? data.productType : (data.productType ? [data.productType] : [])).map(value => String(value).toLowerCase()));
             const palletSelections = new Set((data.palletSize || []).map(value => value.toLowerCase()));
 
             const renderFieldValue = (value) => {
@@ -3930,7 +3933,7 @@
                 ticketData.qty || '',
                 ticketData.layers || '',
                 (ticketData.bandingType || []).join(','),
-                (ticketData.productType || []).join(','),
+                ticketData.productType || '',
                 (ticketData.palletSize || []).join(','),
                 ticketData.notes || '',
                 ticketData.qualityIssueType || '',
@@ -3938,6 +3941,7 @@
                 ticketData.groupLeader || '',
                 ticketData.sachetType || '',
                 ticketData.tabletType || '',
+                ticketData.uom || '',
                 JSON.stringify(ticketData.merchHistory || []),
                 createdAt,
                 firstModified,
@@ -3953,7 +3957,7 @@
                 
                 // Build query parameters - include productType and oldQty for calculations
                 const oldQty = isUpdate && existingTicket ? (existingTicket.Qty || '0') : '0';
-                const productType = (ticketData.productType || []).join(',');
+                const productType = Array.isArray(ticketData.productType) ? (ticketData.productType || []).join(',') : (ticketData.productType || '');
                 
                 const params = new URLSearchParams({
                     action: isUpdate ? 'update' : 'append',
@@ -4126,6 +4130,36 @@
                 return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
             }
         }
+
+        async function loadSkusFromZoneMapping() {
+            if (!GOOGLE_APPS_SCRIPT_URL) return [];
+            try {
+                const url = `${GOOGLE_APPS_SCRIPT_URL}?action=getSkus`;
+                const response = await fetch(url);
+                if (!response.ok) return [];
+                const result = await response.json();
+                if (!result.success) return [];
+                return result.skus || [];
+            } catch (error) {
+                console.error('Error loading SKUs:', error);
+                return [];
+            }
+        }
+
+        async function loadSkuProductInfo(sku) {
+            if (!GOOGLE_APPS_SCRIPT_URL || !sku) return { productType: '', sachetType: '', tabletType: '', uom: '' };
+            try {
+                const url = `${GOOGLE_APPS_SCRIPT_URL}?action=getSkuProductInfo&sku=${encodeURIComponent(sku)}`;
+                const response = await fetch(url);
+                if (!response.ok) return { productType: '', sachetType: '', tabletType: '', uom: '' };
+                const result = await response.json();
+                if (!result.success || !result.info) return { productType: '', sachetType: '', tabletType: '', uom: '' };
+                return result.info;
+            } catch (error) {
+                console.error('Error loading SKU info:', error);
+                return { productType: '', sachetType: '', tabletType: '', uom: '' };
+            }
+        }
         
         function populateDropdown(selectId, options, placeholder = 'Select...') {
             const select = document.getElementById(selectId);
@@ -4145,40 +4179,49 @@
             
             if (!skuSelect) return;
             
-            // Clear existing options except the first one
-            skuSelect.innerHTML = '<option value="">Select or type SKU...</option>';
+            // Clear existing options - SKUs from SKUZoneMapping only
+            skuSelect.innerHTML = '<option value="">Select SKU...</option>';
             
-            // Add SKUs from the list
-            skus.forEach(sku => {
+            // Add SKUs from SKUZoneMapping
+            (skus || []).forEach(sku => {
                 const option = document.createElement('option');
                 option.value = sku;
                 option.textContent = sku;
                 skuSelect.appendChild(option);
             });
             
-            // Add "Custom..." option
-            const customOption = document.createElement('option');
-            customOption.value = '__custom__';
-            customOption.textContent = '--- Enter Custom SKU ---';
-            skuSelect.appendChild(customOption);
+            // Hide custom SKU input - not used anymore
+            if (skuCustom) skuCustom.style.display = 'none';
             
-            // Handle selection change
-            skuSelect.addEventListener('change', function() {
-                if (this.value === '__custom__') {
-                    this.style.display = 'none';
-                    if (skuCustom) {
-                        skuCustom.style.display = 'block';
-                        skuCustom.focus();
-                    }
-                } else if (this.value) {
-                    if (skuCustom) {
-                        skuCustom.style.display = 'none';
-                        skuCustom.value = '';
-                    }
+            // On SKU select: load product info and auto-fill read-only fields
+            if (!skuSelect.dataset.skuChangeBound) {
+                skuSelect.dataset.skuChangeBound = '1';
+                skuSelect.addEventListener('change', async function() {
+                const val = this.value;
+                if (!val) {
+                    document.getElementById('productTypeDisplay').textContent = '— Select SKU first';
+                    document.getElementById('productTypeHidden').value = '';
+                    document.getElementById('sachetTypeDisplay').textContent = '—';
+                    document.getElementById('sachetTypeHidden').value = '';
+                    document.getElementById('tabletTypeDisplay').textContent = '—';
+                    document.getElementById('tabletTypeHidden').value = '';
+                    document.getElementById('uomDisplay').textContent = '—';
+                    document.getElementById('uomHidden').value = '';
+                    return;
                 }
-            });
+                const info = await loadSkuProductInfo(val);
+                document.getElementById('productTypeDisplay').textContent = info.productType || '—';
+                document.getElementById('productTypeHidden').value = info.productType || '';
+                document.getElementById('sachetTypeDisplay').textContent = info.sachetType || '—';
+                document.getElementById('sachetTypeHidden').value = info.sachetType || '';
+                document.getElementById('tabletTypeDisplay').textContent = info.tabletType || '—';
+                document.getElementById('tabletTypeHidden').value = info.tabletType || '';
+                document.getElementById('uomDisplay').textContent = info.uom || '—';
+                document.getElementById('uomHidden').value = info.uom || '';
+                });
+            }
             
-            // Handle custom input
+            // Keep custom input handling for backwards compat (hidden)
             if (skuCustom) {
                 skuCustom.addEventListener('input', function() {
                     if (this.value) {
@@ -4546,6 +4589,7 @@
                                 <div><strong style="color: ${colors.text}; font-weight: 600;">Banding Type:</strong> <span style="color: rgba(255, 255, 255, 0.95); text-transform: uppercase; font-weight: 500;">${escapeHtml((ticket.BandingType || '').toUpperCase())}</span></div>
                                 <div><strong style="color: ${colors.text}; font-weight: 600;">Product Type:</strong> <span style="color: rgba(255, 255, 255, 0.95); text-transform: uppercase; font-weight: 500;">${escapeHtml((ticket.ProductType || '').toUpperCase())}</span></div>
                                 <div><strong style="color: ${colors.text}; font-weight: 600;">Pallet Size:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(ticket.PalletSize || '')}</span></div>
+                                ${ticket.UoM ? `<div><strong style="color: ${colors.text}; font-weight: 600;">UoM:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(ticket.UoM)}</span></div>` : ''}
                             </div>
                         </div>
                         
@@ -4740,7 +4784,8 @@
             const viewCard = document.getElementById('viewCard');
             const editCard = document.getElementById('editCard');
             if (viewCard) viewCard.style.display = 'none';
-            const { users, skus, sachetTypes, tabletTypes } = await loadAuthorizedUsers();
+            const { users } = await loadAuthorizedUsers();
+            const skus = await loadSkusFromZoneMapping();
             populateAuthorizedUserSelects(users);
             authorizedUsersLoaded = true;
             if (isUserLoggedIn()) {
@@ -4786,8 +4831,6 @@
             }
             
             populateSKUDropdown(skus);
-            populateDropdown('sachetType', sachetTypes, 'Select sachet type...');
-            populateDropdown('tabletType', tabletTypes, 'Select tablet type...');
             
             const groupLeaderSelect = document.getElementById('groupLeader');
             const merchHistoryUsers = document.querySelectorAll('.merch-history-user');
@@ -4880,20 +4923,28 @@
                 const skuSelect = document.getElementById('fillSku');
                 const skuCustom = document.getElementById('fillSkuCustom');
                 if (skuSelect) {
-                    // Check if SKU exists in dropdown options
+                    // Check if SKU exists in dropdown; if not, add it for editing existing ticket
                     const optionExists = Array.from(skuSelect.options).some(opt => opt.value === ticket.SKU);
-                    if (optionExists) {
-                        skuSelect.value = ticket.SKU;
-                        if (skuCustom) skuCustom.style.display = 'none';
-                    } else {
-                        // SKU not in dropdown, use custom input
-                        skuSelect.value = '';
-                        if (skuCustom) {
-                            skuCustom.value = ticket.SKU;
-                            skuCustom.style.display = 'block';
-                            skuSelect.style.display = 'none';
-                        }
+                    if (!optionExists && ticket.SKU) {
+                        const opt = document.createElement('option');
+                        opt.value = ticket.SKU;
+                        opt.textContent = ticket.SKU;
+                        skuSelect.appendChild(opt);
                     }
+                    if (ticket.SKU) {
+                        skuSelect.value = ticket.SKU;
+                        loadSkuProductInfo(ticket.SKU).then(info => {
+                            document.getElementById('productTypeDisplay').textContent = info.productType || ticket.ProductType || '—';
+                            document.getElementById('productTypeHidden').value = info.productType || (ticket.ProductType || '').split(',')[0] || '';
+                            document.getElementById('sachetTypeDisplay').textContent = info.sachetType || ticket.SachetType || ticket['Sachet Type'] || '—';
+                            document.getElementById('sachetTypeHidden').value = info.sachetType || ticket.SachetType || ticket['Sachet Type'] || '';
+                            document.getElementById('tabletTypeDisplay').textContent = info.tabletType || ticket.TabletType || ticket['Tablet Type'] || '—';
+                            document.getElementById('tabletTypeHidden').value = info.tabletType || ticket.TabletType || ticket['Tablet Type'] || '';
+                            document.getElementById('uomDisplay').textContent = info.uom || ticket.UoM || '—';
+                            document.getElementById('uomHidden').value = info.uom || ticket.UoM || '';
+                        });
+                    }
+                    if (skuCustom) skuCustom.style.display = 'none';
                 }
             }
             if (ticket.Qty) document.getElementById('fillQty').value = ticket.Qty;
@@ -4902,16 +4953,31 @@
             if (ticket.QualityIssueType) document.getElementById('qualityIssueType').value = ticket.QualityIssueType;
             if (ticket.QualityIssueDesc) document.getElementById('qualityIssueDesc').value = ticket.QualityIssueDesc;
             if (ticket.GroupLeader) document.getElementById('groupLeader').value = ticket.GroupLeader;
-            if (ticket.SachetType) document.getElementById('sachetType').value = ticket.SachetType;
-            if (ticket.TabletType) document.getElementById('tabletType').value = ticket.TabletType;
+            
+            // Product info from SKU - set from ticket if loadSkuProductInfo hasn't run yet
+            var pt = (ticket.ProductType || '').toString().split(',')[0] || '';
+            if (document.getElementById('productTypeHidden').value === '' && pt) {
+                document.getElementById('productTypeDisplay').textContent = pt || '—';
+                document.getElementById('productTypeHidden').value = pt;
+            }
+            if (document.getElementById('sachetTypeHidden').value === '' && (ticket.SachetType || ticket['Sachet Type'])) {
+                var st = ticket.SachetType || ticket['Sachet Type'] || '';
+                document.getElementById('sachetTypeDisplay').textContent = st || '—';
+                document.getElementById('sachetTypeHidden').value = st;
+            }
+            if (document.getElementById('tabletTypeHidden').value === '' && (ticket.TabletType || ticket['Tablet Type'])) {
+                var tt = ticket.TabletType || ticket['Tablet Type'] || '';
+                document.getElementById('tabletTypeDisplay').textContent = tt || '—';
+                document.getElementById('tabletTypeHidden').value = tt;
+            }
+            if (document.getElementById('uomHidden').value === '' && ticket.UoM) {
+                document.getElementById('uomDisplay').textContent = ticket.UoM || '—';
+                document.getElementById('uomHidden').value = ticket.UoM || '';
+            }
             
             // Populate checkboxes
             (ticket.BandingType || '').split(',').forEach(val => {
                 const checkbox = document.querySelector(`input[name="bandingType"][value="${val.trim()}"]`);
-                if (checkbox) checkbox.checked = true;
-            });
-            (ticket.ProductType || '').split(',').forEach(val => {
-                const checkbox = document.querySelector(`input[name="productType"][value="${val.trim()}"]`);
                 if (checkbox) checkbox.checked = true;
             });
             (ticket.PalletSize || '').split(',').forEach(val => {
@@ -4990,13 +5056,14 @@
                 layers: formData.get('layers') || '',
                 notes: formData.get('notes') || '',
                 bandingType: collectChecked('bandingType'),
-                productType: collectChecked('productType'),
+                productType: document.getElementById('productTypeHidden')?.value || '',
                 palletSize: collectChecked('palletSize'),
                 qualityIssueType: formData.get('qualityIssueType') || '',
                 qualityIssueDesc: formData.get('qualityIssueDesc') || '',
                 groupLeader: formData.get('groupLeader') || '',
-                sachetType: formData.get('sachetType') || '',
-                tabletType: formData.get('tabletType') || '',
+                sachetType: document.getElementById('sachetTypeHidden')?.value || formData.get('sachetType') || '',
+                tabletType: document.getElementById('tabletTypeHidden')?.value || formData.get('tabletType') || '',
+                uom: document.getElementById('uomHidden')?.value || formData.get('uom') || '',
                 merchHistory: merchHistoryEntries,
                 modifiedBy: loggedInUser?.name || loggedInUser?.id || 'Unknown User',
                 status: 'Received'

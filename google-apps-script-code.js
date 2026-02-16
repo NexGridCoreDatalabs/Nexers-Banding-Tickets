@@ -34,21 +34,41 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
   if (parentQty < childQty) {
     throw new Error('Not enough quantity to create child pallet.');
   }
+  const fromZone = (parentRow[headers.indexOf('CurrentZone')] || '').toString().trim();
+  const now = new Date();
+  const movementId = generateMovementId();
   const childId = generatePalletId('SM');
+  const childLog = {
+    palletId: childId,
+    fromZone: fromZone,
+    toZone: targetZone,
+    movedBy: movedBy || 'System',
+    reason: reason || 'Child pallet created',
+    overrideReason: '',
+    quantity: childQty,
+    orderReference: '',
+    movementDate: now,
+    movementId: movementId,
+    movementStatus: 'In Transit'
+  };
+  logZoneMovement(childLog);
   const childTicket = Object.assign({}, parentTicket);
   childTicket.serial = childId;
   childTicket.qty = childQty;
   childTicket.notes = (parentTicket.notes ? parentTicket.notes + '\n' : '') + (reason || '') + ' [Child of ' + parentTicket.serial + ']';
   childTicket.modifiedBy = movedBy || 'System';
   createOrUpdatePalletFromTicket(childTicket, {
-    currentZone: targetZone,
+    currentZone: fromZone,
     status: 'Active',
     parentId: parentTicket.serial,
-    lastMovedAt: new Date(),
+    lastMovedAt: now,
     lastMovedBy: movedBy || 'System',
-    palletType: 'Banded'
+    palletType: 'Banded',
+    inTransitToZone: targetZone,
+    inTransitMovementID: movementId,
+    inTransitInitiatedAt: now,
+    inTransitInitiatedBy: movedBy || 'System'
   });
-  // Update parent remaining qty
   const newRemaining = parentQty - childQty;
   const remainingCol = headers.indexOf('RemainingQuantity');
   const notesCol = headers.indexOf('Notes');
@@ -67,18 +87,6 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
   if (lastMovedByCol >= 0) {
     palletSheet.getRange(parentInfo.rowIndex, lastMovedByCol + 1).setValue(movedBy || 'System');
   }
-  const childLog = {
-    palletId: childId,
-    fromZone: parentRow[headers.indexOf('CurrentZone')],
-    toZone: targetZone,
-    movedBy: movedBy || 'System',
-    reason: reason || 'Child pallet created',
-    overrideReason: '',
-    quantity: childQty,
-    orderReference: '',
-    movementDate: new Date()
-  };
-  logZoneMovement(childLog);
   refreshInventorySnapshotSilently();
   const childCol = headers.indexOf('ChildPallets');
   if (childCol >= 0) {
@@ -140,7 +148,11 @@ const STOCK_MOVEMENT_SHEETS = {
     'CreatedAt',
     'LastMovedAt',
     'LastMovedBy',
-    'Notes'
+    'Notes',
+    'InTransitToZone',
+    'InTransitMovementID',
+    'InTransitInitiatedAt',
+    'InTransitInitiatedBy'
   ],
   ZoneMovements: [
     'MovementID',
@@ -155,7 +167,14 @@ const STOCK_MOVEMENT_SHEETS = {
     'Quantity',
     'OrderReference',
     'Notes',
-    'CreatedAt'
+    'CreatedAt',
+    'MovementStatus',
+    'ReceivedAt',
+    'ReceivedBy',
+    'AutoRevertedAt',
+    'CancelledAt',
+    'CancelledBy',
+    'CancelEscalationReason'
   ],
   ZoneConfig: [
     'ZoneName',
@@ -856,7 +875,7 @@ function doGet(e) {
       const childResult = createChildPallet(parentTicket, quantity, toZone, movedBy, reason);
       return createResponse({
         success: true,
-        message: 'Child pallet ' + childResult.childId + ' created successfully',
+        message: 'Child pallet ' + childResult.childId + ' initiated - awaiting receipt at ' + toZone,
         childPalletId: childResult.childId,
         parentRemaining: childResult.parentRemaining
       });
@@ -885,12 +904,14 @@ function doGet(e) {
       const allSachetTypes = new Set(); // Collect all unique Sachet Types
       const allTabletTypes = new Set(); // Collect all unique Tablet Types
       
+      const roleCol = headers.indexOf('Role') >= 0 ? headers.indexOf('Role') : -1;
       for (let i = 1; i < values.length; i++) {
         if (values[i][idCol]) {
-          users.push({ 
-            id: values[i][idCol], 
-            name: values[i][nameCol] || '' 
-          });
+          const userEntry = { id: values[i][idCol], name: values[i][nameCol] || '' };
+          if (roleCol >= 0) {
+            userEntry.role = (values[i][roleCol] || '').toString().trim();
+          }
+          users.push(userEntry);
           
           // Collect SKUs from SKUs column if it exists
           if (skusCol >= 0 && values[i][skusCol]) {
@@ -942,6 +963,7 @@ function doGet(e) {
       
       const dataRange = usersSheet.getDataRange();
       const values = dataRange.getValues();
+      const headers = values[0] || [];
       
       for (let i = 1; i < values.length; i++) {
         if (values[i][0] && values[i][0].toString().trim() === userId) {
@@ -951,12 +973,14 @@ function doGet(e) {
           }
           
           if (storedPasscode === passcode) {
+            const roleCol = headers.indexOf('Role');
+            const userData = { id: values[i][0], name: values[i][1] || '' };
+            if (roleCol >= 0) {
+              userData.role = (values[i][roleCol] || '').toString().trim();
+            }
             return createResponse({
               success: true,
-              data: {
-                id: values[i][0],
-                name: values[i][1] || ''
-              }
+              data: userData
             });
           }
           
@@ -990,6 +1014,28 @@ function doGet(e) {
         quantity: e.parameter.quantity || '',
         orderReference: e.parameter.orderReference || ''
       });
+    }
+    else if (action === 'receivePallet') {
+      return receivePallet({
+        palletId: e.parameter.palletId || '',
+        receivedBy: e.parameter.receivedBy || ''
+      });
+    }
+    else if (action === 'getInboundsToZone') {
+      return getInboundsToZone({ zoneName: e.parameter.zoneName || '' });
+    }
+    else if (action === 'getOutboundsFromZone') {
+      return getOutboundsFromZone({ zoneName: e.parameter.zoneName || '' });
+    }
+    else if (action === 'cancelTransit') {
+      return cancelTransit({
+        palletId: e.parameter.palletId || '',
+        cancelledBy: e.parameter.cancelledBy || '',
+        escalationReason: e.parameter.escalationReason || ''
+      });
+    }
+    else if (action === 'runAutoRevertTransits') {
+      return runAutoRevertTransits();
     }
     
     return createResponse({ success: false, error: 'Invalid action' });
@@ -3693,15 +3739,9 @@ function generatePalletId(zonePrefix) {
 }
 
 /**
- * Move pallet between zones with validation (zone eligibility + FIFO)
- * @param {Object} params
- *  - palletId {string}
- *  - toZone {string}
- *  - movedBy {string}
- *  - reason {string}
- *  - overrideReason {string}
- *  - quantity {number}
- *  - orderReference {string}
+ * Initiate pallet move (Phase 1) - Two-phase movement flow.
+ * Pallet stays at origin with "In Transit" until received at destination.
+ * @param {Object} params - palletId, toZone, movedBy, reason, overrideReason, quantity, orderReference
  */
 function movePallet(params) {
   const requiredFields = ['palletId', 'toZone', 'movedBy'];
@@ -3741,17 +3781,19 @@ function movePallet(params) {
     throw new Error('Pallet not found: ' + palletId);
   }
   const currentZoneCol = headers.indexOf('CurrentZone');
-  const statusCol = headers.indexOf('Status');
-  const createdAtCol = headers.indexOf('CreatedAt');
-  const remainingQtyCol = headers.indexOf('RemainingQuantity');
-  const lastMovedAtCol = headers.indexOf('LastMovedAt');
-  const lastMovedByCol = headers.indexOf('LastMovedBy');
+  const inTransitToCol = headers.indexOf('InTransitToZone');
+  const inTransitMovementCol = headers.indexOf('InTransitMovementID');
+  const inTransitAtCol = headers.indexOf('InTransitInitiatedAt');
+  const inTransitByCol = headers.indexOf('InTransitInitiatedBy');
   const notesCol = headers.indexOf('Notes');
   const currentZone = palletRowValues[currentZoneCol] || '';
+  const existingInTransit = (palletRowValues[inTransitToCol] || '').toString().trim();
+  if (existingInTransit) {
+    throw new Error('Pallet is already in transit to ' + existingInTransit + '. Receive or cancel first.');
+  }
   if (currentZone === toZone) {
     throw new Error('Pallet is already in ' + toZone);
   }
-  // Zone eligibility validation
   const palletTypeCol = headers.indexOf('PalletType');
   const zoneEligibility = checkZoneEligibility({
     sku: palletRowValues[headers.indexOf('SKU')],
@@ -3761,7 +3803,6 @@ function movePallet(params) {
   if (!zoneEligibility.allowed) {
     throw new Error(zoneEligibility.message || ('Pallet cannot move to ' + toZone));
   }
-  // FIFO validation if required
   if (!overrideReason) {
     enforceFifoIfRequired({
       palletId: palletId,
@@ -3771,38 +3812,8 @@ function movePallet(params) {
       palletData: palletData
     });
   }
-  // Prepare row updates
   const now = new Date();
-  const updates = {};
-  if (statusCol >= 0) {
-    updates[statusCol] = zoneEligibility.targetStatus || 'Active';
-  }
-  if (currentZoneCol >= 0) {
-    updates[currentZoneCol] = toZone;
-  }
-  if (remainingQtyCol >= 0 && quantity) {
-    const currentQty = Number(palletRowValues[remainingQtyCol]) || Number(palletRowValues[headers.indexOf('Quantity')]) || 0;
-    updates[remainingQtyCol] = Math.max(currentQty - Number(quantity), 0);
-  }
-  if (lastMovedAtCol >= 0) {
-    updates[lastMovedAtCol] = now;
-  }
-  if (lastMovedByCol >= 0) {
-    updates[lastMovedByCol] = movedBy;
-  }
-  if (notesCol >= 0 && reason) {
-    const existingNotes = palletRowValues[notesCol] || '';
-    updates[notesCol] = existingNotes ? existingNotes + '\n' + reason : reason;
-  }
-  // OPTIMIZATION: Batch all updates using setValues (faster than multiple setValue calls)
-  if (Object.keys(updates).length > 0) {
-    const rowData = palletsSheet.getRange(targetRow + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
-    Object.keys(updates).forEach(function(colIndexStr) {
-      const colIndex = Number(colIndexStr);
-      rowData[colIndex] = updates[colIndex];
-    });
-    palletsSheet.getRange(targetRow + 1, 1, 1, rowData.length).setValues([rowData]);
-  }
+  const movementId = generateMovementId();
   logZoneMovement({
     palletId: palletId,
     fromZone: currentZone,
@@ -3812,16 +3823,35 @@ function movePallet(params) {
     overrideReason: overrideReason,
     quantity: quantity,
     orderReference: orderReference,
-    movementDate: now
+    movementDate: now,
+    movementId: movementId,
+    movementStatus: 'In Transit'
   });
-  logUserActivity('MOVE PALLET: ' + palletId, 'Moved from ' + currentZone + ' to ' + toZone + ' by ' + movedBy);
+  const updates = {};
+  if (inTransitToCol >= 0) updates[inTransitToCol] = toZone;
+  if (inTransitMovementCol >= 0) updates[inTransitMovementCol] = movementId;
+  if (inTransitAtCol >= 0) updates[inTransitAtCol] = now;
+  if (inTransitByCol >= 0) updates[inTransitByCol] = movedBy;
+  if (notesCol >= 0 && reason) {
+    const existingNotes = palletRowValues[notesCol] || '';
+    updates[notesCol] = existingNotes ? existingNotes + '\n[Initiate] ' + reason : '[Initiate] ' + reason;
+  }
+  if (Object.keys(updates).length > 0) {
+    const rowData = palletsSheet.getRange(targetRow + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
+    Object.keys(updates).forEach(function(colIndexStr) {
+      rowData[Number(colIndexStr)] = updates[colIndexStr];
+    });
+    palletsSheet.getRange(targetRow + 1, 1, 1, rowData.length).setValues([rowData]);
+  }
+  logUserActivity('INITIATE MOVE: ' + palletId, 'From ' + currentZone + ' to ' + toZone + ' by ' + movedBy);
   refreshInventorySnapshotSilently();
   return createResponse({
     success: true,
-    message: 'Pallet moved successfully',
+    message: 'Move initiated. Awaiting receipt at ' + toZone,
     palletId: palletId,
     fromZone: currentZone,
-    toZone: toZone
+    toZone: toZone,
+    movementId: movementId
   });
 }
 
@@ -3861,7 +3891,8 @@ function enforceFifoIfRequired(config) {
 function logZoneMovement(entry) {
   const workbook = SpreadsheetApp.openById(SHEET_ID);
   const sheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
-  const movementId = generateMovementId();
+  const movementId = entry.movementId || generateMovementId();
+  const movementStatus = entry.movementStatus || 'In Transit';
   const row = STOCK_MOVEMENT_SHEETS.ZoneMovements.map(function(header) {
     switch (header) {
       case 'MovementID':
@@ -3890,11 +3921,371 @@ function logZoneMovement(entry) {
         return entry.notes || '';
       case 'CreatedAt':
         return new Date();
+      case 'MovementStatus':
+        return movementStatus;
+      case 'ReceivedAt':
+      case 'ReceivedBy':
+      case 'AutoRevertedAt':
+      case 'CancelledAt':
+      case 'CancelledBy':
+      case 'CancelEscalationReason':
+        return '';
       default:
         return '';
     }
   });
   sheet.appendRow(row);
+  return movementId;
+}
+
+const TRANSIT_TIMEOUT_MINUTES = 25;
+
+/**
+ * Receive pallet at destination (Phase 2).
+ * Clears in-transit fields, updates CurrentZone, marks movement as Received.
+ */
+function receivePallet(params) {
+  const palletId = (params.palletId || '').toString().trim();
+  const receivedBy = (params.receivedBy || '').toString().trim();
+  if (!palletId || !receivedBy) {
+    throw new Error('Missing palletId or receivedBy');
+  }
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const palletsSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const palletData = palletsSheet.getDataRange().getValues();
+  const headers = palletData[0];
+  const zoneCol = headers.indexOf('CurrentZone');
+  const inTransitToCol = headers.indexOf('InTransitToZone');
+  const inTransitMovementCol = headers.indexOf('InTransitMovementID');
+  const inTransitAtCol = headers.indexOf('InTransitInitiatedAt');
+  const inTransitByCol = headers.indexOf('InTransitInitiatedBy');
+  const lastMovedAtCol = headers.indexOf('LastMovedAt');
+  const lastMovedByCol = headers.indexOf('LastMovedBy');
+  const statusCol = headers.indexOf('Status');
+  const palletIdCol = headers.indexOf('PalletID');
+  let targetRow = -1;
+  let palletRowValues = null;
+  for (let i = 1; i < palletData.length; i++) {
+    if ((palletData[i][palletIdCol] || '').toString().trim() === palletId) {
+      targetRow = i;
+      palletRowValues = palletData[i];
+      break;
+    }
+  }
+  if (targetRow === -1 || !palletRowValues) {
+    throw new Error('Pallet not found: ' + palletId);
+  }
+  const toZone = (palletRowValues[inTransitToCol] || '').toString().trim();
+  if (!toZone) {
+    throw new Error('Pallet is not in transit. Nothing to receive.');
+  }
+  const fromZone = (palletRowValues[zoneCol] || '').toString().trim();
+  const movementId = (palletRowValues[inTransitMovementCol] || '').toString().trim();
+  const zoneEligibility = checkZoneEligibility({
+    sku: palletRowValues[headers.indexOf('SKU')],
+    toZone: toZone,
+    palletType: (palletRowValues[headers.indexOf('PalletType')] || '').toString()
+  });
+  const now = new Date();
+  const updates = {};
+  updates[zoneCol] = toZone;
+  updates[inTransitToCol] = '';
+  updates[inTransitMovementCol] = '';
+  updates[inTransitAtCol] = '';
+  updates[inTransitByCol] = '';
+  updates[lastMovedAtCol] = now;
+  updates[lastMovedByCol] = receivedBy;
+  if (statusCol >= 0) {
+    updates[statusCol] = zoneEligibility.targetStatus || 'Active';
+  }
+  const rowData = palletsSheet.getRange(targetRow + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
+  Object.keys(updates).forEach(function(k) {
+    const idx = Number(k);
+    if (idx >= 0) rowData[idx] = updates[k];
+  });
+  palletsSheet.getRange(targetRow + 1, 1, 1, rowData.length).setValues([rowData]);
+  const movSheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
+  const movData = movSheet.getDataRange().getValues();
+  const movHeaders = movData[0];
+  const movIdCol = movHeaders.indexOf('MovementID');
+  const movStatusCol = movHeaders.indexOf('MovementStatus');
+  const movReceivedAtCol = movHeaders.indexOf('ReceivedAt');
+  const movReceivedByCol = movHeaders.indexOf('ReceivedBy');
+  for (let i = movData.length - 1; i >= 1; i--) {
+    if ((movData[i][movIdCol] || '').toString().trim() === movementId) {
+      if (movStatusCol >= 0) movSheet.getRange(i + 1, movStatusCol + 1).setValue('Received');
+      if (movReceivedAtCol >= 0) movSheet.getRange(i + 1, movReceivedAtCol + 1).setValue(now);
+      if (movReceivedByCol >= 0) movSheet.getRange(i + 1, movReceivedByCol + 1).setValue(receivedBy);
+      break;
+    }
+  }
+  logUserActivity('RECEIVE: ' + palletId, 'Received at ' + toZone + ' by ' + receivedBy);
+  refreshInventorySnapshotSilently();
+  return createResponse({
+    success: true,
+    message: 'Pallet received at ' + toZone,
+    palletId: palletId,
+    fromZone: fromZone,
+    toZone: toZone
+  });
+}
+
+/**
+ * Get pallets inbound to a zone (InTransitToZone = zoneName).
+ * Sorted by InTransitInitiatedAt (FIFO - oldest first).
+ */
+function getInboundsToZone(params) {
+  const zoneName = (params.zoneName || '').toString().trim();
+  if (!zoneName) {
+    throw new Error('zoneName is required.');
+  }
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const inTransitToCol = headers.indexOf('InTransitToZone');
+  const inTransitAtCol = headers.indexOf('InTransitInitiatedAt');
+  const palletIdCol = headers.indexOf('PalletID');
+  if (inTransitToCol < 0) {
+    return createResponse({ success: true, zone: zoneName, pallets: [] });
+  }
+  const pallets = data.slice(1)
+    .filter(function(row) {
+      return (row[inTransitToCol] || '').toString().trim() === zoneName;
+    })
+    .map(function(row) {
+      return rowToObject(headers, row);
+    })
+    .sort(function(a, b) {
+      const aDate = new Date(a.InTransitInitiatedAt || 0);
+      const bDate = new Date(b.InTransitInitiatedAt || 0);
+      return aDate - bDate;
+    });
+  return createResponse({
+    success: true,
+    zone: zoneName,
+    count: pallets.length,
+    pallets: pallets
+  });
+}
+
+/**
+ * Get pallets outbound from a zone (CurrentZone = zoneName AND InTransitToZone set).
+ */
+function getOutboundsFromZone(params) {
+  const zoneName = (params.zoneName || '').toString().trim();
+  if (!zoneName) {
+    throw new Error('zoneName is required.');
+  }
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const zoneCol = headers.indexOf('CurrentZone');
+  const inTransitToCol = headers.indexOf('InTransitToZone');
+  const inTransitAtCol = headers.indexOf('InTransitInitiatedAt');
+  if (zoneCol < 0 || inTransitToCol < 0) {
+    return createResponse({ success: true, zone: zoneName, pallets: [] });
+  }
+  const pallets = data.slice(1)
+    .filter(function(row) {
+      return (row[zoneCol] || '').toString().trim() === zoneName &&
+             (row[inTransitToCol] || '').toString().trim() !== '';
+    })
+    .map(function(row) {
+      return rowToObject(headers, row);
+    })
+    .sort(function(a, b) {
+      const aDate = new Date(a.InTransitInitiatedAt || 0);
+      const bDate = new Date(b.InTransitInitiatedAt || 0);
+      return aDate - bDate;
+    });
+  return createResponse({
+    success: true,
+    zone: zoneName,
+    count: pallets.length,
+    pallets: pallets
+  });
+}
+
+/**
+ * Check if user can cancel transit (Supervisor or QA only).
+ * Authorized Users sheet should have optional "Role" column: Supervisor, QA, or Zone Clerk.
+ */
+function canUserCancelTransit(userId) {
+  try {
+    const workbook = SpreadsheetApp.openById(SHEET_ID);
+    const sheet = workbook.getSheetByName('Authorized Users');
+    if (!sheet) return false;
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0] || [];
+    const idCol = 0;
+    const roleCol = headers.indexOf('Role');
+    if (roleCol < 0) return false;
+    const uid = (userId || '').toString().trim();
+    for (let i = 1; i < values.length; i++) {
+      if ((values[i][idCol] || '').toString().trim() === uid) {
+        const role = (values[i][roleCol] || '').toString().trim().toLowerCase();
+        return role === 'supervisor' || role === 'qa';
+      }
+    }
+    return false;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Cancel in-transit movement. Supervisor or QA only. Requires escalation reason.
+ */
+function cancelTransit(params) {
+  const palletId = (params.palletId || '').toString().trim();
+  const cancelledBy = (params.cancelledBy || '').toString().trim();
+  const escalationReason = (params.escalationReason || '').toString().trim();
+  if (!palletId || !cancelledBy) {
+    throw new Error('Missing palletId or cancelledBy');
+  }
+  if (!escalationReason) {
+    throw new Error('Escalation reason is required to cancel transit');
+  }
+  if (!canUserCancelTransit(cancelledBy)) {
+    throw new Error('Only Supervisors or QA can cancel transit. Your role does not permit this action.');
+  }
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const palletsSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const palletData = palletsSheet.getDataRange().getValues();
+  const headers = palletData[0];
+  const inTransitToCol = headers.indexOf('InTransitToZone');
+  const inTransitMovementCol = headers.indexOf('InTransitMovementID');
+  const inTransitAtCol = headers.indexOf('InTransitInitiatedAt');
+  const inTransitByCol = headers.indexOf('InTransitInitiatedBy');
+  const notesCol = headers.indexOf('Notes');
+  const palletIdCol = headers.indexOf('PalletID');
+  let targetRow = -1;
+  let palletRowValues = null;
+  for (let i = 1; i < palletData.length; i++) {
+    if ((palletData[i][palletIdCol] || '').toString().trim() === palletId) {
+      targetRow = i;
+      palletRowValues = palletData[i];
+      break;
+    }
+  }
+  if (targetRow === -1 || !palletRowValues) {
+    throw new Error('Pallet not found: ' + palletId);
+  }
+  const inTransitTo = (palletRowValues[inTransitToCol] || '').toString().trim();
+  if (!inTransitTo) {
+    throw new Error('Pallet is not in transit. Nothing to cancel.');
+  }
+  const movementId = (palletRowValues[inTransitMovementCol] || '').toString().trim();
+  const now = new Date();
+  const updates = {};
+  updates[inTransitToCol] = '';
+  updates[inTransitMovementCol] = '';
+  updates[inTransitAtCol] = '';
+  updates[inTransitByCol] = '';
+  if (notesCol >= 0) {
+    const existingNotes = palletRowValues[notesCol] || '';
+    updates[notesCol] = existingNotes + '\n[Cancelled by ' + cancelledBy + '] ' + escalationReason;
+  }
+  const rowData = palletsSheet.getRange(targetRow + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
+  Object.keys(updates).forEach(function(k) {
+    const idx = Number(k);
+    if (idx >= 0) rowData[idx] = updates[k];
+  });
+  palletsSheet.getRange(targetRow + 1, 1, 1, rowData.length).setValues([rowData]);
+  const movSheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
+  const movData = movSheet.getDataRange().getValues();
+  const movHeaders = movData[0];
+  const movIdCol = movHeaders.indexOf('MovementID');
+  const movStatusCol = movHeaders.indexOf('MovementStatus');
+  const movCancelledAtCol = movHeaders.indexOf('CancelledAt');
+  const movCancelledByCol = movHeaders.indexOf('CancelledBy');
+  const movEscalationCol = movHeaders.indexOf('CancelEscalationReason');
+  for (let i = movData.length - 1; i >= 1; i--) {
+    if ((movData[i][movIdCol] || '').toString().trim() === movementId) {
+      if (movStatusCol >= 0) movSheet.getRange(i + 1, movStatusCol + 1).setValue('Cancelled');
+      if (movCancelledAtCol >= 0) movSheet.getRange(i + 1, movCancelledAtCol + 1).setValue(now);
+      if (movCancelledByCol >= 0) movSheet.getRange(i + 1, movCancelledByCol + 1).setValue(cancelledBy);
+      if (movEscalationCol >= 0) movSheet.getRange(i + 1, movEscalationCol + 1).setValue(escalationReason);
+      break;
+    }
+  }
+  logUserActivity('CANCEL TRANSIT: ' + palletId, 'By ' + cancelledBy + ' - ' + escalationReason);
+  refreshInventorySnapshotSilently();
+  return createResponse({
+    success: true,
+    message: 'Transit cancelled. Pallet remains at origin.',
+    palletId: palletId
+  });
+}
+
+/**
+ * Auto-revert pallets that have been in transit longer than TRANSIT_TIMEOUT_MINUTES.
+ * Call via time-based trigger (e.g. every 5-10 min).
+ */
+function runAutoRevertTransits() {
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const palletsSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
+  const palletData = palletsSheet.getDataRange().getValues();
+  const headers = palletData[0];
+  const inTransitToCol = headers.indexOf('InTransitToZone');
+  const inTransitMovementCol = headers.indexOf('InTransitMovementID');
+  const inTransitAtCol = headers.indexOf('InTransitInitiatedAt');
+  const inTransitByCol = headers.indexOf('InTransitInitiatedBy');
+  const palletIdCol = headers.indexOf('PalletID');
+  const zoneCol = headers.indexOf('CurrentZone');
+  if (inTransitToCol < 0 || inTransitAtCol < 0) {
+    return createResponse({ success: true, reverted: 0, message: 'No in-transit columns' });
+  }
+  const now = new Date();
+  const cutoffMs = now.getTime() - (TRANSIT_TIMEOUT_MINUTES * 60 * 1000);
+  const reverted = [];
+  for (let i = 1; i < palletData.length; i++) {
+    const row = palletData[i];
+    const inTransitTo = (row[inTransitToCol] || '').toString().trim();
+    if (!inTransitTo) continue;
+    const initiatedAt = row[inTransitAtCol];
+    const initiatedMs = initiatedAt ? new Date(initiatedAt).getTime() : 0;
+    if (initiatedMs < cutoffMs) {
+      const palletId = (row[palletIdCol] || '').toString().trim();
+      const fromZone = (row[zoneCol] || '').toString().trim();
+      const movementId = (row[inTransitMovementCol] || '').toString().trim();
+      const updates = {};
+      updates[inTransitToCol] = '';
+      updates[inTransitMovementCol] = '';
+      updates[inTransitAtCol] = '';
+      updates[inTransitByCol] = '';
+      const rowData = palletsSheet.getRange(i + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
+      Object.keys(updates).forEach(function(k) {
+        rowData[Number(k)] = updates[k];
+      });
+      palletsSheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
+      const movSheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
+      const movData = movSheet.getDataRange().getValues();
+      const movHeaders = movData[0];
+      const movIdCol = movHeaders.indexOf('MovementID');
+      const movStatusCol = movHeaders.indexOf('MovementStatus');
+      const movAutoRevertedCol = movHeaders.indexOf('AutoRevertedAt');
+      for (let j = movData.length - 1; j >= 1; j--) {
+        if ((movData[j][movIdCol] || '').toString().trim() === movementId) {
+          if (movStatusCol >= 0) movSheet.getRange(j + 1, movStatusCol + 1).setValue('Auto-Reverted');
+          if (movAutoRevertedCol >= 0) movSheet.getRange(j + 1, movAutoRevertedCol + 1).setValue(now);
+          break;
+        }
+      }
+      logUserActivity('AUTO-REVERT: ' + palletId, 'In transit > ' + TRANSIT_TIMEOUT_MINUTES + ' min - reverted to ' + fromZone);
+      reverted.push({ palletId: palletId, fromZone: fromZone });
+    }
+  }
+  if (reverted.length > 0) {
+    refreshInventorySnapshotSilently();
+  }
+  return createResponse({
+    success: true,
+    reverted: reverted.length,
+    pallets: reverted
+  });
 }
 
 function getRecentMovements(limit) {
@@ -4975,6 +5366,14 @@ function createOrUpdatePalletFromTicket(ticket, overrides) {
         return lastMovedByValue;
       case 'Notes':
         return notesValue;
+      case 'InTransitToZone':
+        return opts.inTransitToZone || '';
+      case 'InTransitMovementID':
+        return opts.inTransitMovementID || '';
+      case 'InTransitInitiatedAt':
+        return opts.inTransitInitiatedAt || '';
+      case 'InTransitInitiatedBy':
+        return opts.inTransitInitiatedBy || '';
       default:
         return '';
     }

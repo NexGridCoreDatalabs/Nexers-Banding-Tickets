@@ -1576,6 +1576,191 @@
             }
         }
 
+        /* View tabs: Zone Monitor | Zone Receiving */
+        .movement-view-tabs {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+        }
+        .movement-tab-btn {
+            padding: 10px 20px;
+            background: rgba(30, 58, 95, 0.5);
+            border: 2px solid rgba(245, 158, 11, 0.3);
+            border-radius: 12px;
+            color: rgba(251, 191, 36, 0.9);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .movement-tab-btn:hover {
+            background: rgba(30, 58, 95, 0.8);
+            border-color: rgba(245, 158, 11, 0.6);
+        }
+        .movement-tab-btn.active {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #0f172a;
+            border-color: #f59e0b;
+        }
+
+        /* Zone Receiving layout - responsive for mobile, tablet, desktop */
+        .receiving-layout {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .receiving-header-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 12px;
+        }
+        .receiving-operator {
+            flex: 1;
+            min-width: 180px;
+        }
+        .receiving-operator label {
+            display: block;
+            margin-bottom: 4px;
+            color: #fbbf24;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .receiving-operator input {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 2px solid rgba(245, 158, 11, 0.4);
+            background: rgba(15, 23, 42, 0.6);
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+        .receiving-zone-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+        .receiving-zone-tabs-label {
+            color: #94a3b8;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .receiving-zone-tabs-inner {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+        .receiving-zone-tab {
+            padding: 8px 16px;
+            background: rgba(30, 58, 95, 0.5);
+            border: 2px solid rgba(245, 158, 11, 0.3);
+            border-radius: 10px;
+            color: rgba(251, 191, 36, 0.9);
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+        .receiving-zone-tab:hover {
+            background: rgba(30, 58, 95, 0.8);
+            border-color: rgba(245, 158, 11, 0.6);
+        }
+        .receiving-zone-tab.active {
+            background: linear-gradient(135deg, #f59e0b, #fbbf24);
+            color: #0f172a;
+            border-color: #f59e0b;
+        }
+        .receiving-section {
+            background: rgba(30, 58, 95, 0.3);
+            border-radius: 16px;
+            padding: 16px;
+            border: 2px solid rgba(245, 158, 11, 0.3);
+        }
+        .receiving-section h4 {
+            margin: 0 0 12px;
+            color: #fbbf24;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .receiving-pallet-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 80px;
+        }
+        .receiving-pallet-card {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 12px;
+            border: 2px solid rgba(245, 158, 11, 0.25);
+        }
+        .receiving-pallet-card .pallet-info {
+            flex: 1;
+            min-width: 140px;
+        }
+        .receiving-pallet-card .pallet-id {
+            font-weight: 700;
+            color: #fbbf24;
+        }
+        .receiving-pallet-card .pallet-meta {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+        .receiving-pallet-card .pallet-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .receiving-pallet-card .btn-receive {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .receiving-pallet-card .btn-receive:hover {
+            filter: brightness(1.1);
+        }
+        .receiving-pallet-card .btn-cancel-transit {
+            padding: 8px 16px;
+            background: rgba(239, 68, 68, 0.8);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+        .receiving-pallet-card .btn-cancel-transit:hover {
+            background: rgba(239, 68, 68, 1);
+        }
+        .badge-in-transit {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(245, 158, 11, 0.3);
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #fbbf24;
+            margin-top: 4px;
+        }
+
         /* Responsive movement grid */
         .movement-grid {
             margin-top: 25px;
@@ -2214,11 +2399,17 @@
                 <div class="movement-panel-header">
                     <div>
                         <h2>📦 Stock Movement Control</h2>
-                        <p>Monitor pallets per zone, enforce FIFO, and log movements in real time.</p>
+                        <p>Monitor pallets per zone, enforce FIFO, initiate moves, and receive inbounds.</p>
                     </div>
                     <button type="button" class="btn-reset" onclick="toggleMovementPanel(false)">Close</button>
                 </div>
 
+                <div class="movement-view-tabs">
+                    <button type="button" class="movement-tab-btn active" data-view="monitor" onclick="switchMovementView('monitor')">Zone Monitor</button>
+                    <button type="button" class="movement-tab-btn" data-view="receiving" onclick="switchMovementView('receiving')">Zone Receiving</button>
+                </div>
+
+                <div id="movementMonitorView" class="movement-view-content">
                 <div class="movement-grid">
                     <div class="movement-column">
                         <div class="movement-section">
@@ -2255,7 +2446,7 @@
                     </div>
                     <div class="movement-column movement-column-form">
                         <div class="movement-section">
-                            <h3>Move Pallet</h3>
+                            <h3>Initiate Move</h3>
                             <form id="movementForm" onsubmit="event.preventDefault(); submitMovementForm();">
                                 <div class="movement-form-grid">
                                     <div>
@@ -2293,11 +2484,36 @@
                                 </div>
                         <div class="movement-form-actions">
                             <button type="button" class="btn-reset" id="toggleChildModeBtn" onclick="toggleMovementMode()">✨ Create Child Pallet</button>
-                            <button type="submit" class="btn-generate" id="movementSubmitBtn">Move Pallet</button>
-                            <button type="button" class_name="btn-reset" onclick="resetMovementForm()">Clear</button>
+                            <button type="submit" class="btn-generate" id="movementSubmitBtn">Initiate Move</button>
+                            <button type="button" class="btn-reset" onclick="resetMovementForm()">Clear</button>
                         </div>
                                 <div id="movementStatusMessage" class="movement-status"></div>
                             </form>
+                        </div>
+                    </div>
+                </div>
+                </div><!-- /movementMonitorView -->
+
+                <div id="movementReceivingView" class="movement-view-content" style="display:none;">
+                    <div class="receiving-layout">
+                        <div class="receiving-header-bar">
+                            <div class="receiving-operator">
+                                <label for="receivingOperatorInput">Receiving as</label>
+                                <input type="text" id="receivingOperatorInput" placeholder="Your name / badge">
+                            </div>
+                            <button type="button" class="btn-generate" onclick="refreshReceivingView()">🔄 Refresh</button>
+                        </div>
+                        <div class="receiving-zone-tabs" role="tablist">
+                            <span class="receiving-zone-tabs-label">Zone:</span>
+                            <div id="receivingZoneTabs" class="receiving-zone-tabs-inner"></div>
+                        </div>
+                        <div id="receivingInboundsSection" class="receiving-section">
+                            <h4>📥 Inbounds (awaiting receipt)</h4>
+                            <div id="receivingInboundsList" class="receiving-pallet-list"></div>
+                        </div>
+                        <div id="receivingOutboundsSection" class="receiving-section">
+                            <h4>📤 Outbounds (initiated from this zone)</h4>
+                            <div id="receivingOutboundsList" class="receiving-pallet-list"></div>
                         </div>
                     </div>
                 </div>
@@ -5145,6 +5361,173 @@
             list.innerHTML = `<div style="color:#475569;">${message}</div>`;
         }
 
+        let movementCurrentView = 'monitor';
+        let receivingSelectedZone = null;
+
+        async function switchMovementView(view) {
+            movementCurrentView = view;
+            const monitor = document.getElementById('movementMonitorView');
+            const receiving = document.getElementById('movementReceivingView');
+            const btns = document.querySelectorAll('.movement-tab-btn');
+            btns.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.view === view);
+            });
+            if (monitor) monitor.style.display = view === 'monitor' ? 'block' : 'none';
+            if (receiving) receiving.style.display = view === 'receiving' ? 'block' : 'none';
+            if (view === 'receiving') {
+                await ensureMovementPanelLoaded();
+                initReceivingZoneTabs();
+                refreshReceivingView();
+            }
+        }
+
+        function initReceivingZoneTabs() {
+            const container = document.getElementById('receivingZoneTabs');
+            if (!container || !movementZones.length) return;
+            container.innerHTML = '';
+            movementZones.forEach((zone, idx) => {
+                const name = (zone.ZoneName || '').trim();
+                if (!name) return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'receiving-zone-tab' + (idx === 0 ? ' active' : '');
+                btn.textContent = name;
+                btn.dataset.zone = name;
+                btn.onclick = () => selectReceivingZone(name);
+                container.appendChild(btn);
+            });
+            receivingSelectedZone = (movementZones[0] && movementZones[0].ZoneName) ? movementZones[0].ZoneName.trim() : null;
+        }
+
+        function selectReceivingZone(zoneName) {
+            receivingSelectedZone = zoneName;
+            document.querySelectorAll('.receiving-zone-tab').forEach(t => t.classList.toggle('active', t.dataset.zone === zoneName));
+            refreshReceivingView();
+        }
+
+        async function refreshReceivingView() {
+            if (!receivingSelectedZone) return;
+            const inList = document.getElementById('receivingInboundsList');
+            const outList = document.getElementById('receivingOutboundsList');
+            if (inList) inList.innerHTML = '<div style="color:#64748b;">Loading...</div>';
+            if (outList) outList.innerHTML = '<div style="color:#64748b;">Loading...</div>';
+            try {
+                const [inRes, outRes] = await Promise.all([
+                    callAppsScript(new URLSearchParams({ action: 'getInboundsToZone', zoneName: receivingSelectedZone })),
+                    callAppsScript(new URLSearchParams({ action: 'getOutboundsFromZone', zoneName: receivingSelectedZone }))
+                ]);
+                renderReceivingInbounds(inRes.pallets || []);
+                renderReceivingOutbounds(outRes.pallets || []);
+            } catch (err) {
+                console.error('Receiving refresh error:', err);
+                if (inList) inList.innerHTML = `<div style="color:#ef4444;">Failed to load: ${err.message || 'Unknown error'}</div>`;
+                if (outList) outList.innerHTML = `<div style="color:#ef4444;">Failed to load: ${err.message || 'Unknown error'}</div>`;
+            }
+        }
+
+        function renderReceivingInbounds(pallets) {
+            const list = document.getElementById('receivingInboundsList');
+            if (!list) return;
+            const operator = (document.getElementById('receivingOperatorInput')?.value || '').trim();
+            if (!pallets.length) {
+                list.innerHTML = '<div style="color:#64748b;">No inbounds awaiting receipt.</div>';
+                return;
+            }
+            list.innerHTML = pallets.map(p => {
+                const id = p.PalletId || p.ID || '';
+                const qty = p.Quantity != null ? p.Quantity : (p.QuantityPacked || '');
+                const from = p.CurrentZone || '—';
+                const initiated = p.InTransitInitiatedAt ? new Date(p.InTransitInitiatedAt).toLocaleString() : '';
+                return `
+                    <div class="receiving-pallet-card">
+                        <div class="pallet-info">
+                            <span class="pallet-id">${escapeHtml(id)}</span>
+                            <div class="pallet-meta">Qty: ${escapeHtml(String(qty))} · From: ${escapeHtml(from)} · Initiated: ${escapeHtml(initiated)}</div>
+                        </div>
+                        <div class="pallet-actions">
+                            <button type="button" class="btn-receive" data-pallet-id="${escapeHtml(id)}" onclick="doReceivePallet(this.dataset.palletId)">Receive</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderReceivingOutbounds(pallets) {
+            const list = document.getElementById('receivingOutboundsList');
+            if (!list) return;
+            if (!pallets.length) {
+                list.innerHTML = '<div style="color:#64748b;">No outbounds from this zone.</div>';
+                return;
+            }
+            list.innerHTML = pallets.map(p => {
+                const id = p.PalletId || p.ID || '';
+                const qty = p.Quantity != null ? p.Quantity : (p.QuantityPacked || '');
+                const to = p.InTransitToZone || '—';
+                const initiated = p.InTransitInitiatedAt ? new Date(p.InTransitInitiatedAt).toLocaleString() : '';
+                return `
+                    <div class="receiving-pallet-card">
+                        <div class="pallet-info">
+                            <span class="pallet-id">${escapeHtml(id)}</span>
+                            <div class="pallet-meta">Qty: ${escapeHtml(String(qty))} · To: ${escapeHtml(to)} · Initiated: ${escapeHtml(initiated)}</div>
+                            <div class="badge-in-transit">In Transit to ${escapeHtml(to)}</div>
+                        </div>
+                        <div class="pallet-actions">
+                            <button type="button" class="btn-cancel-transit" data-pallet-id="${escapeHtml(id)}" onclick="doCancelTransit(this.dataset.palletId)">Cancel Transit</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function doReceivePallet(palletId) {
+            const operator = (document.getElementById('receivingOperatorInput')?.value || '').trim();
+            if (!operator) {
+                showToast('Enter "Receiving as" name before receiving.', 'error', 5000);
+                return;
+            }
+            if (!receivingSelectedZone) return;
+            try {
+                const result = await callAppsScript(new URLSearchParams({
+                    action: 'receivePallet',
+                    palletId: palletId,
+                    zoneName: receivingSelectedZone,
+                    receivedBy: operator
+                }));
+                showToast(result.message || 'Pallet received successfully', 'success', 5000);
+                refreshReceivingView();
+                refreshMovementZone();
+            } catch (err) {
+                showToast(err.message || 'Failed to receive pallet', 'error', 6000);
+            }
+        }
+
+        async function doCancelTransit(palletId) {
+            const operator = (document.getElementById('receivingOperatorInput')?.value || '').trim();
+            if (!operator) {
+                showToast('Enter "Receiving as" name before cancelling transit.', 'error', 5000);
+                return;
+            }
+            const reason = prompt('Escalation reason (required for Cancel Transit):');
+            if (reason === null) return;
+            if (!(reason || '').trim()) {
+                showToast('Escalation reason is required.', 'error', 5000);
+                return;
+            }
+            try {
+                const result = await callAppsScript(new URLSearchParams({
+                    action: 'cancelTransit',
+                    palletId: palletId,
+                    cancelledBy: operator,
+                    escalationReason: (reason || '').trim()
+                }));
+                showToast(result.message || 'Transit cancelled', 'success', 5000);
+                refreshReceivingView();
+                refreshMovementZone();
+            } catch (err) {
+                showToast(err.message || 'Failed to cancel transit', 'error', 6000);
+            }
+        }
+
         function toggleMovementPanel(forceOpen) {
             if (!isUserLoggedIn()) {
                 alert('🔐 Please log in before using stock movement controls.');
@@ -6279,6 +6662,7 @@
                             <div><strong>SKU:</strong> ${sku}</div>
                             <div><strong>Qty:</strong> ${qty || 'N/A'}</div>
                             <div><strong>Zone:</strong> ${escapeHtml(pallet.CurrentZone || 'N/A')}</div>
+                            ${(pallet.InTransitToZone) ? `<div><span class="badge-in-transit">In Transit to ${escapeHtml(pallet.InTransitToZone)}</span></div>` : ''}
                             <div><strong>Zone Default Status:</strong> <span style="color: rgba(251, 191, 36, 0.8);">${escapeHtml(palletZoneDefaultStatus)}</span></div>
                             <div><strong>Created:</strong> ${created}</div>
                             <div><strong>Last Move:</strong> ${lastMoved}</div>
@@ -6476,12 +6860,7 @@
                     if (orderReference) params.append('orderReference', orderReference);
                 }
                 const result = await callAppsScript(params);
-                if (isChildMode) {
-                    showToast(result.message || 'Child pallet created successfully', 'success', 5000);
-                } else {
-                    const destZone = result.toZone || toZone;
-                    showToast(`Pallet ${palletId} successfully moved to ${destZone}`, 'success', 5000);
-                }
+                showToast(result.message || (isChildMode ? 'Child pallet created. Awaiting receipt at destination.' : 'Move initiated. Awaiting receipt at destination.'), 'success', 5000);
                 resetMovementForm();
                 refreshMovementZone();
             } catch (error) {

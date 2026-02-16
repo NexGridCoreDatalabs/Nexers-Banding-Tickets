@@ -2412,9 +2412,6 @@
                 <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
                     🚚 Open Stock Movement Control
                 </button>
-                <button type="button" class="btn-reset" onclick="initializeStockMovementSheets()" style="margin-top: 10px; display: block; margin-left: auto; margin-right: auto;">
-                    📋 Initialize Stock Movement Sheets (add missing columns)
-                </button>
             </div>
 
             <div class="movement-panel" id="movementPanel">
@@ -5570,15 +5567,6 @@
                 refreshMovementZone();
             } catch (err) {
                 showToast(err.message || 'Failed to cancel transit', 'error', 6000);
-            }
-        }
-
-        async function initializeStockMovementSheets() {
-            try {
-                const result = await callAppsScript(new URLSearchParams({ action: 'initializeStockMovement' }));
-                showToast(result.message || 'Stock movement sheets initialized. Columns added/updated.', 'success', 5000);
-            } catch (err) {
-                showToast(err.message || 'Failed to initialize sheets', 'error', 6000);
             }
         }
 

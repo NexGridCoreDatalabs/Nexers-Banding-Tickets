@@ -19,7 +19,7 @@
     </script>
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap');
 
         * {
             margin: 0;
@@ -45,8 +45,12 @@
             outline: none;
         }
 
+        :root {
+            --font-app: 'Cascadia Mono', Consolas, 'Cascadia Code', monospace;
+        }
+
         body {
-            font-family: 'Cascadia Mono', 'Courier New', monospace;
+            font-family: var(--font-app);
             padding: 20px;
             background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
             background-attachment: fixed;
@@ -2407,6 +2411,9 @@
             <div class="movement-toggle">
                 <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
                     🚚 Open Stock Movement Control
+                </button>
+                <button type="button" class="btn-reset" onclick="initializeStockMovementSheets()" style="margin-top: 10px; display: block; margin-left: auto; margin-right: auto;">
+                    📋 Initialize Stock Movement Sheets (add missing columns)
                 </button>
             </div>
 
@@ -5464,7 +5471,7 @@
                 return;
             }
             list.innerHTML = pallets.map(p => {
-                const id = p.PalletId || p.ID || '';
+                const id = (p.PalletID || p.PalletId || p.ID || '').toString().trim();
                 const qty = p.Quantity != null ? p.Quantity : (p.QuantityPacked || '');
                 const from = p.CurrentZone || '—';
                 const initiated = p.InTransitInitiatedAt ? new Date(p.InTransitInitiatedAt).toLocaleString() : '';
@@ -5491,7 +5498,7 @@
                 return;
             }
             list.innerHTML = pallets.map(p => {
-                const id = p.PalletId || p.ID || '';
+                const id = (p.PalletID || p.PalletId || p.ID || '').toString().trim();
                 const qty = p.Quantity != null ? p.Quantity : (p.QuantityPacked || '');
                 const to = p.InTransitToZone || '—';
                 const initiated = p.InTransitInitiatedAt ? new Date(p.InTransitInitiatedAt).toLocaleString() : '';
@@ -5515,13 +5522,22 @@
                 showToast('Please log in to receive pallets.', 'error', 5000);
                 return;
             }
+            if (!(palletId || '').toString().trim()) {
+                showToast('Invalid pallet ID.', 'error', 5000);
+                return;
+            }
             if (!receivingSelectedZone) return;
+            const receivedBy = (loggedInUser?.id || '').toString().trim();
+            if (!receivedBy) {
+                showToast('Your session has no user ID. Please log in again.', 'error', 5000);
+                return;
+            }
             try {
                 const result = await callAppsScript(new URLSearchParams({
                     action: 'receivePallet',
                     palletId: palletId,
                     zoneName: receivingSelectedZone,
-                    receivedBy: loggedInUser.id
+                    receivedBy: receivedBy
                 }));
                 showToast(result.message || 'Pallet received successfully', 'success', 5000);
                 refreshReceivingView();
@@ -5554,6 +5570,15 @@
                 refreshMovementZone();
             } catch (err) {
                 showToast(err.message || 'Failed to cancel transit', 'error', 6000);
+            }
+        }
+
+        async function initializeStockMovementSheets() {
+            try {
+                const result = await callAppsScript(new URLSearchParams({ action: 'initializeStockMovement' }));
+                showToast(result.message || 'Stock movement sheets initialized. Columns added/updated.', 'success', 5000);
+            } catch (err) {
+                showToast(err.message || 'Failed to initialize sheets', 'error', 6000);
             }
         }
 

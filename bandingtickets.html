@@ -1637,6 +1637,21 @@
             color: #e2e8f0;
             font-size: 14px;
         }
+        .receiving-operator-display {
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 2px solid rgba(245, 158, 11, 0.4);
+            background: rgba(15, 23, 42, 0.6);
+            color: #e2e8f0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .receiving-operator-hint {
+            display: block;
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 11px;
+        }
         .receiving-zone-tabs {
             display: flex;
             flex-wrap: wrap;
@@ -2498,8 +2513,9 @@
                     <div class="receiving-layout">
                         <div class="receiving-header-bar">
                             <div class="receiving-operator">
-                                <label for="receivingOperatorInput">Receiving as</label>
-                                <input type="text" id="receivingOperatorInput" placeholder="Your name / badge">
+                                <label>Operating as</label>
+                                <div id="receivingOperatorDisplay" class="receiving-operator-display">—</div>
+                                <small class="receiving-operator-hint">Actions use your logged-in identity; roles are enforced by Authorized Users.</small>
                             </div>
                             <button type="button" class="btn-generate" onclick="refreshReceivingView()">🔄 Refresh</button>
                         </div>
@@ -2907,6 +2923,7 @@
             if (movementMovedByInput && isUserLoggedIn() && !movementMovedByInput.value) {
                 movementMovedByInput.value = loggedInUser.name || loggedInUser.id || '';
             }
+            if (typeof updateReceivingOperatorDisplay === 'function') updateReceivingOperatorDisplay();
         }
 
         updateLoggedInUserBanner();
@@ -4555,6 +4572,7 @@
                 setLoggedInUser({
                     id: userData.id || userId,
                     name: userData.name || userId,
+                    role: userData.role || '',
                     loginAt: new Date().toISOString()
                 });
                 document.getElementById('loginPasscode').value = '';
@@ -5376,8 +5394,21 @@
             if (receiving) receiving.style.display = view === 'receiving' ? 'block' : 'none';
             if (view === 'receiving') {
                 await ensureMovementPanelLoaded();
+                updateReceivingOperatorDisplay();
                 initReceivingZoneTabs();
                 refreshReceivingView();
+            }
+        }
+
+        function updateReceivingOperatorDisplay() {
+            const el = document.getElementById('receivingOperatorDisplay');
+            if (!el) return;
+            if (isUserLoggedIn()) {
+                el.textContent = loggedInUser.name || loggedInUser.id || '—';
+                el.style.color = '#e2e8f0';
+            } else {
+                el.textContent = 'Not logged in';
+                el.style.color = '#94a3b8';
             }
         }
 
@@ -5428,7 +5459,6 @@
         function renderReceivingInbounds(pallets) {
             const list = document.getElementById('receivingInboundsList');
             if (!list) return;
-            const operator = (document.getElementById('receivingOperatorInput')?.value || '').trim();
             if (!pallets.length) {
                 list.innerHTML = '<div style="color:#64748b;">No inbounds awaiting receipt.</div>';
                 return;
@@ -5455,6 +5485,7 @@
         function renderReceivingOutbounds(pallets) {
             const list = document.getElementById('receivingOutboundsList');
             if (!list) return;
+            const canCancel = isUserLoggedIn() && (loggedInUser?.role || '').toLowerCase().match(/^(supervisor|qa)$/);
             if (!pallets.length) {
                 list.innerHTML = '<div style="color:#64748b;">No outbounds from this zone.</div>';
                 return;
@@ -5472,7 +5503,7 @@
                             <div class="badge-in-transit">In Transit to ${escapeHtml(to)}</div>
                         </div>
                         <div class="pallet-actions">
-                            <button type="button" class="btn-cancel-transit" data-pallet-id="${escapeHtml(id)}" onclick="doCancelTransit(this.dataset.palletId)">Cancel Transit</button>
+                            ${canCancel ? `<button type="button" class="btn-cancel-transit" data-pallet-id="${escapeHtml(id)}" onclick="doCancelTransit(this.dataset.palletId)">Cancel Transit</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -5480,9 +5511,8 @@
         }
 
         async function doReceivePallet(palletId) {
-            const operator = (document.getElementById('receivingOperatorInput')?.value || '').trim();
-            if (!operator) {
-                showToast('Enter "Receiving as" name before receiving.', 'error', 5000);
+            if (!isUserLoggedIn()) {
+                showToast('Please log in to receive pallets.', 'error', 5000);
                 return;
             }
             if (!receivingSelectedZone) return;
@@ -5491,7 +5521,7 @@
                     action: 'receivePallet',
                     palletId: palletId,
                     zoneName: receivingSelectedZone,
-                    receivedBy: operator
+                    receivedBy: loggedInUser.id
                 }));
                 showToast(result.message || 'Pallet received successfully', 'success', 5000);
                 refreshReceivingView();
@@ -5502,9 +5532,8 @@
         }
 
         async function doCancelTransit(palletId) {
-            const operator = (document.getElementById('receivingOperatorInput')?.value || '').trim();
-            if (!operator) {
-                showToast('Enter "Receiving as" name before cancelling transit.', 'error', 5000);
+            if (!isUserLoggedIn()) {
+                showToast('Please log in to cancel transit.', 'error', 5000);
                 return;
             }
             const reason = prompt('Escalation reason (required for Cancel Transit):');
@@ -5517,7 +5546,7 @@
                 const result = await callAppsScript(new URLSearchParams({
                     action: 'cancelTransit',
                     palletId: palletId,
-                    cancelledBy: operator,
+                    cancelledBy: loggedInUser.id,
                     escalationReason: (reason || '').trim()
                 }));
                 showToast(result.message || 'Transit cancelled', 'success', 5000);

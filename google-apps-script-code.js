@@ -4704,7 +4704,7 @@ function createInventorySnapshot() {
 function refreshInventorySnapshotSilently() {
   try {
     const lock = LockService.getScriptLock();
-    if (!lock.tryLock(5000)) {
+    if (!lock.tryLock(100)) {
       // Snapshot refresh skipped silently (lock in use)
       return;
     }

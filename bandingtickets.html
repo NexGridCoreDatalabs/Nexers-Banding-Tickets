@@ -2452,7 +2452,7 @@
                                         <option value="Outbonded">Outbonded</option>
                                     </select>
                                 </div>
-                                <button type="button" class="btn-generate" onclick="refreshMovementZone()">🔄 Refresh</button>
+                                <button type="button" class="btn-generate" onclick="refreshMovementZone(true)">🔄 Refresh</button>
                                 <button type="button" class="btn-reset" onclick="refreshZoneOverview()" style="margin-top: 10px;">📊 View All Zones</button>
                                 <button type="button" class="btn-reset" onclick="refreshRecentMovements()" style="margin-top: 10px;">📋 Recent Movements</button>
                             </div>
@@ -2522,7 +2522,7 @@
                                 <div id="receivingOperatorDisplay" class="receiving-operator-display">—</div>
                                 <small class="receiving-operator-hint">Actions use your logged-in identity; roles are enforced by Authorized Users.</small>
                             </div>
-                            <button type="button" class="btn-generate" onclick="refreshReceivingView()">🔄 Refresh</button>
+                            <button type="button" class="btn-generate" onclick="refreshReceivingView(true)">🔄 Refresh</button>
                         </div>
                         <div class="receiving-zone-tabs" role="tablist">
                             <span class="receiving-zone-tabs-label">Zone:</span>
@@ -2561,11 +2561,11 @@
         const requestCache = new Map();
         const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
         
-        function getCachedRequest(key) {
+        function getCachedRequest(key, ttlMs) {
             const cached = requestCache.get(key);
-            if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-                return cached.data;
-            }
+            if (!cached) return null;
+            const ttl = ttlMs != null ? ttlMs : CACHE_DURATION;
+            if (Date.now() - cached.timestamp < ttl) return cached.data;
             requestCache.delete(key);
             return null;
         }
@@ -5441,16 +5441,17 @@
             refreshReceivingView();
         }
 
-        async function refreshReceivingView() {
+        async function refreshReceivingView(forceFresh) {
             if (!receivingSelectedZone) return;
             const inList = document.getElementById('receivingInboundsList');
             const outList = document.getElementById('receivingOutboundsList');
             if (inList) inList.innerHTML = '<div style="color:#64748b;">Loading...</div>';
             if (outList) outList.innerHTML = '<div style="color:#64748b;">Loading...</div>';
             try {
+                const opts = forceFresh ? { skipCache: true } : {};
                 const [inRes, outRes] = await Promise.all([
-                    callAppsScript(new URLSearchParams({ action: 'getInboundsToZone', zoneName: receivingSelectedZone })),
-                    callAppsScript(new URLSearchParams({ action: 'getOutboundsFromZone', zoneName: receivingSelectedZone }))
+                    callAppsScript(new URLSearchParams({ action: 'getInboundsToZone', zoneName: receivingSelectedZone }), opts),
+                    callAppsScript(new URLSearchParams({ action: 'getOutboundsFromZone', zoneName: receivingSelectedZone }), opts)
                 ]);
                 renderReceivingInbounds(inRes.pallets || []);
                 renderReceivingOutbounds(outRes.pallets || []);
@@ -5480,7 +5481,7 @@
                             <div class="pallet-meta">Qty: ${escapeHtml(String(qty))} · From: ${escapeHtml(from)} · Initiated: ${escapeHtml(initiated)}</div>
                         </div>
                         <div class="pallet-actions">
-                            <button type="button" class="btn-receive" data-pallet-id="${escapeHtml(id)}" onclick="doReceivePallet(this.dataset.palletId)">Receive</button>
+                            <button type="button" class="btn-receive" data-pallet-id="${escapeHtml(id)}" onclick="doReceivePallet(this.dataset.palletId, this)">Receive</button>
                         </div>
                     </div>
                 `;
@@ -5508,14 +5509,14 @@
                             <div class="badge-in-transit">In Transit to ${escapeHtml(to)}</div>
                         </div>
                         <div class="pallet-actions">
-                            ${canCancel ? `<button type="button" class="btn-cancel-transit" data-pallet-id="${escapeHtml(id)}" onclick="doCancelTransit(this.dataset.palletId)">Cancel Transit</button>` : ''}
+                            ${canCancel ? `<button type="button" class="btn-cancel-transit" data-pallet-id="${escapeHtml(id)}" onclick="doCancelTransit(this.dataset.palletId, this)">Cancel Transit</button>` : ''}
                         </div>
                     </div>
                 `;
             }).join('');
         }
 
-        async function doReceivePallet(palletId) {
+        async function doReceivePallet(palletId, btnEl) {
             if (!isUserLoggedIn()) {
                 showToast('Please log in to receive pallets.', 'error', 5000);
                 return;
@@ -5530,6 +5531,13 @@
                 showToast('Your session has no user ID. Please log in again.', 'error', 5000);
                 return;
             }
+            const card = btnEl?.closest('.receiving-pallet-card');
+            const origContent = card?.innerHTML;
+            if (card) {
+                card.style.opacity = '0.6';
+                card.style.pointerEvents = 'none';
+                if (btnEl) { btnEl.disabled = true; btnEl.textContent = '...'; }
+            }
             try {
                 const result = await callAppsScript(new URLSearchParams({
                     action: 'receivePallet',
@@ -5537,15 +5545,20 @@
                     zoneName: receivingSelectedZone,
                     receivedBy: receivedBy
                 }));
+                clearCache('getInboundsToZone');
+                clearCache('getOutboundsFromZone');
+                clearCache('getPalletsInZone');
                 showToast(result.message || 'Pallet received successfully', 'success', 5000);
+                if (card) card.remove();
                 refreshReceivingView();
                 refreshMovementZone();
             } catch (err) {
                 showToast(err.message || 'Failed to receive pallet', 'error', 6000);
+                if (card) { card.style.opacity = '1'; card.style.pointerEvents = ''; if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Receive'; } }
             }
         }
 
-        async function doCancelTransit(palletId) {
+        async function doCancelTransit(palletId, btnEl) {
             if (!isUserLoggedIn()) {
                 showToast('Please log in to cancel transit.', 'error', 5000);
                 return;
@@ -5556,6 +5569,8 @@
                 showToast('Escalation reason is required.', 'error', 5000);
                 return;
             }
+            const card = btnEl?.closest('.receiving-pallet-card');
+            if (card) { card.style.opacity = '0.6'; card.style.pointerEvents = 'none'; if (btnEl) { btnEl.disabled = true; btnEl.textContent = '...'; } }
             try {
                 const result = await callAppsScript(new URLSearchParams({
                     action: 'cancelTransit',
@@ -5563,11 +5578,16 @@
                     cancelledBy: loggedInUser.id,
                     escalationReason: (reason || '').trim()
                 }));
+                clearCache('getInboundsToZone');
+                clearCache('getOutboundsFromZone');
+                clearCache('getPalletsInZone');
                 showToast(result.message || 'Transit cancelled', 'success', 5000);
+                if (card) card.remove();
                 refreshReceivingView();
                 refreshMovementZone();
             } catch (err) {
                 showToast(err.message || 'Failed to cancel transit', 'error', 6000);
+                if (card) { card.style.opacity = '1'; card.style.pointerEvents = ''; if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Cancel Transit'; } }
             }
         }
 
@@ -6598,7 +6618,7 @@
             metaEl.textContent = `${zone.ZoneName} • Prefix ${zone.Prefix || 'N/A'} • ${fifoText} • ${splitText}`;
         }
 
-        async function refreshMovementZone() {
+        async function refreshMovementZone(forceFresh) {
             if (!movementPanelInitialized) {
                 await ensureMovementPanelLoaded();
                 return;
@@ -6619,7 +6639,7 @@
                     limit: 10000  // Increased limit to show ALL pallets
                 });
                 if (statusFilter) params.append('status', statusFilter);
-                const result = await callAppsScript(params);
+                const result = await callAppsScript(params, forceFresh ? { skipCache: true } : {});
                 movementLastPallets = result.pallets || [];
                 renderMovementPalletList(movementLastPallets);
                 showToast(`Loaded ${movementLastPallets.length} pallet(s) from ${zoneName}`, 'success', 4000);
@@ -6886,6 +6906,8 @@
                     return;
                 }
             }
+            const submitBtn = document.getElementById('movementSubmitBtn');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '...'; }
             try {
                 setMovementStatus('Moving pallet...');
                 const params = new URLSearchParams({
@@ -6903,20 +6925,40 @@
                     if (orderReference) params.append('orderReference', orderReference);
                 }
                 const result = await callAppsScript(params);
+                clearCache('getInboundsToZone');
+                clearCache('getOutboundsFromZone');
+                clearCache('getPalletsInZone');
                 showToast(result.message || (isChildMode ? 'Child pallet created. Awaiting receipt at destination.' : 'Move initiated. Awaiting receipt at destination.'), 'success', 5000);
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Initiate Move'; }
                 resetMovementForm();
                 refreshMovementZone();
             } catch (error) {
                 console.error('Move pallet error:', error);
                 showToast(error.message || 'Failed to move pallet', 'error', 6000);
                 setMovementStatus('');
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Initiate Move'; }
                 if ((error.message || '').toLowerCase().includes('fifo')) {
                     document.getElementById('movementOverrideReason')?.focus();
                 }
             }
         }
 
-        async function callAppsScript(params) {
+        const CACHEABLE_ACTIONS = ['getZoneConfig', 'getPalletsInZone', 'getInboundsToZone', 'getOutboundsFromZone'];
+        const CACHE_TTL_ZONE_CONFIG = 2 * 60 * 1000;   // 2 min
+        const CACHE_TTL_PALLET_LISTS = 45 * 1000;      // 45 sec
+
+        async function callAppsScript(params, opts = {}) {
+            const action = params.get && params.get('action');
+            const skipCache = opts.skipCache || false;
+            const isCacheable = action && CACHEABLE_ACTIONS.includes(action);
+            let cacheKey = '';
+            let cacheTtl = CACHE_TTL_PALLET_LISTS;
+            if (isCacheable && !skipCache) {
+                cacheKey = [...params.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(p=>p[0]+'='+p[1]).join('&');
+                if (action === 'getZoneConfig') cacheTtl = CACHE_TTL_ZONE_CONFIG;
+                const cached = getCachedRequest(cacheKey, cacheTtl);
+                if (cached) return cached;
+            }
             if (!GOOGLE_APPS_SCRIPT_URL) {
                 throw new Error('Google Apps Script URL not configured');
             }
@@ -6936,6 +6978,7 @@
             if (!result.success) {
                 throw new Error(result.error || 'Apps Script call failed');
             }
+            if (isCacheable && cacheKey) setCachedRequest(cacheKey, result);
             return result;
         }
 

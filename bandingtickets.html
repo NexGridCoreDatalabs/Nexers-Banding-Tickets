@@ -4903,6 +4903,16 @@
         function closeLoginCard() {
             if (currentMode === 'view') {
                 closeViewModeLogin();
+            } else if (currentMode === 'edit' || currentMode === 'fill') {
+                const serial = typeof initialSerialParam !== 'undefined' ? initialSerialParam : (new URLSearchParams(window.location.search).get('serial') || '');
+                const color = urlColorParam || 'blue';
+                const params = new URLSearchParams(window.location.search);
+                const qs = new URLSearchParams({ mode: 'view', serial: serial || formatSerial(currentSerial), color: color });
+                if (params.get('geofence') === 'bypass' && params.get('t')) {
+                    qs.set('geofence', 'bypass');
+                    qs.set('t', params.get('t'));
+                }
+                window.location.href = `${window.location.pathname}?${qs.toString()}`;
             } else {
                 showEditCard();
             }

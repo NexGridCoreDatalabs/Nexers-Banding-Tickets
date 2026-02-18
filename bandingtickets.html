@@ -3394,8 +3394,13 @@
             }
             const initPromise = currentMode === 'view' ? initViewMode(serial) : initFillMode(serial);
             const minDelay = new Promise(function(r) { setTimeout(r, 300); });
-            await Promise.all([initPromise, minDelay]);
-            if (showSplash) hideSplashUI();
+            try {
+                await Promise.all([initPromise, minDelay]);
+            } catch (e) {
+                console.error('init error:', e);
+            } finally {
+                if (showSplash) hideSplashUI();
+            }
         }
 
         // Protect main generator page - only allow access via QR codes (mode=view or mode=fill/edit) OR with password
@@ -5464,6 +5469,8 @@
             const fillContainer = document.getElementById('fillContainer');
             if (fillContainer) {
                 fillContainer.classList.add('visible');
+                fillContainer.style.display = 'grid';
+                fillContainer.style.visibility = 'visible';
             }
             
             const viewCard = document.getElementById('viewCard');

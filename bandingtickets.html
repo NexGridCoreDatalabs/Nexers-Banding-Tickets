@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>RetiFlux™ - Universal Warehouse Management</title>
     <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="preload" href="favicon.png" as="image">
     
     <!-- SECURITY FIX: Load config from external file (fallback to defaults if not found) -->
     <script src="config.js"></script>
@@ -184,6 +185,8 @@
 
         /* Loading overlay: pulse icon only, for all loading states & section transitions */
         .retiflux-loading-overlay {
+            will-change: opacity;
+            contain: layout style;
             position: fixed;
             inset: 0;
             background: rgba(15, 23, 42, 0.85);
@@ -882,6 +885,9 @@
         @keyframes fillCardFadeIn {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .retiflux-splash *, .retiflux-loading-overlay *, .fill-card.fade-in { animation-duration: 0.01ms !important; }
         }
         
         /* Elegant animated gold shimmer */
@@ -4691,15 +4697,24 @@
             }
         }
 
+        const skuProductInfoCache = new Map();
+        const SKU_INFO_CACHE_TTL = 5 * 60 * 1000;
         async function loadSkuProductInfo(sku) {
             if (!GOOGLE_APPS_SCRIPT_URL || !sku) return { productType: '', sachetType: '', tabletType: '', uom: '' };
+            const cached = skuProductInfoCache.get(sku);
+            if (cached && Date.now() - cached.t < SKU_INFO_CACHE_TTL) return cached.v;
             try {
+                const ctrl = new AbortController();
+                const t = setTimeout(function() { ctrl.abort(); }, API_TIMEOUT_MS);
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=getSkuProductInfo&sku=${encodeURIComponent(sku)}`;
-                const response = await fetch(url);
+                const response = await fetch(url, { signal: ctrl.signal });
+                clearTimeout(t);
                 if (!response.ok) return { productType: '', sachetType: '', tabletType: '', uom: '' };
                 const result = await response.json();
                 if (!result.success || !result.info) return { productType: '', sachetType: '', tabletType: '', uom: '' };
-                return result.info;
+                const info = result.info;
+                skuProductInfoCache.set(sku, { v: info, t: Date.now() });
+                return info;
             } catch (error) {
                 console.error('Error loading SKU info:', error);
                 return { productType: '', sachetType: '', tabletType: '', uom: '' };

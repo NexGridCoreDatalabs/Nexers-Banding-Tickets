@@ -73,7 +73,6 @@
             animation: gradientShift 20s ease infinite;
             overflow-x: hidden;
             overscroll-behavior-y: contain;
-            padding-top: 60px;
         }
         
         body.fill-mode-active .control-panel,
@@ -181,38 +180,6 @@
         @keyframes splashDotPulse {
             0%, 100% { opacity: 0.4; transform: scale(0.8); }
             50% { opacity: 1; transform: scale(1.2); }
-        }
-
-        /* Top bar */
-        .retiflux-topbar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 52px;
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 58, 95, 0.98));
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-bottom: 2px solid rgba(251, 191, 36, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 0 16px;
-        }
-        .retiflux-topbar .topbar-logo-desktop {
-            height: 36px;
-            width: auto;
-            max-width: 180px;
-            object-fit: contain;
-        }
-        .retiflux-topbar .topbar-logo-mobile {
-            display: none;
-            object-fit: contain;
-        }
-        @media (max-width: 480px) {
-            .retiflux-topbar .topbar-logo-desktop { display: none; }
-            .retiflux-topbar .topbar-logo-mobile { display: block; }
         }
 
         /* Loading overlay: pulse icon only, for all loading states & section transitions */
@@ -2313,11 +2280,6 @@
         <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
         <div class="splash-dots"><span></span><span></span><span></span></div>
     </div>
-    <!-- Top bar: view/edit modes -->
-    <header id="retifluxTopBar" class="retiflux-topbar" style="display:none;">
-        <img src="retiflux-logo.png" alt="RetiFlux" class="topbar-logo-desktop">
-        <img src="favicon.png" alt="RetiFlux" class="topbar-logo-mobile" width="40" height="40">
-    </header>
     <!-- Loading overlay: pulse icon only, for loading states & section transitions -->
     <div id="retifluxLoadingOverlay" class="retiflux-loading-overlay" aria-hidden="true">
         <div class="loading-pulse-icon">
@@ -2425,7 +2387,10 @@
         </div>
 
         <div class="fill-card" id="loginCard" style="display: none;">
-            <h2>⬥ Authorized Login</h2>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <h2 style="margin: 0;">⬥ Authorized Login</h2>
+                <button type="button" class="btn-reset" id="loginCloseBtn" onclick="closeLoginCard()" style="padding: 8px 16px; font-size: 13px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; border-radius: 8px; white-space: nowrap;">✕ Close</button>
+            </div>
             <p class="fill-intro">Only authorized production leads can edit tickets from this workstation. Please sign in to continue.</p>
             <form id="loginForm" class="fill-form">
                 <div class="fill-form-group">
@@ -3412,10 +3377,6 @@
                 el.setAttribute('aria-hidden', 'true');
             }, 120);
         }
-        function showTopBar() {
-            const el = document.getElementById('retifluxTopBar');
-            if (el) el.style.display = 'flex';
-        }
         async function runViewOrEditInit(serial) {
             const showSplash = shouldShowSplash();
             if (showSplash) {
@@ -3426,7 +3387,6 @@
             const minDelay = new Promise(function(r) { setTimeout(r, 800); });
             await Promise.all([initPromise, minDelay]);
             if (showSplash) hideSplashUI();
-            showTopBar();
         }
 
         // Protect main generator page - only allow access via QR codes (mode=view or mode=fill/edit) OR with password
@@ -4884,6 +4844,14 @@
             }
         }
 
+        function closeLoginCard() {
+            if (currentMode === 'view') {
+                closeViewModeLogin();
+            } else {
+                showEditCard();
+            }
+        }
+
         // Called after a successful login when in view mode — close overlay and reveal movement
         function closeViewModeLogin() {
             showRetifluxLoadingOverlay();
@@ -5822,6 +5790,7 @@
 
         async function refreshReceivingView(forceFresh) {
             if (!receivingSelectedZone) return;
+            showRetifluxLoadingOverlay();
             const inList = document.getElementById('receivingInboundsList');
             const outList = document.getElementById('receivingOutboundsList');
             if (inList) inList.innerHTML = '<div style="color:#64748b;">Loading...</div>';
@@ -5838,6 +5807,8 @@
                 console.error('Receiving refresh error:', err);
                 if (inList) inList.innerHTML = `<div style="color:#ef4444;">Failed to load: ${err.message || 'Unknown error'}</div>`;
                 if (outList) outList.innerHTML = `<div style="color:#ef4444;">Failed to load: ${err.message || 'Unknown error'}</div>`;
+            } finally {
+                hideRetifluxLoadingOverlay();
             }
         }
 
@@ -6419,6 +6390,8 @@
             
             if (isVisible) return; // Hide table
             
+            showRetifluxLoadingOverlay();
+            try {
             // Ensure zones are loaded first
             if (!movementPanelInitialized || !movementZones || movementZones.length === 0) {
                 tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><p>Loading zones...</p></div>';
@@ -6899,6 +6872,9 @@
                 console.error('Error loading zone overview:', error);
                 tableContainer.innerHTML = `<div style="color: #fca5a5; padding: 20px; text-align: center;">Error loading zone overview: ${error.message}</div>`;
             }
+            } finally {
+                hideRetifluxLoadingOverlay();
+            }
         }
 
         async function refreshRecentMovements() {
@@ -6918,6 +6894,8 @@
             
             if (isVisible) return;
             
+            showRetifluxLoadingOverlay();
+            try {
             if (!movementPanelInitialized) {
                 try {
                     await ensureMovementPanelLoaded();
@@ -6929,7 +6907,6 @@
             
             tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading recent movements...</p></div>';
             
-            try {
                 const params = new URLSearchParams({ action: 'getZoneConfig', includeRecentMovements: 'true' });
                 const result = await callAppsScript(params);
                 const movements = result.movements || [];
@@ -6981,6 +6958,8 @@
                 tableContainer.innerHTML = tableHTML;
             } catch (error) {
                 tableContainer.innerHTML = `<div style="color: #fca5a5; padding: 20px; text-align: center;">Error loading recent movements: ${escapeHtml(error.message || 'Unknown error')}</div>`;
+            } finally {
+                hideRetifluxLoadingOverlay();
             }
         }
 
@@ -6998,20 +6977,21 @@
         }
 
         async function refreshMovementZone(forceFresh) {
-            if (!movementPanelInitialized) {
-                await ensureMovementPanelLoaded();
-                return;
-            }
-            const zoneSelect = document.getElementById('movementZoneSelect');
-            if (!zoneSelect || !zoneSelect.value) {
-                setMovementListLoading('Select a zone to view pallets.');
-                return;
-            }
-            const zoneName = zoneSelect.value;
-            updateMovementZoneMeta(zoneName);
-            const statusFilter = document.getElementById('movementStatusFilter')?.value || '';
-            setMovementListLoading('Loading pallets...');
+            showRetifluxLoadingOverlay();
             try {
+                if (!movementPanelInitialized) {
+                    await ensureMovementPanelLoaded();
+                    return;
+                }
+                const zoneSelect = document.getElementById('movementZoneSelect');
+                if (!zoneSelect || !zoneSelect.value) {
+                    setMovementListLoading('Select a zone to view pallets.');
+                    return;
+                }
+                const zoneName = zoneSelect.value;
+                updateMovementZoneMeta(zoneName);
+                const statusFilter = document.getElementById('movementStatusFilter')?.value || '';
+                setMovementListLoading('Loading pallets...');
                 const params = new URLSearchParams({
                     action: 'getPalletsInZone',
                     zoneName: zoneName,
@@ -7028,6 +7008,8 @@
                 showToast(error.message || 'Failed to load pallets', 'error', 6000);
                 setMovementListLoading(error.message || 'Unable to load pallets.');
                 setMovementStatus('');
+            } finally {
+                hideRetifluxLoadingOverlay();
             }
         }
 

@@ -4906,10 +4906,11 @@
                 });
                 document.getElementById('loginPasscode').value = '';
                 if (currentMode === 'view') {
-                    // In view mode: close the login overlay, stay on view page
+                    // In view mode: close the login overlay, re-render ticket with full cards, update banner
                     closeViewModeLogin();
                     updateLoggedInUserBanner();
-                    showToast(`Signed in as ${userData.name || userId}. Stock Movement Control is now available.`, 'success', 5000);
+                    await refreshViewTicket();
+                    showToast(`Signed in as ${userData.name || userId}. Full ticket details and Stock Movement Control are now available.`, 'success', 5000);
                 } else {
                     showEditCard();
                     updateLoggedInUserBanner();
@@ -5211,6 +5212,7 @@
                         
                         ${palletInfoCard}
                         
+                        ${isUserLoggedIn() ? `
                         <div style="background: ${colors.bg}; padding: 24px; border-radius: 16px; border: 2px solid ${colors.border}; backdrop-filter: blur(10px);">
                             <h3 style="margin: 0 0 18px 0; color: ${colors.text}; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">⬥ Product Details</h3>
                             <div style="display: grid; gap: 14px;">
@@ -5220,6 +5222,7 @@
                                 ${ticket.UoM ? `<div><strong style="color: ${colors.text}; font-weight: 600;">UoM:</strong> <span style="color: rgba(255, 255, 255, 0.95); font-weight: 500;">${escapeHtml(ticket.UoM)}</span></div>` : ''}
                             </div>
                         </div>
+                        ` : ''}
                         
                         ${layersInfo ? `
                         <div style="background: ${colors.bg}; padding: 20px; border-radius: 8px; border-left: 4px solid ${colors.border};">
@@ -5258,7 +5261,7 @@
                         </div>
                         ` : ''}
                         
-                        ${tabletSachetInfo ? `
+                        ${isUserLoggedIn() && tabletSachetInfo ? `
                         <div style="background: ${colors.bg}; padding: 24px; border-radius: 16px; border: 2px solid ${colors.border}; backdrop-filter: blur(10px);">
                             <h3 style="margin: 0 0 18px 0; color: ${colors.text}; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">⬥ Tablet & Sachet Info</h3>
                             <div style="display: grid; gap: 14px;">
@@ -5306,7 +5309,7 @@
                         </div>
                         ` : ''}
                         
-                        ${ticket.QualityIssueType ? `
+                        ${isUserLoggedIn() && ticket.QualityIssueType ? `
                         <div style="background: rgba(220, 38, 38, 0.15); padding: 24px; border-radius: 16px; border: 2px solid rgba(220, 38, 38, 0.5); backdrop-filter: blur(10px);">
                             <h3 style="margin: 0 0 18px 0; color: #fbbf24; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">⚠️ Quality Issues</h3>
                             <div style="display: grid; gap: 14px;">
@@ -5317,7 +5320,7 @@
                         </div>
                         ` : ''}
                         
-                        ${merchHistory.length > 0 ? `
+                        ${isUserLoggedIn() && merchHistory.length > 0 ? `
                         <div style="background: ${colors.bg}; padding: 24px; border-radius: 16px; border: 2px solid ${colors.border}; backdrop-filter: blur(10px);">
                             <h3 style="margin: 0 0 18px 0; color: ${colors.text}; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">⬥ Merchandise History</h3>
                             ${merchHistory.map(entry => `
@@ -5329,6 +5332,7 @@
                         </div>
                         ` : ''}
                         
+                        ${isUserLoggedIn() ? `
                         <div style="background: rgba(30, 58, 95, 0.2); padding: 24px; border-radius: 16px; border: 2px solid rgba(245, 158, 11, 0.3); backdrop-filter: blur(10px);">
                             <h3 style="margin: 0 0 18px 0; color: #fbbf24; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">⬥ Timestamps</h3>
                             <div style="display: grid; gap: 14px;">
@@ -5337,15 +5341,16 @@
                                 <div><strong style="color: #fbbf24; font-weight: 600;">Last Modified:</strong> <span style="color: rgba(255, 255, 255, 0.9); font-family: 'Courier New', monospace; font-weight: 500;">${escapeHtml(lastModified)}</span></div>
                             </div>
                         </div>
+                        ` : ''}
                         
-                        ${ticket.ChangeHistory ? `
+                        ${isUserLoggedIn() && ticket.ChangeHistory ? `
                         <div style="background: rgba(30, 58, 95, 0.2); padding: 24px; border-radius: 16px; border: 2px solid rgba(245, 158, 11, 0.3); backdrop-filter: blur(10px);">
                             <h3 style="margin: 0 0 18px 0; color: #fbbf24; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">⬥ Change History</h3>
                             <pre style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 13px; color: rgba(255, 255, 255, 0.9); margin: 0; background: rgba(15, 23, 42, 0.5); padding: 18px; border-radius: 10px; border: 1px solid rgba(245, 158, 11, 0.2); font-weight: 500;">${escapeHtml(formatChangeHistory(ticket.ChangeHistory))}</pre>
                         </div>
                         ` : ''}
                         
-                        ${ticket.Notes ? `
+                        ${isUserLoggedIn() && ticket.Notes ? `
                         <div style="background: ${colors.bg}; padding: 24px; border-radius: 16px; border: 2px solid ${colors.border}; backdrop-filter: blur(10px);">
                             <h3 style="margin: 0 0 18px 0; color: ${colors.text}; font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">⬥ Notes</h3>
                             <p style="margin: 0; color: rgba(255, 255, 255, 0.95); line-height: 1.7; font-weight: 500;">${escapeHtml(ticket.Notes)}</p>

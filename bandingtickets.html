@@ -865,10 +865,9 @@
         }
 
         .fill-mode.visible {
-            display: grid !important;
+            display: grid;
             grid-template-columns: 1fr;
             padding-bottom: max(80px, env(safe-area-inset-bottom));
-            min-height: 200px;
         }
 
         /* Elegant dark blue cards with gold accents */
@@ -5457,16 +5456,14 @@
             
             document.body.classList.add('fill-mode-active');
 
-            // CRITICAL: Show fill container first so login/edit form is visible
-            const fillContainer = document.getElementById('fillContainer');
-            if (fillContainer) {
-                fillContainer.classList.add('visible');
-            }
-
-            // Movement section only for logged-in users
             const movementSection = document.getElementById('movementSection');
             if (movementSection) {
                 movementSection.style.display = isUserLoggedIn() ? 'block' : 'none';
+            }
+
+            const fillContainer = document.getElementById('fillContainer');
+            if (fillContainer) {
+                fillContainer.classList.add('visible');
             }
             
             const viewCard = document.getElementById('viewCard');
@@ -5494,9 +5491,6 @@
                 if (loginIntro) loginIntro.textContent = 'Log in to edit ticket ' + defaultSerial + '. Loading authorized users…';
             }
             updateLoggedInUserBanner();
-
-            // Scroll fill container into view so the form is visible
-            if (fillContainer) fillContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
             
             let users = [];
             let skus = [];

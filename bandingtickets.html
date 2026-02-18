@@ -94,6 +94,13 @@
             margin: 24px auto;
             padding: 0 16px 80px;
         }
+        /* Force login/edit cards visible when active - overrides any conflicting rules */
+        body.fill-mode-active #loginCard.fill-card-active,
+        body.fill-mode-active #editCard.fill-card-active {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
 
         /* Splash: once per session */
         .retiflux-splash {
@@ -3439,6 +3446,7 @@
                 var params = new URLSearchParams(window.location.search);
                 var bypassToken = params.get('t');
                 if (params.get('geofence') === 'bypass' && bypassToken === GEOFENCE_BYPASS_TOKEN) {
+                    document.body.classList.add('fill-mode-active');
                     runViewOrEditInit(initialSerialParam);
                     return;
                 }
@@ -4846,8 +4854,8 @@
             try {
                 const loginCard = document.getElementById('loginCard');
                 const editCard = document.getElementById('editCard');
-                if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in'); }
-                if (editCard) editCard.style.display = 'none';
+                if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in', 'fill-card-active'); }
+                if (editCard) { editCard.style.display = 'none'; editCard.classList.remove('fill-card-active'); }
                 const banner = document.getElementById('loggedInUserBanner');
                 if (banner) banner.style.display = 'none';
                 if (!authorizedUsersLoaded) {
@@ -4916,8 +4924,8 @@
             showRetifluxLoadingOverlay();
             const loginCard = document.getElementById('loginCard');
             const editCard = document.getElementById('editCard');
-            if (loginCard) loginCard.style.display = 'none';
-            if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in'); }
+            if (loginCard) { loginCard.style.display = 'none'; loginCard.classList.remove('fill-card-active'); }
+            if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in', 'fill-card-active'); }
             updateLoggedInUserBanner();
             setTimeout(hideRetifluxLoadingOverlay, 120);
         }
@@ -5485,8 +5493,12 @@
             const loginCard = document.getElementById('loginCard');
             const editCard = document.getElementById('editCard');
             if (viewCard) viewCard.style.display = 'none';
-            if (loginCard) { loginCard.style.display = 'none'; loginCard.style.position = ''; loginCard.style.top = ''; loginCard.style.left = ''; loginCard.style.transform = ''; loginCard.style.zIndex = ''; loginCard.style.maxWidth = ''; loginCard.style.width = ''; loginCard.style.boxShadow = ''; }
-            if (editCard) editCard.style.display = 'none';
+            if (loginCard) {
+                loginCard.style.display = 'none';
+                loginCard.classList.remove('fill-card-active');
+                loginCard.style.position = ''; loginCard.style.top = ''; loginCard.style.left = ''; loginCard.style.transform = ''; loginCard.style.zIndex = ''; loginCard.style.maxWidth = ''; loginCard.style.width = ''; loginCard.style.boxShadow = '';
+            }
+            if (editCard) { editCard.style.display = 'none'; editCard.classList.remove('fill-card-active'); }
             stopViewHeadingRotation();
             
             const urlSerial = (typeof initialSerialParam !== 'undefined' && initialSerialParam) ? initialSerialParam : (serial || '');
@@ -5497,11 +5509,11 @@
             if (serialDisplay) serialDisplay.textContent = defaultSerial;
             
             if (isUserLoggedIn()) {
-                if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in'); }
-                if (loginCard) loginCard.style.display = 'none';
+                if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in', 'fill-card-active'); editCard.scrollIntoView({ behavior: 'auto', block: 'start' }); }
+                if (loginCard) { loginCard.style.display = 'none'; loginCard.classList.remove('fill-card-active'); }
             } else {
-                if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in'); }
-                if (editCard) editCard.style.display = 'none';
+                if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in', 'fill-card-active'); loginCard.scrollIntoView({ behavior: 'auto', block: 'start' }); }
+                if (editCard) { editCard.style.display = 'none'; editCard.classList.remove('fill-card-active'); }
                 const loginIntro = document.getElementById('loginCardIntro');
                 if (loginIntro) loginIntro.textContent = 'Log in to edit ticket ' + defaultSerial + '. Loading authorized users…';
             }

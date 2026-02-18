@@ -5477,6 +5477,17 @@
             if (serialInput) serialInput.value = defaultSerial;
             if (serialDisplay) serialDisplay.textContent = defaultSerial;
             
+            if (isUserLoggedIn()) {
+                if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in'); }
+                if (loginCard) loginCard.style.display = 'none';
+            } else {
+                if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in'); }
+                if (editCard) editCard.style.display = 'none';
+                const loginIntro = document.getElementById('loginCardIntro');
+                if (loginIntro) loginIntro.textContent = 'Log in to edit ticket ' + defaultSerial + '. Loading authorized users…';
+            }
+            updateLoggedInUserBanner();
+            
             let users = [];
             let skus = [];
             showRetifluxLoadingOverlay();
@@ -5489,21 +5500,11 @@
                 skus = Array.isArray(skusResult) ? skusResult : [];
                 populateAuthorizedUserSelects({ users });
                 authorizedUsersLoaded = true;
+                const loginIntro2 = document.getElementById('loginCardIntro');
+                if (loginIntro2) loginIntro2.textContent = 'Log in to edit ticket ' + defaultSerial + '. Only authorized production leads can edit.';
             } finally {
                 hideRetifluxLoadingOverlay();
             }
-            if (isUserLoggedIn()) {
-                if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in'); }
-                if (loginCard) loginCard.style.display = 'none';
-                if (serialInput) serialInput.value = defaultSerial;
-                if (serialDisplay) serialDisplay.textContent = defaultSerial;
-            } else {
-                if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in'); }
-                if (editCard) editCard.style.display = 'none';
-                const loginIntro = document.getElementById('loginCardIntro');
-                if (loginIntro) loginIntro.textContent = 'Log in to edit ticket ' + defaultSerial + '. Only authorized production leads can edit.';
-            }
-            updateLoggedInUserBanner();
 
             const movementPalletInput = document.getElementById('movementPalletId');
             if (movementPalletInput) {

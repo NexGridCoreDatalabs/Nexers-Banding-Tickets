@@ -80,6 +80,15 @@
         body.fill-mode-active .print-container {
             display: none;
         }
+        body.fill-mode-active #fillContainer {
+            display: grid !important;
+            grid-template-columns: 1fr;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 16px;
+            gap: 20px;
+            padding-bottom: max(80px, env(safe-area-inset-bottom));
+        }
         body.fill-mode-active #movementSection {
             max-width: 1400px;
             margin: 24px auto;

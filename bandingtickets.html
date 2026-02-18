@@ -80,6 +80,15 @@
         body.fill-mode-active .print-container {
             display: none;
         }
+        body.fill-mode-active #fillContainer {
+            display: grid !important;
+            grid-template-columns: 1fr;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 16px;
+            gap: 20px;
+            padding-bottom: max(80px, env(safe-area-inset-bottom));
+        }
         body.fill-mode-active #movementSection {
             max-width: 1400px;
             margin: 24px auto;
@@ -3387,13 +3396,13 @@
             }, 120);
         }
         async function runViewOrEditInit(serial) {
-            const showSplash = shouldShowSplash();
+            const showSplash = shouldShowSplash() && currentMode === 'view';
             if (showSplash) {
                 try { sessionStorage.setItem(SPLASH_SESSION_KEY, '1'); } catch (e) {}
                 showSplashUI();
             }
             const initPromise = currentMode === 'view' ? initViewMode(serial) : initFillMode(serial);
-            const minDelay = new Promise(function(r) { setTimeout(r, 300); });
+            const minDelay = showSplash ? new Promise(function(r) { setTimeout(r, 300); }) : Promise.resolve();
             try {
                 await Promise.all([initPromise, minDelay]);
             } catch (e) {

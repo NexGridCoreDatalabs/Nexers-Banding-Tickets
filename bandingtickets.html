@@ -4690,7 +4690,8 @@
             if (!GOOGLE_APPS_SCRIPT_URL) return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
             try {
                 const ctrl = new AbortController();
-                const t = setTimeout(function() { ctrl.abort(); }, API_TIMEOUT_MS);
+                const timeout = 15000;
+                const t = setTimeout(function() { ctrl.abort(); }, timeout);
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=users`;
                 const response = await fetch(url, { signal: ctrl.signal });
                 clearTimeout(t);
@@ -4704,7 +4705,7 @@
                     tabletTypes: result.tabletTypes || []
                 };
             } catch (error) {
-                console.error('Error loading users:', error);
+                if (error?.name !== 'AbortError') console.error('Error loading users:', error);
                 return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
             }
         }
@@ -4713,7 +4714,8 @@
             if (!GOOGLE_APPS_SCRIPT_URL) return [];
             try {
                 const ctrl = new AbortController();
-                const t = setTimeout(function() { ctrl.abort(); }, API_TIMEOUT_MS);
+                const timeout = 15000;
+                const t = setTimeout(function() { ctrl.abort(); }, timeout);
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=getSkus`;
                 const response = await fetch(url, { signal: ctrl.signal });
                 clearTimeout(t);
@@ -4722,7 +4724,7 @@
                 if (!result.success) return [];
                 return result.skus || [];
             } catch (error) {
-                console.error('Error loading SKUs:', error);
+                if (error?.name !== 'AbortError') console.error('Error loading SKUs:', error);
                 return [];
             }
         }

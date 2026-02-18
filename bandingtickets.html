@@ -3408,7 +3408,7 @@
             }, 120);
         }
         async function runViewOrEditInit(serial) {
-            const showSplash = shouldShowSplash();
+            const showSplash = (currentMode === 'edit' || currentMode === 'fill') || shouldShowSplash();
             if (showSplash) {
                 try { sessionStorage.setItem(SPLASH_SESSION_KEY, '1'); } catch (e) {}
                 showSplashUI();

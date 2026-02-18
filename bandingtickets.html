@@ -2395,7 +2395,7 @@
                 <h2 style="margin: 0;">⬥ Authorized Login</h2>
                 <button type="button" class="btn-reset" id="loginCloseBtn" onclick="closeLoginCard()" style="padding: 8px 16px; font-size: 13px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; border-radius: 8px; white-space: nowrap;">✕ Close</button>
             </div>
-            <p class="fill-intro">Only authorized production leads can edit tickets from this workstation. Please sign in to continue.</p>
+            <p id="loginCardIntro" class="fill-intro">Only authorized production leads can edit tickets from this workstation. Please sign in to continue.</p>
             <form id="loginForm" class="fill-form">
                 <div class="fill-form-group">
                     <label for="loginUser">Select User</label>
@@ -5467,6 +5467,13 @@
             const editCard = document.getElementById('editCard');
             if (viewCard) viewCard.style.display = 'none';
             stopViewHeadingRotation();
+            
+            const defaultSerial = serial ? decodeURIComponent(serial) : formatSerial(currentSerial);
+            const serialInput = document.getElementById('fillSerial');
+            const serialDisplay = document.getElementById('fillSerialDisplay');
+            if (serialInput) serialInput.value = defaultSerial;
+            if (serialDisplay) serialDisplay.textContent = defaultSerial;
+            
             showRetifluxLoadingOverlay();
             try {
                 const { users } = await loadAuthorizedUsers();
@@ -5480,18 +5487,10 @@
                 showEditCard();
             } else {
                 showLoginCard();
+                const loginIntro = document.getElementById('loginCardIntro');
+                if (loginIntro) loginIntro.textContent = 'Log in to edit ticket ' + defaultSerial + '. Only authorized production leads can edit.';
             }
             updateLoggedInUserBanner();
-
-            const defaultSerial = serial ? decodeURIComponent(serial) : formatSerial(currentSerial);
-            const serialInput = document.getElementById('fillSerial');
-            const serialDisplay = document.getElementById('fillSerialDisplay');
-            if (serialInput) {
-                serialInput.value = defaultSerial;
-            }
-            if (serialDisplay) {
-                serialDisplay.textContent = defaultSerial;
-            }
 
             const movementPalletInput = document.getElementById('movementPalletId');
             if (movementPalletInput) {

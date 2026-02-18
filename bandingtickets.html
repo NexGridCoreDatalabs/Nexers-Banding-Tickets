@@ -2364,11 +2364,8 @@
 
     <div class="fill-mode" id="fillContainer">
         <div class="fill-card" id="viewCard" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 4px;">
-                <h2 style="margin: 0;">⬥ View Ticket <button type="button" class="btn-reset" id="viewRefreshBtn" onclick="refreshViewTicket()" style="margin-left: 12px; padding: 6px 12px; font-size: 13px;" title="Reload ticket data">🔄 Refresh</button></h2>
-                <button type="button" id="viewModeLoginBtn" class="btn-reset" onclick="showViewModeLogin()" style="font-size: 12px; padding: 6px 14px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; white-space: nowrap;">🔐 Authorized Access</button>
-            </div>
-            <p class="fill-intro">Viewing ticket: <strong id="viewSerialDisplay"></strong></p>
+            <h2 id="viewRotatingHeading" style="margin: 0 0 4px 0; text-align: center; min-height: 2.5em;"></h2>
+            <span id="viewSerialDisplay" style="display:none; speak:none;" aria-hidden="true"></span>
             <div id="viewContent" class="fill-form">
                 <div id="viewLoading" style="text-align: center; padding: 60px 20px;">
                     <div class="loading-spinner" style="width: 40px; height: 40px; margin: 0 auto 16px;"></div>
@@ -2380,6 +2377,7 @@
                 <div id="viewData" style="display: none;"></div>
             </div>
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(245, 158, 11, 0.3);">
+                <button type="button" id="viewModeLoginBtn" class="btn-reset" onclick="showViewModeLogin()" style="font-size: 12px; padding: 6px 14px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; white-space: nowrap; margin-bottom: 16px;">🔐 Authorized Access</button>
                 <p style="color: rgba(251, 191, 36, 0.8); font-size: 12px; font-weight: 600; letter-spacing: 1px;">
                     <strong style="background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
                 </p>
@@ -4933,7 +4931,35 @@
             // when saving tickets (see saveTicketToSheet function)
         }
         
-        // View Mode Functions
+        // View Mode Functions - rotating witty heading
+        let viewHeadingInterval = null;
+        const VIEW_HEADING_PHRASES = [
+            s => `⬥ Look what the scanner dragged in — your ticket, served fresh. Viewing: ${s}`,
+            s => `⬥ Peek-a-boo! Here's what you asked for. Viewing ticket: ${s}`,
+            s => `⬥ Your ticket, at your service. ${s} reporting for duty.`,
+            s => `⬥ All the deets, right here. Viewing ticket: ${s}`,
+            s => `⬥ Ticket ${s} has entered the chat — here's the scoop.`
+        ];
+        function startViewHeadingRotation() {
+            stopViewHeadingRotation();
+            const el = document.getElementById('viewRotatingHeading');
+            const serialEl = document.getElementById('viewSerialDisplay');
+            if (!el || !serialEl) return;
+            const serial = serialEl.textContent.trim() || '—';
+            let idx = 0;
+            el.textContent = VIEW_HEADING_PHRASES[0](serial);
+            viewHeadingInterval = setInterval(function() {
+                idx = (idx + 1) % VIEW_HEADING_PHRASES.length;
+                el.textContent = VIEW_HEADING_PHRASES[idx](serial);
+            }, 3500);
+        }
+        function stopViewHeadingRotation() {
+            if (viewHeadingInterval) {
+                clearInterval(viewHeadingInterval);
+                viewHeadingInterval = null;
+            }
+        }
+        
         async function initViewMode(serial) {
             document.body.classList.add('fill-mode-active');
             const fillContainer = document.getElementById('fillContainer');
@@ -5018,6 +5044,7 @@
                 }
             } finally {
                 hideRetifluxLoadingOverlay();
+                startViewHeadingRotation();
             }
         }
         
@@ -5417,6 +5444,7 @@
             const viewCard = document.getElementById('viewCard');
             const editCard = document.getElementById('editCard');
             if (viewCard) viewCard.style.display = 'none';
+            stopViewHeadingRotation();
             showRetifluxLoadingOverlay();
             try {
                 const { users } = await loadAuthorizedUsers();

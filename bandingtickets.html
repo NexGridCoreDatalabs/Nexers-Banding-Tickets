@@ -80,11 +80,6 @@
         body.fill-mode-active .print-container {
             display: none;
         }
-        body.fill-mode-active #movementSection {
-            max-width: 1400px;
-            margin: 24px auto;
-            padding: 0 16px 80px;
-        }
 
         /* Splash: once per session */
         .retiflux-splash {
@@ -2592,9 +2587,8 @@
                 </p>
             </div>
         </div>
-    </div>
-    <!-- movementSection outside fillContainer so edit/login cards show first -->
-    <div id="movementSection" style="display: none;">
+
+        <div id="movementSection" style="display: none;">
             <div class="movement-toggle">
                 <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
                     🚚 Open Stock Movement Control
@@ -5483,11 +5477,17 @@
             if (serialInput) serialInput.value = defaultSerial;
             if (serialDisplay) serialDisplay.textContent = defaultSerial;
             
+            let users = [];
+            let skus = [];
             showRetifluxLoadingOverlay();
             try {
-                const { users } = await loadAuthorizedUsers();
-                const skus = await loadSkusFromZoneMapping();
-                populateAuthorizedUserSelects(users);
+                const [usersResult, skusResult] = await Promise.all([
+                    loadAuthorizedUsers(),
+                    loadSkusFromZoneMapping()
+                ]);
+                users = (usersResult && usersResult.users) ? usersResult.users : [];
+                skus = Array.isArray(skusResult) ? skusResult : [];
+                populateAuthorizedUserSelects({ users });
                 authorizedUsersLoaded = true;
             } finally {
                 hideRetifluxLoadingOverlay();

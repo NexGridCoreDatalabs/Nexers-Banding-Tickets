@@ -2420,7 +2420,7 @@
             </div>
         </div>
         
-        <div class="fill-card" id="editCard">
+        <div class="fill-card" id="editCard" style="display: none;">
             <h2>⬥ Edit Ticket</h2>
             <p class="fill-intro">Enter the captured information for serial <strong id="fillSerialDisplay" style="color: #fcd34d; font-weight: 800; letter-spacing: 1px;"></strong>. When you submit, data is saved to Google Sheets and a finished ticket downloads as a PNG.</p>
             <div class="logged-in-banner" id="loggedInUserBanner">
@@ -5464,11 +5464,15 @@
             }
             
             const viewCard = document.getElementById('viewCard');
+            const loginCard = document.getElementById('loginCard');
             const editCard = document.getElementById('editCard');
             if (viewCard) viewCard.style.display = 'none';
+            if (loginCard) { loginCard.style.display = 'none'; loginCard.style.position = ''; loginCard.style.top = ''; loginCard.style.left = ''; loginCard.style.transform = ''; loginCard.style.zIndex = ''; loginCard.style.maxWidth = ''; loginCard.style.width = ''; loginCard.style.boxShadow = ''; }
+            if (editCard) editCard.style.display = 'none';
             stopViewHeadingRotation();
             
-            const defaultSerial = serial ? decodeURIComponent(serial) : formatSerial(currentSerial);
+            const urlSerial = (typeof initialSerialParam !== 'undefined' && initialSerialParam) ? initialSerialParam : (serial || '');
+            const defaultSerial = urlSerial ? decodeURIComponent(String(urlSerial)) : formatSerial(currentSerial);
             const serialInput = document.getElementById('fillSerial');
             const serialDisplay = document.getElementById('fillSerialDisplay');
             if (serialInput) serialInput.value = defaultSerial;
@@ -5484,9 +5488,13 @@
                 hideRetifluxLoadingOverlay();
             }
             if (isUserLoggedIn()) {
-                showEditCard();
+                if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in'); }
+                if (loginCard) loginCard.style.display = 'none';
+                if (serialInput) serialInput.value = defaultSerial;
+                if (serialDisplay) serialDisplay.textContent = defaultSerial;
             } else {
-                showLoginCard();
+                if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in'); }
+                if (editCard) editCard.style.display = 'none';
                 const loginIntro = document.getElementById('loginCardIntro');
                 if (loginIntro) loginIntro.textContent = 'Log in to edit ticket ' + defaultSerial + '. Only authorized production leads can edit.';
             }

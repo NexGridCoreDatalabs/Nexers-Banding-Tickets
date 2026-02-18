@@ -3190,7 +3190,7 @@
             GOOGLE_APPS_SCRIPT_URL = DEFAULT_GOOGLE_APPS_SCRIPT_URL;
         }
         
-        const API_TIMEOUT_MS = 10000;
+        const API_TIMEOUT_MS = 6000;
         
         // SECURITY: Config section password protection
         const CONFIG_UNLOCK_TOKEN = 'config_section_unlocked';
@@ -3393,7 +3393,7 @@
                 showSplashUI();
             }
             const initPromise = currentMode === 'view' ? initViewMode(serial) : initFillMode(serial);
-            const minDelay = new Promise(function(r) { setTimeout(r, 800); });
+            const minDelay = new Promise(function(r) { setTimeout(r, 300); });
             await Promise.all([initPromise, minDelay]);
             if (showSplash) hideSplashUI();
         }
@@ -5494,7 +5494,7 @@
             
             let users = [];
             let skus = [];
-            showRetifluxLoadingOverlay();
+            // Run API calls in background - form is already visible, no blocking overlay
             try {
                 const [usersResult, skusResult] = await Promise.all([
                     loadAuthorizedUsers(),
@@ -5502,12 +5502,14 @@
                 ]);
                 users = (usersResult && usersResult.users) ? usersResult.users : [];
                 skus = Array.isArray(skusResult) ? skusResult : [];
-                populateAuthorizedUserSelects({ users });
+                populateAuthorizedUserSelects(users);
                 authorizedUsersLoaded = true;
                 const loginIntro2 = document.getElementById('loginCardIntro');
                 if (loginIntro2) loginIntro2.textContent = 'Log in to edit ticket ' + defaultSerial + '. Only authorized production leads can edit.';
-            } finally {
-                hideRetifluxLoadingOverlay();
+            } catch (e) {
+                console.error('Edit mode init:', e);
+                const loginIntro2 = document.getElementById('loginCardIntro');
+                if (loginIntro2) loginIntro2.textContent = 'Log in to edit ticket ' + defaultSerial + '. (Some data may still be loading.)';
             }
 
             const movementPalletInput = document.getElementById('movementPalletId');

@@ -73,11 +73,193 @@
             animation: gradientShift 20s ease infinite;
             overflow-x: hidden;
             overscroll-behavior-y: contain;
+            padding-top: 60px;
         }
         
         body.fill-mode-active .control-panel,
         body.fill-mode-active .print-container {
             display: none;
+        }
+
+        /* Splash: once per session */
+        .retiflux-splash {
+            position: fixed;
+            inset: 0;
+            background: #0f172a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            transition: opacity 0.12s ease-out;
+        }
+        .retiflux-splash.fade-out { opacity: 0; pointer-events: none; }
+        .retiflux-splash .splash-icon {
+            width: 96px;
+            height: 96px;
+            position: relative;
+            margin-bottom: 56px;
+        }
+        .retiflux-splash .splash-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            position: relative;
+            z-index: 2;
+            animation: splashIconIn 0.4s ease-out forwards;
+            opacity: 0;
+        }
+        .retiflux-splash .splash-glow {
+            position: absolute;
+            inset: -24px;
+            border-radius: 50%;
+            border: 3px solid rgba(251, 191, 36, 0.6);
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+            animation: splashPulse 1.4s ease-out 0.2s infinite;
+            opacity: 1;
+        }
+        .retiflux-splash .splash-glow::before {
+            content: '';
+            position: absolute;
+            inset: -12px;
+            border-radius: 50%;
+            border: 2px solid rgba(251, 191, 36, 0.35);
+            animation: splashPulseOuter 1.4s ease-out 0.4s infinite;
+        }
+        .retiflux-splash .splash-title {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 1px;
+            animation: splashTextIn 0.5s ease-out 0.4s forwards;
+            opacity: 0;
+        }
+        .retiflux-splash .splash-subtitle {
+            font-size: 11px;
+            color: rgba(251, 191, 36, 0.7);
+            margin-top: 8px;
+            letter-spacing: 0.5px;
+            animation: splashTextIn 0.5s ease-out 0.6s forwards;
+            opacity: 0;
+        }
+        .retiflux-splash .splash-dots {
+            display: flex;
+            gap: 8px;
+            margin-top: 32px;
+            animation: splashTextIn 0.4s ease-out 0.8s forwards;
+            opacity: 0;
+        }
+        .retiflux-splash .splash-dots span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(251, 191, 36, 0.6);
+            animation: splashDotPulse 1s ease-in-out infinite;
+        }
+        .retiflux-splash .splash-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .retiflux-splash .splash-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes splashIconIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes splashPulse {
+            0% { opacity: 0.9; transform: scale(0.9); border-color: rgba(251, 191, 36, 0.7); box-shadow: 0 0 25px rgba(251, 191, 36, 0.4); }
+            50% { opacity: 1; transform: scale(1.15); border-color: rgba(251, 191, 36, 0.4); box-shadow: 0 0 35px rgba(251, 191, 36, 0.5); }
+            100% { opacity: 0.5; transform: scale(1.35); border-color: rgba(251, 191, 36, 0.15); box-shadow: 0 0 15px rgba(251, 191, 36, 0.2); }
+        }
+        @keyframes splashPulseOuter {
+            0% { opacity: 0.6; transform: scale(0.95); }
+            100% { opacity: 0; transform: scale(1.5); }
+        }
+        @keyframes splashTextIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes splashDotPulse {
+            0%, 100% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* Top bar */
+        .retiflux-topbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 52px;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 58, 95, 0.98));
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 2px solid rgba(251, 191, 36, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 0 16px;
+        }
+        .retiflux-topbar .topbar-logo-desktop {
+            height: 36px;
+            width: auto;
+            max-width: 180px;
+            object-fit: contain;
+        }
+        .retiflux-topbar .topbar-logo-mobile {
+            display: none;
+            object-fit: contain;
+        }
+        @media (max-width: 480px) {
+            .retiflux-topbar .topbar-logo-desktop { display: none; }
+            .retiflux-topbar .topbar-logo-mobile { display: block; }
+        }
+
+        /* Loading overlay: pulse icon only, for all loading states & section transitions */
+        .retiflux-loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99998;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.12s ease-out;
+        }
+        .retiflux-loading-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .retiflux-loading-overlay .loading-pulse-icon {
+            width: 64px;
+            height: 64px;
+            position: relative;
+        }
+        .retiflux-loading-overlay .loading-pulse-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            position: relative;
+            z-index: 2;
+        }
+        .retiflux-loading-overlay .loading-pulse-glow {
+            position: absolute;
+            inset: -16px;
+            border-radius: 50%;
+            border: 2px solid rgba(251, 191, 36, 0.5);
+            box-shadow: 0 0 16px rgba(251, 191, 36, 0.25);
+            animation: splashPulse 1.4s ease-out 0.2s infinite;
+            opacity: 1;
+        }
+        .retiflux-loading-overlay .loading-pulse-glow::before {
+            content: '';
+            position: absolute;
+            inset: -8px;
+            border-radius: 50%;
+            border: 2px solid rgba(251, 191, 36, 0.25);
+            animation: splashPulseOuter 1.4s ease-out 0.4s infinite;
         }
 
         /* Elegant gold-accented control panel */
@@ -725,10 +907,14 @@
                 0 8px 32px rgba(245, 158, 11, 0.2),
                 inset 0 2px 0 rgba(245, 158, 11, 0.15);
             border: 2px solid rgba(245, 158, 11, 0.4);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            animation: fadeInUp 0.5s ease-out;
+            transition: opacity 0.12s ease-out, transform 0.12s ease-out;
             position: relative;
             overflow: hidden;
+        }
+        .fill-card.fade-in { animation: fillCardFadeIn 0.15s ease-out forwards; }
+        @keyframes fillCardFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         /* Elegant animated gold shimmer */
@@ -2117,6 +2303,28 @@
     </style>
 </head>
 <body>
+    <!-- Splash: once per session, view/edit modes only -->
+    <div id="retifluxSplash" class="retiflux-splash" style="display:none;" aria-hidden="true">
+        <div class="splash-icon">
+            <div class="splash-glow"></div>
+            <img src="favicon.png" alt="RetiFlux" width="96" height="96" loading="eager">
+        </div>
+        <div class="splash-title">RetiFlux™</div>
+        <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+        <div class="splash-dots"><span></span><span></span><span></span></div>
+    </div>
+    <!-- Top bar: view/edit modes -->
+    <header id="retifluxTopBar" class="retiflux-topbar" style="display:none;">
+        <img src="retiflux-logo.png" alt="RetiFlux" class="topbar-logo-desktop">
+        <img src="favicon.png" alt="RetiFlux" class="topbar-logo-mobile" width="40" height="40">
+    </header>
+    <!-- Loading overlay: pulse icon only, for loading states & section transitions -->
+    <div id="retifluxLoadingOverlay" class="retiflux-loading-overlay" aria-hidden="true">
+        <div class="loading-pulse-icon">
+            <div class="loading-pulse-glow"></div>
+            <img src="favicon.png" alt="" width="64" height="64" loading="eager">
+        </div>
+    </div>
     <div class="control-panel">
         <h1>⬥ RetiFlux™</h1>
         <div class="subtitle">Retis Fluxit, Data Vincit</div>
@@ -2145,7 +2353,7 @@
         <button class="btn-generate" onclick="generateTickets()">
             🖨️ GENERATE & PRINT TICKETS
         </button>
-        <button class="btn-generate" onclick="generateAllColorTicketsPDF()" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); margin-top: 10px;">
+        <button class="btn-generate" onclick="generateAllColorTicketsPDF(event)" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); margin-top: 10px;">
             📥 DOWNLOAD PDF (52 Tickets × 4 Colors)
         </button>
         <button class="btn-reset" type="button" onclick="resetSerial()">
@@ -2211,7 +2419,7 @@
             </div>
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(245, 158, 11, 0.3);">
                 <p style="color: rgba(251, 191, 36, 0.8); font-size: 12px; font-weight: 600; letter-spacing: 1px;">
-                    <strong style="background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
+                    <strong style="background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
                 </p>
             </div>
         </div>
@@ -2546,14 +2754,54 @@
 
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://apis.google.com/js/api.js"></script>
+    <script>
+        // Lazy-load print/QR libs only when needed
+        const _scriptPromises = {};
+        function loadScript(src) {
+            if (_scriptPromises[src]) return _scriptPromises[src];
+            _scriptPromises[src] = new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('Failed to load ' + src));
+                document.body.appendChild(s);
+            });
+            return _scriptPromises[src];
+        }
+        async function ensurePrintLibs() {
+            await Promise.all([
+                loadScript('https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js'),
+                loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'),
+                loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+            ]);
+        }
+    </script>
 
     <script>
         const SERIES_PREFIX = 'BND';
         let selectedColor = 'blue';
+        let _loadingOverlayRef = 0;
+        function showRetifluxLoadingOverlay() {
+            _loadingOverlayRef++;
+            const el = document.getElementById('retifluxLoadingOverlay');
+            if (el) { el.classList.add('visible'); el.setAttribute('aria-hidden', 'false'); }
+        }
+        function hideRetifluxLoadingOverlay() {
+            _loadingOverlayRef = Math.max(0, _loadingOverlayRef - 1);
+            if (_loadingOverlayRef > 0) return;
+            const el = document.getElementById('retifluxLoadingOverlay');
+            if (el) { el.classList.remove('visible'); el.setAttribute('aria-hidden', 'true'); }
+        }
+        function withLoadingOverlay(fn, minMs) {
+            showRetifluxLoadingOverlay();
+            const start = Date.now();
+            return Promise.resolve(typeof fn === 'function' ? fn() : fn).then((r) => {
+                const elapsed = Date.now() - start;
+                const wait = minMs ? Math.max(0, minMs - elapsed) : 0;
+                return wait > 0 ? new Promise(r => setTimeout(r, wait)) : r;
+            }).then((r) => { hideRetifluxLoadingOverlay(); return r; }).catch((e) => { hideRetifluxLoadingOverlay(); throw e; });
+        }
         let currentSerial = 1;
         let movementPanelInitialized = false;
         let movementZones = [];
@@ -2938,9 +3186,8 @@
             }
             if (typeof updateReceivingOperatorDisplay === 'function') updateReceivingOperatorDisplay();
 
-            // In view mode, movement section is gated — only show to logged-in users.
-            // In edit/fill mode, initFillMode() handles showing it unconditionally.
-            if (currentMode === 'view') {
+            // In view and edit/fill modes, movement section is gated — only show to logged-in users.
+            if (currentMode === 'view' || currentMode === 'edit' || currentMode === 'fill') {
                 const movementSection = document.getElementById('movementSection');
                 const loginBtn = document.getElementById('viewModeLoginBtn');
                 if (movementSection) {
@@ -3145,6 +3392,43 @@
             return false;
         }
         
+        const SPLASH_SESSION_KEY = 'retifluxSplashShown';
+        function shouldShowSplash() {
+            try {
+                return !sessionStorage.getItem(SPLASH_SESSION_KEY);
+            } catch (e) { return false; }
+        }
+        function showSplashUI() {
+            const el = document.getElementById('retifluxSplash');
+            if (el) { el.style.display = 'flex'; el.setAttribute('aria-hidden', 'false'); }
+        }
+        function hideSplashUI() {
+            const el = document.getElementById('retifluxSplash');
+            if (!el) return;
+            el.classList.add('fade-out');
+            setTimeout(function() {
+                el.style.display = 'none';
+                el.classList.remove('fade-out');
+                el.setAttribute('aria-hidden', 'true');
+            }, 120);
+        }
+        function showTopBar() {
+            const el = document.getElementById('retifluxTopBar');
+            if (el) el.style.display = 'flex';
+        }
+        async function runViewOrEditInit(serial) {
+            const showSplash = shouldShowSplash();
+            if (showSplash) {
+                try { sessionStorage.setItem(SPLASH_SESSION_KEY, '1'); } catch (e) {}
+                showSplashUI();
+            }
+            const initPromise = currentMode === 'view' ? initViewMode(serial) : initFillMode(serial);
+            const minDelay = new Promise(function(r) { setTimeout(r, 800); });
+            await Promise.all([initPromise, minDelay]);
+            if (showSplash) hideSplashUI();
+            showTopBar();
+        }
+
         // Protect main generator page - only allow access via QR codes (mode=view or mode=fill/edit) OR with password
         if (!currentMode) {
             // No mode parameter means direct access to generator - require password
@@ -3171,14 +3455,13 @@
                 var params = new URLSearchParams(window.location.search);
                 var bypassToken = params.get('t');
                 if (params.get('geofence') === 'bypass' && bypassToken === GEOFENCE_BYPASS_TOKEN) {
-                    if (currentMode === 'view') initViewMode(initialSerialParam);
-                    else initFillMode(initialSerialParam);
+                    runViewOrEditInit(initialSerialParam);
                     return;
                 }
                 var overlay = document.createElement('div');
                 overlay.id = 'geofenceOverlay';
                 overlay.style.cssText = 'position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);display:flex;align-items:center;justify-content:center;z-index:99999;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
-                overlay.innerHTML = '<div style="text-align:center;padding:40px;"><div class="loading-spinner" style="width:48px;height:48px;margin:0 auto 20px;border:4px solid rgba(251,191,36,0.3);border-top-color:#fbbf24;border-radius:50%;animation:spin 1s linear infinite;"></div><p style="color:#fbbf24;font-size:18px;font-weight:600;">Verifying location...</p><p style="color:#94a3b8;font-size:14px;margin-top:12px;">GPS accuracy is required. Please allow location access.</p></div>';
+                overlay.innerHTML = '<div style="text-align:center;padding:40px;"><div style="width:64px;height:64px;margin:0 auto 20px;position:relative;"><div style="position:absolute;inset:-16px;border-radius:50%;border:2px solid rgba(251,191,36,0.5);box-shadow:0 0 16px rgba(251,191,36,0.25);animation:splashPulse 1.4s ease-out 0.2s infinite;"></div><img src="favicon.png" alt="" width="64" height="64" style="position:relative;z-index:2;object-fit:contain;"></div><p style="color:#fbbf24;font-size:18px;font-weight:600;">Verifying location...</p><p style="color:#94a3b8;font-size:14px;margin-top:12px;">GPS accuracy is required. Please allow location access.</p></div>';
                 document.body.appendChild(overlay);
                 checkGeofenceAccess().then(function(result) {
                     overlay.remove();
@@ -3186,8 +3469,7 @@
                         showGeofenceDenied(result);
                         return;
                     }
-                    if (currentMode === 'view') initViewMode(initialSerialParam);
-                    else initFillMode(initialSerialParam);
+                    runViewOrEditInit(initialSerialParam);
                 });
             })();
         }
@@ -3244,14 +3526,13 @@
             alert(`✅ Serial number reset successfully!\n\nNew serial: ${formatSerial(currentSerial)}`);
         }
 
-        function generateTickets() {
+        async function generateTickets() {
             const ticketCount = parseInt(document.getElementById('ticketCount').value, 10);
-            
             if (ticketCount % 4 !== 0) {
                 showToast('Number of tickets must be a multiple of 4', 'warning');
                 return;
             }
-
+            await ensurePrintLibs();
             const container = document.getElementById('printContainer');
             const generateBtn = document.querySelector('.btn-generate[onclick="generateTickets()"]');
             const originalBtnText = generateBtn ? generateBtn.innerHTML : '';
@@ -3353,12 +3634,16 @@
             }, 100);
         }
 
-        async function generateAllColorTicketsPDF() {
-            if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+        async function generateAllColorTicketsPDF(event) {
+            event = event || { target: document.querySelector('.btn-generate[onclick*="generateAllColorTicketsPDF"]') };
+            showRetifluxLoadingOverlay();
+            try {
+                await ensurePrintLibs();
+            } catch (e) {
+                hideRetifluxLoadingOverlay();
                 showToast('PDF libraries not loaded. Please refresh the page.', 'error');
                 return;
             }
-
             const ticketCount = 52;
             const colors = ['red', 'blue', 'green', 'yellow'];
             const ticketsPerPage = 4; // 4 ticket pairs per page (8 tickets total)
@@ -3573,6 +3858,8 @@
                 showToast('Error generating PDF: ' + error.message, 'error', 6000);
                 originalButton.innerHTML = originalText;
                 originalButton.disabled = false;
+            } finally {
+                hideRetifluxLoadingOverlay();
             }
         }
 
@@ -4553,19 +4840,24 @@
 
         let authorizedUsersLoaded = false;
         async function showLoginCard() {
-            const loginCard = document.getElementById('loginCard');
-            const editCard = document.getElementById('editCard');
-            if (loginCard) loginCard.style.display = 'block';
-            if (editCard) editCard.style.display = 'none';
-            const banner = document.getElementById('loggedInUserBanner');
-            if (banner) banner.style.display = 'none';
-            if (!authorizedUsersLoaded) {
-                const loginSelect = document.getElementById('loginUser');
-                if (loginSelect && loginSelect.options.length <= 1) {
-                    const { users } = await loadAuthorizedUsers();
-                    populateAuthorizedUserSelects(users);
-                    authorizedUsersLoaded = true;
+            showRetifluxLoadingOverlay();
+            try {
+                const loginCard = document.getElementById('loginCard');
+                const editCard = document.getElementById('editCard');
+                if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in'); }
+                if (editCard) editCard.style.display = 'none';
+                const banner = document.getElementById('loggedInUserBanner');
+                if (banner) banner.style.display = 'none';
+                if (!authorizedUsersLoaded) {
+                    const loginSelect = document.getElementById('loginUser');
+                    if (loginSelect && loginSelect.options.length <= 1) {
+                        const { users } = await loadAuthorizedUsers();
+                        populateAuthorizedUserSelects(users);
+                        authorizedUsersLoaded = true;
+                    }
                 }
+            } finally {
+                setTimeout(hideRetifluxLoadingOverlay, 120);
             }
         }
 
@@ -4594,6 +4886,7 @@
 
         // Called after a successful login when in view mode — close overlay and reveal movement
         function closeViewModeLogin() {
+            showRetifluxLoadingOverlay();
             const loginCard = document.getElementById('loginCard');
             if (loginCard) {
                 loginCard.style.display = 'none';
@@ -4606,14 +4899,17 @@
                 loginCard.style.width = '';
                 loginCard.style.boxShadow = '';
             }
+            setTimeout(hideRetifluxLoadingOverlay, 120);
         }
 
         function showEditCard() {
+            showRetifluxLoadingOverlay();
             const loginCard = document.getElementById('loginCard');
             const editCard = document.getElementById('editCard');
             if (loginCard) loginCard.style.display = 'none';
-            if (editCard) editCard.style.display = 'block';
+            if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in'); }
             updateLoggedInUserBanner();
+            setTimeout(hideRetifluxLoadingOverlay, 120);
         }
 
         async function handleLoginSubmit(event) {
@@ -4704,7 +5000,7 @@
             
             const viewLoading = document.getElementById('viewLoading');
             const viewData = document.getElementById('viewData');
-            
+            showRetifluxLoadingOverlay();
             try {
                 // Ensure ZoneConfig is loaded for status lookup
                 if (!movementZones || movementZones.length === 0) {
@@ -4751,6 +5047,8 @@
                     viewData.style.display = 'block';
                     viewData.innerHTML = `<p style="text-align: center; padding: 40px; color: #e53e3e;">Error loading ticket: ${error.message}</p>`;
                 }
+            } finally {
+                hideRetifluxLoadingOverlay();
             }
         }
         
@@ -4758,6 +5056,7 @@
             var serialEl = document.getElementById('viewSerialDisplay');
             var serial = serialEl ? serialEl.textContent.trim() : '';
             if (!serial) return;
+            showRetifluxLoadingOverlay();
             var viewLoading = document.getElementById('viewLoading');
             var viewData = document.getElementById('viewData');
             if (viewLoading) viewLoading.style.display = 'block';
@@ -4776,6 +5075,8 @@
                     viewData.style.display = 'block';
                     viewData.innerHTML = '<p style="text-align: center; padding: 40px; color: #e53e3e;">Error: ' + (err.message || 'Failed to refresh') + '</p>';
                 }
+            } finally {
+                hideRetifluxLoadingOverlay();
             }
         }
 
@@ -5132,7 +5433,7 @@
 
             const movementSection = document.getElementById('movementSection');
             if (movementSection) {
-                movementSection.style.display = 'block';
+                movementSection.style.display = isUserLoggedIn() ? 'block' : 'none';
             }
 
             const fillContainer = document.getElementById('fillContainer');
@@ -5143,10 +5444,15 @@
             const viewCard = document.getElementById('viewCard');
             const editCard = document.getElementById('editCard');
             if (viewCard) viewCard.style.display = 'none';
-            const { users } = await loadAuthorizedUsers();
-            const skus = await loadSkusFromZoneMapping();
-            populateAuthorizedUserSelects(users);
-            authorizedUsersLoaded = true;
+            showRetifluxLoadingOverlay();
+            try {
+                const { users } = await loadAuthorizedUsers();
+                const skus = await loadSkusFromZoneMapping();
+                populateAuthorizedUserSelects(users);
+                authorizedUsersLoaded = true;
+            } finally {
+                hideRetifluxLoadingOverlay();
+            }
             if (isUserLoggedIn()) {
                 showEditCard();
             } else {
@@ -5224,6 +5530,7 @@
                     }
                     
                     setFillStatus('💾 Saving to Google Sheets...');
+                    showRetifluxLoadingOverlay();
                     try {
                         const data = collectFormData(form);
                         let existingTicket = null;
@@ -5269,6 +5576,8 @@
                         if (submitBtn) {
                             submitBtn.disabled = false;
                         }
+                    } finally {
+                        hideRetifluxLoadingOverlay();
                     }
                 });
             }
@@ -5453,20 +5762,25 @@
         let receivingSelectedZone = null;
 
         async function switchMovementView(view) {
-            movementCurrentView = view;
-            const monitor = document.getElementById('movementMonitorView');
-            const receiving = document.getElementById('movementReceivingView');
-            const btns = document.querySelectorAll('.movement-tab-btn');
-            btns.forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.view === view);
-            });
-            if (monitor) monitor.style.display = view === 'monitor' ? 'block' : 'none';
-            if (receiving) receiving.style.display = view === 'receiving' ? 'block' : 'none';
-            if (view === 'receiving') {
-                await ensureMovementPanelLoaded();
-                updateReceivingOperatorDisplay();
-                initReceivingZoneTabs();
-                refreshReceivingView();
+            showRetifluxLoadingOverlay();
+            try {
+                movementCurrentView = view;
+                const monitor = document.getElementById('movementMonitorView');
+                const receiving = document.getElementById('movementReceivingView');
+                const btns = document.querySelectorAll('.movement-tab-btn');
+                btns.forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.view === view);
+                });
+                if (monitor) monitor.style.display = view === 'monitor' ? 'block' : 'none';
+                if (receiving) receiving.style.display = view === 'receiving' ? 'block' : 'none';
+                if (view === 'receiving') {
+                    await ensureMovementPanelLoaded();
+                    updateReceivingOperatorDisplay();
+                    initReceivingZoneTabs();
+                    refreshReceivingView();
+                }
+            } finally {
+                setTimeout(hideRetifluxLoadingOverlay, 120);
             }
         }
 
@@ -7097,11 +7411,7 @@
         }
 
         async function downloadFilledTicket(pageElement, serial) {
-            if (typeof html2canvas === 'undefined') {
-                alert('Download library not loaded.');
-                return;
-            }
-
+            await ensurePrintLibs();
             const canvas = await html2canvas(pageElement, {
                 scale: window.devicePixelRatio > 1 ? window.devicePixelRatio : 2,
                 backgroundColor: '#ffffff',

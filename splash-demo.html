@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RetiFlux Splash — Pulse Glow Demo</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Cascadia Mono', Consolas, 'Cascadia Code', monospace; }
+        
+        .splash {
+            position: fixed;
+            inset: 0;
+            background: #0f172a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .splash-icon {
+            width: 96px;
+            height: 96px;
+            position: relative;
+            margin-bottom: 56px;
+        }
+        
+        .splash-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            position: relative;
+            z-index: 2;
+            animation: iconFadeIn 400ms ease-out forwards;
+            opacity: 0;
+        }
+        
+        .splash-glow {
+            position: absolute;
+            inset: -24px;
+            border-radius: 50%;
+            border: 3px solid rgba(251, 191, 36, 0.6);
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+            animation: pulseGlow 1.4s ease-out 0.2s infinite;
+            opacity: 1;
+        }
+        
+        .splash-glow::before {
+            content: '';
+            position: absolute;
+            inset: -12px;
+            border-radius: 50%;
+            border: 2px solid rgba(251, 191, 36, 0.35);
+            animation: pulseGlowOuter 1.4s ease-out 0.4s infinite;
+        }
+        
+        .splash-title {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 1px;
+            animation: textFadeIn 500ms ease-out 0.4s forwards;
+            opacity: 0;
+        }
+        
+        .splash-subtitle {
+            font-size: 11px;
+            color: rgba(251, 191, 36, 0.7);
+            margin-top: 8px;
+            letter-spacing: 0.5px;
+            animation: textFadeIn 500ms ease-out 0.6s forwards;
+            opacity: 0;
+        }
+        
+        .splash-dots {
+            display: flex;
+            gap: 8px;
+            margin-top: 32px;
+            animation: textFadeIn 400ms ease-out 0.8s forwards;
+            opacity: 0;
+        }
+        
+        .splash-dots span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(251, 191, 36, 0.6);
+            animation: dotPulse 1s ease-in-out infinite;
+        }
+        
+        .splash-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .splash-dots span:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes iconFadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes pulseGlow {
+            0% { 
+                opacity: 0.9; 
+                transform: scale(0.9); 
+                border-color: rgba(251, 191, 36, 0.7);
+                box-shadow: 0 0 25px rgba(251, 191, 36, 0.4);
+            }
+            50% { 
+                opacity: 1; 
+                transform: scale(1.15); 
+                border-color: rgba(251, 191, 36, 0.4);
+                box-shadow: 0 0 35px rgba(251, 191, 36, 0.5);
+            }
+            100% { 
+                opacity: 0.5; 
+                transform: scale(1.35); 
+                border-color: rgba(251, 191, 36, 0.15);
+                box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
+            }
+        }
+        
+        @keyframes pulseGlowOuter {
+            0% { opacity: 0.6; transform: scale(0.95); }
+            100% { opacity: 0; transform: scale(1.5); }
+        }
+        
+        @keyframes textFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes dotPulse {
+            0%, 100% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        .content-after {
+            min-height: 100vh;
+            padding: 40px;
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+            color: rgba(251, 191, 36, 0.9);
+            display: none;
+        }
+        
+        .content-after.visible { display: block; }
+        
+        .splash.fade-out {
+            animation: splashFadeOut 150ms ease-out forwards;
+        }
+        
+        @keyframes splashFadeOut {
+            to { opacity: 0; pointer-events: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="splash" id="splash">
+        <div class="splash-icon">
+            <div class="splash-glow"></div>
+            <img src="favicon.png" alt="RetiFlux">
+        </div>
+        <div class="splash-title">RetiFlux™</div>
+        <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+        <div class="splash-dots">
+            <span></span><span></span><span></span>
+        </div>
+    </div>
+    
+    <div class="content-after" id="contentAfter">
+        <h1>Splash demo — content loaded</h1>
+        <p style="margin-top: 16px;">The splash faded out after ~1.5s. In the real app, it will show until data is ready (min 800ms, per-session only).</p>
+        <button onclick="replaySplash()" style="margin-top: 24px; padding: 12px 24px; background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #0f172a; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-family: inherit;">
+            ▶ Replay Splash
+        </button>
+    </div>
+    
+    <script>
+        function hideSplash() {
+            const splash = document.getElementById('splash');
+            const content = document.getElementById('contentAfter');
+            splash.classList.add('fade-out');
+            setTimeout(() => {
+                splash.style.display = 'none';
+                content.classList.add('visible');
+            }, 150);
+        }
+        
+        function replaySplash() {
+            const splash = document.getElementById('splash');
+            const content = document.getElementById('contentAfter');
+            splash.classList.remove('fade-out');
+            splash.style.display = 'flex';
+            content.classList.remove('visible');
+            setTimeout(hideSplash, 3000);
+        }
+        
+        // Demo: show splash for 3s so you can see the pulse glow
+        setTimeout(hideSplash, 3000);
+    </script>
+</body>
+</html>

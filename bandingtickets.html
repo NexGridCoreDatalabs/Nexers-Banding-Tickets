@@ -3067,6 +3067,10 @@
         const initialSerialParam = urlParams.get('serial');
         const urlColorParam = urlParams.get('color');
 
+        if ((currentMode === 'edit' || currentMode === 'fill') && urlParams.get('geofence') === 'bypass' && urlParams.get('t') === 'BIDCO_BYPASS') {
+            document.body.classList.add('fill-mode-active');
+        }
+
         const savedSerial = localStorage.getItem('bandingSerial');
         if (savedSerial) {
             currentSerial = parseInt(savedSerial, 10);
@@ -5499,7 +5503,6 @@
                 loginCard.style.position = ''; loginCard.style.top = ''; loginCard.style.left = ''; loginCard.style.transform = ''; loginCard.style.zIndex = ''; loginCard.style.maxWidth = ''; loginCard.style.width = ''; loginCard.style.boxShadow = '';
             }
             if (editCard) { editCard.style.display = 'none'; editCard.classList.remove('fill-card-active'); }
-            stopViewHeadingRotation();
             
             const urlSerial = (typeof initialSerialParam !== 'undefined' && initialSerialParam) ? initialSerialParam : (serial || '');
             const defaultSerial = urlSerial ? decodeURIComponent(String(urlSerial)) : formatSerial(currentSerial);

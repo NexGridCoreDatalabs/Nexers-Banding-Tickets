@@ -2194,7 +2194,10 @@
 
     <div class="fill-mode" id="fillContainer">
         <div class="fill-card" id="viewCard" style="display: none;">
-            <h2>⬥ View Ticket <button type="button" class="btn-reset" id="viewRefreshBtn" onclick="refreshViewTicket()" style="margin-left: 12px; padding: 6px 12px; font-size: 13px;" title="Reload ticket data">🔄 Refresh</button></h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 4px;">
+                <h2 style="margin: 0;">⬥ View Ticket <button type="button" class="btn-reset" id="viewRefreshBtn" onclick="refreshViewTicket()" style="margin-left: 12px; padding: 6px 12px; font-size: 13px;" title="Reload ticket data">🔄 Refresh</button></h2>
+                <button type="button" id="viewModeLoginBtn" class="btn-reset" onclick="showViewModeLogin()" style="font-size: 12px; padding: 6px 14px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; white-space: nowrap;">🔐 Authorized Access</button>
+            </div>
             <p class="fill-intro">Viewing ticket: <strong id="viewSerialDisplay"></strong></p>
             <div id="viewContent" class="fill-form">
                 <div id="viewLoading" style="text-align: center; padding: 60px 20px;">
@@ -2853,7 +2856,12 @@
         if (logoutButton) {
             logoutButton.addEventListener('click', () => {
                 clearLoggedInUserSession();
-                showLoginCard();
+                if (currentMode === 'view') {
+                    // Stay on view page, just hide movement section
+                    updateLoggedInUserBanner();
+                } else {
+                    showLoginCard();
+                }
             });
         }
 
@@ -2929,6 +2937,19 @@
                 movementMovedByInput.value = loggedInUser.name || loggedInUser.id || '';
             }
             if (typeof updateReceivingOperatorDisplay === 'function') updateReceivingOperatorDisplay();
+
+            // In view mode, movement section is gated — only show to logged-in users.
+            // In edit/fill mode, initFillMode() handles showing it unconditionally.
+            if (currentMode === 'view') {
+                const movementSection = document.getElementById('movementSection');
+                const loginBtn = document.getElementById('viewModeLoginBtn');
+                if (movementSection) {
+                    movementSection.style.display = isUserLoggedIn() ? 'block' : 'none';
+                }
+                if (loginBtn) {
+                    loginBtn.style.display = isUserLoggedIn() ? 'none' : '';
+                }
+            }
         }
 
         updateLoggedInUserBanner();
@@ -4548,6 +4569,45 @@
             }
         }
 
+        // Called from the "Authorized Access" button in view mode.
+        // Shows the login card as a modal overlay without leaving the view page.
+        async function showViewModeLogin() {
+            if (!authorizedUsersLoaded) {
+                const { users } = await loadAuthorizedUsers();
+                populateAuthorizedUserSelects(users);
+                authorizedUsersLoaded = true;
+            }
+            // Reuse the loginCard but show it as an overlay on top of the viewCard
+            const loginCard = document.getElementById('loginCard');
+            if (loginCard) {
+                loginCard.style.display = 'block';
+                loginCard.style.position = 'fixed';
+                loginCard.style.top = '50%';
+                loginCard.style.left = '50%';
+                loginCard.style.transform = 'translate(-50%, -50%)';
+                loginCard.style.zIndex = '9999';
+                loginCard.style.maxWidth = '420px';
+                loginCard.style.width = '90%';
+                loginCard.style.boxShadow = '0 24px 80px rgba(0,0,0,0.7)';
+            }
+        }
+
+        // Called after a successful login when in view mode — close overlay and reveal movement
+        function closeViewModeLogin() {
+            const loginCard = document.getElementById('loginCard');
+            if (loginCard) {
+                loginCard.style.display = 'none';
+                loginCard.style.position = '';
+                loginCard.style.top = '';
+                loginCard.style.left = '';
+                loginCard.style.transform = '';
+                loginCard.style.zIndex = '';
+                loginCard.style.maxWidth = '';
+                loginCard.style.width = '';
+                loginCard.style.boxShadow = '';
+            }
+        }
+
         function showEditCard() {
             const loginCard = document.getElementById('loginCard');
             const editCard = document.getElementById('editCard');
@@ -4581,8 +4641,15 @@
                     loginAt: new Date().toISOString()
                 });
                 document.getElementById('loginPasscode').value = '';
-                showEditCard();
-                updateLoggedInUserBanner();
+                if (currentMode === 'view') {
+                    // In view mode: close the login overlay, stay on view page
+                    closeViewModeLogin();
+                    updateLoggedInUserBanner();
+                    showToast(`Signed in as ${userData.name || userId}. Stock Movement Control is now available.`, 'success', 5000);
+                } else {
+                    showEditCard();
+                    updateLoggedInUserBanner();
+                }
                 if (loginStatus) {
                     loginStatus.textContent = '✅ Login successful. Editor unlocked.';
                     loginStatus.classList.add('success');
@@ -4608,10 +4675,8 @@
             if (fillContainer) {
                 fillContainer.classList.add('visible');
             }
-            const movementSection = document.getElementById('movementSection');
-            if (movementSection) {
-                movementSection.style.display = 'block';
-            }
+            // Movement section only visible to logged-in authorized users in view mode
+            // updateLoggedInUserBanner() will show/hide it based on login state
             
             const viewCard = document.getElementById('viewCard');
             const editCard = document.getElementById('editCard');

@@ -4934,11 +4934,11 @@
         // View Mode Functions - witty heading (rotates on refresh, corporate-friendly)
         let viewHeadingIdx = 0;
         const VIEW_HEADING_PHRASES = [
-            s => `⬥ Your ticket details are ready. Viewing: ${s}`,
-            s => `⬥ Ticket information loaded. Viewing: ${s}`,
-            s => `⬥ All details for ticket ${s} are displayed below.`,
-            s => `⬥ Here is your ticket information. Serial: ${s}`,
-            s => `⬥ Ticket ${s} — ready for your review.`
+            s => `⬥ Your ticket has arrived — ready when you are. Viewing: ${s}`,
+            s => `⬥ Ticket loaded and ready to roll. Viewing: ${s}`,
+            s => `⬥ Everything you need for ${s}, right here.`,
+            s => `⬥ Here's what you're looking for. Serial: ${s}`,
+            s => `⬥ Ticket ${s} — ready for the spotlight.`
         ];
         function advanceViewHeading() {
             const el = document.getElementById('viewRotatingHeading');

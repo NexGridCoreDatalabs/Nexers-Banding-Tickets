@@ -80,15 +80,6 @@
         body.fill-mode-active .print-container {
             display: none;
         }
-        body.fill-mode-active #fillContainer {
-            display: grid !important;
-            grid-template-columns: 1fr;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 16px;
-            gap: 20px;
-            padding-bottom: max(80px, env(safe-area-inset-bottom));
-        }
         body.fill-mode-active #movementSection {
             max-width: 1400px;
             margin: 24px auto;
@@ -2601,8 +2592,8 @@
                 </p>
             </div>
         </div>
-    </div>
-    <div id="movementSection" style="display: none;">
+
+        <div id="movementSection" style="display: none;">
             <div class="movement-toggle">
                 <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
                     🚚 Open Stock Movement Control
@@ -2734,6 +2725,7 @@
                 </div>
             </div>
         </div>
+    </div>
 
     <script src="https://apis.google.com/js/api.js"></script>
     <script>
@@ -3396,7 +3388,7 @@
             }, 120);
         }
         async function runViewOrEditInit(serial) {
-            const showSplash = shouldShowSplash() && currentMode === 'view';
+            const showSplash = shouldShowSplash();
             if (showSplash) {
                 try { sessionStorage.setItem(SPLASH_SESSION_KEY, '1'); } catch (e) {}
                 showSplashUI();
@@ -5478,8 +5470,6 @@
             const fillContainer = document.getElementById('fillContainer');
             if (fillContainer) {
                 fillContainer.classList.add('visible');
-                fillContainer.style.display = 'grid';
-                fillContainer.style.visibility = 'visible';
             }
             
             const viewCard = document.getElementById('viewCard');

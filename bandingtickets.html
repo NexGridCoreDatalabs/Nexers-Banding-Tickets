@@ -3181,6 +3181,8 @@
             GOOGLE_APPS_SCRIPT_URL = DEFAULT_GOOGLE_APPS_SCRIPT_URL;
         }
         
+        const API_TIMEOUT_MS = 10000;
+        
         // SECURITY: Config section password protection
         const CONFIG_UNLOCK_TOKEN = 'config_section_unlocked';
         let configValuesVisible = false;
@@ -4304,8 +4306,11 @@
             }
             
             try {
+                const ctrl = new AbortController();
+                const t = setTimeout(function() { ctrl.abort(); }, API_TIMEOUT_MS);
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=read&serial=${encodeURIComponent(serial)}`;
-                const response = await fetch(url);
+                const response = await fetch(url, { signal: ctrl.signal });
+                clearTimeout(t);
                 if (!response.ok) {
                     throw new Error(`Failed to read ticket: ${response.statusText}`);
                 }
@@ -4648,8 +4653,11 @@
         async function loadAuthorizedUsers() {
             if (!GOOGLE_APPS_SCRIPT_URL) return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
             try {
+                const ctrl = new AbortController();
+                const t = setTimeout(function() { ctrl.abort(); }, API_TIMEOUT_MS);
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=users`;
-                const response = await fetch(url);
+                const response = await fetch(url, { signal: ctrl.signal });
+                clearTimeout(t);
                 if (!response.ok) return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
                 const result = await response.json();
                 if (!result.success) return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
@@ -4668,8 +4676,11 @@
         async function loadSkusFromZoneMapping() {
             if (!GOOGLE_APPS_SCRIPT_URL) return [];
             try {
+                const ctrl = new AbortController();
+                const t = setTimeout(function() { ctrl.abort(); }, API_TIMEOUT_MS);
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=getSkus`;
-                const response = await fetch(url);
+                const response = await fetch(url, { signal: ctrl.signal });
+                clearTimeout(t);
                 if (!response.ok) return [];
                 const result = await response.json();
                 if (!result.success) return [];

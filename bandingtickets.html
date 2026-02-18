@@ -2364,7 +2364,7 @@
 
     <div class="fill-mode" id="fillContainer">
         <div class="fill-card" id="viewCard" style="display: none;">
-            <h2 id="viewRotatingHeading" style="margin: 0 0 4px 0; text-align: center; min-height: 2.5em;"></h2>
+            <h2 id="viewRotatingHeading" style="margin: 0 0 4px 0; text-align: center; min-height: 2.5em; text-transform: none;"></h2>
             <span id="viewSerialDisplay" style="display:none; speak:none;" aria-hidden="true"></span>
             <div id="viewContent" class="fill-form">
                 <div id="viewLoading" style="text-align: center; padding: 60px 20px;">
@@ -4931,33 +4931,28 @@
             // when saving tickets (see saveTicketToSheet function)
         }
         
-        // View Mode Functions - rotating witty heading
-        let viewHeadingInterval = null;
+        // View Mode Functions - witty heading (rotates on refresh, corporate-friendly)
+        let viewHeadingIdx = 0;
         const VIEW_HEADING_PHRASES = [
-            s => `⬥ Look what the scanner dragged in — your ticket, served fresh. Viewing: ${s}`,
-            s => `⬥ Peek-a-boo! Here's what you asked for. Viewing ticket: ${s}`,
-            s => `⬥ Your ticket, at your service. ${s} reporting for duty.`,
-            s => `⬥ All the deets, right here. Viewing ticket: ${s}`,
-            s => `⬥ Ticket ${s} has entered the chat — here's the scoop.`
+            s => `⬥ Your ticket details are ready. Viewing: ${s}`,
+            s => `⬥ Ticket information loaded. Viewing: ${s}`,
+            s => `⬥ All details for ticket ${s} are displayed below.`,
+            s => `⬥ Here is your ticket information. Serial: ${s}`,
+            s => `⬥ Ticket ${s} — ready for your review.`
         ];
-        function startViewHeadingRotation() {
-            stopViewHeadingRotation();
+        function advanceViewHeading() {
             const el = document.getElementById('viewRotatingHeading');
             const serialEl = document.getElementById('viewSerialDisplay');
             if (!el || !serialEl) return;
             const serial = serialEl.textContent.trim() || '—';
-            let idx = 0;
-            el.textContent = VIEW_HEADING_PHRASES[0](serial);
-            viewHeadingInterval = setInterval(function() {
-                idx = (idx + 1) % VIEW_HEADING_PHRASES.length;
-                el.textContent = VIEW_HEADING_PHRASES[idx](serial);
-            }, 3500);
+            el.textContent = VIEW_HEADING_PHRASES[viewHeadingIdx](serial);
+            viewHeadingIdx = (viewHeadingIdx + 1) % VIEW_HEADING_PHRASES.length;
+        }
+        function startViewHeadingRotation() {
+            advanceViewHeading();
         }
         function stopViewHeadingRotation() {
-            if (viewHeadingInterval) {
-                clearInterval(viewHeadingInterval);
-                viewHeadingInterval = null;
-            }
+            viewHeadingIdx = 0;
         }
         
         async function initViewMode(serial) {
@@ -5073,6 +5068,7 @@
                 }
             } finally {
                 hideRetifluxLoadingOverlay();
+                advanceViewHeading();
             }
         }
 

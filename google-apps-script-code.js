@@ -5670,6 +5670,9 @@ function getBinCardData(params) {
             confirmedAt: (brow[bci.ConfirmedAt] || '').toString(),
             totalPhysical: Number(brow[bci.PhysicalCount]) || 0,
             totalSystem: Number(brow[bci.SystemClosingBalance]) || 0,
+            totalOpening: Number(brow[bci.OpeningBalance]) || 0,
+            totalMovedIn: Number(brow[bci.MovedIn]) || 0,
+            totalMovedOut: Number(brow[bci.MovedOut]) || 0,
             zoneVariance: Number(brow[bci.Variance]) || 0,
             varianceDetails: []
           };
@@ -5686,8 +5689,15 @@ function getBinCardData(params) {
         if (confirmedZones[bZone] && confirmedZones[bZone].varianceDetails) {
           var phys = Number(brow[bci.PhysicalCount]) || 0;
           var sys  = Number(brow[bci.SystemClosingBalance]) || 0;
-          var v    = Number(brow[bci.Variance]) || (phys - sys);
-          confirmedZones[bZone].varianceDetails.push({ sku: bSku, physicalCount: phys, systemClosing: sys, variance: v });
+          var v    = Number(brow[bci.Variance]);
+          if (isNaN(v)) v = phys - sys;
+          var open = Number(brow[bci.OpeningBalance]) || 0;
+          var min  = Number(brow[bci.MovedIn]) || 0;
+          var mout = Number(brow[bci.MovedOut]) || 0;
+          confirmedZones[bZone].varianceDetails.push({
+            sku: bSku, physicalCount: phys, systemClosing: sys, variance: v,
+            openingBalance: open, movedIn: min, movedOut: mout
+          });
         }
       }
     }

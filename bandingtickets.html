@@ -4433,14 +4433,22 @@
                     // Build bcZones array (zone-level state used by modal)
                     bcZones = zoneOrder.map(function(zoneName) {
                         var skus = zonesMap[zoneName].map(function(c) { return Object.assign({}, c); });
-                        var totalOpening = 0, totalIn = 0, totalOut = 0, totalSystem = 0;
-                        skus.forEach(function(c) {
-                            totalOpening += (c.openingBalance       || 0);
-                            totalIn      += (c.movedIn              || 0);
-                            totalOut     += (c.movedOut             || 0);
-                            totalSystem  += (c.systemClosingBalance || 0);
-                        });
                         var zConf = confZones[zoneName] || {};
+                        var totalOpening, totalIn, totalOut, totalSystem;
+                        if (zConf.confirmed && (zConf.totalOpening != null || zConf.totalMovedIn != null)) {
+                            totalOpening = zConf.totalOpening || 0;
+                            totalIn      = zConf.totalMovedIn || 0;
+                            totalOut     = zConf.totalMovedOut || 0;
+                            totalSystem  = zConf.totalSystem || 0;
+                        } else {
+                            totalOpening = 0; totalIn = 0; totalOut = 0; totalSystem = 0;
+                            skus.forEach(function(c) {
+                                totalOpening += (c.openingBalance || 0);
+                                totalIn      += (c.movedIn || 0);
+                                totalOut     += (c.movedOut || 0);
+                                totalSystem  += (c.systemClosingBalance || 0);
+                            });
+                        }
                         var zd = {
                             zone: zoneName, skus: skus,
                             totalOpening: totalOpening, totalIn: totalIn, totalOut: totalOut, totalSystem: totalSystem,
@@ -4453,11 +4461,18 @@
                             zConf.varianceDetails.forEach(function(d) { vdMap[d.sku] = d; });
                             skus.forEach(function(s) {
                                 var vd = vdMap[s.sku];
-                                if (vd) { s.physicalCount = vd.physicalCount; s.variance = vd.variance; }
+                                if (vd) {
+                                    s.physicalCount = vd.physicalCount;
+                                    s.variance = vd.variance;
+                                    if (vd.openingBalance != null) s.openingBalance = vd.openingBalance;
+                                    if (vd.movedIn != null) s.movedIn = vd.movedIn;
+                                    if (vd.movedOut != null) s.movedOut = vd.movedOut;
+                                    if (vd.systemClosing != null) s.systemClosingBalance = vd.systemClosing;
+                                }
                             });
                             var parts = [];
                             zConf.varianceDetails.forEach(function(d) {
-                                if (d.sku !== 'ZONE_TOTAL' && d.variance !== 0 && d.variance != null) {
+                                if (d.sku !== 'ZONE_TOTAL' && d.variance !== 0 && d.variance != null && !isNaN(d.variance)) {
                                     var abs = Math.abs(d.variance);
                                     parts.push(d.sku + ': ' + abs + (d.variance < 0 ? ' short' : ' over'));
                                 }

@@ -5555,6 +5555,33 @@ function getBinCardData(params) {
     };
   }
 
+  // ── 2a. Pallet consistency: total birthed = sum of pallets in all zones (no double-count, full traceability) ──
+  var palletsByZone = {};
+  var totalPallets = 0;
+  var birthedOriginalCount = 0;
+  var parentIdIdx = palletHeaders.indexOf('ParentPalletID');
+  for (var pi2 = 1; pi2 < palletsData.length; pi2++) {
+    var r = palletsData[pi2];
+    if (!r || !r[pi.PalletID]) continue;
+    totalPallets += 1;
+    var pz = (r[pi.CurrentZone] || '').toString().trim() || 'Unknown Zone';
+    palletsByZone[pz] = (palletsByZone[pz] || 0) + 1;
+    if (parentIdIdx >= 0) {
+      var pidVal = (r[parentIdIdx] || '').toString().trim();
+      if (!pidVal) birthedOriginalCount += 1;
+    } else {
+      birthedOriginalCount += 1;
+    }
+  }
+  var sumOfZonePallets = Object.keys(palletsByZone).reduce(function(s, z) { return s + (palletsByZone[z] || 0); }, 0);
+  var palletConsistency = {
+    totalPallets: totalPallets,
+    sumOfZonePallets: sumOfZonePallets,
+    consistent: totalPallets === sumOfZonePallets,
+    birthedOriginalCount: birthedOriginalCount,
+    palletsByZone: palletsByZone
+  };
+
   // ── 2. Current closing balance per Zone+SKU ──
   var SKIP_ZONES = { 'Outbounding': true, 'Outbonded': true, 'Outbounded': true };
   var zoneSkuBalance = {};
@@ -5723,7 +5750,8 @@ function getBinCardData(params) {
     cards: cards,
     confirmedZones: confirmedZones,
     totalCards: totalZones,
-    confirmedCount: confirmedZoneCount
+    confirmedCount: confirmedZoneCount,
+    palletConsistency: palletConsistency
   });
 }
 

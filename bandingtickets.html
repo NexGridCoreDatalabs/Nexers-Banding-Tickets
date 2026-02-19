@@ -2366,6 +2366,8 @@
             color: #f1f5f9;
             font-weight: 700;
         }
+        .bc-consistency-ok { color: #34d399 !important; }
+        .bc-consistency-warn { color: #f87171 !important; font-weight: 600; }
         .bc-shift-badge {
             display: inline-flex;
             align-items: center;
@@ -2685,16 +2687,69 @@
         .bc-btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
         .bc-modal-status { text-align: center; font-size: 13px; margin-top: 12px; min-height: 20px; }
 
-        /* Print bin card */
+        /* Print bin card — report layout, no interactive elements */
         @media print {
+            body.bincards-mode-active * { visibility: hidden; }
+            body.bincards-mode-active #binCardsSection,
+            body.bincards-mode-active #binCardsSection * { visibility: visible; }
+            body.bincards-mode-active #binCardsSection {
+                position: absolute; left: 0; top: 0; width: 100%; padding: 0; background: #fff;
+            }
             body.bincards-mode-active #binCardsLoginOverlay,
-            body.bincards-mode-active .bc-header .bc-shift-badge,
+            body.bincards-mode-active .bc-progress-bar,
+            body.bincards-mode-active .bc-progress-label,
+            body.bincards-mode-active #bcLoadingState,
+            body.bincards-mode-active #bcEmptyState,
             body.bincards-mode-active .bc-confirm-btn,
             body.bincards-mode-active .bc-print-btn,
-            body.bincards-mode-active .app-footer-bar { display: none !important; }
-            body.bincards-mode-active #binCardsSection { padding: 0 !important; }
-            .bc-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc !important; background: #fff !important; color: #000 !important; }
-            .bc-card-zone, .bc-card-sku, .bc-bal-label, .bc-bal-value { color: #000 !important; }
+            body.bincards-mode-active #bcAuditReportBtn,
+            body.bincards-mode-active #bcRevokeAdminBtn,
+            body.bincards-mode-active .bc-header a[href="index.html"],
+            body.bincards-mode-active .app-footer-bar,
+            body.bincards-mode-active .bc-modal-overlay,
+            body.bincards-mode-active .movement-login-overlay { display: none !important; visibility: hidden !important; }
+            body.bincards-mode-active .bc-header {
+                display: block !important; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #333;
+            }
+            body.bincards-mode-active .bc-header h2 { font-size: 18px; color: #000; margin: 0; }
+            body.bincards-mode-active .bc-header .bc-shift-badge,
+            body.bincards-mode-active .bc-header div:first-child div:first-child,
+            body.bincards-mode-active .bc-header .bc-consistency-ok,
+            body.bincards-mode-active .bc-header .bc-consistency-warn { font-size: 11px; color: #333; margin-top: 4px; }
+            body.bincards-mode-active .bc-grid {
+                display: block !important; max-width: none;
+            }
+            body.bincards-mode-active .bc-zone-card {
+                break-inside: avoid; page-break-inside: avoid;
+                background: #fff !important; border: 1px solid #333 !important; margin-bottom: 20px; padding: 16px;
+                box-shadow: none !important;
+            }
+            body.bincards-mode-active .bc-zone-card * { color: #000 !important; }
+            body.bincards-mode-active .bc-zc-topbar { border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 12px; }
+            body.bincards-mode-active .bc-zc-zone-name { color: #000 !important; font-size: 14px; }
+            body.bincards-mode-active .bc-status-pill {
+                border: 1px solid #333; color: #000; background: #f5f5f5;
+            }
+            body.bincards-mode-active .bc-zc-summary {
+                background: #f9f9f9 !important; border: 1px solid #ddd; padding: 12px; margin-bottom: 12px;
+            }
+            body.bincards-mode-active .bc-zc-sum-item .bc-zc-sum-label { color: #555 !important; }
+            body.bincards-mode-active .bc-zc-sum-item .bc-zc-sum-value { color: #000 !important; }
+            body.bincards-mode-active .bc-zc-sku-table {
+                border: 1px solid #333; font-size: 11px;
+            }
+            body.bincards-mode-active .bc-zc-sku-table th,
+            body.bincards-mode-active .bc-zc-sku-table td {
+                border: 1px solid #666; padding: 6px 8px; color: #000 !important;
+            }
+            body.bincards-mode-active .bc-zc-sku-table th { background: #e8e8e8 !important; }
+            body.bincards-mode-active .bc-zc-sku-table .variance-match { color: #0a0 !important; }
+            body.bincards-mode-active .bc-zc-sku-table .variance-short { color: #c00 !important; }
+            body.bincards-mode-active .bc-zc-sku-table .variance-over { color: #60a !important; }
+            body.bincards-mode-active .bc-zc-confirmed-stamp { color: #333 !important; font-size: 11px; margin-top: 8px; }
+            body.bincards-mode-active .bc-zc-sku-list-only { background: #f5f5f5 !important; border: 1px solid #ddd; color: #000 !important; }
+            body.bincards-mode-active .bc-zc-sku-list-label { color: #555 !important; }
+            body.bincards-mode-active .bc-zc-sku-list { color: #000 !important; }
         }
         .movement-login-overlay {
             display: none;
@@ -2981,6 +3036,7 @@
             <div>
                 <div style="font-size:12px;color:#64748b;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">📋 Bin Card Center</div>
                 <h2>Shift Stock Reconciliation</h2>
+                <div id="bcPalletConsistency" class="bc-consistency-line" style="font-size:11px;margin-top:6px;color:#64748b;"></div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                 <span class="bc-shift-badge" id="bcShiftBadge">☀️ Loading shift…</span>
@@ -4404,6 +4460,21 @@
 
                     var badge = document.getElementById('bcShiftBadge');
                     if (badge) badge.textContent = data.shiftInfo.label;
+
+                    var pc = data.palletConsistency || {};
+                    var consEl = document.getElementById('bcPalletConsistency');
+                    if (consEl) {
+                        if (pc.consistent) {
+                            consEl.innerHTML = '✓ Pallet count reconciled: ' + (pc.totalPallets || 0) + ' total = sum across zones (traceability OK)';
+                            consEl.className = 'bc-consistency-line bc-consistency-ok';
+                        } else if (pc.totalPallets != null || pc.sumOfZonePallets != null) {
+                            consEl.innerHTML = '⚠ Data consistency gap: ' + (pc.totalPallets || 0) + ' pallets vs ' + (pc.sumOfZonePallets || 0) + ' summed by zone — investigate';
+                            consEl.className = 'bc-consistency-line bc-consistency-warn';
+                        } else {
+                            consEl.innerHTML = '';
+                            consEl.className = 'bc-consistency-line';
+                        }
+                    }
 
                     var confirmed = data.confirmedCount || 0;
                     var total     = data.totalCards     || 0;

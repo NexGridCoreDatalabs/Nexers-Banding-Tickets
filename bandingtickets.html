@@ -2391,9 +2391,7 @@
 
         /* Card grid */
         .bc-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 16px;
+            display: block;
             margin-bottom: 32px;
         }
         .bc-card {
@@ -2483,6 +2481,84 @@
             margin-top: 8px;
             text-align: center;
         }
+
+        /* Zone-grouped layout */
+        .bc-zone-group {
+            margin-bottom: 32px;
+        }
+        .bc-zone-header {
+            background: linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,58,95,0.7));
+            border: 1px solid rgba(245,158,11,0.4);
+            border-radius: 14px 14px 0 0;
+            padding: 16px 20px;
+        }
+        .bc-zone-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .bc-zone-name {
+            font-size: 18px;
+            font-weight: 800;
+            color: #fbbf24;
+            letter-spacing: 0.3px;
+        }
+        .bc-zone-meta {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 600;
+            background: rgba(255,255,255,0.05);
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+        .bc-zone-totals {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .bc-zt-item {
+            flex: 1;
+            min-width: 80px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 8px;
+            padding: 8px 12px;
+            text-align: center;
+        }
+        .bc-zt-label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .bc-zt-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: #e2e8f0;
+        }
+        .bc-sku-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 0;
+            border: 1px solid rgba(245,158,11,0.2);
+            border-top: none;
+            border-radius: 0 0 14px 14px;
+            overflow: hidden;
+        }
+        .bc-sku-grid .bc-card {
+            border-radius: 0;
+            border: none;
+            border-right: 1px solid rgba(255,255,255,0.06);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .bc-sku-grid .bc-card:last-child {
+            border-right: none;
+        }
+        .bc-card-zone { display: none; } /* Zone shown in group header */
 
         /* Confirm modal */
         .bc-modal-overlay {
@@ -4078,7 +4154,7 @@
                                 if (statusEl) { statusEl.textContent = '✅ Access granted.'; statusEl.className = 'login-status success'; }
                                 setTimeout(function() {
                                     const overlay = document.getElementById('movementLoginOverlay');
-                                    if (overlay) overlay.style.display = 'none';
+                                    if (overlay) overlay.style.cssText = 'display:none!important';
                                     openMovementAtTab();
                                 }, 600);
                             } else {
@@ -4093,18 +4169,19 @@
                 }
 
                 (async function() {
+                    // Always load users so the dropdown is ready regardless of session state
+                    try {
+                        const { users } = await loadAuthorizedUsers();
+                        initMovementLoginForm(users);
+                        authorizedUsersLoaded = true;
+                    } catch (e) {
+                        initMovementLoginForm([]);
+                    }
+                    // If already authenticated, skip the overlay entirely
                     if (isUserLoggedIn()) {
                         const overlay = document.getElementById('movementLoginOverlay');
-                        if (overlay) overlay.style.display = 'none';
-                        setTimeout(openMovementAtTab, 300);
-                    } else {
-                        try {
-                            const { users } = await loadAuthorizedUsers();
-                            initMovementLoginForm(users);
-                            authorizedUsersLoaded = true;
-                        } catch (e) {
-                            initMovementLoginForm([]);
-                        }
+                        if (overlay) overlay.style.cssText = 'display:none!important';
+                        openMovementAtTab();
                     }
                 })();
             })();
@@ -4166,7 +4243,7 @@
                     var fill  = document.getElementById('bcProgressFill');
                     var label = document.getElementById('bcProgressLabel');
                     if (fill)  fill.style.width = pct + '%';
-                    if (label) label.textContent = confirmed + ' of ' + total + ' cards confirmed (' + pct + '%)';
+                    if (label) label.textContent = confirmed + ' of ' + total + ' SKU cards confirmed (' + pct + '%)';
 
                     document.getElementById('bcLoadingState').style.display = 'none';
 
@@ -4178,8 +4255,52 @@
                         return;
                     }
 
+                    // Group cards by zone — zone is the primary dimension
+                    var zones = {}, zoneOrder = [];
                     bcAllCards.forEach(function(card, idx) {
-                        grid.appendChild(buildBcCard(card, idx));
+                        if (!zones[card.zone]) { zones[card.zone] = []; zoneOrder.push(card.zone); }
+                        zones[card.zone].push({ card: card, idx: idx });
+                    });
+
+                    zoneOrder.forEach(function(zone) {
+                        var zoneItems = zones[zone];
+                        var zoneOpening = 0, zoneIn = 0, zoneOut = 0, zoneSystem = 0, zoneDone = 0;
+                        zoneItems.forEach(function(item) {
+                            var c = item.card;
+                            zoneOpening += (c.openingBalance       || 0);
+                            zoneIn      += (c.movedIn              || 0);
+                            zoneOut     += (c.movedOut             || 0);
+                            zoneSystem  += (c.systemClosingBalance || 0);
+                            if (c.confirmed) zoneDone++;
+                        });
+
+                        var group = document.createElement('div');
+                        group.className = 'bc-zone-group';
+
+                        var header = document.createElement('div');
+                        header.className = 'bc-zone-header';
+                        header.innerHTML =
+                            '<div class="bc-zone-title">' +
+                                '<span class="bc-zone-name">📦 ' + escapeHtml(zone) + '</span>' +
+                                '<span class="bc-zone-meta">' + zoneItems.length + ' SKU' + (zoneItems.length !== 1 ? 's' : '') +
+                                    ' &nbsp;·&nbsp; ' + zoneDone + '/' + zoneItems.length + ' confirmed</span>' +
+                            '</div>' +
+                            '<div class="bc-zone-totals">' +
+                                '<div class="bc-zt-item"><div class="bc-zt-label">Total Units (System)</div><div class="bc-zt-value">' + fmt(zoneSystem) + '</div></div>' +
+                                '<div class="bc-zt-item"><div class="bc-zt-label">Moved In</div><div class="bc-zt-value" style="color:#34d399;">+' + fmt(zoneIn) + '</div></div>' +
+                                '<div class="bc-zt-item"><div class="bc-zt-label">Moved Out</div><div class="bc-zt-value" style="color:#f87171;">−' + fmt(zoneOut) + '</div></div>' +
+                                '<div class="bc-zt-item"><div class="bc-zt-label">Opening Balance</div><div class="bc-zt-value" style="color:#94a3b8;">' + fmt(zoneOpening) + '</div></div>' +
+                            '</div>';
+
+                        var skuGrid = document.createElement('div');
+                        skuGrid.className = 'bc-sku-grid';
+                        zoneItems.forEach(function(item) {
+                            skuGrid.appendChild(buildBcCard(item.card, item.idx));
+                        });
+
+                        group.appendChild(header);
+                        group.appendChild(skuGrid);
+                        grid.appendChild(group);
                     });
                 }
 
@@ -4195,25 +4316,27 @@
                     var statusText   = card.confirmed ? '✅ Confirmed' : '⏳ Open';
                     var varianceHtml = '';
                     if (card.confirmed) {
-                        var varClass = card.variance === 0 ? 'positive' : (card.variance < 0 ? 'negative' : 'positive');
-                        var varSign  = card.variance > 0 ? '+' : '';
-                        varianceHtml = '<div class="bc-bal-item"><div class="bc-bal-label">Variance</div><div class="bc-bal-value ' + varClass + '">' + varSign + fmt(card.variance) + '</div></div>';
+                        var varVal   = card.variance || 0;
+                        var varClass = varVal === 0 ? 'positive' : (varVal < 0 ? 'negative' : 'positive');
+                        var varSign  = varVal > 0 ? '+' : '';
+                        varianceHtml = '<div class="bc-bal-item"><div class="bc-bal-label">Variance</div><div class="bc-bal-value ' + varClass + '">' + varSign + fmt(varVal) + '</div></div>';
                     }
 
                     div.innerHTML =
                         '<div class="bc-card-header">' +
-                            '<div><div class="bc-card-zone">' + escapeHtml(card.zone) + '</div><div class="bc-card-sku">' + escapeHtml(card.sku) + '</div></div>' +
+                            '<div class="bc-card-sku" style="font-size:15px;font-weight:700;">' + escapeHtml(card.sku) + '</div>' +
                             '<span class="bc-status-pill ' + statusClass + '">' + statusText + '</span>' +
                         '</div>' +
                         '<div class="bc-balances">' +
-                            '<div class="bc-bal-item"><div class="bc-bal-label">Opening</div><div class="bc-bal-value">' + fmt(card.openingBalance) + '</div></div>' +
+                            '<div class="bc-bal-item"><div class="bc-bal-label">Opening</div><div class="bc-bal-value" style="color:#94a3b8;">' + fmt(card.openingBalance) + '</div></div>' +
                             '<div class="bc-bal-item"><div class="bc-bal-label">In</div><div class="bc-bal-value" style="color:#34d399;">+' + fmt(card.movedIn) + '</div></div>' +
-                            '<div class="bc-bal-item"><div class="bc-bal-label">Out</div><div class="bc-bal-value" style="color:#f87171;">-' + fmt(card.movedOut) + '</div></div>' +
+                            '<div class="bc-bal-item"><div class="bc-bal-label">Out</div><div class="bc-bal-value" style="color:#f87171;">−' + fmt(card.movedOut) + '</div></div>' +
                             '<div class="bc-bal-item"><div class="bc-bal-label">System</div><div class="bc-bal-value">' + fmt(card.systemClosingBalance) + '</div></div>' +
                             (card.confirmed ? varianceHtml : '') +
                         '</div>' +
                         (card.confirmed
-                            ? '<div class="bc-confirmed-summary">Confirmed by <strong>' + escapeHtml(card.confirmedBy || '—') + '</strong></div>'
+                            ? '<div class="bc-confirmed-summary">Confirmed by <strong>' + escapeHtml(card.confirmedBy || '—') + '</strong> · ' +
+                              '<span style="color:#34d399;">Var: ' + (card.variance > 0 ? '+' : '') + fmt(card.variance) + '</span></div>'
                             : '<button class="bc-confirm-btn" onclick="event.stopPropagation();openBcModal(' + idx + ')">📝 Enter Physical Count & Confirm</button>');
                     return div;
                 }
@@ -4409,19 +4532,20 @@
                 }
 
                 (async function() {
+                    // Always load users so the dropdown is ready regardless of session state
+                    try {
+                        var { users } = await loadAuthorizedUsers();
+                        initBcLoginForm(users);
+                        authorizedUsersLoaded = true;
+                    } catch (e) {
+                        initBcLoginForm([]);
+                    }
+                    // If already authenticated, skip the overlay entirely
                     if (isUserLoggedIn()) {
                         bcLoggedInUser = { id: loggedInUser.id, name: loggedInUser.name || loggedInUser.id };
                         var overlay = document.getElementById('binCardsLoginOverlay');
                         if (overlay) overlay.style.cssText = 'display:none!important';
                         loadAndRenderBinCards();
-                    } else {
-                        try {
-                            var { users } = await loadAuthorizedUsers();
-                            initBcLoginForm(users);
-                            authorizedUsersLoaded = true;
-                        } catch (e) {
-                            initBcLoginForm([]);
-                        }
                     }
                 })();
             })();

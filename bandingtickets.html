@@ -2482,83 +2482,104 @@
             text-align: center;
         }
 
-        /* Zone-grouped layout */
-        .bc-zone-group {
-            margin-bottom: 32px;
+        /* ── Zone-card layout (1 card per zone) ── */
+        .bc-zone-card {
+            background: linear-gradient(135deg, rgba(15,23,42,0.97), rgba(22,40,70,0.97));
+            border: 1px solid rgba(245,158,11,0.35);
+            border-radius: 18px;
+            margin-bottom: 24px;
+            overflow: hidden;
         }
-        .bc-zone-header {
-            background: linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,58,95,0.7));
-            border: 1px solid rgba(245,158,11,0.4);
-            border-radius: 14px 14px 0 0;
-            padding: 16px 20px;
+        .bc-zone-card.bc-zone-confirmed {
+            border-color: rgba(52,211,153,0.45);
         }
-        .bc-zone-title {
+        /* Card top bar */
+        .bc-zc-topbar {
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 14px;
+            gap: 10px;
+            padding: 18px 22px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
         }
-        .bc-zone-name {
-            font-size: 18px;
+        .bc-zc-zone-name {
+            font-size: 20px;
             font-weight: 800;
             color: #fbbf24;
             letter-spacing: 0.3px;
         }
-        .bc-zone-meta {
-            font-size: 12px;
-            color: #64748b;
-            font-weight: 600;
-            background: rgba(255,255,255,0.05);
-            padding: 4px 10px;
-            border-radius: 20px;
-        }
-        .bc-zone-totals {
+        /* Zone balance summary row */
+        .bc-zc-summary {
             display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
+            gap: 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
         }
-        .bc-zt-item {
+        .bc-zc-sum-item {
             flex: 1;
-            min-width: 80px;
-            background: rgba(255,255,255,0.04);
-            border-radius: 8px;
-            padding: 8px 12px;
+            padding: 14px 16px;
             text-align: center;
+            border-right: 1px solid rgba(255,255,255,0.06);
         }
-        .bc-zt-label {
+        .bc-zc-sum-item:last-child { border-right: none; }
+        .bc-zc-sum-label {
             font-size: 10px;
             color: #64748b;
             text-transform: uppercase;
             letter-spacing: 0.8px;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 5px;
         }
-        .bc-zt-value {
-            font-size: 20px;
+        .bc-zc-sum-value {
+            font-size: 22px;
             font-weight: 800;
             color: #e2e8f0;
         }
-        .bc-sku-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 0;
-            border: 1px solid rgba(245,158,11,0.2);
-            border-top: none;
-            border-radius: 0 0 14px 14px;
-            overflow: hidden;
+        /* SKU breakdown table */
+        .bc-zc-sku-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
         }
-        .bc-sku-grid .bc-card {
-            border-radius: 0;
-            border: none;
-            border-right: 1px solid rgba(255,255,255,0.06);
+        .bc-zc-sku-table th {
+            padding: 8px 14px;
+            text-align: left;
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+            background: rgba(255,255,255,0.03);
             border-bottom: 1px solid rgba(255,255,255,0.06);
         }
-        .bc-sku-grid .bc-card:last-child {
-            border-right: none;
+        .bc-zc-sku-table th:not(:first-child),
+        .bc-zc-sku-table td:not(:first-child) { text-align: right; }
+        .bc-zc-sku-table td {
+            padding: 10px 14px;
+            color: #e2e8f0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
         }
-        .bc-card-zone { display: none; } /* Zone shown in group header */
+        .bc-zc-sku-table tr:last-child td { border-bottom: none; }
+        .bc-zc-sku-table tr:hover td { background: rgba(255,255,255,0.02); }
+        /* Footer: confirm button or confirmed stamp */
+        .bc-zc-footer {
+            padding: 16px 22px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .bc-zc-confirmed-stamp {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #34d399;
+        }
+        .bc-card-zone { display: none; }
 
         /* Confirm modal */
         .bc-modal-overlay {
@@ -2947,8 +2968,8 @@
     <!-- ── Bin-card confirm modal ── -->
     <div class="bc-modal-overlay" id="bcConfirmModal">
         <div class="bc-modal">
-            <h3 id="bcModalTitle">Confirm Physical Count</h3>
-            <div class="bc-modal-sub" id="bcModalSub">Zone · SKU · Shift</div>
+            <h3 id="bcModalTitle">Zone Physical Count</h3>
+            <div class="bc-modal-sub" id="bcModalSub">Zone · Shift</div>
             <div class="bc-modal-balances">
                 <div class="bc-modal-bal-item">
                     <div class="label">Opening Balance</div>
@@ -2963,18 +2984,19 @@
                     <div class="value" id="bcModalMovedOut" style="color:#f87171;">—</div>
                 </div>
                 <div class="bc-modal-bal-item">
-                    <div class="label">System Count</div>
+                    <div class="label">System Closing</div>
                     <div class="value" id="bcModalSystem">—</div>
                 </div>
             </div>
             <div class="bc-physical-input-wrap">
-                <label for="bcPhysicalInput">📦 Enter Physical Count (what you physically counted in the zone)</label>
-                <input type="number" id="bcPhysicalInput" min="0" placeholder="0" oninput="updateVariancePreview()">
+                <label for="bcPhysicalInput">📦 Enter Total Physical Count for this Zone</label>
+                <input type="number" id="bcPhysicalInput" min="0" placeholder="0">
             </div>
-            <div class="bc-variance-preview" id="bcVariancePreview">Enter physical count above to see variance</div>
+            <!-- Variance preview intentionally hidden — tracked server-side only -->
+            <div id="bcVariancePreview" style="display:none;"></div>
             <div class="bc-modal-actions">
                 <button class="bc-btn-cancel" onclick="closeBcModal()">Cancel</button>
-                <button class="bc-btn-confirm" id="bcConfirmBtn" onclick="submitBinCardConfirmation()">✅ Confirm & Close Card</button>
+                <button class="bc-btn-confirm" id="bcConfirmBtn" onclick="submitBinCardConfirmation()">✅ Close Zone Card</button>
             </div>
             <div class="bc-modal-status" id="bcModalStatus"></div>
         </div>
@@ -4199,8 +4221,9 @@
                 // State
                 var bcLoggedInUser = null;
                 var bcCurrentShift = null;
-                var bcAllCards     = [];
-                var bcActiveCard   = null; // card currently being confirmed in modal
+                var bcAllCards     = [];   // raw Zone+SKU data from server
+                var bcZones        = [];   // computed zone-level groupings
+                var bcActiveZone   = null; // zone currently being confirmed in modal
 
                 // ── Shift helpers (mirror of Apps Script getBinCardShiftInfo) ──
                 function getClientShiftInfo() {
@@ -4231,8 +4254,9 @@
 
                 // ── Render the dashboard ──
                 function renderBinCards(data) {
-                    bcCurrentShift = data.shiftInfo;
-                    bcAllCards     = data.cards || [];
+                    bcCurrentShift   = data.shiftInfo;
+                    bcAllCards       = data.cards || [];
+                    var confZones    = data.confirmedZones || {};
 
                     var badge = document.getElementById('bcShiftBadge');
                     if (badge) badge.textContent = data.shiftInfo.label;
@@ -4243,7 +4267,7 @@
                     var fill  = document.getElementById('bcProgressFill');
                     var label = document.getElementById('bcProgressLabel');
                     if (fill)  fill.style.width = pct + '%';
-                    if (label) label.textContent = confirmed + ' of ' + total + ' SKU cards confirmed (' + pct + '%)';
+                    if (label) label.textContent = confirmed + ' of ' + total + ' zone' + (total !== 1 ? 's' : '') + ' confirmed (' + pct + '%)';
 
                     document.getElementById('bcLoadingState').style.display = 'none';
 
@@ -4255,109 +4279,128 @@
                         return;
                     }
 
-                    // Group cards by zone — zone is the primary dimension
-                    var zones = {}, zoneOrder = [];
-                    bcAllCards.forEach(function(card, idx) {
-                        if (!zones[card.zone]) { zones[card.zone] = []; zoneOrder.push(card.zone); }
-                        zones[card.zone].push({ card: card, idx: idx });
+                    // Group SKU-level cards by zone
+                    var zonesMap = {}, zoneOrder = [];
+                    bcAllCards.forEach(function(card) {
+                        if (!zonesMap[card.zone]) { zonesMap[card.zone] = []; zoneOrder.push(card.zone); }
+                        zonesMap[card.zone].push(card);
                     });
 
-                    zoneOrder.forEach(function(zone) {
-                        var zoneItems = zones[zone];
-                        var zoneOpening = 0, zoneIn = 0, zoneOut = 0, zoneSystem = 0, zoneDone = 0;
-                        zoneItems.forEach(function(item) {
-                            var c = item.card;
-                            zoneOpening += (c.openingBalance       || 0);
-                            zoneIn      += (c.movedIn              || 0);
-                            zoneOut     += (c.movedOut             || 0);
-                            zoneSystem  += (c.systemClosingBalance || 0);
-                            if (c.confirmed) zoneDone++;
+                    // Build bcZones array (zone-level state used by modal)
+                    bcZones = zoneOrder.map(function(zoneName) {
+                        var skus = zonesMap[zoneName];
+                        var totalOpening = 0, totalIn = 0, totalOut = 0, totalSystem = 0;
+                        skus.forEach(function(c) {
+                            totalOpening += (c.openingBalance       || 0);
+                            totalIn      += (c.movedIn              || 0);
+                            totalOut     += (c.movedOut             || 0);
+                            totalSystem  += (c.systemClosingBalance || 0);
                         });
+                        var zConf = confZones[zoneName] || {};
+                        return {
+                            zone:        zoneName,
+                            skus:        skus,
+                            totalOpening: totalOpening,
+                            totalIn:      totalIn,
+                            totalOut:     totalOut,
+                            totalSystem:  totalSystem,
+                            confirmed:    !!(zConf.confirmed),
+                            confirmedBy:  zConf.confirmedBy || '',
+                            confirmedAt:  zConf.confirmedAt || ''
+                        };
+                    });
 
-                        var group = document.createElement('div');
-                        group.className = 'bc-zone-group';
-
-                        var header = document.createElement('div');
-                        header.className = 'bc-zone-header';
-                        header.innerHTML =
-                            '<div class="bc-zone-title">' +
-                                '<span class="bc-zone-name">📦 ' + escapeHtml(zone) + '</span>' +
-                                '<span class="bc-zone-meta">' + zoneItems.length + ' SKU' + (zoneItems.length !== 1 ? 's' : '') +
-                                    ' &nbsp;·&nbsp; ' + zoneDone + '/' + zoneItems.length + ' confirmed</span>' +
-                            '</div>' +
-                            '<div class="bc-zone-totals">' +
-                                '<div class="bc-zt-item"><div class="bc-zt-label">Total Units (System)</div><div class="bc-zt-value">' + fmt(zoneSystem) + '</div></div>' +
-                                '<div class="bc-zt-item"><div class="bc-zt-label">Moved In</div><div class="bc-zt-value" style="color:#34d399;">+' + fmt(zoneIn) + '</div></div>' +
-                                '<div class="bc-zt-item"><div class="bc-zt-label">Moved Out</div><div class="bc-zt-value" style="color:#f87171;">−' + fmt(zoneOut) + '</div></div>' +
-                                '<div class="bc-zt-item"><div class="bc-zt-label">Opening Balance</div><div class="bc-zt-value" style="color:#94a3b8;">' + fmt(zoneOpening) + '</div></div>' +
-                            '</div>';
-
-                        var skuGrid = document.createElement('div');
-                        skuGrid.className = 'bc-sku-grid';
-                        zoneItems.forEach(function(item) {
-                            skuGrid.appendChild(buildBcCard(item.card, item.idx));
-                        });
-
-                        group.appendChild(header);
-                        group.appendChild(skuGrid);
-                        grid.appendChild(group);
+                    bcZones.forEach(function(zd, zIdx) {
+                        grid.appendChild(buildZoneCard(zd, zIdx));
                     });
                 }
 
                 function fmt(n) { return (n === undefined || n === null) ? '—' : Number(n).toLocaleString(); }
 
-                function buildBcCard(card, idx) {
-                    var div = document.createElement('div');
-                    div.className = 'bc-card' + (card.confirmed ? ' bc-confirmed' : '');
-                    div.dataset.idx = idx;
-                    div.onclick = function() { openBcModal(idx); };
+                function buildZoneCard(zd, zIdx) {
+                    var card = document.createElement('div');
+                    card.className = 'bc-zone-card' + (zd.confirmed ? ' bc-zone-confirmed' : '');
+                    card.dataset.zidx = zIdx;
 
-                    var statusClass  = card.confirmed ? 'bc-status-confirmed' : 'bc-status-open';
-                    var statusText   = card.confirmed ? '✅ Confirmed' : '⏳ Open';
-                    var varianceHtml = '';
-                    if (card.confirmed) {
-                        var varVal   = card.variance || 0;
-                        var varClass = varVal === 0 ? 'positive' : (varVal < 0 ? 'negative' : 'positive');
-                        var varSign  = varVal > 0 ? '+' : '';
-                        varianceHtml = '<div class="bc-bal-item"><div class="bc-bal-label">Variance</div><div class="bc-bal-value ' + varClass + '">' + varSign + fmt(varVal) + '</div></div>';
-                    }
+                    var statusClass = zd.confirmed ? 'bc-status-confirmed' : 'bc-status-open';
+                    var statusText  = zd.confirmed ? '✅ Confirmed'        : '⏳ Open';
 
-                    div.innerHTML =
-                        '<div class="bc-card-header">' +
-                            '<div class="bc-card-sku" style="font-size:15px;font-weight:700;">' + escapeHtml(card.sku) + '</div>' +
+                    // SKU table rows
+                    var skuRows = zd.skus.map(function(c) {
+                        return '<tr>' +
+                            '<td style="font-weight:600;">' + escapeHtml(c.sku) + '</td>' +
+                            '<td style="color:#94a3b8;">' + fmt(c.openingBalance) + '</td>' +
+                            '<td style="color:#34d399;">+' + fmt(c.movedIn) + '</td>' +
+                            '<td style="color:#f87171;">−' + fmt(c.movedOut) + '</td>' +
+                            '<td style="font-weight:700;">' + fmt(c.systemClosingBalance) + '</td>' +
+                        '</tr>';
+                    }).join('');
+
+                    var footer = zd.confirmed
+                        ? '<div class="bc-zc-confirmed-stamp">' +
+                              '✅ Confirmed by <strong style="margin-left:4px;">' + escapeHtml(zd.confirmedBy || '—') + '</strong>' +
+                          '</div>'
+                        : '<button class="bc-confirm-btn" onclick="openBcZoneModal(' + zIdx + ')" style="width:100%;max-width:380px;">' +
+                              '📝 Enter Physical Count &amp; Close Zone Card' +
+                          '</button>';
+
+                    card.innerHTML =
+                        '<div class="bc-zc-topbar">' +
+                            '<span class="bc-zc-zone-name">📦 ' + escapeHtml(zd.zone) + '</span>' +
                             '<span class="bc-status-pill ' + statusClass + '">' + statusText + '</span>' +
                         '</div>' +
-                        '<div class="bc-balances">' +
-                            '<div class="bc-bal-item"><div class="bc-bal-label">Opening</div><div class="bc-bal-value" style="color:#94a3b8;">' + fmt(card.openingBalance) + '</div></div>' +
-                            '<div class="bc-bal-item"><div class="bc-bal-label">In</div><div class="bc-bal-value" style="color:#34d399;">+' + fmt(card.movedIn) + '</div></div>' +
-                            '<div class="bc-bal-item"><div class="bc-bal-label">Out</div><div class="bc-bal-value" style="color:#f87171;">−' + fmt(card.movedOut) + '</div></div>' +
-                            '<div class="bc-bal-item"><div class="bc-bal-label">System</div><div class="bc-bal-value">' + fmt(card.systemClosingBalance) + '</div></div>' +
-                            (card.confirmed ? varianceHtml : '') +
+                        '<div class="bc-zc-summary">' +
+                            '<div class="bc-zc-sum-item">' +
+                                '<div class="bc-zc-sum-label">Opening Balance</div>' +
+                                '<div class="bc-zc-sum-value" style="color:#94a3b8;">' + fmt(zd.totalOpening) + '</div>' +
+                            '</div>' +
+                            '<div class="bc-zc-sum-item">' +
+                                '<div class="bc-zc-sum-label">Moved In</div>' +
+                                '<div class="bc-zc-sum-value" style="color:#34d399;">+' + fmt(zd.totalIn) + '</div>' +
+                            '</div>' +
+                            '<div class="bc-zc-sum-item">' +
+                                '<div class="bc-zc-sum-label">Moved Out</div>' +
+                                '<div class="bc-zc-sum-value" style="color:#f87171;">−' + fmt(zd.totalOut) + '</div>' +
+                            '</div>' +
+                            '<div class="bc-zc-sum-item">' +
+                                '<div class="bc-zc-sum-label">System Closing</div>' +
+                                '<div class="bc-zc-sum-value">' + fmt(zd.totalSystem) + '</div>' +
+                            '</div>' +
                         '</div>' +
-                        (card.confirmed
-                            ? '<div class="bc-confirmed-summary">Confirmed by <strong>' + escapeHtml(card.confirmedBy || '—') + '</strong> · ' +
-                              '<span style="color:#34d399;">Var: ' + (card.variance > 0 ? '+' : '') + fmt(card.variance) + '</span></div>'
-                            : '<button class="bc-confirm-btn" onclick="event.stopPropagation();openBcModal(' + idx + ')">📝 Enter Physical Count & Confirm</button>');
-                    return div;
+                        '<div style="overflow-x:auto;">' +
+                            '<table class="bc-zc-sku-table">' +
+                                '<thead><tr>' +
+                                    '<th>SKU</th><th>Opening</th><th>In</th><th>Out</th><th>System Closing</th>' +
+                                '</tr></thead>' +
+                                '<tbody>' + skuRows + '</tbody>' +
+                            '</table>' +
+                        '</div>' +
+                        '<div class="bc-zc-footer">' + footer + '</div>';
+
+                    return card;
                 }
 
-                // ── Modal ──
-                window.openBcModal = function(idx) {
-                    var card = bcAllCards[idx];
-                    if (!card) return;
-                    bcActiveCard = card;
+                // ── Modal — zone-level confirmation, no variance shown ──
+                window.openBcZoneModal = function(zIdx) {
+                    var zd = bcZones[zIdx];
+                    if (!zd) return;
+                    bcActiveZone = zd;
 
-                    document.getElementById('bcModalTitle').textContent = 'Physical Count — ' + card.sku;
-                    document.getElementById('bcModalSub').textContent   = card.zone + ' · ' + (bcCurrentShift ? bcCurrentShift.label : '') + ' · ' + (bcCurrentShift ? bcCurrentShift.shiftDateKey : '');
-                    document.getElementById('bcModalOpening').textContent = fmt(card.openingBalance);
-                    document.getElementById('bcModalMovedIn').textContent  = '+' + fmt(card.movedIn);
-                    document.getElementById('bcModalMovedOut').textContent = '-' + fmt(card.movedOut);
-                    document.getElementById('bcModalSystem').textContent   = fmt(card.systemClosingBalance);
+                    document.getElementById('bcModalTitle').textContent = 'Zone Physical Count — ' + zd.zone;
+                    document.getElementById('bcModalSub').textContent   =
+                        (bcCurrentShift ? bcCurrentShift.label : '') +
+                        (bcCurrentShift ? ' · ' + bcCurrentShift.shiftDateKey : '') +
+                        ' · ' + zd.skus.length + ' SKU' + (zd.skus.length !== 1 ? 's' : '');
+                    document.getElementById('bcModalOpening').textContent = fmt(zd.totalOpening);
+                    document.getElementById('bcModalMovedIn').textContent  = '+' + fmt(zd.totalIn);
+                    document.getElementById('bcModalMovedOut').textContent = '−' + fmt(zd.totalOut);
+                    document.getElementById('bcModalSystem').textContent   = fmt(zd.totalSystem);
 
                     var physInput = document.getElementById('bcPhysicalInput');
-                    physInput.value = card.confirmed ? card.physicalCount : '';
-                    document.getElementById('bcVariancePreview').textContent = 'Enter physical count above to see variance';
-                    document.getElementById('bcVariancePreview').className   = 'bc-variance-preview';
+                    physInput.value = '';
+                    // Hide variance preview — variance is server-side only
+                    var vp = document.getElementById('bcVariancePreview');
+                    if (vp) vp.style.display = 'none';
                     document.getElementById('bcModalStatus').textContent = '';
                     document.getElementById('bcConfirmBtn').disabled = false;
                     document.getElementById('bcConfirmModal').classList.add('active');
@@ -4366,40 +4409,20 @@
 
                 window.closeBcModal = function() {
                     document.getElementById('bcConfirmModal').classList.remove('active');
-                    bcActiveCard = null;
+                    bcActiveZone = null;
                 };
 
-                window.updateVariancePreview = function() {
-                    var physVal = parseFloat(document.getElementById('bcPhysicalInput').value);
-                    var preview = document.getElementById('bcVariancePreview');
-                    if (isNaN(physVal) || !bcActiveCard) {
-                        preview.textContent = 'Enter physical count above to see variance';
-                        preview.className   = 'bc-variance-preview';
-                        return;
-                    }
-                    var sysVal  = bcActiveCard.systemClosingBalance || 0;
-                    var variance = physVal - sysVal;
-                    var sign = variance > 0 ? '+' : '';
-                    if (variance === 0) {
-                        preview.textContent = '✅ Perfect match — system and physical agree';
-                        preview.className   = 'bc-variance-preview match';
-                    } else if (variance < 0) {
-                        preview.textContent = '⚠️ Short by ' + Math.abs(variance) + ' units (physical < system)';
-                        preview.className   = 'bc-variance-preview short';
-                    } else {
-                        preview.textContent = '📦 Overage of +' + variance + ' units (physical > system)';
-                        preview.className   = 'bc-variance-preview over';
-                    }
-                };
+                // Kept for backwards compat but does nothing (variance hidden from client)
+                window.updateVariancePreview = function() {};
 
                 window.submitBinCardConfirmation = async function() {
-                    var card      = bcActiveCard;
+                    var zd        = bcActiveZone;
                     var physInput = document.getElementById('bcPhysicalInput');
                     var physVal   = parseFloat(physInput.value);
                     var statusEl  = document.getElementById('bcModalStatus');
                     var confirmBtn = document.getElementById('bcConfirmBtn');
 
-                    if (!card) return;
+                    if (!zd) return;
                     if (isNaN(physVal) || physInput.value === '') {
                         statusEl.textContent = '⚠️ Please enter a physical count (0 or more).';
                         statusEl.style.color = '#fbbf24';
@@ -4411,54 +4434,53 @@
                         return;
                     }
 
-                    confirmBtn.disabled    = true;
-                    statusEl.textContent   = '⏳ Saving confirmation…';
-                    statusEl.style.color   = '#94a3b8';
+                    confirmBtn.disabled  = true;
+                    statusEl.textContent = '⏳ Saving confirmation…';
+                    statusEl.style.color = '#94a3b8';
 
                     try {
                         var url = GOOGLE_APPS_SCRIPT_URL +
-                            '?action=confirmBinCard' +
-                            '&zone='                 + encodeURIComponent(card.zone) +
-                            '&sku='                  + encodeURIComponent(card.sku) +
+                            '?action=confirmZoneBinCard' +
+                            '&zone='                 + encodeURIComponent(zd.zone) +
                             '&shift='                + encodeURIComponent(bcCurrentShift.shift) +
                             '&shiftDate='            + encodeURIComponent(bcCurrentShift.shiftDateKey) +
                             '&physicalCount='        + physVal +
-                            '&systemClosingBalance=' + (card.systemClosingBalance || 0) +
-                            '&openingBalance='       + (card.openingBalance || 0) +
-                            '&movedIn='              + (card.movedIn  || 0) +
-                            '&movedOut='             + (card.movedOut || 0) +
+                            '&systemClosingBalance=' + zd.totalSystem +
+                            '&openingBalance='       + zd.totalOpening +
+                            '&movedIn='              + zd.totalIn +
+                            '&movedOut='             + zd.totalOut +
                             '&confirmedBy='          + encodeURIComponent(bcLoggedInUser.name || bcLoggedInUser.id);
 
-                        var resp = await fetch(url);
+                        var resp   = await fetch(url);
                         var result = await resp.json();
 
                         if (result.success) {
-                            statusEl.textContent = '✅ Confirmed! Variance: ' + (result.variance >= 0 ? '+' : '') + result.variance;
-                            statusEl.style.color = result.variance === 0 ? '#34d399' : '#fbbf24';
-                            // Update local card state
-                            card.confirmed    = true;
-                            card.status       = 'Confirmed';
-                            card.physicalCount = physVal;
-                            card.variance      = result.variance;
-                            card.confirmedBy   = bcLoggedInUser.name || bcLoggedInUser.id;
+                            // No variance shown — just "Confirmed"
+                            statusEl.textContent = '✅ Zone card closed successfully.';
+                            statusEl.style.color = '#34d399';
+
+                            // Update local zone state
+                            var userName = bcLoggedInUser.name || bcLoggedInUser.id;
+                            zd.confirmed   = true;
+                            zd.confirmedBy = userName;
+
                             setTimeout(function() {
                                 closeBcModal();
-                                // Re-render updated card
-                                var grid  = document.getElementById('bcGrid');
-                                var nodes = grid.querySelectorAll('.bc-card');
-                                var cardIdx = bcAllCards.indexOf(card);
-                                if (nodes[cardIdx]) {
-                                    var newNode = buildBcCard(card, cardIdx);
-                                    grid.replaceChild(newNode, nodes[cardIdx]);
+                                // Re-render this zone card
+                                var grid     = document.getElementById('bcGrid');
+                                var zIdx     = bcZones.indexOf(zd);
+                                var oldCards = grid.querySelectorAll('.bc-zone-card');
+                                if (oldCards[zIdx]) {
+                                    grid.replaceChild(buildZoneCard(zd, zIdx), oldCards[zIdx]);
                                 }
-                                // Update progress
-                                var confirmedNow = bcAllCards.filter(function(c) { return c.confirmed; }).length;
-                                var pct = Math.round((confirmedNow / bcAllCards.length) * 100);
+                                // Update progress bar
+                                var confirmedNow = bcZones.filter(function(z) { return z.confirmed; }).length;
+                                var pct = bcZones.length > 0 ? Math.round((confirmedNow / bcZones.length) * 100) : 0;
                                 var fill  = document.getElementById('bcProgressFill');
                                 var label = document.getElementById('bcProgressLabel');
                                 if (fill)  fill.style.width = pct + '%';
-                                if (label) label.textContent = confirmedNow + ' of ' + bcAllCards.length + ' cards confirmed (' + pct + '%)';
-                            }, 1200);
+                                if (label) label.textContent = confirmedNow + ' of ' + bcZones.length + ' zones confirmed (' + pct + '%)';
+                            }, 900);
                         } else {
                             statusEl.textContent = '❌ ' + (result.error || 'Save failed. Try again.');
                             statusEl.style.color = '#f87171';

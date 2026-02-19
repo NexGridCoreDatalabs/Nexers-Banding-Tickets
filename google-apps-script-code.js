@@ -1073,6 +1073,19 @@ function doGet(e) {
         confirmedBy:          e.parameter.confirmedBy         || ''
       });
     }
+    else if (action === 'confirmZoneBinCard') {
+      return confirmZoneBinCard({
+        zone:                 e.parameter.zone                || '',
+        shift:                e.parameter.shift               || '',
+        shiftDate:            e.parameter.shiftDate           || '',
+        physicalCount:        e.parameter.physicalCount       || 0,
+        systemClosingBalance: e.parameter.systemClosingBalance || 0,
+        openingBalance:       e.parameter.openingBalance      || 0,
+        movedIn:              e.parameter.movedIn             || 0,
+        movedOut:             e.parameter.movedOut            || 0,
+        confirmedBy:          e.parameter.confirmedBy         || ''
+      });
+    }
     
     return createResponse({ success: false, error: 'Invalid action' });
   } catch (error) {
@@ -5590,41 +5603,40 @@ function getBinCardData(params) {
     return a.sku.localeCompare(b.sku);
   });
 
-  // ── 5. Overlay any existing confirmations for this shift ──
+  // ── 5. Overlay existing confirmations; build zone-level confirmation map ──
+  var confirmedZones = {};
   try {
     var bcSheet = workbook.getSheetByName('BinCards');
     if (bcSheet) {
       var bcData = bcSheet.getDataRange().getValues();
       var bcH    = bcData[0] || [];
       var bci    = buildHeaderIndexMap(bcH);
-      var confMap = {};
       for (var r = 1; r < bcData.length; r++) {
         var brow = bcData[r];
         if (!brow) continue;
         if ((brow[bci.ShiftDate] || '').toString().trim() !== shiftInfo.shiftDateKey) continue;
         if ((brow[bci.Shift]     || '').toString().trim() !== shiftInfo.shift)        continue;
-        var ck = (brow[bci.Zone] || '') + '|||' + (brow[bci.SKU] || '');
-        confMap[ck] = {
-          physicalCount: Number(brow[bci.PhysicalCount]) || 0,
-          variance:      Number(brow[bci.Variance])      || 0,
-          confirmedBy:   (brow[bci.ConfirmedBy] || '').toString(),
-          confirmedAt:   (brow[bci.ConfirmedAt] || '').toString(),
-          status:        (brow[bci.Status]       || '').toString()
-        };
-      }
-      cards.forEach(function(c) {
-        var ck = c.zone + '|||' + c.sku;
-        if (confMap[ck]) {
-          c.confirmed    = true;
-          c.status       = confMap[ck].status || 'Confirmed';
-          c.physicalCount = confMap[ck].physicalCount;
-          c.variance      = confMap[ck].variance;
-          c.confirmedBy   = confMap[ck].confirmedBy;
-          c.confirmedAt   = confMap[ck].confirmedAt;
+        var bZone = (brow[bci.Zone] || '').toString().trim();
+        var bSku  = (brow[bci.SKU]  || '').toString().trim();
+        // Zone-level confirmation record
+        if (bSku === 'ZONE_TOTAL') {
+          confirmedZones[bZone] = {
+            confirmed:   true,
+            confirmedBy: (brow[bci.ConfirmedBy] || '').toString(),
+            confirmedAt: (brow[bci.ConfirmedAt] || '').toString()
+          };
         }
-      });
+      }
     }
   } catch (e2) { /* non-critical */ }
+
+  // Derive the unique zones present in cards
+  var zoneSet = {};
+  cards.forEach(function(c) { zoneSet[c.zone] = true; });
+  var totalZones = Object.keys(zoneSet).length;
+  var confirmedZoneCount = Object.keys(confirmedZones).filter(function(z) {
+    return confirmedZones[z] && confirmedZones[z].confirmed;
+  }).length;
 
   return createResponse({
     success: true,
@@ -5636,8 +5648,9 @@ function getBinCardData(params) {
       shiftEnd:   shiftInfo.shiftEnd.toISOString()
     },
     cards: cards,
-    totalCards: cards.length,
-    confirmedCount: cards.filter(function(c) { return c.confirmed; }).length
+    confirmedZones: confirmedZones,
+    totalCards: totalZones,
+    confirmedCount: confirmedZoneCount
   });
 }
 
@@ -5720,5 +5733,85 @@ function confirmBinCard(params) {
 
   return createResponse({ success: true, binCardId: binCardId, variance: variance,
                           message: 'Bin card confirmed and saved.' });
+}
+
+/**
+ * Save a zone-level bin-card confirmation (one record per zone, SKU = 'ZONE_TOTAL').
+ * Variance is calculated and stored server-side only — never returned to the client.
+ */
+function confirmZoneBinCard(params) {
+  params = params || {};
+  var zone       = (params.zone       || '').toString().trim();
+  var shift      = (params.shift      || '').toString().trim();
+  var shiftDate  = (params.shiftDate  || '').toString().trim();
+  var confirmedBy = (params.confirmedBy || '').toString().trim();
+  var physicalCount        = Number(params.physicalCount);
+  var systemClosingBalance = Number(params.systemClosingBalance) || 0;
+  var openingBalance       = Number(params.openingBalance)  || 0;
+  var movedIn              = Number(params.movedIn)         || 0;
+  var movedOut             = Number(params.movedOut)        || 0;
+
+  if (!zone || !shift || !shiftDate || isNaN(physicalCount) || !confirmedBy) {
+    return createResponse({ success: false, error: 'Missing required fields.' });
+  }
+
+  var variance    = physicalCount - systemClosingBalance; // stored server-side only
+  var confirmedAt = new Date().toISOString();
+  var binCardId   = 'BC-' + shiftDate.replace(/-/g, '') + '-' + shift.charAt(0).toUpperCase()
+                  + '-' + zone.replace(/\s+/g, '').toUpperCase().substring(0, 8) + '-ZONE';
+
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var bcSheet  = ensureSheetWithHeaders(workbook, 'BinCards', STOCK_MOVEMENT_SHEETS.BinCards);
+
+  // Update existing zone record if present
+  var existing = bcSheet.getDataRange().getValues();
+  var bcHdrs   = existing[0] || [];
+  var bci      = buildHeaderIndexMap(bcHdrs);
+  for (var i = 1; i < existing.length; i++) {
+    var row = existing[i];
+    if (!row) continue;
+    if ((row[bci.Zone]      || '').toString().trim() === zone          &&
+        (row[bci.SKU]       || '').toString().trim() === 'ZONE_TOTAL'  &&
+        (row[bci.ShiftDate] || '').toString().trim() === shiftDate     &&
+        (row[bci.Shift]     || '').toString().trim() === shift) {
+      var rn = i + 1;
+      bcSheet.getRange(rn, bci.PhysicalCount + 1).setValue(physicalCount);
+      bcSheet.getRange(rn, bci.Variance      + 1).setValue(variance);
+      bcSheet.getRange(rn, bci.ConfirmedBy   + 1).setValue(confirmedBy);
+      bcSheet.getRange(rn, bci.ConfirmedAt   + 1).setValue(confirmedAt);
+      bcSheet.getRange(rn, bci.Status        + 1).setValue('Confirmed');
+      logUserActivity('UPDATE_ZONE_BIN_CARD: ' + zone + '/' + shift + '/' + shiftDate,
+                      'By: ' + confirmedBy + ', Physical: ' + physicalCount + ', Variance: ' + variance);
+      return createResponse({ success: true, binCardId: (row[bci.BinCardID] || binCardId).toString(),
+                              message: 'Zone bin card updated.' });
+    }
+  }
+
+  // Append new zone-level row
+  var newRow = STOCK_MOVEMENT_SHEETS.BinCards.map(function(col) {
+    switch (col) {
+      case 'BinCardID':             return binCardId;
+      case 'Zone':                  return zone;
+      case 'SKU':                   return 'ZONE_TOTAL';
+      case 'ShiftDate':             return shiftDate;
+      case 'Shift':                 return shift;
+      case 'OpeningBalance':        return openingBalance;
+      case 'MovedIn':               return movedIn;
+      case 'MovedOut':              return movedOut;
+      case 'SystemClosingBalance':  return systemClosingBalance;
+      case 'PhysicalCount':         return physicalCount;
+      case 'Variance':              return variance;
+      case 'ConfirmedBy':           return confirmedBy;
+      case 'ConfirmedAt':           return confirmedAt;
+      case 'Status':                return 'Confirmed';
+      default:                      return '';
+    }
+  });
+  bcSheet.appendRow(newRow);
+  logUserActivity('CONFIRM_ZONE_BIN_CARD: ' + zone + '/' + shift + '/' + shiftDate,
+                  'By: ' + confirmedBy + ', Physical: ' + physicalCount + ', Variance: ' + variance);
+
+  return createResponse({ success: true, binCardId: binCardId,
+                          message: 'Zone bin card confirmed and saved.' });
 }
 

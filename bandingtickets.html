@@ -3703,6 +3703,15 @@
             }[char]));
         }
 
+        /** Run fn when document is fully loaded. Handles case where load already fired. */
+        function whenLoaded(fn) {
+            if (document.readyState === 'complete') {
+                setTimeout(fn, 0);
+            } else {
+                window.addEventListener('load', fn, { once: true });
+            }
+        }
+
         document.querySelectorAll('.color-option').forEach(option => {
             option.addEventListener('click', function() {
                 document.querySelectorAll('.color-option').forEach(opt => 
@@ -4048,13 +4057,7 @@
 
                 // Handle movement login form submission
                 function initMovementLoginForm(users) {
-                    const select = document.getElementById('movementLoginUser');
-                    if (select && users && users.length) {
-                        select.innerHTML = '<option value="">Select authorized user...</option>' +
-                            users.map(function(u) {
-                                return '<option value="' + escapeHtml(u.id || u.name) + '">' + escapeHtml(u.name) + '</option>';
-                            }).join('');
-                    }
+                    populateAuthorizedUserSelects(users);
                     const form = document.getElementById('movementLoginForm');
                     if (!form) return;
                     form.addEventListener('submit', async function(e) {
@@ -4089,14 +4092,12 @@
                     });
                 }
 
-                window.addEventListener('load', async function() {
+                whenLoaded(async function() {
                     if (isUserLoggedIn()) {
-                        // Already logged in — skip overlay, open panel directly
                         const overlay = document.getElementById('movementLoginOverlay');
                         if (overlay) overlay.style.display = 'none';
                         setTimeout(openMovementAtTab, 300);
                     } else {
-                        // Show login overlay, load users
                         try {
                             const { users } = await loadAuthorizedUsers();
                             initMovementLoginForm(users);
@@ -4105,7 +4106,7 @@
                             initMovementLoginForm([]);
                         }
                     }
-                }, { once: true });
+                });
             })();
         } else if (currentMode === 'bincards') {
             // ── Bin Cards — shift stock reconciliation ──
@@ -4349,13 +4350,7 @@
 
                 // ── Login form ──
                 function initBcLoginForm(users) {
-                    var select = document.getElementById('bcLoginUser');
-                    if (select && users && users.length) {
-                        select.innerHTML = '<option value="">Select authorized user…</option>' +
-                            users.map(function(u) {
-                                return '<option value="' + escapeHtml(u.id || u.name) + '">' + escapeHtml(u.name) + '</option>';
-                            }).join('');
-                    }
+                    populateAuthorizedUserSelects(users);
                     var form = document.getElementById('binCardsLoginForm');
                     if (!form) return;
                     form.addEventListener('submit', async function(ev) {
@@ -4412,11 +4407,9 @@
                     }
                 }
 
-                window.addEventListener('load', async function() {
+                whenLoaded(async function() {
                     if (isUserLoggedIn()) {
-                        var stored = sessionStorage.getItem('rfLoggedInUser');
-                        if (stored) { try { bcLoggedInUser = JSON.parse(stored); } catch(e) {} }
-                        if (!bcLoggedInUser) bcLoggedInUser = { id: 'session', name: 'Logged-in User' };
+                        bcLoggedInUser = { id: loggedInUser.id, name: loggedInUser.name || loggedInUser.id };
                         document.getElementById('binCardsLoginOverlay').style.display = 'none';
                         loadAndRenderBinCards();
                     } else {
@@ -4428,7 +4421,7 @@
                             initBcLoginForm([]);
                         }
                     }
-                }, { once: true });
+                });
             })();
 
         } else if (currentMode === 'view' || currentMode === 'edit' || currentMode === 'fill') {
@@ -5816,12 +5809,20 @@
             }
         }
 
+        /** Populate ALL user dropdowns: loginUser (edit card), movementLoginUser, bcLoginUser */
         function populateAuthorizedUserSelects(users) {
-            const loginSelect = document.getElementById('loginUser');
-            if (loginSelect) {
-                loginSelect.innerHTML = '<option value="">Select authorized user...</option>' +
-                    users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
-            }
+            const opts = (users && users.length)
+                ? '<option value="">Select authorized user...</option>' +
+                  users.map(function(u) {
+                      var id = (u.id || u.name || '').toString();
+                      var name = (u.name || u.id || id).toString();
+                      return '<option value="' + escapeHtml(id) + '">' + escapeHtml(name) + '</option>';
+                  }).join('')
+                : '<option value="">No users found — check Authorized Users sheet</option>';
+            ['loginUser', 'movementLoginUser', 'bcLoginUser'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.innerHTML = opts;
+            });
         }
 
         async function authenticateUser(userId, passcode) {

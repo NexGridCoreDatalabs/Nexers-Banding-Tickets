@@ -258,7 +258,9 @@ const STOCK_MOVEMENT_SHEETS = {
     'Variance',
     'ConfirmedBy',
     'ConfirmedAt',
-    'Status'
+    'Status',
+    'RevokedBy',
+    'RevokedAt'
   ]
 };
 
@@ -1100,6 +1102,30 @@ function doGet(e) {
         shiftDate:      e.parameter.shiftDate || '',
         confirmedBy:    e.parameter.confirmedBy || '',
         physicalCounts: physicalCounts
+      });
+    }
+    else if (action === 'getBinCardVarianceReport') {
+      return getBinCardVarianceReport({
+        dateFrom:  e.parameter.dateFrom || '',
+        dateTo:    e.parameter.dateTo   || '',
+        shift:     e.parameter.shift   || '',
+        zone:      e.parameter.zone   || ''
+      });
+    }
+    else if (action === 'getConfirmedBinCardsForAdmin') {
+      return getConfirmedBinCardsForAdmin({
+        dateFrom:  e.parameter.dateFrom || '',
+        dateTo:    e.parameter.dateTo   || '',
+        shift:     e.parameter.shift   || '',
+        zone:      e.parameter.zone   || ''
+      });
+    }
+    else if (action === 'revokeZoneBinCard') {
+      return revokeZoneBinCard({
+        zone:      e.parameter.zone     || '',
+        shift:     e.parameter.shift   || '',
+        shiftDate: e.parameter.shiftDate || '',
+        revokedBy: e.parameter.revokedBy || ''
       });
     }
     
@@ -5619,7 +5645,7 @@ function getBinCardData(params) {
     return a.sku.localeCompare(b.sku);
   });
 
-  // ── 5. Overlay existing confirmations; build zone-level confirmation map ──
+  // ── 5. Overlay existing confirmations; build zone-level confirmation map with variance details ──
   var confirmedZones = {};
   try {
     var bcSheet = workbook.getSheetByName('BinCards');
@@ -5627,6 +5653,28 @@ function getBinCardData(params) {
       var bcData = bcSheet.getDataRange().getValues();
       var bcH    = bcData[0] || [];
       var bci    = buildHeaderIndexMap(bcH);
+      var statusIdx = bci.Status >= 0 ? bci.Status : bcH.indexOf('Status');
+      for (var r = 1; r < bcData.length; r++) {
+        var brow = bcData[r];
+        if (!brow) continue;
+        var status = (brow[statusIdx] || '').toString().trim();
+        if (status === 'Revoked') continue;
+        if ((brow[bci.ShiftDate] || '').toString().trim() !== shiftInfo.shiftDateKey) continue;
+        if ((brow[bci.Shift]     || '').toString().trim() !== shiftInfo.shift)        continue;
+        var bZone = (brow[bci.Zone] || '').toString().trim();
+        var bSku  = (brow[bci.SKU]  || '').toString().trim();
+        if (bSku === 'ZONE_TOTAL') {
+          confirmedZones[bZone] = {
+            confirmed: true,
+            confirmedBy: (brow[bci.ConfirmedBy] || '').toString(),
+            confirmedAt: (brow[bci.ConfirmedAt] || '').toString(),
+            totalPhysical: Number(brow[bci.PhysicalCount]) || 0,
+            totalSystem: Number(brow[bci.SystemClosingBalance]) || 0,
+            zoneVariance: Number(brow[bci.Variance]) || 0,
+            varianceDetails: []
+          };
+        }
+      }
       for (var r = 1; r < bcData.length; r++) {
         var brow = bcData[r];
         if (!brow) continue;
@@ -5634,13 +5682,12 @@ function getBinCardData(params) {
         if ((brow[bci.Shift]     || '').toString().trim() !== shiftInfo.shift)        continue;
         var bZone = (brow[bci.Zone] || '').toString().trim();
         var bSku  = (brow[bci.SKU]  || '').toString().trim();
-        // Zone-level confirmation record
-        if (bSku === 'ZONE_TOTAL') {
-          confirmedZones[bZone] = {
-            confirmed:   true,
-            confirmedBy: (brow[bci.ConfirmedBy] || '').toString(),
-            confirmedAt: (brow[bci.ConfirmedAt] || '').toString()
-          };
+        if (bSku === 'ZONE_TOTAL') continue;
+        if (confirmedZones[bZone] && confirmedZones[bZone].varianceDetails) {
+          var phys = Number(brow[bci.PhysicalCount]) || 0;
+          var sys  = Number(brow[bci.SystemClosingBalance]) || 0;
+          var v    = Number(brow[bci.Variance]) || (phys - sys);
+          confirmedZones[bZone].varianceDetails.push({ sku: bSku, physicalCount: phys, systemClosing: sys, variance: v });
         }
       }
     }
@@ -5945,7 +5992,8 @@ function confirmZoneBinCardPerSku(params) {
       bcSheet.getRange(rn, bci.Status        + 1).setValue('Confirmed');
       logUserActivity('UPDATE_ZONE_BIN_CARD_PER_SKU: ' + zone + '/' + shift + '/' + shiftDate,
                       'By: ' + confirmedBy + ', Physical: ' + totalPhysical + ', Variance: ' + zoneVariance);
-      return createResponse({ success: true, binCardId: zoneBinCardId, message: 'Zone bin card confirmed (per SKU).' });
+      var varianceDetails = buildVarianceDetails(physicalCounts, totalSystem, totalPhysical);
+      return createResponse({ success: true, binCardId: zoneBinCardId, varianceDetails: varianceDetails, message: 'Zone bin card confirmed (per SKU).' });
     }
   }
 
@@ -5972,6 +6020,132 @@ function confirmZoneBinCardPerSku(params) {
   logUserActivity('CONFIRM_ZONE_BIN_CARD_PER_SKU: ' + zone + '/' + shift + '/' + shiftDate,
                   'By: ' + confirmedBy + ', Physical: ' + totalPhysical + ', Variance: ' + zoneVariance);
 
-  return createResponse({ success: true, binCardId: zoneBinCardId, message: 'Zone bin card confirmed (per SKU).' });
+  var varianceDetails = buildVarianceDetails(physicalCounts, totalSystem, totalPhysical);
+  return createResponse({ success: true, binCardId: zoneBinCardId, varianceDetails: varianceDetails, message: 'Zone bin card confirmed (per SKU).' });
+}
+
+function buildVarianceDetails(physicalCounts, totalSystem, totalPhysical) {
+  var details = [];
+  for (var i = 0; i < physicalCounts.length; i++) {
+    var it = physicalCounts[i];
+    var sys = Number(it.systemClosingBalance) || 0;
+    var phys = Number(it.physicalCount) || 0;
+    var v = phys - sys;
+    details.push({ sku: it.sku, systemClosing: sys, physicalCount: phys, variance: v });
+  }
+  details.push({ sku: 'ZONE_TOTAL', systemClosing: totalSystem, physicalCount: totalPhysical, variance: totalPhysical - totalSystem });
+  return details;
+}
+
+function getBinCardVarianceReport(params) {
+  params = params || {};
+  var dateFrom = (params.dateFrom || '').toString().trim();
+  var dateTo   = (params.dateTo   || '').toString().trim();
+  var shift    = (params.shift    || '').toString().trim().toLowerCase();
+  var zone     = (params.zone     || '').toString().trim().toLowerCase();
+
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var bcSheet  = workbook.getSheetByName('BinCards');
+  if (!bcSheet) return createResponse({ success: true, rows: [] });
+
+  var data = bcSheet.getDataRange().getValues();
+  var hdr  = data[0] || [];
+  var bci  = buildHeaderIndexMap(hdr);
+  var rows = [];
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (!row) continue;
+    var status = (row[bci.Status] || '').toString().trim();
+    if (status === 'Revoked') continue;
+    var shiftDate = (row[bci.ShiftDate] || '').toString().trim();
+    var sShift    = (row[bci.Shift]     || '').toString().trim().toLowerCase();
+    var bZone     = (row[bci.Zone]      || '').toString().trim().toLowerCase();
+    if (dateFrom && shiftDate < dateFrom) continue;
+    if (dateTo   && shiftDate > dateTo)   continue;
+    if (shift    && sShift !== shift)    continue;
+    if (zone     && bZone.indexOf(zone) < 0) continue;
+    rows.push({
+      zone: row[bci.Zone], sku: row[bci.SKU], shiftDate: shiftDate, shift: row[bci.Shift],
+      openingBalance: Number(row[bci.OpeningBalance]) || 0, movedIn: Number(row[bci.MovedIn]) || 0, movedOut: Number(row[bci.MovedOut]) || 0,
+      systemClosing: Number(row[bci.SystemClosingBalance]) || 0, physicalCount: Number(row[bci.PhysicalCount]) || 0, variance: Number(row[bci.Variance]) || 0,
+      confirmedBy: (row[bci.ConfirmedBy] || '').toString(), confirmedAt: (row[bci.ConfirmedAt] || '').toString()
+    });
+  }
+  return createResponse({ success: true, rows: rows });
+}
+
+function getConfirmedBinCardsForAdmin(params) {
+  params = params || {};
+  var dateFrom = (params.dateFrom || '').toString().trim();
+  var dateTo   = (params.dateTo   || '').toString().trim();
+  var shift    = (params.shift    || '').toString().trim().toLowerCase();
+  var zone     = (params.zone     || '').toString().trim().toLowerCase();
+
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var bcSheet  = workbook.getSheetByName('BinCards');
+  if (!bcSheet) return createResponse({ success: true, zones: [] });
+
+  var data = bcSheet.getDataRange().getValues();
+  var hdr  = data[0] || [];
+  var bci  = buildHeaderIndexMap(hdr);
+  var seen = {};
+  var zones = [];
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (!row) continue;
+    var status = (row[bci.Status] || '').toString().trim();
+    if (status === 'Revoked') continue;
+    var bSku = (row[bci.SKU] || '').toString().trim();
+    if (bSku !== 'ZONE_TOTAL') continue;
+    var shiftDate = (row[bci.ShiftDate] || '').toString().trim();
+    var sShift    = (row[bci.Shift]     || '').toString().trim().toLowerCase();
+    var bZone     = (row[bci.Zone]      || '').toString().trim();
+    var key = bZone + '|' + shiftDate + '|' + sShift;
+    if (seen[key]) continue;
+    if (dateFrom && shiftDate < dateFrom) continue;
+    if (dateTo   && shiftDate > dateTo)   continue;
+    if (shift    && sShift !== shift)    continue;
+    if (zone     && bZone.toLowerCase().indexOf(zone) < 0) continue;
+    seen[key] = true;
+    zones.push({ zone: bZone, shiftDate: shiftDate, shift: row[bci.Shift], confirmedBy: (row[bci.ConfirmedBy] || '').toString(), confirmedAt: (row[bci.ConfirmedAt] || '').toString() });
+  }
+  return createResponse({ success: true, zones: zones });
+}
+
+function revokeZoneBinCard(params) {
+  params = params || {};
+  var zone      = (params.zone      || '').toString().trim();
+  var shift     = (params.shift     || '').toString().trim();
+  var shiftDate = (params.shiftDate || '').toString().trim();
+  var revokedBy = (params.revokedBy || '').toString().trim();
+
+  if (!zone || !shift || !shiftDate || !revokedBy) {
+    return createResponse({ success: false, error: 'Missing required fields.' });
+  }
+
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var bcSheet  = workbook.getSheetByName('BinCards');
+  if (!bcSheet) return createResponse({ success: false, error: 'BinCards sheet not found.' });
+
+  var data = bcSheet.getDataRange().getValues();
+  var hdr  = data[0] || [];
+  var bci  = buildHeaderIndexMap(hdr);
+  var revokedAt = new Date().toISOString();
+  var revokedCount = 0;
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (!row) continue;
+    if ((row[bci.Zone]      || '').toString().trim() !== zone)  continue;
+    if ((row[bci.Shift]     || '').toString().trim() !== shift) continue;
+    if ((row[bci.ShiftDate] || '').toString().trim() !== shiftDate) continue;
+    var rn = r + 1;
+    bcSheet.getRange(rn, bci.Status + 1).setValue('Revoked');
+    if (bci.RevokedBy >= 0) bcSheet.getRange(rn, bci.RevokedBy + 1).setValue(revokedBy);
+    if (bci.RevokedAt >= 0) bcSheet.getRange(rn, bci.RevokedAt + 1).setValue(revokedAt);
+    revokedCount++;
+  }
+  if (revokedCount === 0) return createResponse({ success: false, error: 'No matching bin cards found.' });
+  logUserActivity('REVOKE_ZONE_BIN_CARD: ' + zone + '/' + shift + '/' + shiftDate, 'By: ' + revokedBy);
+  return createResponse({ success: true, message: 'Bin card revoked. Zone can be re-confirmed.', revokedCount: revokedCount });
 }
 

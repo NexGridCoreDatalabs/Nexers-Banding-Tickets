@@ -2572,6 +2572,12 @@
         }
         .bc-zc-sku-table tr:last-child td { border-bottom: none; }
         .bc-zc-sku-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .bc-zc-sku-table .variance-match { color: #34d399; }
+        .bc-zc-sku-table .variance-short { color: #f87171; }
+        .bc-zc-sku-table .variance-over { color: #a78bfa; }
+        .bc-zc-sku-list-only { padding: 16px; background: rgba(255,255,255,0.03); border-radius: 10px; margin-bottom: 12px; }
+        .bc-zc-sku-list-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .bc-zc-sku-list { font-size: 13px; color: #e2e8f0; line-height: 1.6; }
         /* Footer: confirm button or confirmed stamp */
         .bc-zc-footer {
             padding: 16px 22px;
@@ -2642,6 +2648,23 @@
             outline: none; box-sizing: border-box; width: 100%; min-width: 0;
         }
         .bc-physical-sku-row input:focus { border-color: rgba(245,158,11,0.7); }
+        .bc-receipt-intro { text-align: center; font-size: 13px; color: #34d399; font-weight: 600; margin-bottom: 16px; }
+        .bc-receipt-table { overflow-x: auto; margin-bottom: 20px; max-height: 280px; overflow-y: auto; }
+        .bc-receipt-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .bc-receipt-table th, .bc-receipt-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .bc-receipt-table th { color: #fbbf24; font-weight: 600; }
+        .bc-receipt-table .variance-match { color: #34d399; }
+        .bc-receipt-table .variance-short { color: #f87171; }
+        .bc-receipt-table .variance-over { color: #a78bfa; }
+        .bc-audit-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+        .bc-audit-filters > div { display: flex; flex-direction: column; gap: 4px; }
+        .bc-audit-filters label { font-size: 11px; color: #64748b; }
+        .bc-audit-filters input, .bc-audit-filters select { padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(245,158,11,0.3); background: rgba(255,255,255,0.06); color: #e2e8f0; }
+        .bc-audit-table-wrap { max-height: 360px; overflow: auto; margin-bottom: 16px; }
+        .bc-revoke-list { max-height: 320px; overflow-y: auto; }
+        .bc-revoke-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .bc-revoke-btn { padding: 8px 16px; background: rgba(248,113,113,0.2); color: #f87171; border: 1px solid rgba(248,113,113,0.4); border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .bc-revoke-btn:hover { background: rgba(248,113,113,0.3); }
         .bc-variance-preview {
             text-align: center;
             font-size: 14px;
@@ -2962,6 +2985,8 @@
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                 <span class="bc-shift-badge" id="bcShiftBadge">☀️ Loading shift…</span>
                 <button class="bc-print-btn btn-reset" onclick="window.print()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(148,163,184,0.3);color:#94a3b8;border-radius:8px;">🖨️ Print</button>
+                <button class="btn-reset" id="bcAuditReportBtn" onclick="openBcAuditReport()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(52,211,153,0.5);color:#34d399;border-radius:8px;">📊 Variance Audit Report</button>
+                <button class="btn-reset" id="bcRevokeAdminBtn" onclick="openBcRevokeAdmin()" style="display:none;font-size:12px;padding:7px 14px;border:1px solid rgba(248,113,113,0.5);color:#f87171;border-radius:8px;">🔒 Revoke Bin Cards (QA/SUP)</button>
                 <a href="index.html" style="font-size:12px;padding:7px 14px;border:1px solid rgba(245,158,11,0.3);color:#fbbf24;border-radius:8px;text-decoration:none;">← Home</a>
             </div>
         </div>
@@ -2989,35 +3014,58 @@
         <div class="bc-modal">
             <h3 id="bcModalTitle">Zone Physical Count</h3>
             <div class="bc-modal-sub" id="bcModalSub">Zone · Shift</div>
-            <div class="bc-modal-balances">
-                <div class="bc-modal-bal-item">
-                    <div class="label">Opening Balance</div>
-                    <div class="value" id="bcModalOpening">—</div>
+            <!-- Entry view: no system figures shown (Option 3: transparency) -->
+            <div id="bcModalEntryView">
+                <div class="bc-physical-inputs-section">
+                    <label class="bc-physical-section-label">📦 Enter physical count for each SKU (no figures shown until you confirm)</label>
+                    <div id="bcPhysicalInputsContainer" class="bc-physical-inputs-container"></div>
                 </div>
-                <div class="bc-modal-bal-item">
-                    <div class="label">Moved In</div>
-                    <div class="value" id="bcModalMovedIn" style="color:#34d399;">—</div>
+                <div class="bc-modal-actions">
+                    <button class="bc-btn-cancel" onclick="closeBcModal()">Cancel</button>
+                    <button class="bc-btn-confirm" id="bcConfirmBtn" onclick="submitBinCardConfirmation()">✅ Close Zone Card</button>
                 </div>
-                <div class="bc-modal-bal-item">
-                    <div class="label">Moved Out</div>
-                    <div class="value" id="bcModalMovedOut" style="color:#f87171;">—</div>
-                </div>
-                <div class="bc-modal-bal-item">
-                    <div class="label">System Closing</div>
-                    <div class="value" id="bcModalSystem">—</div>
+                <div class="bc-modal-status" id="bcModalStatus"></div>
+            </div>
+            <!-- Receipt view: shown after submit — system vs physical vs variance (immutable) -->
+            <div id="bcModalReceiptView" style="display:none;">
+                <div class="bc-receipt-intro">✅ Card closed. Data is final — no edits allowed.</div>
+                <div id="bcReceiptTable" class="bc-receipt-table"></div>
+                <div class="bc-modal-actions" style="justify-content:center;">
+                    <button class="bc-btn-confirm" onclick="typeof dismissBcReceipt==='function'&&dismissBcReceipt()">Close</button>
                 </div>
             </div>
-            <div class="bc-physical-inputs-section">
-                <label class="bc-physical-section-label">📦 Enter Physical Count per SKU</label>
-                <div id="bcPhysicalInputsContainer" class="bc-physical-inputs-container"></div>
+        </div>
+    </div>
+
+    <!-- ── Variance Audit Report modal ── -->
+    <div class="bc-modal-overlay" id="bcAuditReportModal" style="display:none;">
+        <div class="bc-modal" style="max-width:900px;">
+            <h3>📊 Variance Audit Report</h3>
+            <div class="bc-audit-filters">
+                <div><label>From Date</label><input type="date" id="bcAuditDateFrom"></div>
+                <div><label>To Date</label><input type="date" id="bcAuditDateTo"></div>
+                <div><label>Shift</label><select id="bcAuditShift"><option value="">All</option><option value="Day">Day</option><option value="Night">Night</option></select></div>
+                <div><label>Zone</label><input type="text" id="bcAuditZone" placeholder="All"></div>
+                <div><button class="btn-generate" onclick="loadBcAuditReport()">Load Report</button></div>
+                <div><button class="btn-reset" onclick="exportBcAuditCsv()" id="bcAuditExportBtn" disabled>📥 Export CSV</button></div>
             </div>
-            <!-- Variance preview intentionally hidden — tracked server-side only -->
-            <div id="bcVariancePreview" style="display:none;"></div>
-            <div class="bc-modal-actions">
-                <button class="bc-btn-cancel" onclick="closeBcModal()">Cancel</button>
-                <button class="bc-btn-confirm" id="bcConfirmBtn" onclick="submitBinCardConfirmation()">✅ Close Zone Card</button>
+            <div id="bcAuditReportTable" class="bc-audit-table-wrap"></div>
+            <div class="bc-modal-actions" style="justify-content:center;"><button class="bc-btn-cancel" onclick="closeBcAuditReport()">Close</button></div>
+        </div>
+    </div>
+
+    <!-- ── Revoke Bin Cards (QA/Supervisor only) ── -->
+    <div class="bc-modal-overlay" id="bcRevokeAdminModal" style="display:none;">
+        <div class="bc-modal" style="max-width:800px;">
+            <h3>🔒 Revoke Bin Cards</h3>
+            <p style="font-size:12px;color:#94a3b8;margin-bottom:16px;">Only QA or Supervisors can revoke. Revoked zones return to Open and may be re-confirmed.</p>
+            <div class="bc-audit-filters" style="margin-bottom:16px;">
+                <div><label>From Date</label><input type="date" id="bcRevokeDateFrom"></div>
+                <div><label>To Date</label><input type="date" id="bcRevokeDateTo"></div>
+                <div><button class="btn-generate" onclick="loadBcRevokeList()">Load</button></div>
             </div>
-            <div class="bc-modal-status" id="bcModalStatus"></div>
+            <div id="bcRevokeList" class="bc-revoke-list"></div>
+            <div class="bc-modal-actions" style="justify-content:center;"><button class="bc-btn-cancel" onclick="closeBcRevokeAdmin()">Close</button></div>
         </div>
     </div>
 
@@ -4384,7 +4432,7 @@
 
                     // Build bcZones array (zone-level state used by modal)
                     bcZones = zoneOrder.map(function(zoneName) {
-                        var skus = zonesMap[zoneName];
+                        var skus = zonesMap[zoneName].map(function(c) { return Object.assign({}, c); });
                         var totalOpening = 0, totalIn = 0, totalOut = 0, totalSystem = 0;
                         skus.forEach(function(c) {
                             totalOpening += (c.openingBalance       || 0);
@@ -4393,17 +4441,27 @@
                             totalSystem  += (c.systemClosingBalance || 0);
                         });
                         var zConf = confZones[zoneName] || {};
-                        return {
-                            zone:        zoneName,
-                            skus:        skus,
-                            totalOpening: totalOpening,
-                            totalIn:      totalIn,
-                            totalOut:     totalOut,
-                            totalSystem:  totalSystem,
-                            confirmed:    !!(zConf.confirmed),
-                            confirmedBy:  zConf.confirmedBy || '',
-                            confirmedAt:  zConf.confirmedAt || ''
+                        var zd = {
+                            zone: zoneName, skus: skus,
+                            totalOpening: totalOpening, totalIn: totalIn, totalOut: totalOut, totalSystem: totalSystem,
+                            confirmed: !!(zConf.confirmed), confirmedBy: zConf.confirmedBy || '', confirmedAt: zConf.confirmedAt || '',
+                            totalPhysical: zConf.totalPhysical, zoneVariance: zConf.zoneVariance,
+                            varianceSummary: ''
                         };
+                        if (zConf.varianceDetails && zConf.varianceDetails.length) {
+                            var vdMap = {};
+                            zConf.varianceDetails.forEach(function(d) { vdMap[d.sku] = d; });
+                            skus.forEach(function(s) {
+                                var vd = vdMap[s.sku];
+                                if (vd) { s.physicalCount = vd.physicalCount; s.variance = vd.variance; }
+                            });
+                            var short = 0, over = 0;
+                            zConf.varianceDetails.forEach(function(d) {
+                                if (d.sku !== 'ZONE_TOTAL') { if (d.variance < 0) short++; else if (d.variance > 0) over++; }
+                            });
+                            if (short || over) zd.varianceSummary = (short ? short + ' short' : '') + (short && over ? ', ' : '') + (over ? over + ' over' : '');
+                        }
+                        return zd;
                     });
 
                     bcZones.forEach(function(zd, zIdx) {
@@ -4421,58 +4479,41 @@
                     var statusClass = zd.confirmed ? 'bc-status-confirmed' : 'bc-status-open';
                     var statusText  = zd.confirmed ? '✅ Confirmed'        : '⏳ Open';
 
-                    // SKU table rows
-                    var skuRows = zd.skus.map(function(c) {
-                        return '<tr>' +
-                            '<td style="font-weight:600;">' + escapeHtml(c.sku) + '</td>' +
-                            '<td style="color:#94a3b8;">' + fmt(c.openingBalance) + '</td>' +
-                            '<td style="color:#34d399;">+' + fmt(c.movedIn) + '</td>' +
-                            '<td style="color:#f87171;">−' + fmt(c.movedOut) + '</td>' +
-                            '<td style="font-weight:700;">' + fmt(c.systemClosingBalance) + '</td>' +
-                        '</tr>';
-                    }).join('');
+                    var bodyHtml, footer;
+                    if (zd.confirmed) {
+                        var skuRows = zd.skus.map(function(c) {
+                            var v = c.variance;
+                            var vCls = (v === 0 || v == null) ? 'variance-match' : (v < 0 ? 'variance-short' : 'variance-over');
+                            var vStr = v === 0 ? '0 ✓' : (v == null ? '—' : (v > 0 ? '+' + v : v));
+                            return '<tr><td style="font-weight:600;">' + escapeHtml(c.sku) + '</td>' +
+                                '<td style="color:#94a3b8;">' + fmt(c.openingBalance) + '</td>' +
+                                '<td style="color:#34d399;">+' + fmt(c.movedIn) + '</td>' +
+                                '<td style="color:#f87171;">−' + fmt(c.movedOut) + '</td>' +
+                                '<td>' + fmt(c.systemClosingBalance) + '</td>' +
+                                '<td>' + fmt(c.physicalCount) + '</td>' +
+                                '<td class="' + vCls + '">' + vStr + '</td></tr>';
+                        }).join('');
+                        var vSum = zd.varianceSummary || '';
+                        bodyHtml = '<div class="bc-zc-summary">' +
+                            '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Opening</div><div class="bc-zc-sum-value" style="color:#94a3b8;">' + fmt(zd.totalOpening) + '</div></div>' +
+                            '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">In</div><div class="bc-zc-sum-value" style="color:#34d399;">+' + fmt(zd.totalIn) + '</div></div>' +
+                            '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Out</div><div class="bc-zc-sum-value" style="color:#f87171;">−' + fmt(zd.totalOut) + '</div></div>' +
+                            '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">System</div><div class="bc-zc-sum-value">' + fmt(zd.totalSystem) + '</div></div>' +
+                            '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Physical</div><div class="bc-zc-sum-value">' + fmt(zd.totalPhysical) + '</div></div>' +
+                            '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Variance</div><div class="bc-zc-sum-value ' + ((zd.zoneVariance === 0 || zd.zoneVariance == null) ? 'variance-match' : (zd.zoneVariance < 0 ? 'variance-short' : 'variance-over')) + '">' + (zd.zoneVariance == null ? '—' : (zd.zoneVariance === 0 ? '0' : zd.zoneVariance)) + '</div></div>' +
+                            '</div>' +
+                            '<div style="overflow-x:auto;"><table class="bc-zc-sku-table"><thead><tr><th>SKU</th><th>Open</th><th>In</th><th>Out</th><th>System</th><th>Physical</th><th>Var</th></tr></thead><tbody>' + skuRows + '</tbody></table></div>';
+                        footer = '<div class="bc-zc-confirmed-stamp">✅ Confirmed by <strong>' + escapeHtml(zd.confirmedBy || '—') + '</strong>' + (vSum ? ' <span style="font-size:11px;color:#64748b;margin-left:8px;">' + escapeHtml(vSum) + '</span>' : '') + '</div>';
+                    } else {
+                        var skuList = zd.skus.map(function(c) { return escapeHtml(c.sku); }).join(', ');
+                        bodyHtml = '<div class="bc-zc-sku-list-only"><div class="bc-zc-sku-list-label">SKUs in zone:</div><div class="bc-zc-sku-list">' + skuList + '</div></div>';
+                        footer = '<button class="bc-confirm-btn" onclick="openBcZoneModal(' + zIdx + ')" style="width:100%;max-width:380px;">📝 Enter Physical Count &amp; Close Zone Card</button>';
+                    }
 
-                    var footer = zd.confirmed
-                        ? '<div class="bc-zc-confirmed-stamp">' +
-                              '✅ Confirmed by <strong style="margin-left:4px;">' + escapeHtml(zd.confirmedBy || '—') + '</strong>' +
-                          '</div>'
-                        : '<button class="bc-confirm-btn" onclick="openBcZoneModal(' + zIdx + ')" style="width:100%;max-width:380px;">' +
-                              '📝 Enter Physical Count &amp; Close Zone Card' +
-                          '</button>';
-
-                    card.innerHTML =
-                        '<div class="bc-zc-topbar">' +
-                            '<span class="bc-zc-zone-name">📦 ' + escapeHtml(zd.zone) + '</span>' +
-                            '<span class="bc-status-pill ' + statusClass + '">' + statusText + '</span>' +
-                        '</div>' +
-                        '<div class="bc-zc-summary">' +
-                            '<div class="bc-zc-sum-item">' +
-                                '<div class="bc-zc-sum-label">Opening Balance</div>' +
-                                '<div class="bc-zc-sum-value" style="color:#94a3b8;">' + fmt(zd.totalOpening) + '</div>' +
-                            '</div>' +
-                            '<div class="bc-zc-sum-item">' +
-                                '<div class="bc-zc-sum-label">Moved In</div>' +
-                                '<div class="bc-zc-sum-value" style="color:#34d399;">+' + fmt(zd.totalIn) + '</div>' +
-                            '</div>' +
-                            '<div class="bc-zc-sum-item">' +
-                                '<div class="bc-zc-sum-label">Moved Out</div>' +
-                                '<div class="bc-zc-sum-value" style="color:#f87171;">−' + fmt(zd.totalOut) + '</div>' +
-                            '</div>' +
-                            '<div class="bc-zc-sum-item">' +
-                                '<div class="bc-zc-sum-label">System Closing</div>' +
-                                '<div class="bc-zc-sum-value">' + fmt(zd.totalSystem) + '</div>' +
-                            '</div>' +
-                        '</div>' +
-                        '<div style="overflow-x:auto;">' +
-                            '<table class="bc-zc-sku-table">' +
-                                '<thead><tr>' +
-                                    '<th>SKU</th><th>Opening</th><th>In</th><th>Out</th><th>System Closing</th>' +
-                                '</tr></thead>' +
-                                '<tbody>' + skuRows + '</tbody>' +
-                            '</table>' +
-                        '</div>' +
-                        '<div class="bc-zc-footer">' + footer + '</div>';
-
+                    card.innerHTML = '<div class="bc-zc-topbar">' +
+                        '<span class="bc-zc-zone-name">📦 ' + escapeHtml(zd.zone) + '</span>' +
+                        '<span class="bc-status-pill ' + statusClass + '">' + statusText + '</span>' +
+                        '</div>' + bodyHtml + '<div class="bc-zc-footer">' + footer + '</div>';
                     return card;
                 }
 
@@ -4487,11 +4528,9 @@
                         (bcCurrentShift ? bcCurrentShift.label : '') +
                         (bcCurrentShift ? ' · ' + bcCurrentShift.shiftDateKey : '') +
                         ' · ' + zd.skus.length + ' SKU' + (zd.skus.length !== 1 ? 's' : '');
-                    document.getElementById('bcModalOpening').textContent = fmt(zd.totalOpening);
-                    document.getElementById('bcModalMovedIn').textContent  = '+' + fmt(zd.totalIn);
-                    document.getElementById('bcModalMovedOut').textContent = '−' + fmt(zd.totalOut);
-                    document.getElementById('bcModalSystem').textContent   = fmt(zd.totalSystem);
 
+                    document.getElementById('bcModalEntryView').style.display = 'block';
+                    document.getElementById('bcModalReceiptView').style.display = 'none';
                     var container = document.getElementById('bcPhysicalInputsContainer');
                     container.innerHTML = '';
                     zd.skus.forEach(function(s, idx) {
@@ -4499,12 +4538,8 @@
                         row.className = 'bc-physical-sku-row';
                         row.dataset.sku = s.sku;
                         row.dataset.idx = idx;
-                        var sys = (s.systemClosingBalance != null) ? s.systemClosingBalance : 0;
                         row.innerHTML =
-                            '<div>' +
-                                '<div class="sku-label">' + escapeHtml(s.sku) + '</div>' +
-                                '<div class="sku-sys">System closing: ' + fmt(sys) + '</div>' +
-                            '</div>' +
+                            '<div><div class="sku-label">' + escapeHtml(s.sku) + '</div></div>' +
                             '<input type="number" min="0" placeholder="0" data-sku="' + escapeHtml(s.sku) + '" ' +
                                 'data-opening="' + (s.openingBalance || 0) + '" data-movedin="' + (s.movedIn || 0) + '" ' +
                                 'data-movedout="' + (s.movedOut || 0) + '" data-sys="' + (s.systemClosingBalance || 0) + '">';
@@ -4514,8 +4549,6 @@
                         var firstInput = container.querySelector('input');
                         if (firstInput) firstInput.focus();
                     }
-                    var vp = document.getElementById('bcVariancePreview');
-                    if (vp) vp.style.display = 'none';
                     document.getElementById('bcModalStatus').textContent = '';
                     document.getElementById('bcConfirmBtn').disabled = false;
                     document.getElementById('bcConfirmModal').classList.add('active');
@@ -4526,8 +4559,6 @@
                     bcActiveZone = null;
                 };
 
-                // Kept for backwards compat but does nothing (variance hidden from client)
-                window.updateVariancePreview = function() {};
 
                 window.submitBinCardConfirmation = async function() {
                     var zd        = bcActiveZone;
@@ -4585,32 +4616,39 @@
                         var result = await resp.json();
 
                         if (result.success) {
-                            // No variance shown — just "Confirmed"
-                            statusEl.textContent = '✅ Zone card closed successfully.';
-                            statusEl.style.color = '#34d399';
-
-                            // Update local zone state
                             var userName = bcLoggedInUser.name || bcLoggedInUser.id;
                             zd.confirmed   = true;
                             zd.confirmedBy = userName;
+                            zd.varianceDetails = result.varianceDetails || [];
 
-                            setTimeout(function() {
-                                closeBcModal();
-                                // Re-render this zone card
-                                var grid     = document.getElementById('bcGrid');
-                                var zIdx     = bcZones.indexOf(zd);
-                                var oldCards = grid.querySelectorAll('.bc-zone-card');
-                                if (oldCards[zIdx]) {
-                                    grid.replaceChild(buildZoneCard(zd, zIdx), oldCards[zIdx]);
+                            document.getElementById('bcModalEntryView').style.display = 'none';
+                            var receiptView = document.getElementById('bcModalReceiptView');
+                            var receiptTable = document.getElementById('bcReceiptTable');
+                            var vd = result.varianceDetails || [];
+                            var rows = vd.map(function(d) {
+                                var vCls = d.variance === 0 ? 'variance-match' : (d.variance < 0 ? 'variance-short' : 'variance-over');
+                                var vStr = d.variance === 0 ? '0 ✓' : (d.variance > 0 ? '+' + d.variance : d.variance);
+                                return '<tr><td>' + escapeHtml(d.sku) + '</td><td>' + fmt(d.systemClosing) + '</td><td>' + fmt(d.physicalCount) + '</td><td class="' + vCls + '">' + vStr + '</td></tr>';
+                            }).join('');
+                            receiptTable.innerHTML = '<table><thead><tr><th>SKU</th><th>System</th><th>Physical</th><th>Variance</th></tr></thead><tbody>' + rows + '</tbody></table>';
+                            receiptView.style.display = 'block';
+
+                            window.dismissBcReceipt = function() {
+                                var z = bcActiveZone;
+                                if (z) {
+                                    var grid = document.getElementById('bcGrid');
+                                    var zIdx = bcZones.indexOf(z);
+                                    var oldCards = grid.querySelectorAll('.bc-zone-card');
+                                    if (oldCards[zIdx]) grid.replaceChild(buildZoneCard(z, zIdx), oldCards[zIdx]);
+                                    var confirmedNow = bcZones.filter(function(zone) { return zone.confirmed; }).length;
+                                    var pct = bcZones.length > 0 ? Math.round((confirmedNow / bcZones.length) * 100) : 0;
+                                    var fill = document.getElementById('bcProgressFill');
+                                    var label = document.getElementById('bcProgressLabel');
+                                    if (fill) fill.style.width = pct + '%';
+                                    if (label) label.textContent = confirmedNow + ' of ' + bcZones.length + ' zones confirmed (' + pct + '%)';
                                 }
-                                // Update progress bar
-                                var confirmedNow = bcZones.filter(function(z) { return z.confirmed; }).length;
-                                var pct = bcZones.length > 0 ? Math.round((confirmedNow / bcZones.length) * 100) : 0;
-                                var fill  = document.getElementById('bcProgressFill');
-                                var label = document.getElementById('bcProgressLabel');
-                                if (fill)  fill.style.width = pct + '%';
-                                if (label) label.textContent = confirmedNow + ' of ' + bcZones.length + ' zones confirmed (' + pct + '%)';
-                            }, 900);
+                                closeBcModal();
+                            };
                         } else {
                             statusEl.textContent = '❌ ' + (result.error || 'Save failed. Try again.');
                             statusEl.style.color = '#f87171';
@@ -4672,11 +4710,19 @@
                     });
                 }
 
+                function bcShowRevokeButtonIfAllowed() {
+                    var btn = document.getElementById('bcRevokeAdminBtn');
+                    if (!btn) return;
+                    var role = (bcLoggedInUser && bcLoggedInUser.role) ? (bcLoggedInUser.role || '').toString().toLowerCase() : '';
+                    btn.style.display = (role === 'qa' || role === 'supervisor') ? '' : 'none';
+                }
+
                 async function loadAndRenderBinCards() {
                     try {
                         var data = await fetchBinCardData();
                         if (data.success) {
                             renderBinCards(data);
+                            bcShowRevokeButtonIfAllowed();
                         } else {
                             document.getElementById('bcLoadingState').innerHTML =
                                 '<div style="font-size:32px;margin-bottom:12px;">⚠️</div>' +
@@ -4688,6 +4734,101 @@
                             '<div style="font-size:15px;font-weight:600;color:#f87171;">Could not reach server. Check your connection.</div>';
                     }
                 }
+
+                var bcAuditReportRows = [];
+                window.openBcAuditReport = function() {
+                    var now = new Date();
+                    var d = now.getDate(), m = now.getMonth() + 1, y = now.getFullYear();
+                    var today = y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+                    document.getElementById('bcAuditDateFrom').value = today;
+                    document.getElementById('bcAuditDateTo').value = today;
+                    document.getElementById('bcAuditReportModal').style.display = 'flex';
+                    loadBcAuditReport();
+                };
+                window.closeBcAuditReport = function() { document.getElementById('bcAuditReportModal').style.display = 'none'; };
+                async function loadBcAuditReport() {
+                    var df = document.getElementById('bcAuditDateFrom').value;
+                    var dt = document.getElementById('bcAuditDateTo').value;
+                    var sh = document.getElementById('bcAuditShift').value;
+                    var z  = document.getElementById('bcAuditZone').value.trim();
+                    var url = GOOGLE_APPS_SCRIPT_URL + '?action=getBinCardVarianceReport&dateFrom=' + encodeURIComponent(df) + '&dateTo=' + encodeURIComponent(dt) + '&shift=' + encodeURIComponent(sh) + '&zone=' + encodeURIComponent(z);
+                    try {
+                        var resp = await fetch(url);
+                        var result = await resp.json();
+                        bcAuditReportRows = result.rows || [];
+                        var tbl = document.getElementById('bcAuditReportTable');
+                        var fmt = function(n) { return (n === undefined || n === null) ? '—' : Number(n).toLocaleString(); };
+                        var html = '<table class="bc-zc-sku-table"><thead><tr><th>Zone</th><th>SKU</th><th>Shift</th><th>Date</th><th>System</th><th>Physical</th><th>Variance</th><th>By</th><th>At</th></tr></thead><tbody>';
+                        bcAuditReportRows.forEach(function(r) {
+                            var vCls = r.variance === 0 ? 'variance-match' : (r.variance < 0 ? 'variance-short' : 'variance-over');
+                            html += '<tr><td>' + escapeHtml(r.zone) + '</td><td>' + escapeHtml(r.sku) + '</td><td>' + escapeHtml(r.shift) + '</td><td>' + escapeHtml(r.shiftDate) + '</td><td>' + fmt(r.systemClosing) + '</td><td>' + fmt(r.physicalCount) + '</td><td class="' + vCls + '">' + (r.variance === 0 ? '0' : r.variance) + '</td><td>' + escapeHtml(r.confirmedBy) + '</td><td>' + escapeHtml((r.confirmedAt || '').substring(0,19)) + '</td></tr>';
+                        });
+                        html += '</tbody></table>';
+                        tbl.innerHTML = html || '<div style="padding:24px;color:#64748b;">No records found.</div>';
+                        document.getElementById('bcAuditExportBtn').disabled = bcAuditReportRows.length === 0;
+                    } catch (e) { document.getElementById('bcAuditReportTable').innerHTML = '<div style="padding:24px;color:#f87171;">Failed to load: ' + (e.message || 'Unknown error') + '</div>'; }
+                }
+                window.exportBcAuditCsv = function() {
+                    if (bcAuditReportRows.length === 0) return;
+                    var hdr = 'Zone,SKU,Shift,Date,System,Physical,Variance,ConfirmedBy,ConfirmedAt';
+                    var rows = bcAuditReportRows.map(function(r) { return [r.zone,r.sku,r.shift,r.shiftDate,r.systemClosing,r.physicalCount,r.variance,r.confirmedBy,r.confirmedAt].map(function(x) { return '"' + String(x || '').replace(/"/g,'""') + '"'; }).join(','); });
+                    var csv = hdr + '\n' + rows.join('\n');
+                    var a = document.createElement('a');
+                    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+                    a.download = 'bin-card-variance-report-' + new Date().toISOString().slice(0,10) + '.csv';
+                    a.click();
+                };
+
+                window.openBcRevokeAdmin = function() {
+                    if (!bcLoggedInUser) return;
+                    var role = (bcLoggedInUser.role || '').toString().toLowerCase();
+                    if (role !== 'qa' && role !== 'supervisor') { alert('Only QA or Supervisors can revoke bin cards.'); return; }
+                    var n = new Date();
+                    var today = n.getFullYear()+'-'+(n.getMonth()+1<10?'0':'')+(n.getMonth()+1)+'-'+(n.getDate()<10?'0':'')+n.getDate();
+                    var df = document.getElementById('bcRevokeDateFrom');
+                    var dt = document.getElementById('bcRevokeDateTo');
+                    if (df) df.value = today;
+                    if (dt) dt.value = today;
+                    document.getElementById('bcRevokeAdminModal').style.display = 'flex';
+                    loadBcRevokeList();
+                };
+                window.closeBcRevokeAdmin = function() { document.getElementById('bcRevokeAdminModal').style.display = 'none'; };
+                async function loadBcRevokeList() {
+                    var dfEl = document.getElementById('bcRevokeDateFrom');
+                    var dtEl = document.getElementById('bcRevokeDateTo');
+                    var n = new Date();
+                    var today = n.getFullYear()+'-'+(n.getMonth()+1<10?'0':'')+(n.getMonth()+1)+'-'+(n.getDate()<10?'0':'')+n.getDate();
+                    if (dfEl && !dfEl.value) dfEl.value = today;
+                    if (dtEl && !dtEl.value) dtEl.value = today;
+                    var df = (dfEl && dfEl.value) || today;
+                    var dt = (dtEl && dtEl.value) || today;
+                    var url = GOOGLE_APPS_SCRIPT_URL + '?action=getConfirmedBinCardsForAdmin&dateFrom=' + encodeURIComponent(df) + '&dateTo=' + encodeURIComponent(dt);
+                    try {
+                        var resp = await fetch(url);
+                        var result = await resp.json();
+                        var zones = result.zones || [];
+                        var list = document.getElementById('bcRevokeList');
+                        list.innerHTML = zones.map(function(z) {
+                            var zoneEsc = escapeHtml(z.zone).replace(/'/g, "\\'");
+                            var shiftEsc = escapeHtml(z.shift).replace(/'/g, "\\'");
+                            var dateEsc = escapeHtml(z.shiftDate).replace(/'/g, "\\'");
+                            return '<div class="bc-revoke-item"><div><strong>' + escapeHtml(z.zone) + '</strong> · ' + escapeHtml(z.shiftDate) + ' ' + escapeHtml(z.shift) + '<br><small style="color:#64748b;">By ' + escapeHtml(z.confirmedBy) + '</small></div><button class="btn-reset bc-revoke-btn" data-zone="' + escapeHtml(z.zone) + '" data-shift="' + escapeHtml(z.shift) + '" data-date="' + escapeHtml(z.shiftDate) + '">Revoke</button></div>';
+                        }).join('') || '<div style="padding:24px;color:#64748b;">No confirmed bin cards in date range.</div>';
+                        list.querySelectorAll('.bc-revoke-btn').forEach(function(btn) {
+                            btn.onclick = function() { revokeBcCard(btn.dataset.zone, btn.dataset.shift, btn.dataset.date); };
+                        });
+                    } catch (e) { document.getElementById('bcRevokeList').innerHTML = '<div style="padding:24px;color:#f87171;">Failed to load.</div>'; }
+                }
+                window.revokeBcCard = async function(zone, shift, shiftDate) {
+                    if (!bcLoggedInUser || !confirm('Revoke this bin card? The zone will return to Open and can be re-confirmed.')) return;
+                    var url = GOOGLE_APPS_SCRIPT_URL + '?action=revokeZoneBinCard&zone=' + encodeURIComponent(zone) + '&shift=' + encodeURIComponent(shift) + '&shiftDate=' + encodeURIComponent(shiftDate) + '&revokedBy=' + encodeURIComponent(bcLoggedInUser.name || bcLoggedInUser.id);
+                    try {
+                        var resp = await fetch(url);
+                        var result = await resp.json();
+                        if (result.success) { loadBcRevokeList(); loadAndRenderBinCards(); }
+                        else alert('❌ ' + (result.error || 'Revoke failed'));
+                    } catch (e) { alert('❌ ' + (e.message || 'Revoke failed')); }
+                };
 
                 (async function() {
                     // Always load users so the dropdown is ready regardless of session state

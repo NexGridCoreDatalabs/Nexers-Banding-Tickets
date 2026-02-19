@@ -2885,7 +2885,7 @@
             <span class="mlc-badge">⬥ Authorized Personnel Only</span>
             <h2>Stock Movement Control</h2>
             <p class="mlc-tab-label">Opening: <strong id="mlcTabLabel">Zone Monitor</strong></p>
-            <form id="movementLoginForm" class="fill-form">
+            <form id="movementLoginForm" class="fill-form" onsubmit="event.preventDefault(); return false;">
                 <div class="fill-form-group">
                     <label for="movementLoginUser">Select User</label>
                     <select id="movementLoginUser" required>
@@ -2913,7 +2913,7 @@
             <span class="mlc-badge">⬥ Authorized Personnel Only</span>
             <h2>Bin Card Center</h2>
             <p class="mlc-tab-label">Current shift: <strong id="bcLoginShiftLabel">Loading...</strong></p>
-            <form id="binCardsLoginForm" class="fill-form">
+            <form id="binCardsLoginForm" class="fill-form" onsubmit="event.preventDefault(); return false;">
                 <div class="fill-form-group">
                     <label for="bcLoginUser">Select User</label>
                     <select id="bcLoginUser" required>
@@ -3841,9 +3841,11 @@
             return !!(loggedInUser && loggedInUser.id);
         }
         
-        function setLoggedInUser(user) {
+        function setLoggedInUser(user, persist) {
             loggedInUser = user;
-            localStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
+            if (persist !== false) {
+                localStorage.setItem(USER_SESSION_KEY, JSON.stringify(user));
+            }
             updateLoggedInUserBanner();
         }
         
@@ -4134,6 +4136,8 @@
         } else if (currentMode === 'movement') {
             // Stock Movement Control — clean movement-only view
             (function() {
+                clearLoggedInUserSession(); // No persisted session: require fresh login every visit
+
                 const movementTab = urlParams.get('tab') || 'monitor'; // 'monitor' or 'receiving'
 
                 // Apply clean movement-only layout
@@ -4156,6 +4160,12 @@
                     });
                 }
 
+                // Prevent native form submit immediately (before async load completes) to avoid page reload
+                (function() {
+                    var f = document.getElementById('movementLoginForm');
+                    if (f) f.addEventListener('submit', function(e) { e.preventDefault(); }, { capture: true });
+                })();
+
                 // Handle movement login form submission
                 function initMovementLoginForm(users) {
                     populateAuthorizedUserSelects(users);
@@ -4174,7 +4184,7 @@
                         if (submitBtn) submitBtn.disabled = true;
                         if (statusEl) { statusEl.textContent = '⏳ Verifying...'; statusEl.className = 'login-status'; }
                         try {
-                            const result = await verifyUserLogin(userId, passcode);
+                            const result = await verifyUserLogin(userId, passcode, { persist: false });
                             if (result.success) {
                                 if (statusEl) { statusEl.textContent = '✅ Access granted.'; statusEl.className = 'login-status success'; }
                                 setTimeout(function() {
@@ -4202,17 +4212,13 @@
                     } catch (e) {
                         initMovementLoginForm([]);
                     }
-                    // If already authenticated, skip the overlay entirely
-                    if (isUserLoggedIn()) {
-                        const overlay = document.getElementById('movementLoginOverlay');
-                        if (overlay) overlay.style.cssText = 'display:none!important';
-                        openMovementAtTab();
-                    }
                 })();
             })();
         } else if (currentMode === 'bincards') {
             // ── Bin Cards — shift stock reconciliation ──
             (function() {
+                clearLoggedInUserSession(); // No persisted session: require fresh login every visit
+
                 document.body.classList.add('bincards-mode-active');
 
                 // Current shift label for login overlay
@@ -4496,6 +4502,12 @@
                     }
                 };
 
+                // Prevent native form submit immediately (before async load completes) to avoid page reload
+                (function() {
+                    var f = document.getElementById('binCardsLoginForm');
+                    if (f) f.addEventListener('submit', function(e) { e.preventDefault(); }, { capture: true });
+                })();
+
                 // ── Login form ──
                 function initBcLoginForm(users) {
                     populateAuthorizedUserSelects(users);
@@ -4516,7 +4528,7 @@
                         statusEl.textContent = '⏳ Verifying…';
                         statusEl.className   = 'login-status';
                         try {
-                            var result = await verifyUserLogin(userId, passcode);
+                            var result = await verifyUserLogin(userId, passcode, { persist: false });
                             if (result.success) {
                                 bcLoggedInUser = result.user || { id: userId, name: userId };
                                 statusEl.textContent = '✅ Access granted. Loading bin cards…';
@@ -4564,13 +4576,6 @@
                         authorizedUsersLoaded = true;
                     } catch (e) {
                         initBcLoginForm([]);
-                    }
-                    // If already authenticated, skip the overlay entirely
-                    if (isUserLoggedIn()) {
-                        bcLoggedInUser = { id: loggedInUser.id, name: loggedInUser.name || loggedInUser.id };
-                        var overlay = document.getElementById('binCardsLoginOverlay');
-                        if (overlay) overlay.style.cssText = 'display:none!important';
-                        loadAndRenderBinCards();
                     }
                 })();
             })();
@@ -5995,9 +6000,9 @@
         /**
          * Shared login wrapper used by movement and bin-cards overlays.
          * Returns { success: true, user } or { success: false, message }.
-         * Also persists the session via setLoggedInUser so isUserLoggedIn() works.
+         * options.persist: when false, does not save to localStorage (session-only; used for movement/bin cards).
          */
-        async function verifyUserLogin(userId, passcode) {
+        async function verifyUserLogin(userId, passcode, options) {
             try {
                 const userData = await authenticateUser(userId, passcode);
                 const user = {
@@ -6005,7 +6010,7 @@
                     name: userData.name || userId,
                     role: userData.role || ''
                 };
-                setLoggedInUser(user);
+                setLoggedInUser(user, options && options.persist === false ? false : true);
                 return { success: true, user };
             } catch (err) {
                 return { success: false, message: err.message || 'Incorrect passcode.' };

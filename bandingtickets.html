@@ -2299,8 +2299,19 @@
         /* ── Movement-only mode (mode=movement from landing page) ── */
         body.movement-mode-active .control-panel,
         body.movement-mode-active .print-container,
-        body.movement-mode-active #fillContainer,
         body.movement-mode-active .movement-toggle {
+            display: none !important;
+        }
+        /* Keep fillContainer visible so movementSection (inside it) can show */
+        body.movement-mode-active #fillContainer {
+            display: grid !important;
+            grid-template-columns: 1fr;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 16px;
+            gap: 20px;
+        }
+        body.movement-mode-active #fillContainer > .fill-card {
             display: none !important;
         }
         body.movement-mode-active #movementSection {
@@ -4142,6 +4153,8 @@
 
                 // Apply clean movement-only layout
                 document.body.classList.add('movement-mode-active');
+                var fc = document.getElementById('fillContainer');
+                if (fc) fc.classList.add('visible');
 
                 // Update tab label in login overlay
                 const mlcTabLabel = document.getElementById('mlcTabLabel');

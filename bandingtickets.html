@@ -3904,6 +3904,9 @@
         
         const API_TIMEOUT_MS = 30000;
         
+        // Shared flag for authorized users dropdown (must be declared before mode=movement/bincards blocks)
+        let authorizedUsersLoaded = false;
+        
         // SECURITY: Config section password protection
         const CONFIG_UNLOCK_TOKEN = 'config_section_unlocked';
         let configValuesVisible = false;
@@ -6009,7 +6012,6 @@
             }
         }
 
-        let authorizedUsersLoaded = false;
         async function showLoginCard() {
             showRetifluxLoadingOverlay();
             try {

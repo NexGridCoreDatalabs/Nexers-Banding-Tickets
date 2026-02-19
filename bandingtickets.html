@@ -4455,11 +4455,14 @@
                                 var vd = vdMap[s.sku];
                                 if (vd) { s.physicalCount = vd.physicalCount; s.variance = vd.variance; }
                             });
-                            var short = 0, over = 0;
+                            var parts = [];
                             zConf.varianceDetails.forEach(function(d) {
-                                if (d.sku !== 'ZONE_TOTAL') { if (d.variance < 0) short++; else if (d.variance > 0) over++; }
+                                if (d.sku !== 'ZONE_TOTAL' && d.variance !== 0 && d.variance != null) {
+                                    var abs = Math.abs(d.variance);
+                                    parts.push(d.sku + ': ' + abs + (d.variance < 0 ? ' short' : ' over'));
+                                }
                             });
-                            if (short || over) zd.varianceSummary = (short ? short + ' short' : '') + (short && over ? ', ' : '') + (over ? over + ' over' : '');
+                            if (parts.length) zd.varianceSummary = parts.join(' · ');
                         }
                         return zd;
                     });

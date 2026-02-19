@@ -3804,7 +3804,7 @@
             GOOGLE_APPS_SCRIPT_URL = DEFAULT_GOOGLE_APPS_SCRIPT_URL;
         }
         
-        const API_TIMEOUT_MS = 6000;
+        const API_TIMEOUT_MS = 30000;
         
         // SECURITY: Config section password protection
         const CONFIG_UNLOCK_TOKEN = 'config_section_unlocked';
@@ -4092,7 +4092,7 @@
                     });
                 }
 
-                whenLoaded(async function() {
+                (async function() {
                     if (isUserLoggedIn()) {
                         const overlay = document.getElementById('movementLoginOverlay');
                         if (overlay) overlay.style.display = 'none';
@@ -4106,7 +4106,7 @@
                             initMovementLoginForm([]);
                         }
                     }
-                });
+                })();
             })();
         } else if (currentMode === 'bincards') {
             // ── Bin Cards — shift stock reconciliation ──
@@ -4374,7 +4374,8 @@
                                 statusEl.textContent = '✅ Access granted. Loading bin cards…';
                                 statusEl.className   = 'login-status success';
                                 setTimeout(function() {
-                                    document.getElementById('binCardsLoginOverlay').style.display = 'none';
+                                    var bcOvr = document.getElementById('binCardsLoginOverlay');
+                                    if (bcOvr) bcOvr.style.cssText = 'display:none!important';
                                     loadAndRenderBinCards();
                                 }, 600);
                             } else {
@@ -4407,10 +4408,11 @@
                     }
                 }
 
-                whenLoaded(async function() {
+                (async function() {
                     if (isUserLoggedIn()) {
                         bcLoggedInUser = { id: loggedInUser.id, name: loggedInUser.name || loggedInUser.id };
-                        document.getElementById('binCardsLoginOverlay').style.display = 'none';
+                        var overlay = document.getElementById('binCardsLoginOverlay');
+                        if (overlay) overlay.style.cssText = 'display:none!important';
                         loadAndRenderBinCards();
                     } else {
                         try {
@@ -4421,7 +4423,7 @@
                             initBcLoginForm([]);
                         }
                     }
-                });
+                })();
             })();
 
         } else if (currentMode === 'view' || currentMode === 'edit' || currentMode === 'fill') {
@@ -5669,7 +5671,7 @@
             if (!GOOGLE_APPS_SCRIPT_URL) return { users: [], skus: [], sachetTypes: [], tabletTypes: [] };
             try {
                 const ctrl = new AbortController();
-                const timeout = 15000;
+                const timeout = 30000;
                 const t = setTimeout(function() { ctrl.abort(); }, timeout);
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=users`;
                 const response = await fetch(url, { signal: ctrl.signal });
@@ -5693,7 +5695,7 @@
             if (!GOOGLE_APPS_SCRIPT_URL) return [];
             try {
                 const ctrl = new AbortController();
-                const timeout = 15000;
+                const timeout = 30000;
                 const t = setTimeout(function() { ctrl.abort(); }, timeout);
                 const url = `${GOOGLE_APPS_SCRIPT_URL}?action=getSkus`;
                 const response = await fetch(url, { signal: ctrl.signal });

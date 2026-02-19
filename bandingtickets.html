@@ -3760,6 +3760,23 @@
         const initialSerialParam = urlParams.get('serial');
         const urlColorParam = urlParams.get('color');
 
+        // When bypass is active, ensure links preserve bypass params so navigation stays in bypass mode
+        if (urlParams.get('geofence') === 'bypass' && urlParams.get('t') === GEOFENCE_BYPASS_TOKEN) {
+            var bypassQ = 'geofence=bypass&t=BIDCO_BYPASS';
+            document.querySelectorAll('a[href*="index.html"]').forEach(function(a) {
+                var h = a.getAttribute('href') || '';
+                if (h.indexOf('geofence=bypass') >= 0) return;
+                var sep = h.indexOf('?') >= 0 ? '&' : '?';
+                a.href = h + sep + bypassQ;
+            });
+            document.querySelectorAll('a[href*="bandingtickets.html"]').forEach(function(a) {
+                var h = a.getAttribute('href') || '';
+                if (h.indexOf('geofence=bypass') >= 0) return;
+                var sep = h.indexOf('?') >= 0 ? '&' : '?';
+                a.href = h + sep + bypassQ;
+            });
+        }
+
         if ((currentMode === 'edit' || currentMode === 'fill') && urlParams.get('geofence') === 'bypass' && urlParams.get('t') === 'BIDCO_BYPASS') {
             document.body.classList.add('fill-mode-active');
         }
@@ -4175,6 +4192,9 @@
                     document.body.classList.add('fill-mode-active', 'movement-mode-active');
                     var fc = document.getElementById('fillContainer');
                     if (fc) fc.classList.add('visible');
+                    // Force visibility: inline display:none can override CSS in some browsers; remove it so movementSection and panel show after login
+                    var ms = document.getElementById('movementSection');
+                    if (ms) ms.style.removeProperty('display');
 
                     // Update tab label in login overlay
                 const mlcTabLabel = document.getElementById('mlcTabLabel');
@@ -4186,7 +4206,12 @@
                 function openMovementAtTab() {
                     const panel = document.getElementById('movementPanel');
                     const toggleBtn = document.getElementById('movementToggleBtn');
-                    if (panel) panel.classList.add('active');
+                    const section = document.getElementById('movementSection');
+                    if (section) section.style.display = 'block';
+                    if (panel) {
+                        panel.classList.add('active');
+                        panel.style.display = 'block';
+                    }
                     if (toggleBtn) toggleBtn.textContent = '🚫 Close Stock Movement Control';
                     ensureMovementPanelLoaded().then(function() {
                         switchMovementView(movementTab);

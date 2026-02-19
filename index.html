@@ -445,6 +445,19 @@
 
     <script>
     (function() {
+        // ── Geofence bypass: if bypass params in URL, append them to all bandingtickets links so navigation preserves bypass ──
+        (function() {
+            var p = new URLSearchParams(window.location.search);
+            if (p.get('geofence') !== 'bypass' || p.get('t') !== 'BIDCO_BYPASS') return;
+            var bypass = 'geofence=bypass&t=BIDCO_BYPASS';
+            document.querySelectorAll('a[href*="bandingtickets.html"]').forEach(function(a) {
+                var h = a.getAttribute('href') || '';
+                if (h.indexOf('geofence=bypass') >= 0) return;
+                var sep = h.indexOf('?') >= 0 ? '&' : '?';
+                a.href = h + sep + bypass;
+            });
+        })();
+
         // ── Time-based greeting ──
         (function() {
             const h = new Date().getHours();

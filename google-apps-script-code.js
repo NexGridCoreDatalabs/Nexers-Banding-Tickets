@@ -1015,6 +1015,9 @@ function doGet(e) {
       var includeRecent = (e.parameter.includeRecentMovements || e.parameter.includeRecent) === 'true' || e.parameter.includeRecentMovements === true;
       return getZoneConfigDataResponse(includeRecent);
     }
+    else if (action === 'getZoneInventoryTotals') {
+      return getZoneInventoryTotals();
+    }
     else if (action === 'getPalletsInZone') {
       return getPalletsInZone({
         zoneName: e.parameter.zoneName || '',
@@ -4424,16 +4427,13 @@ function getRecentMovements(limit) {
   return createResponse({ success: true, movements: movements });
 }
 
-function createInventorySnapshot() {
+/**
+ * Compute zone inventory stats from Pallets + ZoneMovements.
+ * Same logic as Inventory Snapshot sheet — single source of truth for zone totals.
+ * Returns { zoneStats, facilityTotals, palletInfoMap, receivingSummary, movementSummary, movementDetails }.
+ */
+function computeZoneInventoryStats() {
   const workbook = SpreadsheetApp.openById(SHEET_ID);
-  let sheet = workbook.getSheetByName('InventorySnapshot');
-  if (!sheet) {
-    sheet = workbook.insertSheet('InventorySnapshot');
-  }
-  sheet.clear();
-  sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).setFontFamily('Cascadia Mono');
-  sheet.setColumnWidths(1, 9, 180);
-
   const palletsSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
   const palletsData = palletsSheet.getDataRange().getValues();
   const palletHeaders = palletsData[0] || [];
@@ -4609,6 +4609,46 @@ function createInventorySnapshot() {
       }
     }
   }
+
+  return { zoneStats: zoneStats, facilityTotals: facilityTotals, receivingSummary: receivingSummary, movementSummary: movementSummary, movementDetails: movementDetails };
+}
+
+function getZoneInventoryTotals() {
+  const computed = computeZoneInventoryStats();
+  const zoneStats = computed.zoneStats;
+  const zoneOrder = INVENTORY_ZONE_ORDER.concat(Object.keys(zoneStats).filter(function(zone) {
+    return INVENTORY_ZONE_ORDER.indexOf(zone) === -1;
+  }));
+  const zones = zoneOrder.map(function(zoneName) {
+    const zone = zoneStats[zoneName];
+    if (!zone) return null;
+    return {
+      zoneName: zoneName,
+      current: zone.totals.current,
+      palletsCurrent: zone.totals.palletsCurrent,
+      outbound: zone.totals.outbound,
+      palletsOutbound: zone.totals.palletsOutbound
+    };
+  }).filter(Boolean);
+  return createResponse({ success: true, zones: zones, facilityTotals: computed.facilityTotals });
+}
+
+function createInventorySnapshot() {
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = workbook.getSheetByName('InventorySnapshot');
+  if (!sheet) {
+    sheet = workbook.insertSheet('InventorySnapshot');
+  }
+  sheet.clear();
+  sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).setFontFamily('Cascadia Mono');
+  sheet.setColumnWidths(1, 9, 180);
+
+  const computed = computeZoneInventoryStats();
+  const zoneStats = computed.zoneStats;
+  const facilityTotals = computed.facilityTotals;
+  const receivingSummary = computed.receivingSummary;
+  const movementSummary = computed.movementSummary;
+  const movementDetails = computed.movementDetails;
 
   const timestamp = new Date();
   sheet.getRange('A1:I1').merge().setValue('Inventory Snapshot 📦').setFontSize(18).setFontWeight('bold').setHorizontalAlignment('center').setBackground('#f8fafc').setFontColor('#1a202c');
@@ -5604,8 +5644,14 @@ function getBinCardData(params) {
       var mrow = movData[j];
       if (!mrow || !mrow[mi.MovementID]) continue;
 
-      // Parse timestamp
-      var tsRaw = mrow[mi.CreatedAt];
+      // Parse timestamp: prefer CreatedAt, fallback to MovementDate + MovementTime
+      var tsRaw = mi.CreatedAt >= 0 ? mrow[mi.CreatedAt] : null;
+      if (!tsRaw && mi.MovementDate >= 0 && mi.MovementTime >= 0) {
+        var md = mrow[mi.MovementDate];
+        var mt = mrow[mi.MovementTime];
+        if (md && mt) tsRaw = new Date((md + '').trim() + 'T' + (mt + '').trim());
+        else if (md) tsRaw = md instanceof Date ? md : new Date(md);
+      }
       if (!tsRaw) continue;
       var ts = tsRaw instanceof Date ? tsRaw : new Date(tsRaw);
       if (isNaN(ts.getTime())) continue;

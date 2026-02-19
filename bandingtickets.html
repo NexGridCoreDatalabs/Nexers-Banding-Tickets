@@ -2522,6 +2522,23 @@
             color: #fbbf24;
             letter-spacing: 0.3px;
         }
+        .bc-zc-topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .bc-print-zone-btn {
+            font-size: 11px;
+            padding: 5px 10px;
+            border: 1px solid rgba(148,163,184,0.4);
+            color: #94a3b8;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .bc-print-zone-btn:hover {
+            background: rgba(148,163,184,0.1);
+            color: #e2e8f0;
+        }
         /* Zone balance summary row */
         .bc-zc-summary {
             display: flex;
@@ -2702,6 +2719,7 @@
             body.bincards-mode-active #bcEmptyState,
             body.bincards-mode-active .bc-confirm-btn,
             body.bincards-mode-active .bc-print-btn,
+            body.bincards-mode-active .bc-print-zone-btn,
             body.bincards-mode-active #bcAuditReportBtn,
             body.bincards-mode-active #bcRevokeAdminBtn,
             body.bincards-mode-active .bc-header a[href="index.html"],
@@ -2723,6 +2741,12 @@
                 break-inside: avoid; page-break-inside: avoid;
                 background: #fff !important; border: 1px solid #333 !important; margin-bottom: 20px; padding: 16px;
                 box-shadow: none !important;
+            }
+            body.bincards-mode-active .bc-zone-card:not(:first-child) {
+                page-break-before: always;
+            }
+            body.bincards-mode-active.bc-print-single-zone .bc-zone-card:not(.bc-zone-card-print-target) {
+                display: none !important;
             }
             body.bincards-mode-active .bc-zone-card * { color: #000 !important; }
             body.bincards-mode-active .bc-zc-topbar { border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 12px; }
@@ -4601,8 +4625,10 @@
 
                     card.innerHTML = '<div class="bc-zc-topbar">' +
                         '<span class="bc-zc-zone-name">📦 ' + escapeHtml(zd.zone) + '</span>' +
+                        '<span class="bc-zc-topbar-right">' +
+                        '<button type="button" class="bc-print-zone-btn btn-reset" onclick="printBcZone(' + zIdx + ')" title="Print this zone only">🖨️ Print zone</button>' +
                         '<span class="bc-status-pill ' + statusClass + '">' + statusText + '</span>' +
-                        '</div>' + bodyHtml + '<div class="bc-zc-footer">' + footer + '</div>';
+                        '</span></div>' + bodyHtml + '<div class="bc-zc-footer">' + footer + '</div>';
                     return card;
                 }
 
@@ -4706,14 +4732,36 @@
 
                         if (result.success) {
                             var userName = bcLoggedInUser.name || bcLoggedInUser.id;
+                            var vd = result.varianceDetails || [];
                             zd.confirmed   = true;
                             zd.confirmedBy = userName;
-                            zd.varianceDetails = result.varianceDetails || [];
+                            zd.varianceDetails = vd;
+                            // Overlay varianceDetails onto skus so card shows physical/variance
+                            var vdMap = {};
+                            vd.forEach(function(d) { vdMap[d.sku] = d; });
+                            zd.skus.forEach(function(s) {
+                                var d = vdMap[s.sku];
+                                if (d) {
+                                    s.physicalCount = d.physicalCount;
+                                    s.variance = d.variance;
+                                }
+                            });
+                            var zTotal = vd.filter(function(d) { return d.sku === 'ZONE_TOTAL'; })[0];
+                            if (zTotal) {
+                                zd.totalPhysical = zTotal.physicalCount;
+                                zd.zoneVariance  = zTotal.variance;
+                            }
+                            var parts = [];
+                            vd.forEach(function(d) {
+                                if (d.sku !== 'ZONE_TOTAL' && d.variance !== 0 && d.variance != null && !isNaN(d.variance)) {
+                                    parts.push(d.sku + ': ' + Math.abs(d.variance) + (d.variance < 0 ? ' short' : ' over'));
+                                }
+                            });
+                            zd.varianceSummary = parts.join(' · ');
 
                             document.getElementById('bcModalEntryView').style.display = 'none';
                             var receiptView = document.getElementById('bcModalReceiptView');
                             var receiptTable = document.getElementById('bcReceiptTable');
-                            var vd = result.varianceDetails || [];
                             var rows = vd.map(function(d) {
                                 var vCls = d.variance === 0 ? 'variance-match' : (d.variance < 0 ? 'variance-short' : 'variance-over');
                                 var vStr = d.variance === 0 ? '0 ✓' : (d.variance > 0 ? '+' + d.variance : d.variance);
@@ -4748,6 +4796,23 @@
                         statusEl.style.color = '#f87171';
                         confirmBtn.disabled  = false;
                     }
+                };
+
+                window.printBcZone = function(zIdx) {
+                    var grid = document.getElementById('bcGrid');
+                    if (!grid) return;
+                    var cards = grid.querySelectorAll('.bc-zone-card');
+                    var card = cards[zIdx];
+                    if (!card) return;
+                    card.classList.add('bc-zone-card-print-target');
+                    document.body.classList.add('bc-print-single-zone');
+                    var onAfterPrint = function() {
+                        document.body.classList.remove('bc-print-single-zone');
+                        card.classList.remove('bc-zone-card-print-target');
+                        window.removeEventListener('afterprint', onAfterPrint);
+                    };
+                    window.addEventListener('afterprint', onAfterPrint);
+                    window.print();
                 };
 
                 // Prevent native form submit immediately (before async load completes) to avoid page reload
@@ -7549,6 +7614,7 @@
                 clearCache('getInboundsToZone');
                 clearCache('getOutboundsFromZone');
                 clearCache('getPalletsInZone');
+                clearCache('getZoneInventoryTotals');
                 showToast(result.message || 'Pallet received successfully', 'success', 5000);
                 if (card) card.remove();
                 refreshReceivingView();
@@ -7582,6 +7648,7 @@
                 clearCache('getInboundsToZone');
                 clearCache('getOutboundsFromZone');
                 clearCache('getPalletsInZone');
+                clearCache('getZoneInventoryTotals');
                 showToast(result.message || 'Transit cancelled', 'success', 5000);
                 if (card) card.remove();
                 refreshReceivingView();
@@ -8127,7 +8194,20 @@
                 });
                 
                 // Show initial loading state
-                tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Loading zones in batches to avoid API limits...</p></div>';
+                tableContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(251, 191, 36, 0.9);"><div class="loading-spinner"></div><p>Loading zone overview...</p><p style="font-size: 12px; margin-top: 8px; opacity: 0.7;">Loading zones (aligned with Inventory Snapshot)...</p></div>';
+                
+                // Load zone totals from backend (same source as Inventory Snapshot)
+                let zoneTotalsMap = {};
+                try {
+                    const totalsResp = await callAppsScript(new URLSearchParams({ action: 'getZoneInventoryTotals' }));
+                    if (totalsResp.success && totalsResp.zones) {
+                        totalsResp.zones.forEach(z => {
+                            zoneTotalsMap[z.zoneName] = { current: z.current || 0, palletsCurrent: z.palletsCurrent || 0 };
+                        });
+                    }
+                } catch (e) {
+                    console.warn('getZoneInventoryTotals failed, using getPalletsInZone sums:', e);
+                }
                 
                 // Load zones in batches of 5 to avoid overwhelming the API
                 const BATCH_SIZE = 5;
@@ -8475,7 +8555,7 @@
                                 <small style="color: rgba(251, 191, 36, 0.7); font-size: 11px;">Prefix: ${zone.Prefix || 'N/A'}</small>
                                 ${hasError ? `<br><small style="color: #fca5a5; font-size: 10px;">⚠️ ${escapeHtml(zoneData.error)}</small>` : ''}
                             </td>
-                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : zoneData.pallets.length}</td>
+                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : (zoneTotalsMap[zone.ZoneName]?.palletsCurrent ?? zoneData.pallets.length)}</td>
                             <td style="padding: 12px; text-align: center;">
                                 ${hasError ? '—' : 
                                     (skuCount > 0 ? 
@@ -8484,7 +8564,7 @@
                                     )
                                 }
                             </td>
-                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : zoneData.totalQty.toLocaleString()}</td>
+                            <td style="padding: 12px; text-align: center; color: rgba(255, 255, 255, 0.95); font-weight: 600;">${hasError ? '—' : (zoneTotalsMap[zone.ZoneName]?.current ?? zoneData.totalQty).toLocaleString()}</td>
                             <td style="padding: 12px; color: rgba(255, 255, 255, 0.85); font-size: 12px;">
                                 ${hasError ? '—' : escapeHtml(oldestId)}<br>
                                 ${!hasError ? `<small style="color: rgba(251, 191, 36, 0.6);">${oldestDate}</small>` : ''}
@@ -8940,6 +9020,7 @@
                 clearCache('getInboundsToZone');
                 clearCache('getOutboundsFromZone');
                 clearCache('getPalletsInZone');
+                clearCache('getZoneInventoryTotals');
                 showToast(result.message || (isChildMode ? 'Child pallet created. Awaiting receipt at destination.' : 'Move initiated. Awaiting receipt at destination.'), 'success', 5000);
                 if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Initiate Move'; }
                 resetMovementForm();
@@ -8955,7 +9036,7 @@
             }
         }
 
-        const CACHEABLE_ACTIONS = ['getZoneConfig', 'getPalletsInZone', 'getInboundsToZone', 'getOutboundsFromZone'];
+        const CACHEABLE_ACTIONS = ['getZoneConfig', 'getZoneInventoryTotals', 'getPalletsInZone', 'getInboundsToZone', 'getOutboundsFromZone'];
         const CACHE_TTL_ZONE_CONFIG = 2 * 60 * 1000;   // 2 min
         const CACHE_TTL_PALLET_LISTS = 45 * 1000;      // 45 sec
 
@@ -8968,6 +9049,7 @@
             if (isCacheable && !skipCache) {
                 cacheKey = [...params.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(p=>p[0]+'='+p[1]).join('&');
                 if (action === 'getZoneConfig') cacheTtl = CACHE_TTL_ZONE_CONFIG;
+                if (action === 'getZoneInventoryTotals') cacheTtl = CACHE_TTL_PALLET_LISTS;
                 const cached = getCachedRequest(cacheKey, cacheTtl);
                 if (cached) return cached;
             }

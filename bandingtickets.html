@@ -4171,8 +4171,8 @@
 
                     const movementTab = urlParams.get('tab') || 'monitor'; // 'monitor' or 'receiving'
 
-                    // Apply clean movement-only layout
-                    document.body.classList.add('movement-mode-active');
+                    // Apply clean movement-only layout (fill-mode-active ensures fillContainer shows like edit mode)
+                    document.body.classList.add('fill-mode-active', 'movement-mode-active');
                     var fc = document.getElementById('fillContainer');
                     if (fc) fc.classList.add('visible');
 

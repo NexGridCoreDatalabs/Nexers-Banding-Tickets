@@ -57,6 +57,7 @@
             background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
             background-attachment: fixed;
             min-height: 100vh;
+            color: #e2e8f0;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
@@ -2294,6 +2295,471 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* ── Movement-only mode (mode=movement from landing page) ── */
+        body.movement-mode-active .control-panel,
+        body.movement-mode-active .print-container,
+        body.movement-mode-active #fillContainer,
+        body.movement-mode-active .movement-toggle {
+            display: none !important;
+        }
+        body.movement-mode-active #movementSection {
+            display: block !important;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 16px 80px;
+        }
+        body.movement-mode-active #movementPanel {
+            margin-top: 0;
+        }
+        /* Movement-only login card overlay */
+        body.movement-mode-active #movementLoginOverlay {
+            display: flex !important;
+        }
+
+        /* ── Bin-cards mode ── */
+        body.bincards-mode-active .control-panel,
+        body.bincards-mode-active .print-container,
+        body.bincards-mode-active #fillContainer,
+        body.bincards-mode-active #movementSection,
+        body.bincards-mode-active .movement-toggle {
+            display: none !important;
+        }
+        body.bincards-mode-active #binCardsSection {
+            display: block !important;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px 16px 80px;
+        }
+        body.bincards-mode-active #binCardsLoginOverlay {
+            display: flex !important;
+        }
+
+        /* Bin-cards login overlay — reuses movement-login-overlay styles */
+        #binCardsLoginOverlay { display: none; }
+
+        /* ── Bin-cards dashboard ── */
+        #binCardsSection { display: none; }
+
+        .bc-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .bc-header h2 {
+            margin: 0;
+            font-size: 22px;
+            color: #f1f5f9;
+            font-weight: 700;
+        }
+        .bc-shift-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(245,158,11,0.12);
+            border: 1px solid rgba(245,158,11,0.35);
+            color: #fbbf24;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.3px;
+        }
+        .bc-progress-bar {
+            background: rgba(255,255,255,0.07);
+            border-radius: 8px;
+            height: 8px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        .bc-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+            border-radius: 8px;
+            transition: width 0.5s ease;
+        }
+        .bc-progress-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 16px;
+            margin-top: -18px;
+            text-align: right;
+        }
+
+        /* Card grid */
+        .bc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .bc-card {
+            background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.95));
+            border: 1px solid rgba(245,158,11,0.2);
+            border-radius: 16px;
+            padding: 20px 22px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .bc-card:hover {
+            border-color: rgba(245,158,11,0.5);
+            box-shadow: 0 4px 24px rgba(245,158,11,0.12);
+        }
+        .bc-card.bc-confirmed {
+            border-color: rgba(52,211,153,0.4);
+            background: linear-gradient(135deg, rgba(6,78,59,0.25), rgba(15,23,42,0.95));
+        }
+        .bc-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 14px;
+        }
+        .bc-card-zone {
+            font-size: 11px;
+            font-weight: 700;
+            color: #818cf8;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+        .bc-card-sku {
+            font-size: 17px;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+        .bc-status-pill {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 12px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .bc-status-open     { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+        .bc-status-confirmed { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+        .bc-balances {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .bc-bal-item { text-align: center; }
+        .bc-bal-label {
+            font-size: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        .bc-bal-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: #e2e8f0;
+        }
+        .bc-bal-value.positive { color: #34d399; }
+        .bc-bal-value.negative { color: #f87171; }
+        .bc-confirm-btn {
+            width: 100%;
+            margin-top: 4px;
+            padding: 10px;
+            background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.08));
+            border: 1px solid rgba(245,158,11,0.4);
+            color: #fbbf24;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 0.3px;
+            transition: background 0.2s;
+        }
+        .bc-confirm-btn:hover { background: rgba(245,158,11,0.25); }
+        .bc-confirmed-summary {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        /* Confirm modal */
+        .bc-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 600;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .bc-modal-overlay.active { display: flex; }
+        .bc-modal {
+            width: 100%;
+            max-width: 480px;
+            background: linear-gradient(135deg, #0f172a, #1e3a5f);
+            border: 2px solid rgba(245,158,11,0.4);
+            border-radius: 20px;
+            padding: 32px 28px 24px;
+        }
+        .bc-modal h3 { margin: 0 0 6px; color: #f1f5f9; font-size: 18px; }
+        .bc-modal .bc-modal-sub { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+        .bc-modal-balances {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .bc-modal-bal-item .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .bc-modal-bal-item .value { font-size: 22px; font-weight: 800; color: #e2e8f0; }
+        .bc-physical-input-wrap { margin-bottom: 16px; }
+        .bc-physical-input-wrap label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 8px; font-weight: 600; }
+        .bc-physical-input-wrap input {
+            width: 100%; padding: 12px 16px; background: rgba(255,255,255,0.06);
+            border: 2px solid rgba(245,158,11,0.3); border-radius: 10px;
+            color: #f1f5f9; font-size: 18px; font-weight: 700; text-align: center;
+            outline: none; box-sizing: border-box;
+        }
+        .bc-physical-input-wrap input:focus { border-color: rgba(245,158,11,0.7); }
+        .bc-variance-preview {
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.04);
+            color: #94a3b8;
+        }
+        .bc-variance-preview.match   { background: rgba(52,211,153,0.1); color: #34d399; }
+        .bc-variance-preview.short   { background: rgba(248,113,113,0.1); color: #f87171; }
+        .bc-variance-preview.over    { background: rgba(167,139,250,0.1); color: #a78bfa; }
+        .bc-modal-actions { display: flex; gap: 12px; }
+        .bc-modal-actions button { flex: 1; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+        .bc-btn-cancel  { background: rgba(255,255,255,0.07); color: #94a3b8; }
+        .bc-btn-confirm { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: #0f172a; }
+        .bc-btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+        .bc-modal-status { text-align: center; font-size: 13px; margin-top: 12px; min-height: 20px; }
+
+        /* Print bin card */
+        @media print {
+            body.bincards-mode-active #binCardsLoginOverlay,
+            body.bincards-mode-active .bc-header .bc-shift-badge,
+            body.bincards-mode-active .bc-confirm-btn,
+            body.bincards-mode-active .bc-print-btn,
+            body.bincards-mode-active .app-footer-bar { display: none !important; }
+            body.bincards-mode-active #binCardsSection { padding: 0 !important; }
+            .bc-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ccc !important; background: #fff !important; color: #000 !important; }
+            .bc-card-zone, .bc-card-sku, .bc-bal-label, .bc-bal-value { color: #000 !important; }
+        }
+        .movement-login-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #0b1628 0%, #1e3a5f 60%, #0b1628 100%);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .movement-login-card {
+            width: 100%;
+            max-width: 440px;
+            background: linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,58,95,0.98));
+            border: 2px solid rgba(245,158,11,0.4);
+            border-radius: 24px;
+            padding: 36px 32px 28px;
+            box-shadow: 0 16px 64px rgba(0,0,0,0.5), 0 8px 32px rgba(245,158,11,0.15);
+            position: relative;
+        }
+        .movement-login-card .mlc-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            background: rgba(245,158,11,0.12);
+            border: 2px solid rgba(245,158,11,0.35);
+            border-radius: 50%;
+        }
+        .movement-login-card .mlc-badge {
+            display: block;
+            text-align: center;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 1.8px;
+            text-transform: uppercase;
+            color: #475569;
+            margin-bottom: 20px;
+        }
+        .movement-login-card h2 {
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fbbf24, #f59e0b, #fcd34d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+        .movement-login-card .mlc-tab-label {
+            text-align: center;
+            font-size: 0.82rem;
+            color: #64748b;
+            margin-bottom: 24px;
+        }
+        .movement-login-card .mlc-tab-label strong {
+            color: #94a3b8;
+        }
+        .movement-login-card .fill-form-group label {
+            color: #fbbf24;
+        }
+        .movement-login-card .mlc-footer {
+            margin-top: 24px;
+        }
+        .movement-login-card .mlc-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.78rem;
+            color: #64748b;
+            text-decoration: none;
+            margin-bottom: 20px;
+            transition: color 0.15s;
+        }
+        .movement-login-card .mlc-back:hover { color: #94a3b8; }
+
+        /* ── Consistent app footer ── */
+        .app-footer-bar {
+            text-align: center;
+            margin-top: 28px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(245, 158, 11, 0.2);
+            font-size: 12px;
+            color: #64748b;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+        .app-footer-bar .footer-brand { color: #fbbf24; font-weight: 700; }
+        .app-footer-bar .footer-lab   { color: #818cf8; font-weight: 700; }
+
+        /* ── Global readability improvements ── */
+        p, li, td, th, span, small, label {
+            letter-spacing: 0.01em;
+        }
+        td, th {
+            color: inherit;
+        }
+        .movement-panel,
+        .movement-panel * {
+            color: inherit;
+        }
+        .movement-panel td {
+            color: rgba(226, 232, 240, 0.9);
+        }
+        .movement-panel th {
+            color: #fbbf24;
+        }
+        select option {
+            background: #1e3a5f;
+            color: #e2e8f0;
+        }
+
+        /* ── Enhanced login card ── */
+        #loginCard .fill-card-login-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #475569;
+            background: rgba(71, 85, 105, 0.15);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            border-radius: 20px;
+            padding: 4px 12px;
+            margin-bottom: 16px;
+        }
+        #loginCard h2 {
+            font-size: 22px !important;
+        }
+        .login-lock-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 16px;
+            background: rgba(245, 158, 11, 0.12);
+            border: 2px solid rgba(245, 158, 11, 0.35);
+            border-radius: 50%;
+            font-size: 26px;
+        }
+
+        /* ── Table readability ── */
+        table {
+            color: #e2e8f0;
+        }
+        .movement-panel table td,
+        #zoneOverviewTable td,
+        #recentMovementsTable td {
+            color: rgba(226, 232, 240, 0.9);
+        }
+        #zoneOverviewTable table,
+        #recentMovementsTable table {
+            color: #e2e8f0;
+        }
+
+        /* ── Control panel readability ── */
+        .control-panel {
+            color: #e2e8f0;
+        }
+        .control-panel label {
+            color: #fbbf24;
+        }
+        .control-panel p,
+        .control-panel small {
+            color: #94a3b8;
+        }
+
+        /* ── Movement form labels ── */
+        .movement-form-grid label {
+            color: #fbbf24;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .movement-section h3 {
+            border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+            padding-bottom: 10px;
+            margin-bottom: 16px;
+        }
+
+        /* ── Badge colors ── */
+        .badge { color: #e2e8f0; }
+        .badge[style*="Active"] { color: #86efac; }
+
+        /* ── Improved view card readability ── */
+        #viewCard p,
+        #viewCard span,
+        #viewCard small {
+            color: inherit;
+        }
+        .pallet-info-grid span,
+        .pallet-info-grid small {
+            color: #94a3b8;
+        }
     </style>
 </head>
 <body>
@@ -2314,6 +2780,130 @@
             <img src="favicon.png" alt="" width="64" height="64" loading="eager">
         </div>
     </div>
+    <!-- Movement-only login overlay (shown in mode=movement when not logged in) -->
+    <div class="movement-login-overlay" id="movementLoginOverlay">
+        <div class="movement-login-card">
+            <a href="index.html" class="mlc-back">← Back to Home</a>
+            <div class="mlc-icon">🚚</div>
+            <span class="mlc-badge">⬥ Authorized Personnel Only</span>
+            <h2>Stock Movement Control</h2>
+            <p class="mlc-tab-label">Opening: <strong id="mlcTabLabel">Zone Monitor</strong></p>
+            <form id="movementLoginForm" class="fill-form">
+                <div class="fill-form-group">
+                    <label for="movementLoginUser">Select User</label>
+                    <select id="movementLoginUser" required>
+                        <option value="">Loading authorized users...</option>
+                    </select>
+                </div>
+                <div class="fill-form-group">
+                    <label for="movementLoginPasscode">Passcode</label>
+                    <input type="password" id="movementLoginPasscode" required placeholder="Enter your secure passcode">
+                </div>
+                <div class="fill-actions">
+                    <button type="submit" class="btn-generate" id="movementLoginSubmit">🔓 Unlock Movement Controls</button>
+                </div>
+                <div id="movementLoginStatus" class="login-status"></div>
+            </form>
+            <div class="mlc-footer app-footer-bar"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+        </div>
+    </div>
+
+    <!-- ── Bin-Cards login overlay ── -->
+    <div class="movement-login-overlay" id="binCardsLoginOverlay">
+        <div class="movement-login-card">
+            <a href="index.html" class="mlc-back">← Back to Home</a>
+            <div class="mlc-icon">📋</div>
+            <span class="mlc-badge">⬥ Authorized Personnel Only</span>
+            <h2>Bin Card Center</h2>
+            <p class="mlc-tab-label">Current shift: <strong id="bcLoginShiftLabel">Loading...</strong></p>
+            <form id="binCardsLoginForm" class="fill-form">
+                <div class="fill-form-group">
+                    <label for="bcLoginUser">Select User</label>
+                    <select id="bcLoginUser" required>
+                        <option value="">Loading authorized users...</option>
+                    </select>
+                </div>
+                <div class="fill-form-group">
+                    <label for="bcLoginPasscode">Passcode</label>
+                    <input type="password" id="bcLoginPasscode" required placeholder="Enter your secure passcode">
+                </div>
+                <div class="fill-actions">
+                    <button type="submit" class="btn-generate" id="bcLoginSubmit">🔓 Open Bin Cards</button>
+                </div>
+                <div id="bcLoginStatus" class="login-status"></div>
+            </form>
+            <div class="mlc-footer app-footer-bar"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+        </div>
+    </div>
+
+    <!-- ── Bin-Cards section ── -->
+    <div id="binCardsSection">
+        <div class="bc-header">
+            <div>
+                <div style="font-size:12px;color:#64748b;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">📋 Bin Card Center</div>
+                <h2>Shift Stock Reconciliation</h2>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <span class="bc-shift-badge" id="bcShiftBadge">☀️ Loading shift…</span>
+                <button class="bc-print-btn btn-reset" onclick="window.print()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(148,163,184,0.3);color:#94a3b8;border-radius:8px;">🖨️ Print</button>
+                <a href="index.html" style="font-size:12px;padding:7px 14px;border:1px solid rgba(245,158,11,0.3);color:#fbbf24;border-radius:8px;text-decoration:none;">← Home</a>
+            </div>
+        </div>
+
+        <div class="bc-progress-bar"><div class="bc-progress-fill" id="bcProgressFill" style="width:0%"></div></div>
+        <div class="bc-progress-label" id="bcProgressLabel">Loading…</div>
+
+        <div id="bcLoadingState" style="text-align:center;padding:60px 20px;color:#64748b;">
+            <div style="font-size:36px;margin-bottom:12px;">⏳</div>
+            <div style="font-size:16px;font-weight:600;">Loading bin card data…</div>
+            <div style="font-size:13px;margin-top:6px;">Reading Pallets and Zone Movements</div>
+        </div>
+        <div id="bcEmptyState" style="display:none;text-align:center;padding:60px 20px;color:#64748b;">
+            <div style="font-size:36px;margin-bottom:12px;">📭</div>
+            <div style="font-size:16px;font-weight:600;">No stock recorded yet for this shift</div>
+            <div style="font-size:13px;margin-top:6px;">Bin cards will appear as pallets are added to zones</div>
+        </div>
+        <div class="bc-grid" id="bcGrid"></div>
+
+        <div class="app-footer-bar"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+    </div>
+
+    <!-- ── Bin-card confirm modal ── -->
+    <div class="bc-modal-overlay" id="bcConfirmModal">
+        <div class="bc-modal">
+            <h3 id="bcModalTitle">Confirm Physical Count</h3>
+            <div class="bc-modal-sub" id="bcModalSub">Zone · SKU · Shift</div>
+            <div class="bc-modal-balances">
+                <div class="bc-modal-bal-item">
+                    <div class="label">Opening Balance</div>
+                    <div class="value" id="bcModalOpening">—</div>
+                </div>
+                <div class="bc-modal-bal-item">
+                    <div class="label">Moved In</div>
+                    <div class="value" id="bcModalMovedIn" style="color:#34d399;">—</div>
+                </div>
+                <div class="bc-modal-bal-item">
+                    <div class="label">Moved Out</div>
+                    <div class="value" id="bcModalMovedOut" style="color:#f87171;">—</div>
+                </div>
+                <div class="bc-modal-bal-item">
+                    <div class="label">System Count</div>
+                    <div class="value" id="bcModalSystem">—</div>
+                </div>
+            </div>
+            <div class="bc-physical-input-wrap">
+                <label for="bcPhysicalInput">📦 Enter Physical Count (what you physically counted in the zone)</label>
+                <input type="number" id="bcPhysicalInput" min="0" placeholder="0" oninput="updateVariancePreview()">
+            </div>
+            <div class="bc-variance-preview" id="bcVariancePreview">Enter physical count above to see variance</div>
+            <div class="bc-modal-actions">
+                <button class="bc-btn-cancel" onclick="closeBcModal()">Cancel</button>
+                <button class="bc-btn-confirm" id="bcConfirmBtn" onclick="submitBinCardConfirmation()">✅ Confirm & Close Card</button>
+            </div>
+            <div class="bc-modal-status" id="bcModalStatus"></div>
+        </div>
+    </div>
+
     <div class="control-panel">
         <h1>⬥ RetiFlux™</h1>
         <div class="subtitle">Retis Fluxit, Data Vincit</div>
@@ -2380,11 +2970,7 @@
             </div>
         </div>
         
-        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
-            <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
-                <strong style="color: #fbbf24; font-weight: 700;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
-            </p>
-        </div>
+        <div class="app-footer-bar"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
     </div>
 
     <div class="print-container" id="printContainer"></div>
@@ -2403,18 +2989,20 @@
                 </div>
                 <div id="viewData" style="display: none;"></div>
             </div>
-            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(245, 158, 11, 0.3);">
-                <button type="button" id="viewModeLoginBtn" class="btn-reset" onclick="showViewModeLogin()" style="font-size: 12px; padding: 6px 14px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; white-space: nowrap; margin-bottom: 16px;">🔐 Authorized Access</button>
-                <p style="color: rgba(251, 191, 36, 0.8); font-size: 12px; font-weight: 600; letter-spacing: 1px;">
-                    <strong style="background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
-                </p>
+            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(245, 158, 11, 0.2);">
+                <button type="button" id="viewModeLoginBtn" class="btn-reset" onclick="showViewModeLogin()" style="font-size: 12px; padding: 6px 14px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; white-space: nowrap; margin-bottom: 12px;">🔐 Authorized Access</button>
+                <div class="app-footer-bar" style="margin-top: 4px; padding-top: 0; border-top: none;"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
             </div>
         </div>
 
         <div class="fill-card" id="loginCard" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
                 <h2 style="margin: 0;">⬥ Authorized Login</h2>
                 <button type="button" class="btn-reset" id="loginCloseBtn" onclick="closeLoginCard()" style="padding: 8px 16px; font-size: 13px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; border-radius: 8px; white-space: nowrap;">✕ Close</button>
+            </div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div class="login-lock-icon">🔐</div>
+                <div class="fill-card-login-badge">⬥ Authorized Personnel Only</div>
             </div>
             <p id="loginCardIntro" class="fill-intro">Only authorized production leads can edit tickets from this workstation. Please sign in to continue.</p>
             <form id="loginForm" class="fill-form">
@@ -2434,16 +3022,17 @@
                 </div>
                 <div id="loginStatus" class="login-status"></div>
             </form>
-            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
-                <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
-                    <strong style="color: #fbbf24; font-weight: 700;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
-                </p>
+            <div style="text-align: center; margin-top: 30px; padding-top: 18px; border-top: 1px solid rgba(245, 158, 11, 0.2);">
+                <div class="app-footer-bar" style="margin-top: 0; padding-top: 0; border-top: none;"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
             </div>
         </div>
         
         <div class="fill-card" id="editCard" style="display: none;">
-            <h2>⬥ Edit Ticket</h2>
-            <p class="fill-intro">Enter the captured information for serial <strong id="fillSerialDisplay" style="color: #fcd34d; font-weight: 800; letter-spacing: 1px;"></strong>. When you submit, data is saved to Google Sheets and a finished ticket downloads as a PNG.</p>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <h2 style="margin: 0;">⬥ Edit Ticket</h2>
+                <button type="button" class="btn-reset" id="editCloseBtn" onclick="closeEditFormToHome()" style="padding: 8px 16px; font-size: 13px; border: 2px solid rgba(245,158,11,0.5); color: #fbbf24; border-radius: 8px; white-space: nowrap;">✕ Close</button>
+            </div>
+            <p id="editCardIntro" class="fill-intro">Enter the captured information for serial <strong id="fillSerialDisplay" style="color: #fcd34d; font-weight: 800; letter-spacing: 1px;"></strong>. When you submit, data is saved to Google Sheets and a finished ticket downloads as a PNG.</p>
             <div class="logged-in-banner" id="loggedInUserBanner">
                 <div>
                     <span id="loggedInUserText"></span>
@@ -2592,21 +3181,13 @@
                 </div>
                 <div id="fillStatus" class="fill-status"></div>
             </form>
-            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
-                <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
-                    <strong style="color: #fbbf24; font-weight: 700;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
-                </p>
-            </div>
+            <div class="app-footer-bar"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
         </div>
         <div class="fill-preview">
             <h2>Live Preview</h2>
             <div class="fill-preview-note">Preview updates on submit before the download starts.</div>
             <div class="fill-preview-stage" id="fillPreview"></div>
-            <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
-                <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
-                    <strong style="color: #fbbf24; font-weight: 700;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
-                </p>
-            </div>
+            <div class="app-footer-bar"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
         </div>
 
         <div id="movementSection" style="display: none;">
@@ -2614,6 +3195,9 @@
                 <button type="button" class="btn-generate" id="movementToggleBtn" onclick="toggleMovementPanel()">
                     🚚 Open Stock Movement Control
                 </button>
+                <a href="bandingtickets.html?mode=bincards" style="display:inline-block;margin-top:10px;padding:10px 20px;background:rgba(129,140,248,0.1);border:1px solid rgba(129,140,248,0.35);color:#818cf8;border-radius:12px;font-size:13px;font-weight:600;text-decoration:none;letter-spacing:0.3px;transition:background 0.2s;" onmouseover="this.style.background='rgba(129,140,248,0.2)'" onmouseout="this.style.background='rgba(129,140,248,0.1)'">
+                    📋 View Bin Cards (Shift Reconciliation)
+                </a>
             </div>
 
             <div class="movement-panel" id="movementPanel">
@@ -3057,8 +3641,8 @@
                 '<p id="geofenceMsgRotate" style="color: #cbd5e1; font-size: 15px; line-height: 1.7; min-height: 4.5em; transition: opacity 0.4s ease;">' + GEOFENCE_DENIED_MESSAGES[0] + '</p>' +
                 '<p style="color: #94a3b8; font-size: 13px; margin-top: 20px;">💡 Ensure location services are enabled for this browser.</p>' +
                 '<button onclick="window.location.reload()" style="margin-top: 28px; padding: 12px 24px; background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);">Try Again</button>' +
-                '<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(148, 163, 184, 0.3);">' +
-                '<p style="color: #64748b; font-size: 12px;"><strong style="color: #fbbf24;">RetiFlux™</strong> Powered by <strong style="color: #667eea;">NexGridCore DataLabs</strong></p></div></div></div>';
+                '<div style="margin-top: 30px; padding-top: 18px; border-top: 1px solid rgba(245,158,11,0.2); text-align: center; font-size: 12px; color: #64748b; letter-spacing: 0.5px; font-weight: 500;">' +
+                '<strong style="color:#fbbf24;font-weight:700;">RetiFlux™</strong> Powered by <strong style="color:#818cf8;font-weight:700;">NexGridCore DataLabs</strong></div></div></div>';
             setInterval(nextMessage, 15000);
         }
 
@@ -3371,15 +3955,9 @@
         const GENERATOR_PASSWORD = CONFIG.GENERATOR_PASSWORD || 'NEXGRID2025'; // SECURITY: Load from config.js
         
         function checkGeneratorAccess() {
-            const accessGranted = localStorage.getItem(GENERATOR_ACCESS_TOKEN);
-            if (accessGranted === 'true') {
-                return true;
-            }
-            
-            // Show password prompt
+            // Always prompt — no localStorage caching
             const password = prompt('🔐 Generator Access Required\n\nEnter password to access ticket generator:');
             if (password === GENERATOR_PASSWORD) {
-                localStorage.setItem(GENERATOR_ACCESS_TOKEN, 'true');
                 return true;
             } else if (password !== null) {
                 alert('❌ Incorrect password. Access denied.');
@@ -3429,22 +4007,430 @@
             // No mode parameter means direct access to generator - require password
             if (!checkGeneratorAccess()) {
                 document.body.innerHTML = `
-                    <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f7fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                        <div style="text-align: center; padding: 40px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px;">
-                            <h1 style="color: #e53e3e; margin-bottom: 20px;">⚠️ Access Denied</h1>
-                            <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
+                    <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%); font-family: 'Cascadia Mono', Consolas, monospace;">
+                        <div style="text-align: center; padding: 48px 36px; background: rgba(15, 23, 42, 0.9); border: 2px solid rgba(245, 158, 11, 0.35); border-radius: 20px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); max-width: 480px; width: 90%;">
+                            <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                            <h1 style="color: #fca5a5; margin-bottom: 16px; font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">Access Denied</h1>
+                            <p style="color: #94a3b8; font-size: 15px; line-height: 1.7;">
                                 Generator access is restricted to authorized devices only. Please scan a ticket QR code to view or edit ticket details.
                             </p>
-                            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0;">
-                                <p style="color: #718096; font-size: 12px; font-weight: 500; letter-spacing: 0.5px;">
-                                    <strong style="color: #fbbf24; font-weight: 700;">RetiFlux™</strong> Powered by <strong style="color: #667eea; font-weight: 700;">NexGridCore DataLabs</strong>
-                                </p>
-                            </div>
+                            <a href="index.html" style="display: inline-block; margin-top: 28px; padding: 12px 28px; background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #0f172a; font-weight: 700; border-radius: 10px; text-decoration: none; font-size: 14px;">← Back to Home</a>
+                            <div class="app-footer-bar"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
                         </div>
                     </div>
                 `;
             }
             // If access granted, continue with normal page load (generator will show)
+        } else if (currentMode === 'movement') {
+            // Stock Movement Control — clean movement-only view
+            (function() {
+                const movementTab = urlParams.get('tab') || 'monitor'; // 'monitor' or 'receiving'
+
+                // Apply clean movement-only layout
+                document.body.classList.add('movement-mode-active');
+
+                // Update tab label in login overlay
+                const mlcTabLabel = document.getElementById('mlcTabLabel');
+                if (mlcTabLabel) {
+                    mlcTabLabel.textContent = movementTab === 'receiving' ? 'Zone Receiving' : 'Zone Monitor';
+                }
+
+                // Open movement panel and switch to the right tab after login
+                function openMovementAtTab() {
+                    const panel = document.getElementById('movementPanel');
+                    const toggleBtn = document.getElementById('movementToggleBtn');
+                    if (panel) panel.classList.add('active');
+                    if (toggleBtn) toggleBtn.textContent = '🚫 Close Stock Movement Control';
+                    ensureMovementPanelLoaded().then(function() {
+                        switchMovementView(movementTab);
+                    });
+                }
+
+                // Handle movement login form submission
+                function initMovementLoginForm(users) {
+                    const select = document.getElementById('movementLoginUser');
+                    if (select && users && users.length) {
+                        select.innerHTML = '<option value="">Select authorized user...</option>' +
+                            users.map(function(u) {
+                                return '<option value="' + escapeHtml(u.id || u.name) + '">' + escapeHtml(u.name) + '</option>';
+                            }).join('');
+                    }
+                    const form = document.getElementById('movementLoginForm');
+                    if (!form) return;
+                    form.addEventListener('submit', async function(e) {
+                        e.preventDefault();
+                        const statusEl = document.getElementById('movementLoginStatus');
+                        const userId = document.getElementById('movementLoginUser').value;
+                        const passcode = document.getElementById('movementLoginPasscode').value;
+                        if (!userId || !passcode) {
+                            if (statusEl) { statusEl.textContent = '⚠️ Please select a user and enter your passcode.'; statusEl.className = 'login-status error'; }
+                            return;
+                        }
+                        const submitBtn = document.getElementById('movementLoginSubmit');
+                        if (submitBtn) submitBtn.disabled = true;
+                        if (statusEl) { statusEl.textContent = '⏳ Verifying...'; statusEl.className = 'login-status'; }
+                        try {
+                            const result = await verifyUserLogin(userId, passcode);
+                            if (result.success) {
+                                if (statusEl) { statusEl.textContent = '✅ Access granted.'; statusEl.className = 'login-status success'; }
+                                setTimeout(function() {
+                                    const overlay = document.getElementById('movementLoginOverlay');
+                                    if (overlay) overlay.style.display = 'none';
+                                    openMovementAtTab();
+                                }, 600);
+                            } else {
+                                if (statusEl) { statusEl.textContent = '❌ ' + (result.message || 'Incorrect passcode.'); statusEl.className = 'login-status error'; }
+                                if (submitBtn) submitBtn.disabled = false;
+                            }
+                        } catch (err) {
+                            if (statusEl) { statusEl.textContent = '❌ Login failed. Please try again.'; statusEl.className = 'login-status error'; }
+                            if (submitBtn) submitBtn.disabled = false;
+                        }
+                    });
+                }
+
+                window.addEventListener('load', async function() {
+                    if (isUserLoggedIn()) {
+                        // Already logged in — skip overlay, open panel directly
+                        const overlay = document.getElementById('movementLoginOverlay');
+                        if (overlay) overlay.style.display = 'none';
+                        setTimeout(openMovementAtTab, 300);
+                    } else {
+                        // Show login overlay, load users
+                        try {
+                            const { users } = await loadAuthorizedUsers();
+                            initMovementLoginForm(users);
+                            authorizedUsersLoaded = true;
+                        } catch (e) {
+                            initMovementLoginForm([]);
+                        }
+                    }
+                }, { once: true });
+            })();
+        } else if (currentMode === 'bincards') {
+            // ── Bin Cards — shift stock reconciliation ──
+            (function() {
+                document.body.classList.add('bincards-mode-active');
+
+                // Current shift label for login overlay
+                var _h = new Date().getHours();
+                var _shiftLabel = (_h >= 7 && _h < 19) ? '☀️ Day Shift (07:00–19:00)' : '🌙 Night Shift (19:00–07:00)';
+                var _bcLoginShiftLabel = document.getElementById('bcLoginShiftLabel');
+                if (_bcLoginShiftLabel) _bcLoginShiftLabel.textContent = _shiftLabel;
+
+                // State
+                var bcLoggedInUser = null;
+                var bcCurrentShift = null;
+                var bcAllCards     = [];
+                var bcActiveCard   = null; // card currently being confirmed in modal
+
+                // ── Shift helpers (mirror of Apps Script getBinCardShiftInfo) ──
+                function getClientShiftInfo() {
+                    var now = new Date();
+                    var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+                    var dayStart   = new Date(y, m, d,  7, 0, 0);
+                    var nightStart = new Date(y, m, d, 19, 0, 0);
+                    var nextDay7   = new Date(y, m, d + 1, 7, 0, 0);
+                    var prev19     = new Date(y, m, d - 1, 19, 0, 0);
+                    var pad = function(n) { return String(n).padStart(2, '0'); };
+                    function dateKey(dt) { return dt.getFullYear() + '-' + pad(dt.getMonth()+1) + '-' + pad(dt.getDate()); }
+                    if (now >= dayStart && now < nightStart) {
+                        return { shift: 'Day', shiftDateKey: dateKey(dayStart), label: '☀️ Day Shift (07:00–19:00)', shiftStart: dayStart, shiftEnd: nightStart };
+                    } else if (now >= nightStart) {
+                        return { shift: 'Night', shiftDateKey: dateKey(nightStart), label: '🌙 Night Shift (19:00–07:00)', shiftStart: nightStart, shiftEnd: nextDay7 };
+                    } else {
+                        return { shift: 'Night', shiftDateKey: dateKey(prev19), label: '🌙 Night Shift (19:00–07:00)', shiftStart: prev19, shiftEnd: dayStart };
+                    }
+                }
+
+                // ── Fetch bin card data from Apps Script ──
+                async function fetchBinCardData() {
+                    var url = GOOGLE_APPS_SCRIPT_URL + '?action=getBinCardData';
+                    var resp = await fetch(url);
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    return await resp.json();
+                }
+
+                // ── Render the dashboard ──
+                function renderBinCards(data) {
+                    bcCurrentShift = data.shiftInfo;
+                    bcAllCards     = data.cards || [];
+
+                    var badge = document.getElementById('bcShiftBadge');
+                    if (badge) badge.textContent = data.shiftInfo.label;
+
+                    var confirmed = data.confirmedCount || 0;
+                    var total     = data.totalCards     || 0;
+                    var pct = total > 0 ? Math.round((confirmed / total) * 100) : 0;
+                    var fill  = document.getElementById('bcProgressFill');
+                    var label = document.getElementById('bcProgressLabel');
+                    if (fill)  fill.style.width = pct + '%';
+                    if (label) label.textContent = confirmed + ' of ' + total + ' cards confirmed (' + pct + '%)';
+
+                    document.getElementById('bcLoadingState').style.display = 'none';
+
+                    var grid = document.getElementById('bcGrid');
+                    grid.innerHTML = '';
+
+                    if (bcAllCards.length === 0) {
+                        document.getElementById('bcEmptyState').style.display = 'block';
+                        return;
+                    }
+
+                    bcAllCards.forEach(function(card, idx) {
+                        grid.appendChild(buildBcCard(card, idx));
+                    });
+                }
+
+                function fmt(n) { return (n === undefined || n === null) ? '—' : Number(n).toLocaleString(); }
+
+                function buildBcCard(card, idx) {
+                    var div = document.createElement('div');
+                    div.className = 'bc-card' + (card.confirmed ? ' bc-confirmed' : '');
+                    div.dataset.idx = idx;
+                    div.onclick = function() { openBcModal(idx); };
+
+                    var statusClass  = card.confirmed ? 'bc-status-confirmed' : 'bc-status-open';
+                    var statusText   = card.confirmed ? '✅ Confirmed' : '⏳ Open';
+                    var varianceHtml = '';
+                    if (card.confirmed) {
+                        var varClass = card.variance === 0 ? 'positive' : (card.variance < 0 ? 'negative' : 'positive');
+                        var varSign  = card.variance > 0 ? '+' : '';
+                        varianceHtml = '<div class="bc-bal-item"><div class="bc-bal-label">Variance</div><div class="bc-bal-value ' + varClass + '">' + varSign + fmt(card.variance) + '</div></div>';
+                    }
+
+                    div.innerHTML =
+                        '<div class="bc-card-header">' +
+                            '<div><div class="bc-card-zone">' + escapeHtml(card.zone) + '</div><div class="bc-card-sku">' + escapeHtml(card.sku) + '</div></div>' +
+                            '<span class="bc-status-pill ' + statusClass + '">' + statusText + '</span>' +
+                        '</div>' +
+                        '<div class="bc-balances">' +
+                            '<div class="bc-bal-item"><div class="bc-bal-label">Opening</div><div class="bc-bal-value">' + fmt(card.openingBalance) + '</div></div>' +
+                            '<div class="bc-bal-item"><div class="bc-bal-label">In</div><div class="bc-bal-value" style="color:#34d399;">+' + fmt(card.movedIn) + '</div></div>' +
+                            '<div class="bc-bal-item"><div class="bc-bal-label">Out</div><div class="bc-bal-value" style="color:#f87171;">-' + fmt(card.movedOut) + '</div></div>' +
+                            '<div class="bc-bal-item"><div class="bc-bal-label">System</div><div class="bc-bal-value">' + fmt(card.systemClosingBalance) + '</div></div>' +
+                            (card.confirmed ? varianceHtml : '') +
+                        '</div>' +
+                        (card.confirmed
+                            ? '<div class="bc-confirmed-summary">Confirmed by <strong>' + escapeHtml(card.confirmedBy || '—') + '</strong></div>'
+                            : '<button class="bc-confirm-btn" onclick="event.stopPropagation();openBcModal(' + idx + ')">📝 Enter Physical Count & Confirm</button>');
+                    return div;
+                }
+
+                // ── Modal ──
+                window.openBcModal = function(idx) {
+                    var card = bcAllCards[idx];
+                    if (!card) return;
+                    bcActiveCard = card;
+
+                    document.getElementById('bcModalTitle').textContent = 'Physical Count — ' + card.sku;
+                    document.getElementById('bcModalSub').textContent   = card.zone + ' · ' + (bcCurrentShift ? bcCurrentShift.label : '') + ' · ' + (bcCurrentShift ? bcCurrentShift.shiftDateKey : '');
+                    document.getElementById('bcModalOpening').textContent = fmt(card.openingBalance);
+                    document.getElementById('bcModalMovedIn').textContent  = '+' + fmt(card.movedIn);
+                    document.getElementById('bcModalMovedOut').textContent = '-' + fmt(card.movedOut);
+                    document.getElementById('bcModalSystem').textContent   = fmt(card.systemClosingBalance);
+
+                    var physInput = document.getElementById('bcPhysicalInput');
+                    physInput.value = card.confirmed ? card.physicalCount : '';
+                    document.getElementById('bcVariancePreview').textContent = 'Enter physical count above to see variance';
+                    document.getElementById('bcVariancePreview').className   = 'bc-variance-preview';
+                    document.getElementById('bcModalStatus').textContent = '';
+                    document.getElementById('bcConfirmBtn').disabled = false;
+                    document.getElementById('bcConfirmModal').classList.add('active');
+                    physInput.focus();
+                };
+
+                window.closeBcModal = function() {
+                    document.getElementById('bcConfirmModal').classList.remove('active');
+                    bcActiveCard = null;
+                };
+
+                window.updateVariancePreview = function() {
+                    var physVal = parseFloat(document.getElementById('bcPhysicalInput').value);
+                    var preview = document.getElementById('bcVariancePreview');
+                    if (isNaN(physVal) || !bcActiveCard) {
+                        preview.textContent = 'Enter physical count above to see variance';
+                        preview.className   = 'bc-variance-preview';
+                        return;
+                    }
+                    var sysVal  = bcActiveCard.systemClosingBalance || 0;
+                    var variance = physVal - sysVal;
+                    var sign = variance > 0 ? '+' : '';
+                    if (variance === 0) {
+                        preview.textContent = '✅ Perfect match — system and physical agree';
+                        preview.className   = 'bc-variance-preview match';
+                    } else if (variance < 0) {
+                        preview.textContent = '⚠️ Short by ' + Math.abs(variance) + ' units (physical < system)';
+                        preview.className   = 'bc-variance-preview short';
+                    } else {
+                        preview.textContent = '📦 Overage of +' + variance + ' units (physical > system)';
+                        preview.className   = 'bc-variance-preview over';
+                    }
+                };
+
+                window.submitBinCardConfirmation = async function() {
+                    var card      = bcActiveCard;
+                    var physInput = document.getElementById('bcPhysicalInput');
+                    var physVal   = parseFloat(physInput.value);
+                    var statusEl  = document.getElementById('bcModalStatus');
+                    var confirmBtn = document.getElementById('bcConfirmBtn');
+
+                    if (!card) return;
+                    if (isNaN(physVal) || physInput.value === '') {
+                        statusEl.textContent = '⚠️ Please enter a physical count (0 or more).';
+                        statusEl.style.color = '#fbbf24';
+                        return;
+                    }
+                    if (!bcLoggedInUser) {
+                        statusEl.textContent = '❌ Session error — please reload and log in again.';
+                        statusEl.style.color = '#f87171';
+                        return;
+                    }
+
+                    confirmBtn.disabled    = true;
+                    statusEl.textContent   = '⏳ Saving confirmation…';
+                    statusEl.style.color   = '#94a3b8';
+
+                    try {
+                        var url = GOOGLE_APPS_SCRIPT_URL +
+                            '?action=confirmBinCard' +
+                            '&zone='                 + encodeURIComponent(card.zone) +
+                            '&sku='                  + encodeURIComponent(card.sku) +
+                            '&shift='                + encodeURIComponent(bcCurrentShift.shift) +
+                            '&shiftDate='            + encodeURIComponent(bcCurrentShift.shiftDateKey) +
+                            '&physicalCount='        + physVal +
+                            '&systemClosingBalance=' + (card.systemClosingBalance || 0) +
+                            '&openingBalance='       + (card.openingBalance || 0) +
+                            '&movedIn='              + (card.movedIn  || 0) +
+                            '&movedOut='             + (card.movedOut || 0) +
+                            '&confirmedBy='          + encodeURIComponent(bcLoggedInUser.name || bcLoggedInUser.id);
+
+                        var resp = await fetch(url);
+                        var result = await resp.json();
+
+                        if (result.success) {
+                            statusEl.textContent = '✅ Confirmed! Variance: ' + (result.variance >= 0 ? '+' : '') + result.variance;
+                            statusEl.style.color = result.variance === 0 ? '#34d399' : '#fbbf24';
+                            // Update local card state
+                            card.confirmed    = true;
+                            card.status       = 'Confirmed';
+                            card.physicalCount = physVal;
+                            card.variance      = result.variance;
+                            card.confirmedBy   = bcLoggedInUser.name || bcLoggedInUser.id;
+                            setTimeout(function() {
+                                closeBcModal();
+                                // Re-render updated card
+                                var grid  = document.getElementById('bcGrid');
+                                var nodes = grid.querySelectorAll('.bc-card');
+                                var cardIdx = bcAllCards.indexOf(card);
+                                if (nodes[cardIdx]) {
+                                    var newNode = buildBcCard(card, cardIdx);
+                                    grid.replaceChild(newNode, nodes[cardIdx]);
+                                }
+                                // Update progress
+                                var confirmedNow = bcAllCards.filter(function(c) { return c.confirmed; }).length;
+                                var pct = Math.round((confirmedNow / bcAllCards.length) * 100);
+                                var fill  = document.getElementById('bcProgressFill');
+                                var label = document.getElementById('bcProgressLabel');
+                                if (fill)  fill.style.width = pct + '%';
+                                if (label) label.textContent = confirmedNow + ' of ' + bcAllCards.length + ' cards confirmed (' + pct + '%)';
+                            }, 1200);
+                        } else {
+                            statusEl.textContent = '❌ ' + (result.error || 'Save failed. Try again.');
+                            statusEl.style.color = '#f87171';
+                            confirmBtn.disabled  = false;
+                        }
+                    } catch (err) {
+                        statusEl.textContent = '❌ Network error. Please try again.';
+                        statusEl.style.color = '#f87171';
+                        confirmBtn.disabled  = false;
+                    }
+                };
+
+                // ── Login form ──
+                function initBcLoginForm(users) {
+                    var select = document.getElementById('bcLoginUser');
+                    if (select && users && users.length) {
+                        select.innerHTML = '<option value="">Select authorized user…</option>' +
+                            users.map(function(u) {
+                                return '<option value="' + escapeHtml(u.id || u.name) + '">' + escapeHtml(u.name) + '</option>';
+                            }).join('');
+                    }
+                    var form = document.getElementById('binCardsLoginForm');
+                    if (!form) return;
+                    form.addEventListener('submit', async function(ev) {
+                        ev.preventDefault();
+                        var statusEl  = document.getElementById('bcLoginStatus');
+                        var userId    = document.getElementById('bcLoginUser').value;
+                        var passcode  = document.getElementById('bcLoginPasscode').value;
+                        var submitBtn = document.getElementById('bcLoginSubmit');
+                        if (!userId || !passcode) {
+                            statusEl.textContent = '⚠️ Please select a user and enter your passcode.';
+                            statusEl.className   = 'login-status error';
+                            return;
+                        }
+                        submitBtn.disabled   = true;
+                        statusEl.textContent = '⏳ Verifying…';
+                        statusEl.className   = 'login-status';
+                        try {
+                            var result = await verifyUserLogin(userId, passcode);
+                            if (result.success) {
+                                bcLoggedInUser = result.user || { id: userId, name: userId };
+                                statusEl.textContent = '✅ Access granted. Loading bin cards…';
+                                statusEl.className   = 'login-status success';
+                                setTimeout(function() {
+                                    document.getElementById('binCardsLoginOverlay').style.display = 'none';
+                                    loadAndRenderBinCards();
+                                }, 600);
+                            } else {
+                                statusEl.textContent = '❌ ' + (result.message || 'Incorrect passcode.');
+                                statusEl.className   = 'login-status error';
+                                submitBtn.disabled   = false;
+                            }
+                        } catch (err) {
+                            statusEl.textContent = '❌ Login failed. Please try again.';
+                            statusEl.className   = 'login-status error';
+                            submitBtn.disabled   = false;
+                        }
+                    });
+                }
+
+                async function loadAndRenderBinCards() {
+                    try {
+                        var data = await fetchBinCardData();
+                        if (data.success) {
+                            renderBinCards(data);
+                        } else {
+                            document.getElementById('bcLoadingState').innerHTML =
+                                '<div style="font-size:32px;margin-bottom:12px;">⚠️</div>' +
+                                '<div style="font-size:15px;font-weight:600;color:#f87171;">' + (data.error || 'Failed to load bin card data') + '</div>';
+                        }
+                    } catch (err) {
+                        document.getElementById('bcLoadingState').innerHTML =
+                            '<div style="font-size:32px;margin-bottom:12px;">❌</div>' +
+                            '<div style="font-size:15px;font-weight:600;color:#f87171;">Could not reach server. Check your connection.</div>';
+                    }
+                }
+
+                window.addEventListener('load', async function() {
+                    if (isUserLoggedIn()) {
+                        var stored = sessionStorage.getItem('rfLoggedInUser');
+                        if (stored) { try { bcLoggedInUser = JSON.parse(stored); } catch(e) {} }
+                        if (!bcLoggedInUser) bcLoggedInUser = { id: 'session', name: 'Logged-in User' };
+                        document.getElementById('binCardsLoginOverlay').style.display = 'none';
+                        loadAndRenderBinCards();
+                    } else {
+                        try {
+                            var { users } = await loadAuthorizedUsers();
+                            initBcLoginForm(users);
+                            authorizedUsersLoaded = true;
+                        } catch (e) {
+                            initBcLoginForm([]);
+                        }
+                    }
+                }, { once: true });
+            })();
+
         } else if (currentMode === 'view' || currentMode === 'edit' || currentMode === 'fill') {
             (function() {
                 var params = new URLSearchParams(window.location.search);
@@ -4854,6 +5840,26 @@
             return result.data;
         }
 
+        /**
+         * Shared login wrapper used by movement and bin-cards overlays.
+         * Returns { success: true, user } or { success: false, message }.
+         * Also persists the session via setLoggedInUser so isUserLoggedIn() works.
+         */
+        async function verifyUserLogin(userId, passcode) {
+            try {
+                const userData = await authenticateUser(userId, passcode);
+                const user = {
+                    id:   userData.id   || userId,
+                    name: userData.name || userId,
+                    role: userData.role || ''
+                };
+                setLoggedInUser(user);
+                return { success: true, user };
+            } catch (err) {
+                return { success: false, message: err.message || 'Incorrect passcode.' };
+            }
+        }
+
         let authorizedUsersLoaded = false;
         async function showLoginCard() {
             showRetifluxLoadingOverlay();
@@ -4898,6 +5904,10 @@
                 loginCard.style.width = '90%';
                 loginCard.style.boxShadow = '0 24px 80px rgba(0,0,0,0.7)';
             }
+        }
+
+        function closeEditFormToHome() {
+            window.location.href = new URL('index.html', window.location.href).href;
         }
 
         function closeLoginCard() {
@@ -5517,11 +6527,20 @@
             if (editCard) { editCard.style.display = 'none'; editCard.classList.remove('fill-card-active'); }
             
             const urlSerial = (typeof initialSerialParam !== 'undefined' && initialSerialParam) ? initialSerialParam : (serial || '');
-            const defaultSerial = urlSerial ? decodeURIComponent(String(urlSerial)) : formatSerial(currentSerial);
+            const defaultSerial = urlSerial ? decodeURIComponent(String(urlSerial)).trim() : '';
             const serialInput = document.getElementById('fillSerial');
             const serialDisplay = document.getElementById('fillSerialDisplay');
-            if (serialInput) serialInput.value = defaultSerial;
-            if (serialDisplay) serialDisplay.textContent = defaultSerial;
+            if (serialInput) {
+                serialInput.value = defaultSerial;
+                serialInput.placeholder = defaultSerial ? '' : 'e.g. FG-DET-00123';
+            }
+            if (serialDisplay) serialDisplay.textContent = defaultSerial || '—';
+            const editCardIntro = document.getElementById('editCardIntro');
+            if (editCardIntro) {
+                editCardIntro.innerHTML = defaultSerial
+                    ? 'Enter the captured information for serial <strong id="fillSerialDisplay" style="color: #fcd34d; font-weight: 800; letter-spacing: 1px;">' + defaultSerial + '</strong>. When you submit, data is saved to Google Sheets and a finished ticket downloads as a PNG.'
+                    : 'Enter the ticket serial above, then fill in the captured information. When you submit, data is saved to Google Sheets and a finished ticket downloads as a PNG.';
+            }
             
             if (isUserLoggedIn()) {
                 if (editCard) { editCard.style.display = 'block'; editCard.classList.add('fade-in', 'fill-card-active'); editCard.scrollIntoView({ behavior: 'auto', block: 'start' }); }
@@ -5530,7 +6549,7 @@
                 if (loginCard) { loginCard.style.display = 'block'; loginCard.classList.add('fade-in', 'fill-card-active'); loginCard.scrollIntoView({ behavior: 'auto', block: 'start' }); }
                 if (editCard) { editCard.style.display = 'none'; editCard.classList.remove('fill-card-active'); }
                 const loginIntro = document.getElementById('loginCardIntro');
-                if (loginIntro) loginIntro.textContent = 'Log in to edit ticket ' + defaultSerial + '. Loading authorized users…';
+                if (loginIntro) loginIntro.textContent = defaultSerial ? 'Log in to edit ticket ' + defaultSerial + '. Loading authorized users…' : 'Log in to edit a ticket. Enter the ticket serial in the form after signing in. Loading authorized users…';
             }
             updateLoggedInUserBanner();
             
@@ -5547,11 +6566,11 @@
                 populateAuthorizedUserSelects(users);
                 authorizedUsersLoaded = true;
                 const loginIntro2 = document.getElementById('loginCardIntro');
-                if (loginIntro2) loginIntro2.textContent = 'Log in to edit ticket ' + defaultSerial + '. Only authorized production leads can edit.';
+                if (loginIntro2) loginIntro2.textContent = defaultSerial ? 'Log in to edit ticket ' + defaultSerial + '. Only authorized production leads can edit.' : 'Log in to edit a ticket. Enter the serial above, then sign in. Only authorized production leads can edit.';
             } catch (e) {
                 console.error('Edit mode init:', e);
                 const loginIntro2 = document.getElementById('loginCardIntro');
-                if (loginIntro2) loginIntro2.textContent = 'Log in to edit ticket ' + defaultSerial + '. (Some data may still be loading.)';
+                if (loginIntro2) loginIntro2.textContent = defaultSerial ? 'Log in to edit ticket ' + defaultSerial + '. (Some data may still be loading.)' : 'Log in to edit a ticket. (Some data may still be loading.)';
             }
 
             const movementPalletInput = document.getElementById('movementPalletId');
@@ -5573,10 +6592,16 @@
             const fillColorSelect = document.getElementById('fillColor');
             if (fillColorSelect) {
                 fillColorSelect.value = detectedColour;
-                // Disable color selection - it cannot be changed during input
-                fillColorSelect.disabled = true;
-                fillColorSelect.style.backgroundColor = '#f7fafc';
-                fillColorSelect.style.cursor = 'not-allowed';
+                // When no serial from URL, user enters serial - allow color selection
+                if (defaultSerial) {
+                    fillColorSelect.disabled = true;
+                    fillColorSelect.style.backgroundColor = '#f7fafc';
+                    fillColorSelect.style.cursor = 'not-allowed';
+                } else {
+                    fillColorSelect.disabled = false;
+                    fillColorSelect.style.backgroundColor = '';
+                    fillColorSelect.style.cursor = '';
+                }
             }
             
             populateSKUDropdown(skus);
@@ -5592,13 +6617,15 @@
                     users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
             });
             
-            // Load existing ticket data if editing
-            try {
-                const existingTicket = await readTicketFromSheet(defaultSerial);
-                if (existingTicket) {
-                    populateFormFromTicket(existingTicket);
+            // Load existing ticket data if editing (skip when no serial - user will enter it)
+            if (defaultSerial) {
+                try {
+                    const existingTicket = await readTicketFromSheet(defaultSerial);
+                    if (existingTicket) {
+                        populateFormFromTicket(existingTicket);
+                    }
+                } catch (error) {
                 }
-            } catch (error) {
             }
 
 
@@ -7061,7 +8088,7 @@
                                     ${cols.map(c => {
                                         const raw = m[c];
                                         const v = dateCols.includes(c) ? fmtDate(raw) : fmt(raw);
-                                        const cellClass = c === 'FromZone' ? 'color: #fca5a5;' : (c === 'ToZone' ? 'color: #86efac; font-weight: 600;' : '');
+                                        const cellClass = c === 'FromZone' ? 'color: #fca5a5;' : (c === 'ToZone' ? 'color: #86efac; font-weight: 600;' : 'color: rgba(226,232,240,0.9);');
                                         return `<td style="padding: 10px 12px; ${cellClass}">${escapeHtml(v)}</td>`;
                                     }).join('')}
                                 </tr>

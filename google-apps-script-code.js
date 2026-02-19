@@ -243,6 +243,22 @@ const STOCK_MOVEMENT_SHEETS = {
     'Status',
     'ProofOfLoadingPhotos',
     'Notes'
+  ],
+  BinCards: [
+    'BinCardID',
+    'Zone',
+    'SKU',
+    'ShiftDate',
+    'Shift',
+    'OpeningBalance',
+    'MovedIn',
+    'MovedOut',
+    'SystemClosingBalance',
+    'PhysicalCount',
+    'Variance',
+    'ConfirmedBy',
+    'ConfirmedAt',
+    'Status'
   ]
 };
 
@@ -250,7 +266,7 @@ const STOCK_MOVEMENT_SHEETS = {
 const SHEET_GROUPS = {
   Landing: { color: '9ca3af', sheets: ['Landing'] },
   Analytics: { color: '34d399', sheets: ['Summary', 'Variant_Comparison', 'Visuals', 'Shift_Summary', 'SKU_Index', 'InventorySnapshot', 'Unpaired SKU Review'] },
-  Backend: { color: '60a5fa', sheets: ['Tickets', 'Calculations', 'Pallets', 'ZoneMovements', 'Zone Movements', 'User Activity Log', 'QAHold', 'Rework', 'Dispatch'] },
+  Backend: { color: '60a5fa', sheets: ['Tickets', 'Calculations', 'Pallets', 'ZoneMovements', 'Zone Movements', 'User Activity Log', 'QAHold', 'Rework', 'Dispatch', 'BinCards'] },
   Config: { color: 'fbbf24', sheets: ['SKUZoneMapping', 'ZoneConfig', 'Authorized Users', 'Config'] }
 };
 
@@ -1036,6 +1052,26 @@ function doGet(e) {
     }
     else if (action === 'runAutoRevertTransits') {
       return runAutoRevertTransits();
+    }
+    else if (action === 'getBinCardData') {
+      return getBinCardData({
+        zone: e.parameter.zone || '',
+        sku:  e.parameter.sku  || ''
+      });
+    }
+    else if (action === 'confirmBinCard') {
+      return confirmBinCard({
+        zone:                 e.parameter.zone                || '',
+        sku:                  e.parameter.sku                 || '',
+        shift:                e.parameter.shift               || '',
+        shiftDate:            e.parameter.shiftDate           || '',
+        physicalCount:        e.parameter.physicalCount       || 0,
+        systemClosingBalance: e.parameter.systemClosingBalance || 0,
+        openingBalance:       e.parameter.openingBalance      || 0,
+        movedIn:              e.parameter.movedIn             || 0,
+        movedOut:             e.parameter.movedOut            || 0,
+        confirmedBy:          e.parameter.confirmedBy         || ''
+      });
     }
     
     return createResponse({ success: false, error: 'Invalid action' });
@@ -3517,6 +3553,46 @@ function getShiftInfo(dateTime) {
   };
 }
 
+/**
+ * Bin-card specific shift classifier: Day 07:00–19:00, Night 19:00–07:00.
+ * Kept separate from getShiftInfo() so existing analytics are unaffected.
+ */
+function getBinCardShiftInfo(dateTime) {
+  const y = dateTime.getFullYear(), m = dateTime.getMonth(), d = dateTime.getDate();
+  const dayStart   = new Date(y, m, d,  7, 0, 0);
+  const nightStart = new Date(y, m, d, 19, 0, 0);
+  const nextDayStart = new Date(y, m, d + 1, 7, 0, 0);
+  const prevNightStart = new Date(y, m, d - 1, 19, 0, 0);
+
+  let shift, shiftStart, shiftEnd, shiftDateKey;
+
+  if (dateTime >= dayStart && dateTime < nightStart) {
+    shift = 'Day';
+    shiftStart = dayStart;
+    shiftEnd   = nightStart;
+    shiftDateKey = formatDateKey(dayStart);
+  } else if (dateTime >= nightStart) {
+    shift = 'Night';
+    shiftStart = nightStart;
+    shiftEnd   = nextDayStart;
+    shiftDateKey = formatDateKey(nightStart);
+  } else {
+    // Before 07:00 — belongs to previous day's night shift
+    shift = 'Night';
+    shiftStart = prevNightStart;
+    shiftEnd   = dayStart;
+    shiftDateKey = formatDateKey(prevNightStart);
+  }
+
+  return {
+    shift: shift,
+    shiftStart: shiftStart,
+    shiftEnd: shiftEnd,
+    shiftDateKey: shiftDateKey,
+    label: shift === 'Day' ? '☀️ Day Shift (07:00–19:00)' : '🌙 Night Shift (19:00–07:00)'
+  };
+}
+
 function getLeaderNameMap(workbook) {
   const map = {};
   try {
@@ -5384,5 +5460,265 @@ function createOrUpdatePalletFromTicket(ticket, overrides) {
     palletSheet.appendRow(rowValues);
   }
   refreshInventorySnapshotSilently();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BIN CARDS — read current shift balances and save confirmations
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns bin card data for the current shift (or a given date/shift).
+ * Reads Pallets + ZoneMovements; no writes.
+ */
+function getBinCardData(params) {
+  params = params || {};
+  const workbook = SpreadsheetApp.openById(SHEET_ID);
+  const filterZone = (params.zone || '').toString().trim();
+  const filterSku  = (params.sku  || '').toString().trim();
+
+  // Shift window
+  const now = new Date();
+  const shiftInfo = getBinCardShiftInfo(now);
+
+  // ── 1. Build pallet map: palletId → { sku, currentZone, remainingQty } ──
+  const palletsSheet = workbook.getSheetByName('Pallets');
+  if (!palletsSheet) return createResponse({ success: false, error: 'Pallets sheet not found' });
+
+  const palletsData = palletsSheet.getDataRange().getValues();
+  const palletHeaders = palletsData[0] || [];
+  const pi = buildHeaderIndexMap(palletHeaders);
+  const palletMap = {};
+
+  for (var i = 1; i < palletsData.length; i++) {
+    var row = palletsData[i];
+    if (!row || !row[pi.PalletID]) continue;
+    var palletId = (row[pi.PalletID] || '').toString().trim().toUpperCase();
+    palletMap[palletId] = {
+      sku:         (row[pi.SKU]              || 'Unknown').toString().trim(),
+      currentZone: (row[pi.CurrentZone]      || '').toString().trim(),
+      remainingQty: Number(row[pi.RemainingQuantity]) || Number(row[pi.Quantity]) || 0
+    };
+  }
+
+  // ── 2. Current closing balance per Zone+SKU ──
+  var SKIP_ZONES = { 'Outbounding': true, 'Outbonded': true, 'Outbounded': true };
+  var zoneSkuBalance = {};
+  Object.keys(palletMap).forEach(function(pid) {
+    var p = palletMap[pid];
+    if (!p.currentZone || SKIP_ZONES[p.currentZone]) return;
+    var key = p.currentZone + '|||' + p.sku;
+    zoneSkuBalance[key] = (zoneSkuBalance[key] || 0) + p.remainingQty;
+  });
+
+  // ── 3. In-shift movements per Zone+SKU ──
+  var zoneSkuMov = {};
+  var movSheet = workbook.getSheetByName('ZoneMovements') || workbook.getSheetByName('Zone Movements');
+  if (movSheet) {
+    var movData = movSheet.getDataRange().getValues();
+    var movHeaders = movData[0] || [];
+    var mi = buildHeaderIndexMap(movHeaders);
+
+    for (var j = 1; j < movData.length; j++) {
+      var mrow = movData[j];
+      if (!mrow || !mrow[mi.MovementID]) continue;
+
+      // Parse timestamp
+      var tsRaw = mrow[mi.CreatedAt];
+      if (!tsRaw) continue;
+      var ts = tsRaw instanceof Date ? tsRaw : new Date(tsRaw);
+      if (isNaN(ts.getTime())) continue;
+
+      // Only movements within this shift window
+      if (ts < shiftInfo.shiftStart || ts >= shiftInfo.shiftEnd) continue;
+
+      // Skip cancelled / auto-reverted
+      var movStatus = (mrow[mi.MovementStatus] || '').toString().trim().toLowerCase();
+      if (movStatus === 'cancelled' || movStatus === 'auto-reverted') continue;
+
+      var pid2     = (mrow[mi.PalletID] || '').toString().trim().toUpperCase();
+      var pInfo    = palletMap[pid2];
+      if (!pInfo) continue;
+
+      var sku2     = pInfo.sku;
+      var fromZone = (mrow[mi.FromZone] || '').toString().trim();
+      var toZone   = (mrow[mi.ToZone]   || '').toString().trim();
+      var qty      = Number(mrow[mi.Quantity]) || 0;
+
+      if (fromZone && !SKIP_ZONES[fromZone]) {
+        var outKey = fromZone + '|||' + sku2;
+        if (!zoneSkuMov[outKey]) zoneSkuMov[outKey] = { movedIn: 0, movedOut: 0 };
+        zoneSkuMov[outKey].movedOut += qty;
+      }
+      if (toZone && !SKIP_ZONES[toZone]) {
+        var inKey = toZone + '|||' + sku2;
+        if (!zoneSkuMov[inKey]) zoneSkuMov[inKey] = { movedIn: 0, movedOut: 0 };
+        zoneSkuMov[inKey].movedIn += qty;
+      }
+    }
+  }
+
+  // ── 4. Merge into cards ──
+  var allKeys = {};
+  Object.keys(zoneSkuBalance).forEach(function(k) { allKeys[k] = true; });
+  Object.keys(zoneSkuMov).forEach(function(k)     { allKeys[k] = true; });
+
+  var cards = [];
+  Object.keys(allKeys).forEach(function(key) {
+    var parts = key.split('|||');
+    var zone  = parts[0] || '';
+    var sku   = parts[1] || '';
+    if (!zone || !sku) return;
+    if (filterZone && zone.toLowerCase() !== filterZone.toLowerCase()) return;
+    if (filterSku  && sku.toLowerCase()  !== filterSku.toLowerCase())  return;
+
+    var closing  = zoneSkuBalance[key] || 0;
+    var mov      = zoneSkuMov[key]     || { movedIn: 0, movedOut: 0 };
+    var opening  = closing - mov.movedIn + mov.movedOut;
+
+    cards.push({
+      zone: zone, sku: sku,
+      openingBalance: Math.max(0, opening),
+      movedIn: mov.movedIn,
+      movedOut: mov.movedOut,
+      systemClosingBalance: closing,
+      confirmed: false, status: 'Open'
+    });
+  });
+
+  cards.sort(function(a, b) {
+    if (a.zone !== b.zone) return a.zone.localeCompare(b.zone);
+    return a.sku.localeCompare(b.sku);
+  });
+
+  // ── 5. Overlay any existing confirmations for this shift ──
+  try {
+    var bcSheet = workbook.getSheetByName('BinCards');
+    if (bcSheet) {
+      var bcData = bcSheet.getDataRange().getValues();
+      var bcH    = bcData[0] || [];
+      var bci    = buildHeaderIndexMap(bcH);
+      var confMap = {};
+      for (var r = 1; r < bcData.length; r++) {
+        var brow = bcData[r];
+        if (!brow) continue;
+        if ((brow[bci.ShiftDate] || '').toString().trim() !== shiftInfo.shiftDateKey) continue;
+        if ((brow[bci.Shift]     || '').toString().trim() !== shiftInfo.shift)        continue;
+        var ck = (brow[bci.Zone] || '') + '|||' + (brow[bci.SKU] || '');
+        confMap[ck] = {
+          physicalCount: Number(brow[bci.PhysicalCount]) || 0,
+          variance:      Number(brow[bci.Variance])      || 0,
+          confirmedBy:   (brow[bci.ConfirmedBy] || '').toString(),
+          confirmedAt:   (brow[bci.ConfirmedAt] || '').toString(),
+          status:        (brow[bci.Status]       || '').toString()
+        };
+      }
+      cards.forEach(function(c) {
+        var ck = c.zone + '|||' + c.sku;
+        if (confMap[ck]) {
+          c.confirmed    = true;
+          c.status       = confMap[ck].status || 'Confirmed';
+          c.physicalCount = confMap[ck].physicalCount;
+          c.variance      = confMap[ck].variance;
+          c.confirmedBy   = confMap[ck].confirmedBy;
+          c.confirmedAt   = confMap[ck].confirmedAt;
+        }
+      });
+    }
+  } catch (e2) { /* non-critical */ }
+
+  return createResponse({
+    success: true,
+    shiftInfo: {
+      shift: shiftInfo.shift,
+      shiftDateKey: shiftInfo.shiftDateKey,
+      label: shiftInfo.label,
+      shiftStart: shiftInfo.shiftStart.toISOString(),
+      shiftEnd:   shiftInfo.shiftEnd.toISOString()
+    },
+    cards: cards,
+    totalCards: cards.length,
+    confirmedCount: cards.filter(function(c) { return c.confirmed; }).length
+  });
+}
+
+/**
+ * Save a bin-card confirmation. Creates the BinCards sheet on first use.
+ */
+function confirmBinCard(params) {
+  params = params || {};
+  var zone       = (params.zone       || '').toString().trim();
+  var sku        = (params.sku        || '').toString().trim();
+  var shift      = (params.shift      || '').toString().trim();
+  var shiftDate  = (params.shiftDate  || '').toString().trim();
+  var confirmedBy = (params.confirmedBy || '').toString().trim();
+  var physicalCount        = Number(params.physicalCount);
+  var systemClosingBalance = Number(params.systemClosingBalance);
+  var openingBalance       = Number(params.openingBalance)  || 0;
+  var movedIn              = Number(params.movedIn)         || 0;
+  var movedOut             = Number(params.movedOut)        || 0;
+
+  if (!zone || !sku || !shift || !shiftDate || isNaN(physicalCount) || !confirmedBy) {
+    return createResponse({ success: false, error: 'Missing required fields.' });
+  }
+
+  var variance    = physicalCount - systemClosingBalance;
+  var confirmedAt = new Date().toISOString();
+  var binCardId   = 'BC-' + shiftDate.replace(/-/g, '') + '-' + shift.charAt(0).toUpperCase()
+                  + '-' + zone.replace(/\s+/g, '').toUpperCase().substring(0, 6)
+                  + '-' + sku.replace(/\s+/g, '').toUpperCase().substring(0, 8);
+
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var bcSheet  = ensureSheetWithHeaders(workbook, 'BinCards', STOCK_MOVEMENT_SHEETS.BinCards);
+
+  // Update if row already exists for this shift / zone / sku
+  var existing = bcSheet.getDataRange().getValues();
+  var bcHdrs   = existing[0] || [];
+  var bci      = buildHeaderIndexMap(bcHdrs);
+  for (var i = 1; i < existing.length; i++) {
+    var row = existing[i];
+    if (!row) continue;
+    if ((row[bci.Zone]      || '').toString().trim() === zone      &&
+        (row[bci.SKU]       || '').toString().trim() === sku       &&
+        (row[bci.ShiftDate] || '').toString().trim() === shiftDate &&
+        (row[bci.Shift]     || '').toString().trim() === shift) {
+      var rn = i + 1;
+      bcSheet.getRange(rn, bci.PhysicalCount + 1).setValue(physicalCount);
+      bcSheet.getRange(rn, bci.Variance      + 1).setValue(variance);
+      bcSheet.getRange(rn, bci.ConfirmedBy   + 1).setValue(confirmedBy);
+      bcSheet.getRange(rn, bci.ConfirmedAt   + 1).setValue(confirmedAt);
+      bcSheet.getRange(rn, bci.Status        + 1).setValue('Confirmed');
+      logUserActivity('UPDATE_BIN_CARD: ' + zone + '/' + sku + '/' + shift + '/' + shiftDate,
+                      'By: ' + confirmedBy + ', Physical: ' + physicalCount + ', Variance: ' + variance);
+      return createResponse({ success: true, binCardId: (row[bci.BinCardID] || binCardId).toString(),
+                              variance: variance, message: 'Bin card confirmed.' });
+    }
+  }
+
+  // Append new confirmation row
+  var newRow = STOCK_MOVEMENT_SHEETS.BinCards.map(function(col) {
+    switch (col) {
+      case 'BinCardID':             return binCardId;
+      case 'Zone':                  return zone;
+      case 'SKU':                   return sku;
+      case 'ShiftDate':             return shiftDate;
+      case 'Shift':                 return shift;
+      case 'OpeningBalance':        return openingBalance;
+      case 'MovedIn':               return movedIn;
+      case 'MovedOut':              return movedOut;
+      case 'SystemClosingBalance':  return systemClosingBalance;
+      case 'PhysicalCount':         return physicalCount;
+      case 'Variance':              return variance;
+      case 'ConfirmedBy':           return confirmedBy;
+      case 'ConfirmedAt':           return confirmedAt;
+      case 'Status':                return 'Confirmed';
+      default:                      return '';
+    }
+  });
+  bcSheet.appendRow(newRow);
+  logUserActivity('CONFIRM_BIN_CARD: ' + zone + '/' + sku + '/' + shift + '/' + shiftDate,
+                  'By: ' + confirmedBy + ', Physical: ' + physicalCount + ', Variance: ' + variance);
+
+  return createResponse({ success: true, binCardId: binCardId, variance: variance,
+                          message: 'Bin card confirmed and saved.' });
 }
 

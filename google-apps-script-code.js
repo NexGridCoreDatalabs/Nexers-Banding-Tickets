@@ -5632,8 +5632,9 @@ function getBinCardData(params) {
     zoneSkuBalance[key] = (zoneSkuBalance[key] || 0) + p.remainingQty;
   });
 
-  // ── 3. In-shift movements per Zone+SKU ──
+  // ── 3. In-shift movements per Zone+SKU + list for visibility ──
   var zoneSkuMov = {};
+  var movementsInShift = [];
   var movSheet = workbook.getSheetByName('ZoneMovements') || workbook.getSheetByName('Zone Movements');
   if (movSheet) {
     var movData = movSheet.getDataRange().getValues();
@@ -5672,6 +5673,17 @@ function getBinCardData(params) {
       var toZone   = (mrow[mi.ToZone]   || '').toString().trim();
       var qty      = Number(mrow[mi.Quantity]) || 0;
 
+      movementsInShift.push({
+        palletId: pid2,
+        sku: sku2,
+        fromZone: fromZone,
+        toZone: toZone,
+        quantity: qty,
+        movedBy: (mrow[mi.MovedBy] || '').toString().trim(),
+        movementDate: ts.toISOString ? ts.toISOString() : String(ts),
+        movementId: (mrow[mi.MovementID] || '').toString().trim()
+      });
+
       if (fromZone && !SKIP_ZONES[fromZone]) {
         var outKey = fromZone + '|||' + sku2;
         if (!zoneSkuMov[outKey]) zoneSkuMov[outKey] = { movedIn: 0, movedOut: 0 };
@@ -5683,6 +5695,7 @@ function getBinCardData(params) {
         zoneSkuMov[inKey].movedIn += qty;
       }
     }
+    movementsInShift.sort(function(a, b) { return new Date(b.movementDate) - new Date(a.movementDate); });
   }
 
   // ── 4. Merge into cards ──
@@ -5784,6 +5797,7 @@ function getBinCardData(params) {
     return confirmedZones[z] && confirmedZones[z].confirmed;
   }).length;
 
+  var snapshotAt = new Date();
   return createResponse({
     success: true,
     shiftInfo: {
@@ -5793,11 +5807,13 @@ function getBinCardData(params) {
       shiftStart: shiftInfo.shiftStart.toISOString(),
       shiftEnd:   shiftInfo.shiftEnd.toISOString()
     },
+    snapshotAt: snapshotAt.toISOString(),
     cards: cards,
     confirmedZones: confirmedZones,
     totalCards: totalZones,
     confirmedCount: confirmedZoneCount,
-    palletConsistency: palletConsistency
+    palletConsistency: palletConsistency,
+    movementsInShift: movementsInShift
   });
 }
 

@@ -2539,6 +2539,11 @@
             background: rgba(148,163,184,0.1);
             color: #e2e8f0;
         }
+        .bc-movements-table th, .bc-movements-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(148,163,184,0.15);
+        }
+        .bc-movements-table th { color: #94a3b8; font-weight: 600; font-size: 11px; text-transform: uppercase; }
         /* Zone balance summary row */
         .bc-zc-summary {
             display: flex;
@@ -2715,6 +2720,7 @@
             body.bincards-mode-active #binCardsLoginOverlay,
             body.bincards-mode-active .bc-progress-bar,
             body.bincards-mode-active .bc-progress-label,
+            body.bincards-mode-active .bc-movements-section,
             body.bincards-mode-active #bcLoadingState,
             body.bincards-mode-active #bcEmptyState,
             body.bincards-mode-active .bc-confirm-btn,
@@ -2733,7 +2739,8 @@
             body.bincards-mode-active .bc-header .bc-shift-badge,
             body.bincards-mode-active .bc-header div:first-child div:first-child,
             body.bincards-mode-active .bc-header .bc-consistency-ok,
-            body.bincards-mode-active .bc-header .bc-consistency-warn { font-size: 11px; color: #333; margin-top: 4px; }
+            body.bincards-mode-active .bc-header .bc-consistency-warn,
+            body.bincards-mode-active .bc-header #bcSnapshotAt { font-size: 11px; color: #333; margin-top: 4px; }
             body.bincards-mode-active .bc-grid {
                 display: block !important; max-width: none;
             }
@@ -3061,6 +3068,7 @@
                 <div style="font-size:12px;color:#64748b;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">📋 Bin Card Center</div>
                 <h2>Shift Stock Reconciliation</h2>
                 <div id="bcPalletConsistency" class="bc-consistency-line" style="font-size:11px;margin-top:6px;color:#64748b;"></div>
+                <div id="bcSnapshotAt" class="bc-consistency-line" style="font-size:11px;margin-top:4px;color:#94a3b8;display:none;"></div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                 <span class="bc-shift-badge" id="bcShiftBadge">☀️ Loading shift…</span>
@@ -3073,6 +3081,17 @@
 
         <div class="bc-progress-bar"><div class="bc-progress-fill" id="bcProgressFill" style="width:0%"></div></div>
         <div class="bc-progress-label" id="bcProgressLabel">Loading…</div>
+
+        <div id="bcMovementsSection" class="bc-movements-section" style="display:none;margin-bottom:20px;">
+            <button type="button" class="btn-reset bc-movements-toggle" onclick="toggleBcMovements()" style="display:flex;align-items:center;gap:8px;width:100%;padding:12px 16px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:10px;color:#fbbf24;font-size:13px;font-weight:600;cursor:pointer;text-align:left;">
+                <span id="bcMovementsToggleIcon">▶</span>
+                <span id="bcMovementsToggleLabel">📋 Movements this shift (0)</span>
+            </button>
+            <div id="bcMovementsContent" style="display:none;margin-top:12px;padding:16px;background:rgba(15,23,42,0.5);border:1px solid rgba(148,163,184,0.2);border-radius:10px;overflow-x:auto;">
+                <div id="bcMovementsTableContainer"></div>
+                <div id="bcMovementsShiftNote" style="font-size:11px;color:#64748b;margin-top:10px;"></div>
+            </div>
+        </div>
 
         <div id="bcLoadingState" style="text-align:center;padding:60px 20px;color:#64748b;">
             <div style="font-size:36px;margin-bottom:12px;">⏳</div>
@@ -4485,6 +4504,14 @@
                     var badge = document.getElementById('bcShiftBadge');
                     if (badge) badge.textContent = data.shiftInfo.label;
 
+                    var snapAt = data.snapshotAt;
+                    var snapEl = document.getElementById('bcSnapshotAt');
+                    if (snapEl && snapAt) {
+                        var d = new Date(snapAt);
+                        snapEl.textContent = 'Closing balances as at: ' + (isNaN(d.getTime()) ? snapAt : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' }));
+                        snapEl.style.display = 'block';
+                    } else if (snapEl) snapEl.style.display = 'none';
+
                     var pc = data.palletConsistency || {};
                     var consEl = document.getElementById('bcPalletConsistency');
                     if (consEl) {
@@ -4509,6 +4536,33 @@
                     if (label) label.textContent = confirmed + ' of ' + total + ' zone' + (total !== 1 ? 's' : '') + ' confirmed (' + pct + '%)';
 
                     document.getElementById('bcLoadingState').style.display = 'none';
+
+                    var movInShift = data.movementsInShift || [];
+                    var movSection = document.getElementById('bcMovementsSection');
+                    var movLabel = document.getElementById('bcMovementsToggleLabel');
+                    var movContainer = document.getElementById('bcMovementsTableContainer');
+                    var movNote = document.getElementById('bcMovementsShiftNote');
+                    if (movSection && movLabel) {
+                        movSection.style.display = 'block';
+                        movLabel.textContent = '📋 Movements this shift (' + movInShift.length + ')';
+                        var si = data.shiftInfo || {};
+                        var fmtShift = function(iso) {
+                            if (!iso) return '';
+                            var d = new Date(iso);
+                            return isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+                        };
+                        movNote.textContent = 'Shift: ' + (si.label || si.shift || '') + '. Window: ' + fmtShift(si.shiftStart) + ' — ' + fmtShift(si.shiftEnd) + '. Only movements initiated in this window appear in zone In/Out.';
+                        if (movInShift.length > 0 && movContainer) {
+                            var mRows = movInShift.map(function(m) {
+                                var dt = m.movementDate ? new Date(m.movementDate) : null;
+                                var dtStr = dt && !isNaN(dt.getTime()) ? dt.toLocaleString() : (m.movementDate || '—');
+                                return '<tr><td>' + escapeHtml(m.palletId || '—') + '</td><td>' + escapeHtml(m.sku || '—') + '</td><td>' + escapeHtml(m.fromZone || '—') + '</td><td>' + escapeHtml(m.toZone || '—') + '</td><td style="text-align:right">' + fmt(m.quantity) + '</td><td>' + escapeHtml(m.movedBy || '—') + '</td><td style="font-size:11px">' + escapeHtml(dtStr) + '</td></tr>';
+                            }).join('');
+                            movContainer.innerHTML = '<table class="bc-movements-table" style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th>Pallet</th><th>SKU</th><th>From</th><th>To</th><th>Qty</th><th>By</th><th>When</th></tr></thead><tbody>' + mRows + '</tbody></table>';
+                        } else if (movContainer) {
+                            movContainer.innerHTML = '<p style="color:#64748b;margin:0;font-size:13px;">No movements recorded in this shift window yet.</p>';
+                        }
+                    }
 
                     var grid = document.getElementById('bcGrid');
                     grid.innerHTML = '';
@@ -4611,11 +4665,11 @@
                             '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Opening</div><div class="bc-zc-sum-value" style="color:#94a3b8;">' + fmt(zd.totalOpening) + '</div></div>' +
                             '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">In</div><div class="bc-zc-sum-value" style="color:#34d399;">+' + fmt(zd.totalIn) + '</div></div>' +
                             '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Out</div><div class="bc-zc-sum-value" style="color:#f87171;">−' + fmt(zd.totalOut) + '</div></div>' +
-                            '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">System</div><div class="bc-zc-sum-value">' + fmt(zd.totalSystem) + '</div></div>' +
+                            '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Closing Bal.</div><div class="bc-zc-sum-value">' + fmt(zd.totalSystem) + '</div></div>' +
                             '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Physical</div><div class="bc-zc-sum-value">' + fmt(zd.totalPhysical) + '</div></div>' +
                             '<div class="bc-zc-sum-item"><div class="bc-zc-sum-label">Variance</div><div class="bc-zc-sum-value ' + ((zd.zoneVariance === 0 || zd.zoneVariance == null) ? 'variance-match' : (zd.zoneVariance < 0 ? 'variance-short' : 'variance-over')) + '">' + (zd.zoneVariance == null ? '—' : (zd.zoneVariance === 0 ? '0' : zd.zoneVariance)) + '</div></div>' +
                             '</div>' +
-                            '<div style="overflow-x:auto;"><table class="bc-zc-sku-table"><thead><tr><th>SKU</th><th>Open</th><th>In</th><th>Out</th><th>System</th><th>Physical</th><th>Var</th></tr></thead><tbody>' + skuRows + '</tbody></table></div>';
+                            '<div style="overflow-x:auto;"><table class="bc-zc-sku-table"><thead><tr><th>SKU</th><th>Open</th><th>In</th><th>Out</th><th>Closing Bal.</th><th>Physical</th><th>Var</th></tr></thead><tbody>' + skuRows + '</tbody></table></div>';
                         footer = '<div class="bc-zc-confirmed-stamp">✅ Confirmed by <strong>' + escapeHtml(zd.confirmedBy || '—') + '</strong>' + (vSum ? ' <span style="font-size:11px;color:#64748b;margin-left:8px;">' + escapeHtml(vSum) + '</span>' : '') + '</div>';
                     } else {
                         var skuList = zd.skus.map(function(c) { return escapeHtml(c.sku); }).join(', ');
@@ -4795,6 +4849,16 @@
                         statusEl.textContent = '❌ Network error. Please try again.';
                         statusEl.style.color = '#f87171';
                         confirmBtn.disabled  = false;
+                    }
+                };
+
+                window.toggleBcMovements = function() {
+                    var content = document.getElementById('bcMovementsContent');
+                    var icon = document.getElementById('bcMovementsToggleIcon');
+                    if (content && icon) {
+                        var show = content.style.display !== 'block';
+                        content.style.display = show ? 'block' : 'none';
+                        icon.textContent = show ? '▼' : '▶';
                     }
                 };
 

@@ -1086,6 +1086,22 @@ function doGet(e) {
         confirmedBy:          e.parameter.confirmedBy         || ''
       });
     }
+    else if (action === 'confirmZoneBinCardPerSku') {
+      var physicalCountsRaw = e.parameter.physicalCounts || '';
+      try {
+        var physicalCounts = typeof physicalCountsRaw === 'string' ? JSON.parse(physicalCountsRaw) : physicalCountsRaw;
+        if (!Array.isArray(physicalCounts)) physicalCounts = [];
+      } catch (err) {
+        return createResponse({ success: false, error: 'Invalid physicalCounts JSON.' });
+      }
+      return confirmZoneBinCardPerSku({
+        zone:           e.parameter.zone     || '',
+        shift:          e.parameter.shift    || '',
+        shiftDate:      e.parameter.shiftDate || '',
+        confirmedBy:    e.parameter.confirmedBy || '',
+        physicalCounts: physicalCounts
+      });
+    }
     
     return createResponse({ success: false, error: 'Invalid action' });
   } catch (error) {
@@ -5813,5 +5829,149 @@ function confirmZoneBinCard(params) {
 
   return createResponse({ success: true, binCardId: binCardId,
                           message: 'Zone bin card confirmed and saved.' });
+}
+
+/**
+ * Save per-SKU physical counts for a zone, then add ZONE_TOTAL for zone-level confirmation.
+ * physicalCounts: array of { sku, physicalCount, openingBalance, movedIn, movedOut, systemClosingBalance }
+ */
+function confirmZoneBinCardPerSku(params) {
+  params = params || {};
+  var zone         = (params.zone         || '').toString().trim();
+  var shift        = (params.shift        || '').toString().trim();
+  var shiftDate    = (params.shiftDate    || '').toString().trim();
+  var confirmedBy  = (params.confirmedBy  || '').toString().trim();
+  var physicalCounts = params.physicalCounts || [];
+
+  if (!zone || !shift || !shiftDate || !confirmedBy || !Array.isArray(physicalCounts) || physicalCounts.length === 0) {
+    return createResponse({ success: false, error: 'Missing required fields or empty physicalCounts.' });
+  }
+
+  var totalPhysical = 0;
+  var totalOpening = 0;
+  var totalMovedIn = 0;
+  var totalMovedOut = 0;
+  var totalSystem = 0;
+  var confirmedAt = new Date().toISOString();
+
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var bcSheet  = ensureSheetWithHeaders(workbook, 'BinCards', STOCK_MOVEMENT_SHEETS.BinCards);
+
+  for (var p = 0; p < physicalCounts.length; p++) {
+    var item = physicalCounts[p];
+    if (!item || !item.sku) continue;
+    var sku   = (item.sku || '').toString().trim();
+    var phys  = Number(item.physicalCount);
+    if (isNaN(phys)) continue;
+    var sys   = Number(item.systemClosingBalance) || 0;
+    var open  = Number(item.openingBalance)  || 0;
+    var inQ   = Number(item.movedIn)         || 0;
+    var outQ  = Number(item.movedOut)        || 0;
+    totalPhysical += phys;
+    totalOpening  += open;
+    totalMovedIn  += inQ;
+    totalMovedOut += outQ;
+    totalSystem   += sys;
+
+    var variance = phys - sys;
+    var binCardId = 'BC-' + shiftDate.replace(/-/g, '') + '-' + shift.charAt(0).toUpperCase()
+                  + '-' + zone.replace(/\s+/g, '').toUpperCase().substring(0, 6)
+                  + '-' + sku.replace(/\s+/g, '').toUpperCase().substring(0, 8);
+
+    var existing = bcSheet.getDataRange().getValues();
+    var bcHdrs   = existing[0] || [];
+    var bci      = buildHeaderIndexMap(bcHdrs);
+    var found = false;
+    for (var i = 1; i < existing.length; i++) {
+      var row = existing[i];
+      if (!row) continue;
+      if ((row[bci.Zone]      || '').toString().trim() === zone      &&
+          (row[bci.SKU]      || '').toString().trim() === sku       &&
+          (row[bci.ShiftDate]|| '').toString().trim() === shiftDate &&
+          (row[bci.Shift]    || '').toString().trim() === shift) {
+        var rn = i + 1;
+        bcSheet.getRange(rn, bci.PhysicalCount + 1).setValue(phys);
+        bcSheet.getRange(rn, bci.Variance      + 1).setValue(variance);
+        bcSheet.getRange(rn, bci.ConfirmedBy  + 1).setValue(confirmedBy);
+        bcSheet.getRange(rn, bci.ConfirmedAt  + 1).setValue(confirmedAt);
+        bcSheet.getRange(rn, bci.Status       + 1).setValue('Confirmed');
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      var newRow = STOCK_MOVEMENT_SHEETS.BinCards.map(function(col) {
+        switch (col) {
+          case 'BinCardID':             return binCardId;
+          case 'Zone':                  return zone;
+          case 'SKU':                   return sku;
+          case 'ShiftDate':             return shiftDate;
+          case 'Shift':                 return shift;
+          case 'OpeningBalance':        return open;
+          case 'MovedIn':               return inQ;
+          case 'MovedOut':              return outQ;
+          case 'SystemClosingBalance':  return sys;
+          case 'PhysicalCount':         return phys;
+          case 'Variance':              return variance;
+          case 'ConfirmedBy':           return confirmedBy;
+          case 'ConfirmedAt':           return confirmedAt;
+          case 'Status':                return 'Confirmed';
+          default:                      return '';
+        }
+      });
+      bcSheet.appendRow(newRow);
+    }
+  }
+
+  var zoneBinCardId = 'BC-' + shiftDate.replace(/-/g, '') + '-' + shift.charAt(0).toUpperCase()
+                    + '-' + zone.replace(/\s+/g, '').toUpperCase().substring(0, 8) + '-ZONE';
+  var zoneVariance = totalPhysical - totalSystem;
+
+  var existing = bcSheet.getDataRange().getValues();
+  var bcHdrs   = existing[0] || [];
+  var bci      = buildHeaderIndexMap(bcHdrs);
+  for (var i = 1; i < existing.length; i++) {
+    var row = existing[i];
+    if (!row) continue;
+    if ((row[bci.Zone]      || '').toString().trim() === zone          &&
+        (row[bci.SKU]       || '').toString().trim() === 'ZONE_TOTAL'  &&
+        (row[bci.ShiftDate] || '').toString().trim() === shiftDate     &&
+        (row[bci.Shift]     || '').toString().trim() === shift) {
+      var rn = i + 1;
+      bcSheet.getRange(rn, bci.PhysicalCount + 1).setValue(totalPhysical);
+      bcSheet.getRange(rn, bci.Variance      + 1).setValue(zoneVariance);
+      bcSheet.getRange(rn, bci.ConfirmedBy   + 1).setValue(confirmedBy);
+      bcSheet.getRange(rn, bci.ConfirmedAt   + 1).setValue(confirmedAt);
+      bcSheet.getRange(rn, bci.Status        + 1).setValue('Confirmed');
+      logUserActivity('UPDATE_ZONE_BIN_CARD_PER_SKU: ' + zone + '/' + shift + '/' + shiftDate,
+                      'By: ' + confirmedBy + ', Physical: ' + totalPhysical + ', Variance: ' + zoneVariance);
+      return createResponse({ success: true, binCardId: zoneBinCardId, message: 'Zone bin card confirmed (per SKU).' });
+    }
+  }
+
+  var newRow = STOCK_MOVEMENT_SHEETS.BinCards.map(function(col) {
+    switch (col) {
+      case 'BinCardID':             return zoneBinCardId;
+      case 'Zone':                  return zone;
+      case 'SKU':                   return 'ZONE_TOTAL';
+      case 'ShiftDate':             return shiftDate;
+      case 'Shift':                 return shift;
+      case 'OpeningBalance':        return totalOpening;
+      case 'MovedIn':               return totalMovedIn;
+      case 'MovedOut':              return totalMovedOut;
+      case 'SystemClosingBalance':  return totalSystem;
+      case 'PhysicalCount':         return totalPhysical;
+      case 'Variance':              return zoneVariance;
+      case 'ConfirmedBy':           return confirmedBy;
+      case 'ConfirmedAt':           return confirmedAt;
+      case 'Status':                return 'Confirmed';
+      default:                      return '';
+    }
+  });
+  bcSheet.appendRow(newRow);
+  logUserActivity('CONFIRM_ZONE_BIN_CARD_PER_SKU: ' + zone + '/' + shift + '/' + shiftDate,
+                  'By: ' + confirmedBy + ', Physical: ' + totalPhysical + ', Variance: ' + zoneVariance);
+
+  return createResponse({ success: true, binCardId: zoneBinCardId, message: 'Zone bin card confirmed (per SKU).' });
 }
 

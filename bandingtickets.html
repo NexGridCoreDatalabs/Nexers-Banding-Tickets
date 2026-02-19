@@ -2625,15 +2625,23 @@
         }
         .bc-modal-bal-item .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
         .bc-modal-bal-item .value { font-size: 22px; font-weight: 800; color: #e2e8f0; }
-        .bc-physical-input-wrap { margin-bottom: 16px; }
-        .bc-physical-input-wrap label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 8px; font-weight: 600; }
-        .bc-physical-input-wrap input {
-            width: 100%; padding: 12px 16px; background: rgba(255,255,255,0.06);
-            border: 2px solid rgba(245,158,11,0.3); border-radius: 10px;
-            color: #f1f5f9; font-size: 18px; font-weight: 700; text-align: center;
-            outline: none; box-sizing: border-box;
+        .bc-physical-inputs-section { margin-bottom: 16px; }
+        .bc-physical-section-label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 12px; font-weight: 600; }
+        .bc-physical-inputs-container { display: flex; flex-direction: column; gap: 10px; max-height: 240px; overflow-y: auto; }
+        .bc-physical-sku-row {
+            display: grid; grid-template-columns: 1fr 100px; gap: 12px; align-items: center;
+            padding: 10px 14px; background: rgba(255,255,255,0.04); border-radius: 10px;
+            border: 1px solid rgba(245,158,11,0.2);
         }
-        .bc-physical-input-wrap input:focus { border-color: rgba(245,158,11,0.7); }
+        .bc-physical-sku-row .sku-label { font-weight: 600; color: #e2e8f0; font-size: 13px; }
+        .bc-physical-sku-row .sku-sys { font-size: 11px; color: #64748b; margin-top: 2px; }
+        .bc-physical-sku-row input {
+            padding: 10px 12px; background: rgba(255,255,255,0.06);
+            border: 2px solid rgba(245,158,11,0.3); border-radius: 8px;
+            color: #f1f5f9; font-size: 16px; font-weight: 700; text-align: center;
+            outline: none; box-sizing: border-box; width: 100%; min-width: 0;
+        }
+        .bc-physical-sku-row input:focus { border-color: rgba(245,158,11,0.7); }
         .bc-variance-preview {
             text-align: center;
             font-size: 14px;
@@ -2999,9 +3007,9 @@
                     <div class="value" id="bcModalSystem">—</div>
                 </div>
             </div>
-            <div class="bc-physical-input-wrap">
-                <label for="bcPhysicalInput">📦 Enter Total Physical Count for this Zone</label>
-                <input type="number" id="bcPhysicalInput" min="0" placeholder="0">
+            <div class="bc-physical-inputs-section">
+                <label class="bc-physical-section-label">📦 Enter Physical Count per SKU</label>
+                <div id="bcPhysicalInputsContainer" class="bc-physical-inputs-container"></div>
             </div>
             <!-- Variance preview intentionally hidden — tracked server-side only -->
             <div id="bcVariancePreview" style="display:none;"></div>
@@ -4468,7 +4476,7 @@
                     return card;
                 }
 
-                // ── Modal — zone-level confirmation, no variance shown ──
+                // ── Modal — per-SKU physical count confirmation ──
                 window.openBcZoneModal = function(zIdx) {
                     var zd = bcZones[zIdx];
                     if (!zd) return;
@@ -4484,15 +4492,33 @@
                     document.getElementById('bcModalMovedOut').textContent = '−' + fmt(zd.totalOut);
                     document.getElementById('bcModalSystem').textContent   = fmt(zd.totalSystem);
 
-                    var physInput = document.getElementById('bcPhysicalInput');
-                    physInput.value = '';
-                    // Hide variance preview — variance is server-side only
+                    var container = document.getElementById('bcPhysicalInputsContainer');
+                    container.innerHTML = '';
+                    zd.skus.forEach(function(s, idx) {
+                        var row = document.createElement('div');
+                        row.className = 'bc-physical-sku-row';
+                        row.dataset.sku = s.sku;
+                        row.dataset.idx = idx;
+                        var sys = (s.systemClosingBalance != null) ? s.systemClosingBalance : 0;
+                        row.innerHTML =
+                            '<div>' +
+                                '<div class="sku-label">' + escapeHtml(s.sku) + '</div>' +
+                                '<div class="sku-sys">System closing: ' + fmt(sys) + '</div>' +
+                            '</div>' +
+                            '<input type="number" min="0" placeholder="0" data-sku="' + escapeHtml(s.sku) + '" ' +
+                                'data-opening="' + (s.openingBalance || 0) + '" data-movedin="' + (s.movedIn || 0) + '" ' +
+                                'data-movedout="' + (s.movedOut || 0) + '" data-sys="' + (s.systemClosingBalance || 0) + '">';
+                        container.appendChild(row);
+                    });
+                    if (zd.skus.length > 0) {
+                        var firstInput = container.querySelector('input');
+                        if (firstInput) firstInput.focus();
+                    }
                     var vp = document.getElementById('bcVariancePreview');
                     if (vp) vp.style.display = 'none';
                     document.getElementById('bcModalStatus').textContent = '';
                     document.getElementById('bcConfirmBtn').disabled = false;
                     document.getElementById('bcConfirmModal').classList.add('active');
-                    physInput.focus();
                 };
 
                 window.closeBcModal = function() {
@@ -4505,20 +4531,40 @@
 
                 window.submitBinCardConfirmation = async function() {
                     var zd        = bcActiveZone;
-                    var physInput = document.getElementById('bcPhysicalInput');
-                    var physVal   = parseFloat(physInput.value);
+                    var container = document.getElementById('bcPhysicalInputsContainer');
                     var statusEl  = document.getElementById('bcModalStatus');
                     var confirmBtn = document.getElementById('bcConfirmBtn');
 
                     if (!zd) return;
-                    if (isNaN(physVal) || physInput.value === '') {
-                        statusEl.textContent = '⚠️ Please enter a physical count (0 or more).';
-                        statusEl.style.color = '#fbbf24';
-                        return;
-                    }
                     if (!bcLoggedInUser) {
                         statusEl.textContent = '❌ Session error — please reload and log in again.';
                         statusEl.style.color = '#f87171';
+                        return;
+                    }
+
+                    var inputs = container ? container.querySelectorAll('input[data-sku]') : [];
+                    var physicalCounts = [];
+                    var allValid = true;
+                    for (var i = 0; i < inputs.length; i++) {
+                        var inp = inputs[i];
+                        var val = parseFloat(inp.value);
+                        var sku = inp.dataset.sku || '';
+                        if (isNaN(val) || inp.value === '') {
+                            allValid = false;
+                            break;
+                        }
+                        physicalCounts.push({
+                            sku: sku,
+                            physicalCount: val,
+                            openingBalance: Number(inp.dataset.opening) || 0,
+                            movedIn: Number(inp.dataset.movedin) || 0,
+                            movedOut: Number(inp.dataset.movedout) || 0,
+                            systemClosingBalance: Number(inp.dataset.sys) || 0
+                        });
+                    }
+                    if (!allValid || physicalCounts.length === 0) {
+                        statusEl.textContent = '⚠️ Please enter a physical count (0 or more) for every SKU.';
+                        statusEl.style.color = '#fbbf24';
                         return;
                     }
 
@@ -4528,15 +4574,11 @@
 
                     try {
                         var url = GOOGLE_APPS_SCRIPT_URL +
-                            '?action=confirmZoneBinCard' +
+                            '?action=confirmZoneBinCardPerSku' +
                             '&zone='                 + encodeURIComponent(zd.zone) +
                             '&shift='                + encodeURIComponent(bcCurrentShift.shift) +
                             '&shiftDate='            + encodeURIComponent(bcCurrentShift.shiftDateKey) +
-                            '&physicalCount='        + physVal +
-                            '&systemClosingBalance=' + zd.totalSystem +
-                            '&openingBalance='       + zd.totalOpening +
-                            '&movedIn='              + zd.totalIn +
-                            '&movedOut='             + zd.totalOut +
+                            '&physicalCounts='       + encodeURIComponent(JSON.stringify(physicalCounts)) +
                             '&confirmedBy='          + encodeURIComponent(bcLoggedInUser.name || bcLoggedInUser.id);
 
                         var resp   = await fetch(url);

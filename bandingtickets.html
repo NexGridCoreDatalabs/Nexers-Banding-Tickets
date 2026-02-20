@@ -5032,10 +5032,15 @@
                 var bcAuditReportRows = [];
                 window.openBcAuditReport = function() {
                     var now = new Date();
-                    var d = now.getDate(), m = now.getMonth() + 1, y = now.getFullYear();
-                    var today = y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
-                    document.getElementById('bcAuditDateFrom').value = today;
-                    document.getElementById('bcAuditDateTo').value = today;
+                    var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+                    var today = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+                    var from = new Date(now);
+                    from.setDate(from.getDate() - 30);
+                    var fromStr = from.getFullYear() + '-' + pad(from.getMonth()+1) + '-' + pad(from.getDate());
+                    var dfEl = document.getElementById('bcAuditDateFrom');
+                    var dtEl = document.getElementById('bcAuditDateTo');
+                    if (dfEl) dfEl.value = fromStr;
+                    if (dtEl) dtEl.value = today;
                     document.getElementById('bcAuditReportModal').style.display = 'flex';
                     loadBcAuditReport();
                 };
@@ -5059,8 +5064,10 @@
                     var url = GOOGLE_APPS_SCRIPT_URL + '?action=getBinCardVarianceReport&dateFrom=' + encodeURIComponent(df) + '&dateTo=' + encodeURIComponent(dt) + '&shift=' + encodeURIComponent(sh) + '&zone=' + encodeURIComponent(z);
                     try {
                         var resp = await fetch(url);
-                        var result = await resp.json();
-                        bcAuditReportRows = result.rows || [];
+                        var txt = await resp.text();
+                        var result = {};
+                        try { result = JSON.parse(txt); } catch (_) { throw new Error('Invalid response from server'); }
+                        bcAuditReportRows = Array.isArray(result.rows) ? result.rows : [];
                         var tbl = document.getElementById('bcAuditReportTable');
                         var fmt = function(n) { return (n === undefined || n === null) ? '—' : Number(n).toLocaleString(); };
                         var html = '<table class="bc-zc-sku-table"><thead><tr><th>Zone</th><th>SKU</th><th>Shift</th><th>Date</th><th>System</th><th>Physical</th><th>Variance</th><th>By</th><th>At</th><th></th></tr></thead><tbody>';
@@ -5073,7 +5080,11 @@
                             html += '<tr><td>' + escapeHtml(r.zone) + '</td><td>' + escapeHtml(r.sku) + '</td><td>' + escapeHtml(r.shift) + '</td><td>' + escapeHtml(r.shiftDate) + '</td><td>' + fmt(r.systemClosing) + '</td><td>' + fmt(r.physicalCount) + '</td><td class="' + vCls + '">' + (r.variance === 0 ? '0' : r.variance) + '</td><td>' + escapeHtml(r.confirmedBy) + '</td><td>' + escapeHtml((r.confirmedAt || '').substring(0,19)) + '</td><td>' + viewLink + '</td></tr>';
                         });
                         html += '</tbody></table>';
-                        tbl.innerHTML = html || '<div style="padding:24px;color:#64748b;">No records found.</div>';
+                        if (bcAuditReportRows.length === 0) {
+                            tbl.innerHTML = '<div style="padding:24px;color:#64748b;">No confirmed bin cards in date range. Try widening the dates (default: last 30 days) or clear Shift/Zone filters.</div>';
+                        } else {
+                            tbl.innerHTML = html;
+                        }
                         document.getElementById('bcAuditExportBtn').disabled = bcAuditReportRows.length === 0;
                     } catch (e) { document.getElementById('bcAuditReportTable').innerHTML = '<div style="padding:24px;color:#f87171;">Failed to load: ' + (e.message || 'Unknown error') + '</div>'; }
                 }
@@ -5082,10 +5093,15 @@
                     var hdr = 'Zone,SKU,Shift,Date,System,Physical,Variance,ConfirmedBy,ConfirmedAt';
                     var rows = bcAuditReportRows.map(function(r) { return [r.zone,r.sku,r.shift,r.shiftDate,r.systemClosing,r.physicalCount,r.variance,r.confirmedBy,r.confirmedAt].map(function(x) { return '"' + String(x || '').replace(/"/g,'""') + '"'; }).join(','); });
                     var csv = hdr + '\n' + rows.join('\n');
+                    var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
                     var a = document.createElement('a');
-                    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+                    a.href = (window.URL || window.webkitURL).createObjectURL(blob);
                     a.download = 'bin-card-variance-report-' + new Date().toISOString().slice(0,10) + '.csv';
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
                     a.click();
+                    document.body.removeChild(a);
+                    if (a.href && a.href.indexOf('blob:') === 0) (window.URL || window.webkitURL).revokeObjectURL(a.href);
                 };
 
                 window.openBcRevokeAdmin = function() {

@@ -3926,7 +3926,7 @@ function movePallet(params) {
   const movedBy = params.movedBy;
   const reason = params.reason || '';
   const overrideReason = params.overrideReason || '';
-  const quantity = params.quantity || '';
+  const quantity = params.quantity;
   const orderReference = params.orderReference || '';
   const workbook = SpreadsheetApp.openById(SHEET_ID);
   const palletsSheet = ensureSheetWithHeaders(workbook, 'Pallets', STOCK_MOVEMENT_SHEETS.Pallets);
@@ -3983,6 +3983,15 @@ function movePallet(params) {
       palletData: palletData
     });
   }
+  // When quantity not provided (full-pallet move), use pallet's RemainingQuantity or Quantity
+  var qtyToLog = quantity;
+  if (qtyToLog === '' || qtyToLog == null) {
+    var remCol = headers.indexOf('RemainingQuantity');
+    var qtyCol = headers.indexOf('Quantity');
+    var rem = remCol >= 0 ? Number(palletRowValues[remCol]) : 0;
+    var qty = qtyCol >= 0 ? Number(palletRowValues[qtyCol]) : 0;
+    qtyToLog = (rem > 0 ? rem : qty) || '';
+  }
   const now = new Date();
   const movementId = generateMovementId();
   logZoneMovement({
@@ -3992,7 +4001,7 @@ function movePallet(params) {
     movedBy: movedBy,
     reason: reason,
     overrideReason: overrideReason,
-    quantity: quantity,
+    quantity: qtyToLog,
     orderReference: orderReference,
     movementDate: now,
     movementId: movementId,
@@ -5841,27 +5850,37 @@ function getBinCardData(params) {
       var bcData = bcSheet.getDataRange().getValues();
       var bcH    = bcData[0] || [];
       var bci    = buildHeaderIndexMap(bcH);
-      var statusIdx = bci.Status >= 0 ? bci.Status : bcH.indexOf('Status');
+      var _idx = function(name) { return (bci[name] != null && bci[name] >= 0) ? bci[name] : bcH.indexOf(name); };
+      var statusIdx = _idx('Status');
+      var shiftDateIdx = _idx('ShiftDate');
+      var shiftIdx = _idx('Shift');
+      var zoneIdx = _idx('Zone');
+      var skuIdx = _idx('SKU');
+      var cbIdx = _idx('ConfirmedBy'), caIdx = _idx('ConfirmedAt'), physIdx = _idx('PhysicalCount');
+      var sysIdx = _idx('SystemClosingBalance'), obIdx = _idx('OpeningBalance'), miIdx = _idx('MovedIn'), moIdx = _idx('MovedOut'), varIdx = _idx('Variance');
+      if (shiftDateIdx < 0 || shiftIdx < 0 || zoneIdx < 0 || skuIdx < 0) { /* skip overlay if cols missing */ } else {
       for (var r = 1; r < bcData.length; r++) {
         var brow = bcData[r];
         if (!brow) continue;
-        var status = (brow[statusIdx] || '').toString().trim();
-        if (status === 'Revoked') continue;
-        if ((brow[bci.ShiftDate] || '').toString().trim() !== shiftInfo.shiftDateKey) continue;
-        if ((brow[bci.Shift]     || '').toString().trim() !== shiftInfo.shift)        continue;
-        var bZone = (brow[bci.Zone] || '').toString().trim();
-        var bSku  = (brow[bci.SKU]  || '').toString().trim();
+        var status = (statusIdx >= 0 ? (brow[statusIdx] || '') : '').toString().trim().toLowerCase();
+        if (status === 'revoked') continue;
+        var rowShiftDate = (brow[shiftDateIdx] || '').toString().trim();
+        var rowShift = (brow[shiftIdx] || '').toString().trim();
+        if (rowShiftDate !== shiftInfo.shiftDateKey) continue;
+        if (rowShift.toLowerCase() !== (shiftInfo.shift || '').toLowerCase()) continue;
+        var bZone = (brow[zoneIdx] || '').toString().trim();
+        var bSku  = (brow[skuIdx]  || '').toString().trim();
         if (bSku === 'ZONE_TOTAL') {
           confirmedZones[bZone] = {
             confirmed: true,
-            confirmedBy: (brow[bci.ConfirmedBy] || '').toString(),
-            confirmedAt: (brow[bci.ConfirmedAt] || '').toString(),
-            totalPhysical: Number(brow[bci.PhysicalCount]) || 0,
-            totalSystem: Number(brow[bci.SystemClosingBalance]) || 0,
-            totalOpening: Number(brow[bci.OpeningBalance]) || 0,
-            totalMovedIn: Number(brow[bci.MovedIn]) || 0,
-            totalMovedOut: Number(brow[bci.MovedOut]) || 0,
-            zoneVariance: Number(brow[bci.Variance]) || 0,
+            confirmedBy: (cbIdx >= 0 ? (brow[cbIdx] || '') : '').toString(),
+            confirmedAt: (caIdx >= 0 ? (brow[caIdx] || '') : '').toString(),
+            totalPhysical: (physIdx >= 0 ? Number(brow[physIdx]) : 0) || 0,
+            totalSystem: (sysIdx >= 0 ? Number(brow[sysIdx]) : 0) || 0,
+            totalOpening: (obIdx >= 0 ? Number(brow[obIdx]) : 0) || 0,
+            totalMovedIn: (miIdx >= 0 ? Number(brow[miIdx]) : 0) || 0,
+            totalMovedOut: (moIdx >= 0 ? Number(brow[moIdx]) : 0) || 0,
+            zoneVariance: (varIdx >= 0 ? Number(brow[varIdx]) : 0) || 0,
             varianceDetails: []
           };
         }
@@ -5869,24 +5888,25 @@ function getBinCardData(params) {
       for (var r = 1; r < bcData.length; r++) {
         var brow = bcData[r];
         if (!brow) continue;
-        if ((brow[bci.ShiftDate] || '').toString().trim() !== shiftInfo.shiftDateKey) continue;
-        if ((brow[bci.Shift]     || '').toString().trim() !== shiftInfo.shift)        continue;
-        var bZone = (brow[bci.Zone] || '').toString().trim();
-        var bSku  = (brow[bci.SKU]  || '').toString().trim();
+        if ((brow[shiftDateIdx] || '').toString().trim() !== shiftInfo.shiftDateKey) continue;
+        if ((brow[shiftIdx] || '').toString().trim().toLowerCase() !== (shiftInfo.shift || '').toLowerCase()) continue;
+        var bZone = (brow[zoneIdx] || '').toString().trim();
+        var bSku  = (brow[skuIdx]  || '').toString().trim();
         if (bSku === 'ZONE_TOTAL') continue;
         if (confirmedZones[bZone] && confirmedZones[bZone].varianceDetails) {
-          var phys = Number(brow[bci.PhysicalCount]) || 0;
-          var sys  = Number(brow[bci.SystemClosingBalance]) || 0;
-          var v    = Number(brow[bci.Variance]);
+          var phys = (physIdx >= 0 ? Number(brow[physIdx]) : 0) || 0;
+          var sys  = (sysIdx >= 0 ? Number(brow[sysIdx]) : 0) || 0;
+          var v    = (varIdx >= 0 ? Number(brow[varIdx]) : null);
           if (isNaN(v)) v = phys - sys;
-          var open = Number(brow[bci.OpeningBalance]) || 0;
-          var min  = Number(brow[bci.MovedIn]) || 0;
-          var mout = Number(brow[bci.MovedOut]) || 0;
+          var open = (obIdx >= 0 ? Number(brow[obIdx]) : 0) || 0;
+          var min  = (miIdx >= 0 ? Number(brow[miIdx]) : 0) || 0;
+          var mout = (moIdx >= 0 ? Number(brow[moIdx]) : 0) || 0;
           confirmedZones[bZone].varianceDetails.push({
             sku: bSku, physicalCount: phys, systemClosing: sys, variance: v,
             openingBalance: open, movedIn: min, movedOut: mout
           });
         }
+      }
       }
     }
   } catch (e2) { /* non-critical */ }
@@ -6253,24 +6273,37 @@ function getBinCardVarianceReport(params) {
   var data = bcSheet.getDataRange().getValues();
   var hdr  = data[0] || [];
   var bci  = buildHeaderIndexMap(hdr);
+  var _col = function(name) { var i = (bci[name] != null && bci[name] >= 0) ? bci[name] : hdr.indexOf(name); return i >= 0 ? i : -1; };
+  var cStatus = _col('Status'), cShiftDate = _col('ShiftDate'), cShift = _col('Shift'), cZone = _col('Zone'), cSku = _col('SKU');
+  var cOb = _col('OpeningBalance'), cMi = _col('MovedIn'), cMo = _col('MovedOut'), cSys = _col('SystemClosingBalance');
+  var cPhys = _col('PhysicalCount'), cVar = _col('Variance'), cCb = _col('ConfirmedBy'), cCa = _col('ConfirmedAt');
+  if (cShiftDate < 0 || cShift < 0 || cZone < 0 || cSku < 0) return createResponse({ success: true, rows: [] });
   var rows = [];
   for (var r = 1; r < data.length; r++) {
     var row = data[r];
     if (!row) continue;
-    var status = (row[bci.Status] || '').toString().trim();
-    if (status === 'Revoked') continue;
-    var shiftDate = (row[bci.ShiftDate] || '').toString().trim();
-    var sShift    = (row[bci.Shift]     || '').toString().trim().toLowerCase();
-    var bZone     = (row[bci.Zone]      || '').toString().trim().toLowerCase();
+    var status = (cStatus >= 0 ? (row[cStatus] || '') : '').toString().trim().toLowerCase();
+    if (status === 'revoked') continue;
+    var shiftDate = (row[cShiftDate] || '').toString().trim();
+    var sShift    = (row[cShift] || '').toString().trim().toLowerCase();
+    var bZone     = (row[cZone] || '').toString().trim().toLowerCase();
     if (dateFrom && shiftDate < dateFrom) continue;
     if (dateTo   && shiftDate > dateTo)   continue;
     if (shift    && sShift !== shift)    continue;
     if (zone     && bZone.indexOf(zone) < 0) continue;
     rows.push({
-      zone: row[bci.Zone], sku: row[bci.SKU], shiftDate: shiftDate, shift: row[bci.Shift],
-      openingBalance: Number(row[bci.OpeningBalance]) || 0, movedIn: Number(row[bci.MovedIn]) || 0, movedOut: Number(row[bci.MovedOut]) || 0,
-      systemClosing: Number(row[bci.SystemClosingBalance]) || 0, physicalCount: Number(row[bci.PhysicalCount]) || 0, variance: Number(row[bci.Variance]) || 0,
-      confirmedBy: (row[bci.ConfirmedBy] || '').toString(), confirmedAt: (row[bci.ConfirmedAt] || '').toString()
+      zone: (row[cZone] || '').toString(),
+      sku: (row[cSku] || '').toString(),
+      shiftDate: shiftDate,
+      shift: (row[cShift] || '').toString(),
+      openingBalance: (cOb >= 0 ? Number(row[cOb]) : 0) || 0,
+      movedIn: (cMi >= 0 ? Number(row[cMi]) : 0) || 0,
+      movedOut: (cMo >= 0 ? Number(row[cMo]) : 0) || 0,
+      systemClosing: (cSys >= 0 ? Number(row[cSys]) : 0) || 0,
+      physicalCount: (cPhys >= 0 ? Number(row[cPhys]) : 0) || 0,
+      variance: (cVar >= 0 ? Number(row[cVar]) : 0) || 0,
+      confirmedBy: (cCb >= 0 ? (row[cCb] || '') : '').toString(),
+      confirmedAt: (cCa >= 0 ? (row[cCa] || '') : '').toString()
     });
   }
   return createResponse({ success: true, rows: rows });
@@ -6349,5 +6382,228 @@ function revokeZoneBinCard(params) {
   if (revokedCount === 0) return createResponse({ success: false, error: 'No matching bin cards found.' });
   logUserActivity('REVOKE_ZONE_BIN_CARD: ' + zone + '/' + shift + '/' + shiftDate, 'By: ' + revokedBy);
   return createResponse({ success: true, message: 'Bin card revoked. Zone can be re-confirmed.', revokedCount: revokedCount });
+}
+
+/**
+ * One-time backfill: update ZoneMovements rows where Quantity is 0 or blank.
+ * Uses pallet's current RemainingQuantity (or Quantity) from Pallets.
+ * Run once from Apps Script Editor: select backfillZoneMovementsQuantity, click Run.
+ */
+function backfillZoneMovementsQuantity() {
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var movSheet = workbook.getSheetByName('ZoneMovements') || workbook.getSheetByName('Zone Movements');
+  if (!movSheet) {
+    Logger.log('ZoneMovements sheet not found.');
+    return { updated: 0, skipped: 0, notFound: 0, errors: [] };
+  }
+  var palletsSheet = workbook.getSheetByName('Pallets');
+  if (!palletsSheet) {
+    Logger.log('Pallets sheet not found.');
+    return { updated: 0, skipped: 0, notFound: 0, errors: [] };
+  }
+  var movData = movSheet.getDataRange().getValues();
+  var movHdr = movData[0] || [];
+  var mi = buildHeaderIndexMap(movHdr);
+  var palletData = palletsSheet.getDataRange().getValues();
+  var palletHdr = palletData[0] || [];
+  var pi = buildHeaderIndexMap(palletHdr);
+  var remCol = palletHdr.indexOf('RemainingQuantity');
+  var qtyCol = palletHdr.indexOf('Quantity');
+  var palletIdCol = palletHdr.indexOf('PalletID');
+  if (mi.Quantity < 0 || mi.PalletID < 0) {
+    Logger.log('ZoneMovements missing Quantity or PalletID column.');
+    return { updated: 0, skipped: 0, notFound: 0, errors: ['Missing columns'] };
+  }
+  var palletMap = {};
+  for (var p = 1; p < palletData.length; p++) {
+    var prow = palletData[p];
+    var pid = (prow[palletIdCol] || '').toString().trim().toUpperCase();
+    if (!pid) continue;
+    var rem = remCol >= 0 ? Number(prow[remCol]) : 0;
+    var qty = qtyCol >= 0 ? Number(prow[qtyCol]) : 0;
+    palletMap[pid] = rem > 0 ? rem : (qty || 0);
+  }
+  var updated = 0, skipped = 0, notFound = 0;
+  var qtyColIdx = mi.Quantity;
+  for (var r = 1; r < movData.length; r++) {
+    var mrow = movData[r];
+    if (!mrow) continue;
+    var qtyVal = mrow[qtyColIdx];
+    var qtyNum = Number(qtyVal);
+    if (qtyNum > 0) {
+      skipped++;
+      continue;
+    }
+    var pid = (mrow[mi.PalletID] || '').toString().trim().toUpperCase();
+    if (!pid) {
+      skipped++;
+      continue;
+    }
+    var palletQty = palletMap[pid];
+    if (!palletQty || palletQty <= 0) {
+      notFound++;
+      continue;
+    }
+    movSheet.getRange(r + 1, qtyColIdx + 1).setValue(palletQty);
+    updated++;
+  }
+  Logger.log('Backfill done: updated=' + updated + ', skipped=' + skipped + ', palletNotFound=' + notFound);
+  return { updated: updated, skipped: skipped, notFound: notFound };
+}
+
+/**
+ * One-time backfill: recalculate BinCards OpeningBalance, MovedIn, MovedOut, SystemClosingBalance
+ * from ZoneMovements (after ZoneMovements Quantity has been backfilled).
+ * Run AFTER backfillZoneMovementsQuantity. Select backfillBinCardsFromZoneMovements, click Run.
+ */
+function backfillBinCardsFromZoneMovements() {
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var bcSheet = workbook.getSheetByName('BinCards');
+  if (!bcSheet) {
+    Logger.log('BinCards sheet not found.');
+    return { updated: 0, errors: [] };
+  }
+  var movSheet = workbook.getSheetByName('ZoneMovements') || workbook.getSheetByName('Zone Movements');
+  if (!movSheet) {
+    Logger.log('ZoneMovements sheet not found.');
+    return { updated: 0, errors: [] };
+  }
+  var palletsSheet = workbook.getSheetByName('Pallets');
+  if (!palletsSheet) {
+    Logger.log('Pallets sheet not found.');
+    return { updated: 0, errors: [] };
+  }
+  var bcData = bcSheet.getDataRange().getValues();
+  var bcHdr = bcData[0] || [];
+  var bci = buildHeaderIndexMap(bcHdr);
+  if (bci.OpeningBalance == null || bci.MovedIn == null || bci.MovedOut == null || bci.SystemClosingBalance == null) {
+    Logger.log('BinCards missing required columns: OpeningBalance, MovedIn, MovedOut, SystemClosingBalance');
+    return { updated: 0, errors: ['Missing columns'] };
+  }
+  var SKIP_ZONES = { 'Outbounding': true, 'Outbonded': true, 'Outbounded': true };
+  var palletData = palletsSheet.getDataRange().getValues();
+  var palletHdr = palletData[0] || [];
+  var pi = buildHeaderIndexMap(palletHdr);
+  var palletMap = {};
+  for (var p = 1; p < palletData.length; p++) {
+    var prow = palletData[p];
+    var pid = (prow[pi.PalletID] || '').toString().trim().toUpperCase();
+    if (!pid) continue;
+    palletMap[pid] = {
+      sku: (prow[pi.SKU] || 'Unknown').toString().trim(),
+      remainingQty: Number(prow[pi.RemainingQuantity]) || Number(prow[pi.Quantity]) || 0
+    };
+  }
+  var shiftsSeen = {};
+  var updated = 0;
+  for (var r = 1; r < bcData.length; r++) {
+    var row = bcData[r];
+    if (!row) continue;
+    var status = (row[bci.Status] || '').toString().trim();
+    if (status === 'Revoked') continue;
+    var shiftDate = (row[bci.ShiftDate] || '').toString().trim();
+    var shift = (row[bci.Shift] || '').toString().trim();
+    var zone = (row[bci.Zone] || '').toString().trim();
+    if (!shiftDate || !shift || !zone) continue;
+    var shiftKey = shiftDate + '|' + shift;
+    var zoneTotals;
+    if (!shiftsSeen[shiftKey]) {
+      var shiftInfo = getBinCardShiftInfoForParams(shiftDate, shift);
+      if (!shiftInfo) continue;
+      var zoneSkuBalance = {};
+      var zoneSkuMov = {};
+      var movHeaders = movSheet.getRange(1, 1, 1, 30).getValues()[0] || [];
+      var mi = buildHeaderIndexMap(movHeaders);
+      var numRows = movSheet.getLastRow();
+      var CHUNK = 4000;
+      var allMovements = [];
+      for (var startRow = 2; startRow <= numRows; startRow += CHUNK) {
+        var endRow = Math.min(startRow + CHUNK - 1, numRows);
+        var chunkData = movSheet.getRange(startRow, 1, endRow, movHeaders.length || 25).getValues();
+        for (var ci = 0; ci < chunkData.length; ci++) {
+          var mrow = chunkData[ci];
+          if (!mrow || !mrow[mi.MovementID]) continue;
+          var tsRaw = mi.CreatedAt >= 0 ? mrow[mi.CreatedAt] : null;
+          if (!tsRaw && mi.MovementDate >= 0 && mi.MovementTime >= 0) {
+            var md = mrow[mi.MovementDate], mt = mrow[mi.MovementTime];
+            if (md && mt) tsRaw = new Date((md + '').trim() + 'T' + (mt + '').trim());
+            else if (md) tsRaw = md instanceof Date ? md : new Date(md);
+          }
+          if (!tsRaw) continue;
+          var ts = tsRaw instanceof Date ? tsRaw : new Date(tsRaw);
+          if (isNaN(ts.getTime()) || ts > shiftInfo.shiftEnd) continue;
+          var movStatus = (mrow[mi.MovementStatus] || '').toString().trim().toLowerCase();
+          if (movStatus === 'cancelled' || movStatus === 'auto-reverted') continue;
+          var pid2 = (mrow[mi.PalletID] || '').toString().trim().toUpperCase();
+          var sku2 = palletMap[pid2] ? palletMap[pid2].sku : 'Unknown';
+          var fromZone = (mrow[mi.FromZone] || '').toString().trim();
+          var toZone = (mrow[mi.ToZone] || '').toString().trim();
+          var qty = Number(mrow[mi.Quantity]) || 0;
+          allMovements.push({ ts: ts, fromZone: fromZone, toZone: toZone, sku2: sku2, qty: qty });
+        }
+      }
+      allMovements.sort(function(a, b) { return a.ts - b.ts; });
+      for (var m = 0; m < allMovements.length; m++) {
+        var am = allMovements[m];
+        if (am.fromZone && !SKIP_ZONES[am.fromZone]) {
+          var outKey = am.fromZone + '|||' + am.sku2;
+          zoneSkuBalance[outKey] = (zoneSkuBalance[outKey] || 0) - am.qty;
+        }
+        if (am.toZone && !SKIP_ZONES[am.toZone]) {
+          var inKey = am.toZone + '|||' + am.sku2;
+          zoneSkuBalance[inKey] = (zoneSkuBalance[inKey] || 0) + am.qty;
+        }
+      }
+      for (var m2 = 0; m2 < allMovements.length; m2++) {
+        var am2 = allMovements[m2];
+        if (am2.ts < shiftInfo.shiftStart || am2.ts >= shiftInfo.shiftEnd) continue;
+        if (am2.fromZone && !SKIP_ZONES[am2.fromZone]) {
+          var ok = am2.fromZone + '|||' + am2.sku2;
+          if (!zoneSkuMov[ok]) zoneSkuMov[ok] = { movedIn: 0, movedOut: 0 };
+          zoneSkuMov[ok].movedOut += am2.qty;
+        }
+        if (am2.toZone && !SKIP_ZONES[am2.toZone]) {
+          var ik = am2.toZone + '|||' + am2.sku2;
+          if (!zoneSkuMov[ik]) zoneSkuMov[ik] = { movedIn: 0, movedOut: 0 };
+          zoneSkuMov[ik].movedIn += am2.qty;
+        }
+      }
+      zoneTotals = {};
+      var allKeys = {};
+      Object.keys(zoneSkuBalance).forEach(function(k) { allKeys[k] = true; });
+      Object.keys(zoneSkuMov).forEach(function(k) { allKeys[k] = true; });
+      Object.keys(allKeys).forEach(function(key) {
+        var parts = key.split('|||');
+        var z = parts[0] || '';
+        var sku = parts[1] || '';
+        if (!z) return;
+        if (!zoneTotals[z]) zoneTotals[z] = { opening: 0, movedIn: 0, movedOut: 0, closing: 0 };
+        var closing = zoneSkuBalance[key] || 0;
+        var mov = zoneSkuMov[key] || { movedIn: 0, movedOut: 0 };
+        var opening = closing - mov.movedIn + mov.movedOut;
+        zoneTotals[z].closing += closing;
+        zoneTotals[z].movedIn += mov.movedIn;
+        zoneTotals[z].movedOut += mov.movedOut;
+        zoneTotals[z].opening += Math.max(0, opening);
+      });
+      shiftsSeen[shiftKey] = zoneTotals;
+    } else {
+      zoneTotals = shiftsSeen[shiftKey];
+    }
+    var tot = zoneTotals[zone];
+    if (!tot) continue;
+    var rn = r + 1;
+    bcSheet.getRange(rn, bci.OpeningBalance + 1).setValue(tot.opening);
+    bcSheet.getRange(rn, bci.MovedIn + 1).setValue(tot.movedIn);
+    bcSheet.getRange(rn, bci.MovedOut + 1).setValue(tot.movedOut);
+    bcSheet.getRange(rn, bci.SystemClosingBalance + 1).setValue(tot.closing);
+    if (bci.Variance >= 0) {
+      var phys = Number(row[bci.PhysicalCount]) || 0;
+      bcSheet.getRange(rn, bci.Variance + 1).setValue(phys - tot.closing);
+    }
+    updated++;
+  }
+  Logger.log('BinCards backfill done: updated=' + updated + ' rows.');
+  return { updated: updated };
 }
 

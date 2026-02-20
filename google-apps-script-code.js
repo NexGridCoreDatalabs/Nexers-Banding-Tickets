@@ -1060,8 +1060,10 @@ function doGet(e) {
     }
     else if (action === 'getBinCardData') {
       return getBinCardData({
-        zone: e.parameter.zone || '',
-        sku:  e.parameter.sku  || ''
+        zone:      e.parameter.zone      || '',
+        sku:       e.parameter.sku       || '',
+        shiftDate: e.parameter.shiftDate  || '',
+        shift:     e.parameter.shift     || ''
       });
     }
     else if (action === 'confirmBinCard') {
@@ -3651,6 +3653,41 @@ function getBinCardShiftInfo(dateTime) {
   };
 }
 
+/**
+ * Returns shift window for a given date string and shift name (Day/Night).
+ * shiftDate: YYYY-MM-DD, shift: 'Day' or 'Night'.
+ */
+function getBinCardShiftInfoForParams(shiftDate, shift) {
+  if (!shiftDate || !shift) return null;
+  var parts = (shiftDate + '').trim().split('-');
+  if (parts.length !== 3) return null;
+  var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, d = parseInt(parts[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+  var s = (shift + '').trim().toLowerCase();
+  var dayStart = new Date(y, m, d, 7, 0, 0);
+  var nightStart = new Date(y, m, d, 19, 0, 0);
+  var nextDay7 = new Date(y, m, d + 1, 7, 0, 0);
+  var shiftStart, shiftEnd, shiftDateKey;
+  if (s === 'day') {
+    shiftStart = dayStart;
+    shiftEnd = nightStart;
+    shiftDateKey = formatDateKey(dayStart);
+  } else if (s === 'night') {
+    shiftStart = nightStart;
+    shiftEnd = nextDay7;
+    shiftDateKey = formatDateKey(nightStart);
+  } else {
+    return null;
+  }
+  return {
+    shift: s === 'day' ? 'Day' : 'Night',
+    shiftStart: shiftStart,
+    shiftEnd: shiftEnd,
+    shiftDateKey: shiftDateKey,
+    label: s === 'day' ? '☀️ Day Shift (07:00–19:00)' : '🌙 Night Shift (19:00–07:00)'
+  };
+}
+
 function getLeaderNameMap(workbook) {
   const map = {};
   try {
@@ -5570,10 +5607,18 @@ function getBinCardData(params) {
   const workbook = SpreadsheetApp.openById(SHEET_ID);
   const filterZone = (params.zone || '').toString().trim();
   const filterSku  = (params.sku  || '').toString().trim();
+  const paramShiftDate = (params.shiftDate || '').toString().trim();
+  const paramShift    = (params.shift     || '').toString().trim();
 
-  // Shift window
   const now = new Date();
-  const shiftInfo = getBinCardShiftInfo(now);
+  var shiftInfo;
+  if (paramShiftDate && paramShift) {
+    shiftInfo = getBinCardShiftInfoForParams(paramShiftDate, paramShift);
+    if (!shiftInfo) return createResponse({ success: false, error: 'Invalid shiftDate or shift. Use YYYY-MM-DD and Day or Night.' });
+  } else {
+    shiftInfo = getBinCardShiftInfo(now);
+  }
+  var isPastShift = shiftInfo.shiftEnd <= now;
 
   // ── 1. Build pallet map: palletId → { sku, currentZone, remainingQty } ──
   const palletsSheet = workbook.getSheetByName('Pallets');
@@ -5595,107 +5640,164 @@ function getBinCardData(params) {
     };
   }
 
-  // ── 2a. Pallet consistency: total birthed = sum of pallets in all zones (no double-count, full traceability) ──
-  var palletsByZone = {};
-  var totalPallets = 0;
-  var birthedOriginalCount = 0;
-  var parentIdIdx = palletHeaders.indexOf('ParentPalletID');
-  for (var pi2 = 1; pi2 < palletsData.length; pi2++) {
-    var r = palletsData[pi2];
-    if (!r || !r[pi.PalletID]) continue;
-    totalPallets += 1;
-    var pz = (r[pi.CurrentZone] || '').toString().trim() || 'Unknown Zone';
-    palletsByZone[pz] = (palletsByZone[pz] || 0) + 1;
-    if (parentIdIdx >= 0) {
-      var pidVal = (r[parentIdIdx] || '').toString().trim();
-      if (!pidVal) birthedOriginalCount += 1;
-    } else {
-      birthedOriginalCount += 1;
-    }
-  }
-  var sumOfZonePallets = Object.keys(palletsByZone).reduce(function(s, z) { return s + (palletsByZone[z] || 0); }, 0);
-  var palletConsistency = {
-    totalPallets: totalPallets,
-    sumOfZonePallets: sumOfZonePallets,
-    consistent: totalPallets === sumOfZonePallets,
-    birthedOriginalCount: birthedOriginalCount,
-    palletsByZone: palletsByZone
-  };
-
-  // ── 2. Current closing balance per Zone+SKU ──
   var SKIP_ZONES = { 'Outbounding': true, 'Outbonded': true, 'Outbounded': true };
   var zoneSkuBalance = {};
-  Object.keys(palletMap).forEach(function(pid) {
-    var p = palletMap[pid];
-    if (!p.currentZone || SKIP_ZONES[p.currentZone]) return;
-    var key = p.currentZone + '|||' + p.sku;
-    zoneSkuBalance[key] = (zoneSkuBalance[key] || 0) + p.remainingQty;
-  });
-
-  // ── 3. In-shift movements per Zone+SKU + list for visibility ──
   var zoneSkuMov = {};
   var movementsInShift = [];
-  var movSheet = workbook.getSheetByName('ZoneMovements') || workbook.getSheetByName('Zone Movements');
-  if (movSheet) {
-    var movData = movSheet.getDataRange().getValues();
-    var movHeaders = movData[0] || [];
+  var palletConsistency = { totalPallets: 0, sumOfZonePallets: 0, consistent: true, birthedOriginalCount: 0, palletsByZone: {} };
+
+  if (isPastShift) {
+    // ── Past shift: replay ZoneMovements up to shiftEnd (segmented by row chunks) ──
+    var movSheet = workbook.getSheetByName('ZoneMovements') || workbook.getSheetByName('Zone Movements');
+    if (!movSheet) return createResponse({ success: false, error: 'ZoneMovements sheet not found for past-shift replay.' });
+    var movHeaders = movSheet.getRange(1, 1, 1, 30).getValues()[0] || [];
     var mi = buildHeaderIndexMap(movHeaders);
-
-    for (var j = 1; j < movData.length; j++) {
-      var mrow = movData[j];
-      if (!mrow || !mrow[mi.MovementID]) continue;
-
-      // Parse timestamp: prefer CreatedAt, fallback to MovementDate + MovementTime
-      var tsRaw = mi.CreatedAt >= 0 ? mrow[mi.CreatedAt] : null;
-      if (!tsRaw && mi.MovementDate >= 0 && mi.MovementTime >= 0) {
-        var md = mrow[mi.MovementDate];
-        var mt = mrow[mi.MovementTime];
-        if (md && mt) tsRaw = new Date((md + '').trim() + 'T' + (mt + '').trim());
-        else if (md) tsRaw = md instanceof Date ? md : new Date(md);
+    var numRows = movSheet.getLastRow();
+    var CHUNK = 4000;
+    var allMovements = [];
+    for (var startRow = 2; startRow <= numRows; startRow += CHUNK) {
+      var endRow = Math.min(startRow + CHUNK - 1, numRows);
+      var chunkData = movSheet.getRange(startRow, 1, endRow, movHeaders.length || 25).getValues();
+      for (var ci = 0; ci < chunkData.length; ci++) {
+        var mrow = chunkData[ci];
+        if (!mrow || !mrow[mi.MovementID]) continue;
+        var tsRaw = mi.CreatedAt >= 0 ? mrow[mi.CreatedAt] : null;
+        if (!tsRaw && mi.MovementDate >= 0 && mi.MovementTime >= 0) {
+          var md = mrow[mi.MovementDate], mt = mrow[mi.MovementTime];
+          if (md && mt) tsRaw = new Date((md + '').trim() + 'T' + (mt + '').trim());
+          else if (md) tsRaw = md instanceof Date ? md : new Date(md);
+        }
+        if (!tsRaw) continue;
+        var ts = tsRaw instanceof Date ? tsRaw : new Date(tsRaw);
+        if (isNaN(ts.getTime()) || ts > shiftInfo.shiftEnd) continue;
+        var movStatus = (mrow[mi.MovementStatus] || '').toString().trim().toLowerCase();
+        if (movStatus === 'cancelled' || movStatus === 'auto-reverted') continue;
+        var pid2 = (mrow[mi.PalletID] || '').toString().trim().toUpperCase();
+        var sku2 = palletMap[pid2] ? palletMap[pid2].sku : 'Unknown';
+        var fromZone = (mrow[mi.FromZone] || '').toString().trim();
+        var toZone   = (mrow[mi.ToZone]   || '').toString().trim();
+        var qty = Number(mrow[mi.Quantity]) || 0;
+        allMovements.push({ ts: ts, pid2: pid2, sku2: sku2, fromZone: fromZone, toZone: toZone, qty: qty, mrow: mrow, mi: mi });
       }
-      if (!tsRaw) continue;
-      var ts = tsRaw instanceof Date ? tsRaw : new Date(tsRaw);
-      if (isNaN(ts.getTime())) continue;
-
-      // Only movements within this shift window
-      if (ts < shiftInfo.shiftStart || ts >= shiftInfo.shiftEnd) continue;
-
-      // Skip cancelled / auto-reverted
-      var movStatus = (mrow[mi.MovementStatus] || '').toString().trim().toLowerCase();
-      if (movStatus === 'cancelled' || movStatus === 'auto-reverted') continue;
-
-      var pid2     = (mrow[mi.PalletID] || '').toString().trim().toUpperCase();
-      var pInfo    = palletMap[pid2];
-      if (!pInfo) continue;
-
-      var sku2     = pInfo.sku;
-      var fromZone = (mrow[mi.FromZone] || '').toString().trim();
-      var toZone   = (mrow[mi.ToZone]   || '').toString().trim();
-      var qty      = Number(mrow[mi.Quantity]) || 0;
-
+    }
+    allMovements.sort(function(a, b) { return a.ts - b.ts; });
+    for (var m = 0; m < allMovements.length; m++) {
+      var am = allMovements[m];
+      if (am.fromZone && !SKIP_ZONES[am.fromZone]) {
+        var outKey = am.fromZone + '|||' + am.sku2;
+        zoneSkuBalance[outKey] = (zoneSkuBalance[outKey] || 0) - am.qty;
+      }
+      if (am.toZone && !SKIP_ZONES[am.toZone]) {
+        var inKey = am.toZone + '|||' + am.sku2;
+        zoneSkuBalance[inKey] = (zoneSkuBalance[inKey] || 0) + am.qty;
+      }
+    }
+    for (var m2 = 0; m2 < allMovements.length; m2++) {
+      var am2 = allMovements[m2];
+      if (am2.ts < shiftInfo.shiftStart || am2.ts >= shiftInfo.shiftEnd) continue;
       movementsInShift.push({
-        palletId: pid2,
-        sku: sku2,
-        fromZone: fromZone,
-        toZone: toZone,
-        quantity: qty,
-        movedBy: (mrow[mi.MovedBy] || '').toString().trim(),
-        movementDate: ts.toISOString ? ts.toISOString() : String(ts),
-        movementId: (mrow[mi.MovementID] || '').toString().trim()
+        palletId: am2.pid2, sku: am2.sku2, fromZone: am2.fromZone, toZone: am2.toZone, quantity: am2.qty,
+        movedBy: (am2.mrow[am2.mi.MovedBy] || '').toString().trim(),
+        movementDate: am2.ts.toISOString ? am2.ts.toISOString() : String(am2.ts),
+        movementId: (am2.mrow[am2.mi.MovementID] || '').toString().trim()
       });
-
-      if (fromZone && !SKIP_ZONES[fromZone]) {
-        var outKey = fromZone + '|||' + sku2;
-        if (!zoneSkuMov[outKey]) zoneSkuMov[outKey] = { movedIn: 0, movedOut: 0 };
-        zoneSkuMov[outKey].movedOut += qty;
+      if (am2.fromZone && !SKIP_ZONES[am2.fromZone]) {
+        var ok = am2.fromZone + '|||' + am2.sku2;
+        if (!zoneSkuMov[ok]) zoneSkuMov[ok] = { movedIn: 0, movedOut: 0 };
+        zoneSkuMov[ok].movedOut += am2.qty;
       }
-      if (toZone && !SKIP_ZONES[toZone]) {
-        var inKey = toZone + '|||' + sku2;
-        if (!zoneSkuMov[inKey]) zoneSkuMov[inKey] = { movedIn: 0, movedOut: 0 };
-        zoneSkuMov[inKey].movedIn += qty;
+      if (am2.toZone && !SKIP_ZONES[am2.toZone]) {
+        var ik = am2.toZone + '|||' + am2.sku2;
+        if (!zoneSkuMov[ik]) zoneSkuMov[ik] = { movedIn: 0, movedOut: 0 };
+        zoneSkuMov[ik].movedIn += am2.qty;
       }
     }
     movementsInShift.sort(function(a, b) { return new Date(b.movementDate) - new Date(a.movementDate); });
+    var replayedByZone = {};
+    Object.keys(zoneSkuBalance).forEach(function(k) {
+      var z = k.split('|||')[0];
+      replayedByZone[z] = (replayedByZone[z] || 0) + (zoneSkuBalance[k] || 0);
+    });
+    var sumRep = Object.keys(replayedByZone).reduce(function(s, z) { return s + (replayedByZone[z] || 0); }, 0);
+    palletConsistency = { totalPallets: sumRep, sumOfZonePallets: sumRep, consistent: true, birthedOriginalCount: 0, palletsByZone: replayedByZone };
+  } else {
+    // ── Current shift: derive from Pallets + movements in window ──
+    var palletsByZone = {};
+    var totalPallets = 0;
+    var birthedOriginalCount = 0;
+    var parentIdIdx = palletHeaders.indexOf('ParentPalletID');
+    for (var pi2 = 1; pi2 < palletsData.length; pi2++) {
+      var r = palletsData[pi2];
+      if (!r || !r[pi.PalletID]) continue;
+      totalPallets += 1;
+      var pz = (r[pi.CurrentZone] || '').toString().trim() || 'Unknown Zone';
+      palletsByZone[pz] = (palletsByZone[pz] || 0) + 1;
+      if (parentIdIdx >= 0) {
+        var pidVal = (r[parentIdIdx] || '').toString().trim();
+        if (!pidVal) birthedOriginalCount += 1;
+      } else {
+        birthedOriginalCount += 1;
+      }
+    }
+    var sumOfZonePallets = Object.keys(palletsByZone).reduce(function(s, z) { return s + (palletsByZone[z] || 0); }, 0);
+    palletConsistency = {
+      totalPallets: totalPallets,
+      sumOfZonePallets: sumOfZonePallets,
+      consistent: totalPallets === sumOfZonePallets,
+      birthedOriginalCount: birthedOriginalCount,
+      palletsByZone: palletsByZone
+    };
+    Object.keys(palletMap).forEach(function(pid) {
+      var p = palletMap[pid];
+      if (!p.currentZone || SKIP_ZONES[p.currentZone]) return;
+      var key = p.currentZone + '|||' + p.sku;
+      zoneSkuBalance[key] = (zoneSkuBalance[key] || 0) + p.remainingQty;
+    });
+    var movSheet2 = workbook.getSheetByName('ZoneMovements') || workbook.getSheetByName('Zone Movements');
+    if (movSheet2) {
+      var movData = movSheet2.getDataRange().getValues();
+      var movHeaders2 = movData[0] || [];
+      var mi2 = buildHeaderIndexMap(movHeaders2);
+      for (var j = 1; j < movData.length; j++) {
+        var mrow = movData[j];
+        if (!mrow || !mrow[mi2.MovementID]) continue;
+        var tsRaw = mi2.CreatedAt >= 0 ? mrow[mi2.CreatedAt] : null;
+        if (!tsRaw && mi2.MovementDate >= 0 && mi2.MovementTime >= 0) {
+          var md = mrow[mi2.MovementDate], mt = mrow[mi2.MovementTime];
+          if (md && mt) tsRaw = new Date((md + '').trim() + 'T' + (mt + '').trim());
+          else if (md) tsRaw = md instanceof Date ? md : new Date(md);
+        }
+        if (!tsRaw) continue;
+        var ts = tsRaw instanceof Date ? tsRaw : new Date(tsRaw);
+        if (isNaN(ts.getTime()) || ts < shiftInfo.shiftStart || ts >= shiftInfo.shiftEnd) continue;
+        var movStatus = (mrow[mi2.MovementStatus] || '').toString().trim().toLowerCase();
+        if (movStatus === 'cancelled' || movStatus === 'auto-reverted') continue;
+        var pid2 = (mrow[mi2.PalletID] || '').toString().trim().toUpperCase();
+        var pInfo = palletMap[pid2];
+        if (!pInfo) continue;
+        var sku2 = pInfo.sku;
+        var fromZone = (mrow[mi2.FromZone] || '').toString().trim();
+        var toZone   = (mrow[mi2.ToZone]   || '').toString().trim();
+        var qty = Number(mrow[mi2.Quantity]) || 0;
+        movementsInShift.push({
+          palletId: pid2, sku: sku2, fromZone: fromZone, toZone: toZone, quantity: qty,
+          movedBy: (mrow[mi2.MovedBy] || '').toString().trim(),
+          movementDate: ts.toISOString ? ts.toISOString() : String(ts),
+          movementId: (mrow[mi2.MovementID] || '').toString().trim()
+        });
+        if (fromZone && !SKIP_ZONES[fromZone]) {
+          var outKey = fromZone + '|||' + sku2;
+          if (!zoneSkuMov[outKey]) zoneSkuMov[outKey] = { movedIn: 0, movedOut: 0 };
+          zoneSkuMov[outKey].movedOut += qty;
+        }
+        if (toZone && !SKIP_ZONES[toZone]) {
+          var inKey = toZone + '|||' + sku2;
+          if (!zoneSkuMov[inKey]) zoneSkuMov[inKey] = { movedIn: 0, movedOut: 0 };
+          zoneSkuMov[inKey].movedIn += qty;
+        }
+      }
+      movementsInShift.sort(function(a, b) { return new Date(b.movementDate) - new Date(a.movementDate); });
+    }
   }
 
   // ── 4. Merge into cards ──
@@ -5797,7 +5899,7 @@ function getBinCardData(params) {
     return confirmedZones[z] && confirmedZones[z].confirmed;
   }).length;
 
-  var snapshotAt = new Date();
+  var snapshotAt = isPastShift ? shiftInfo.shiftEnd : new Date();
   return createResponse({
     success: true,
     shiftInfo: {

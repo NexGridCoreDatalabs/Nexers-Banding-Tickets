@@ -3071,6 +3071,22 @@
                 <div id="bcSnapshotAt" class="bc-consistency-line" style="font-size:11px;margin-top:4px;color:#94a3b8;display:none;"></div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <label style="font-size:11px;color:#64748b;">Shift:</label>
+                    <select id="bcShiftSelect" onchange="onBcShiftSelectChange()" style="font-size:12px;padding:6px 10px;background:rgba(15,23,42,0.8);border:1px solid rgba(148,163,184,0.3);border-radius:6px;color:#e2e8f0;">
+                        <option value="current">Current</option>
+                        <option value="previous">Previous</option>
+                        <option value="custom">Custom…</option>
+                    </select>
+                    <span id="bcCustomShiftWrap" style="display:none;gap:6px;align-items:center;">
+                        <input type="date" id="bcCustomDate" style="font-size:12px;padding:6px;background:rgba(15,23,42,0.8);border:1px solid rgba(148,163,184,0.3);border-radius:6px;color:#e2e8f0;">
+                        <select id="bcCustomShift" style="font-size:12px;padding:6px 10px;background:rgba(15,23,42,0.8);border:1px solid rgba(148,163,184,0.3);border-radius:6px;color:#e2e8f0;">
+                            <option value="Day">Day</option>
+                            <option value="Night">Night</option>
+                        </select>
+                        <button type="button" class="btn-reset" onclick="loadBinCardsWithShift()" style="font-size:11px;padding:5px 10px;border:1px solid rgba(52,211,153,0.5);color:#34d399;border-radius:6px;">Load</button>
+                    </span>
+                </div>
                 <span class="bc-shift-badge" id="bcShiftBadge">☀️ Loading shift…</span>
                 <button class="bc-print-btn btn-reset" onclick="window.print()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(148,163,184,0.3);color:#94a3b8;border-radius:8px;">🖨️ Print</button>
                 <button class="btn-reset" id="bcAuditReportBtn" onclick="openBcAuditReport()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(52,211,153,0.5);color:#34d399;border-radius:8px;">📊 Variance Audit Report</button>
@@ -4487,9 +4503,69 @@
                     }
                 }
 
+                // ── Shift selection state ──
+                function getBcShiftParams() {
+                    var sel = document.getElementById('bcShiftSelect');
+                    if (!sel) return {};
+                    var v = (sel.value || '').toString();
+                    if (v === 'current') return {};
+                    if (v === 'previous') {
+                        var si = getClientShiftInfo();
+                        var prevDate, prevShift;
+                        if (si.shift === 'Day') {
+                            var d = new Date(si.shiftStart);
+                            d.setDate(d.getDate() - 1);
+                            prevDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+                            prevShift = 'Night';
+                        } else {
+                            prevDate = (si.shiftDateKey || '').split('-')[0] ? (function(){
+                                var ymd = si.shiftDateKey.split('-');
+                                if (ymd.length !== 3) return '';
+                                return ymd[0] + '-' + ymd[1] + '-' + ymd[2];
+                            }()) : '';
+                            var ds = (si.shiftDateKey || '').split('-');
+                            prevShift = 'Day';
+                            if (ds.length === 3) prevDate = ds[0] + '-' + ds[1] + '-' + ds[2];
+                        }
+                        if (si.shift === 'Night') {
+                            var nd = new Date(si.shiftStart.getFullYear(), si.shiftStart.getMonth(), si.shiftStart.getDate());
+                            nd.setDate(nd.getDate() - 1);
+                            prevDate = nd.getFullYear() + '-' + String(nd.getMonth()+1).padStart(2,'0') + '-' + String(nd.getDate()).padStart(2,'0');
+                            prevShift = 'Night';
+                        }
+                        return { shiftDate: prevDate || '', shift: prevShift };
+                    }
+                    if (v === 'custom') {
+                        var cd = document.getElementById('bcCustomDate');
+                        var cs = document.getElementById('bcCustomShift');
+                        return { shiftDate: (cd && cd.value) || '', shift: (cs && cs.value) || 'Day' };
+                    }
+                    return {};
+                }
+                window.onBcShiftSelectChange = function() {
+                    var sel = document.getElementById('bcShiftSelect');
+                    var wrap = document.getElementById('bcCustomShiftWrap');
+                    if (!sel || !wrap) return;
+                    wrap.style.display = (sel.value === 'custom') ? 'flex' : 'none';
+                    if (sel.value === 'custom') {
+                        var cd = document.getElementById('bcCustomDate');
+                        if (cd && !cd.value) {
+                            var n = new Date();
+                            cd.value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(n.getDate()).padStart(2,'0');
+                        }
+                    } else {
+                        loadAndRenderBinCards();
+                    }
+                };
+                window.loadBinCardsWithShift = function() { loadAndRenderBinCards(); };
+
                 // ── Fetch bin card data from Apps Script ──
                 async function fetchBinCardData() {
+                    var params = getBcShiftParams();
                     var url = GOOGLE_APPS_SCRIPT_URL + '?action=getBinCardData';
+                    if (params.shiftDate && params.shift) {
+                        url += '&shiftDate=' + encodeURIComponent(params.shiftDate) + '&shift=' + encodeURIComponent(params.shift);
+                    }
                     var resp = await fetch(url);
                     if (!resp.ok) throw new Error('HTTP ' + resp.status);
                     return await resp.json();
@@ -4964,6 +5040,17 @@
                     loadBcAuditReport();
                 };
                 window.closeBcAuditReport = function() { document.getElementById('bcAuditReportModal').style.display = 'none'; };
+                window.viewBcShiftInBinCards = function(shiftDate, shift) {
+                    var sel = document.getElementById('bcShiftSelect');
+                    var cd = document.getElementById('bcCustomDate');
+                    var cs = document.getElementById('bcCustomShift');
+                    if (sel) sel.value = 'custom';
+                    if (cd) cd.value = shiftDate || '';
+                    if (cs) cs.value = (shift === 'Night') ? 'Night' : 'Day';
+                    document.getElementById('bcCustomShiftWrap').style.display = 'flex';
+                    closeBcAuditReport();
+                    loadAndRenderBinCards();
+                };
                 async function loadBcAuditReport() {
                     var df = document.getElementById('bcAuditDateFrom').value;
                     var dt = document.getElementById('bcAuditDateTo').value;
@@ -4976,10 +5063,14 @@
                         bcAuditReportRows = result.rows || [];
                         var tbl = document.getElementById('bcAuditReportTable');
                         var fmt = function(n) { return (n === undefined || n === null) ? '—' : Number(n).toLocaleString(); };
-                        var html = '<table class="bc-zc-sku-table"><thead><tr><th>Zone</th><th>SKU</th><th>Shift</th><th>Date</th><th>System</th><th>Physical</th><th>Variance</th><th>By</th><th>At</th></tr></thead><tbody>';
+                        var html = '<table class="bc-zc-sku-table"><thead><tr><th>Zone</th><th>SKU</th><th>Shift</th><th>Date</th><th>System</th><th>Physical</th><th>Variance</th><th>By</th><th>At</th><th></th></tr></thead><tbody>';
+                        var seenShifts = {};
                         bcAuditReportRows.forEach(function(r) {
                             var vCls = r.variance === 0 ? 'variance-match' : (r.variance < 0 ? 'variance-short' : 'variance-over');
-                            html += '<tr><td>' + escapeHtml(r.zone) + '</td><td>' + escapeHtml(r.sku) + '</td><td>' + escapeHtml(r.shift) + '</td><td>' + escapeHtml(r.shiftDate) + '</td><td>' + fmt(r.systemClosing) + '</td><td>' + fmt(r.physicalCount) + '</td><td class="' + vCls + '">' + (r.variance === 0 ? '0' : r.variance) + '</td><td>' + escapeHtml(r.confirmedBy) + '</td><td>' + escapeHtml((r.confirmedAt || '').substring(0,19)) + '</td></tr>';
+                            var viewKey = (r.shiftDate || '') + '|' + (r.shift || '');
+                            var viewLink = !seenShifts[viewKey] ? '<button type="button" class="btn-reset" onclick="viewBcShiftInBinCards(\'' + escapeHtml(r.shiftDate).replace(/'/g,"\\'") + '\',\'' + escapeHtml(r.shift||'Day').replace(/'/g,"\\'") + '\')" style="font-size:11px;padding:4px 8px;border:1px solid rgba(52,211,153,0.5);color:#34d399;border-radius:6px;cursor:pointer;">View in Bin Cards</button>' : '';
+                            if (!seenShifts[viewKey]) seenShifts[viewKey] = true;
+                            html += '<tr><td>' + escapeHtml(r.zone) + '</td><td>' + escapeHtml(r.sku) + '</td><td>' + escapeHtml(r.shift) + '</td><td>' + escapeHtml(r.shiftDate) + '</td><td>' + fmt(r.systemClosing) + '</td><td>' + fmt(r.physicalCount) + '</td><td class="' + vCls + '">' + (r.variance === 0 ? '0' : r.variance) + '</td><td>' + escapeHtml(r.confirmedBy) + '</td><td>' + escapeHtml((r.confirmedAt || '').substring(0,19)) + '</td><td>' + viewLink + '</td></tr>';
                         });
                         html += '</tbody></table>';
                         tbl.innerHTML = html || '<div style="padding:24px;color:#64748b;">No records found.</div>';

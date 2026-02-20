@@ -5864,7 +5864,7 @@ function getBinCardData(params) {
         if (!brow) continue;
         var status = (statusIdx >= 0 ? (brow[statusIdx] || '') : '').toString().trim().toLowerCase();
         if (status === 'revoked') continue;
-        var rowShiftDate = (brow[shiftDateIdx] || '').toString().trim();
+        var rowShiftDate = normalizeShiftDateToYmd(brow[shiftDateIdx]);
         var rowShift = (brow[shiftIdx] || '').toString().trim();
         if (rowShiftDate !== shiftInfo.shiftDateKey) continue;
         if (rowShift.toLowerCase() !== (shiftInfo.shift || '').toLowerCase()) continue;
@@ -5888,7 +5888,7 @@ function getBinCardData(params) {
       for (var r = 1; r < bcData.length; r++) {
         var brow = bcData[r];
         if (!brow) continue;
-        if ((brow[shiftDateIdx] || '').toString().trim() !== shiftInfo.shiftDateKey) continue;
+        if (normalizeShiftDateToYmd(brow[shiftDateIdx]) !== shiftInfo.shiftDateKey) continue;
         if ((brow[shiftIdx] || '').toString().trim().toLowerCase() !== (shiftInfo.shift || '').toLowerCase()) continue;
         var bZone = (brow[zoneIdx] || '').toString().trim();
         var bSku  = (brow[skuIdx]  || '').toString().trim();
@@ -6259,10 +6259,25 @@ function buildVarianceDetails(physicalCounts, totalSystem, totalPhysical) {
   return details;
 }
 
+/** Normalize date from sheet (Date object, string, or number) to YYYY-MM-DD for comparison. */
+function normalizeShiftDateToYmd(val) {
+  if (val == null || val === '') return '';
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    var y = val.getFullYear(), m = val.getMonth() + 1, d = val.getDate();
+    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+  }
+  var s = (val + '').trim();
+  if (s.length >= 10 && s.charAt(4) === '-' && s.charAt(7) === '-') return s.substring(0, 10);
+  if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.substring(0, 10);
+  var d = new Date(val);
+  if (!isNaN(d.getTime())) return d.getFullYear() + '-' + (d.getMonth() < 9 ? '0' : '') + (d.getMonth() + 1) + '-' + (d.getDate() < 10 ? '0' : '') + d.getDate();
+  return s;
+}
+
 function getBinCardVarianceReport(params) {
   params = params || {};
-  var dateFrom = (params.dateFrom || '').toString().trim();
-  var dateTo   = (params.dateTo   || '').toString().trim();
+  var dateFrom = (params.dateFrom || '').toString().trim().substring(0, 10);
+  var dateTo   = (params.dateTo   || '').toString().trim().substring(0, 10);
   var shift    = (params.shift    || '').toString().trim().toLowerCase();
   var zone     = (params.zone     || '').toString().trim().toLowerCase();
 
@@ -6284,7 +6299,8 @@ function getBinCardVarianceReport(params) {
     if (!row) continue;
     var status = (cStatus >= 0 ? (row[cStatus] || '') : '').toString().trim().toLowerCase();
     if (status === 'revoked') continue;
-    var shiftDate = (row[cShiftDate] || '').toString().trim();
+    var shiftDateRaw = row[cShiftDate];
+    var shiftDate = normalizeShiftDateToYmd(shiftDateRaw);
     var sShift    = (row[cShift] || '').toString().trim().toLowerCase();
     var bZone     = (row[cZone] || '').toString().trim().toLowerCase();
     if (dateFrom && shiftDate < dateFrom) continue;
@@ -6332,9 +6348,9 @@ function getConfirmedBinCardsForAdmin(params) {
     if (status === 'Revoked') continue;
     var bSku = (row[bci.SKU] || '').toString().trim();
     if (bSku !== 'ZONE_TOTAL') continue;
-    var shiftDate = (row[bci.ShiftDate] || '').toString().trim();
-    var sShift    = (row[bci.Shift]     || '').toString().trim().toLowerCase();
-    var bZone     = (row[bci.Zone]      || '').toString().trim();
+    var shiftDate = normalizeShiftDateToYmd(row[bci.ShiftDate]);
+    var sShift    = (row[bci.Shift] || '').toString().trim().toLowerCase();
+    var bZone     = (row[bci.Zone]  || '').toString().trim();
     var key = bZone + '|' + shiftDate + '|' + sShift;
     if (seen[key]) continue;
     if (dateFrom && shiftDate < dateFrom) continue;

@@ -2783,7 +2783,7 @@
             body.bincards-mode-active .bc-zc-sku-list-label { color: #555 !important; }
             body.bincards-mode-active .bc-zc-sku-list { color: #000 !important; }
         }
-        /* Print Pallet Reconciliation Report */
+        /* Print Stocks/Merchandise Reconciliation Report */
         @media print {
             body.bc-print-recon * { visibility: hidden; }
             body.bc-print-recon #bcReconReportModal,
@@ -3108,7 +3108,7 @@
                 <span class="bc-shift-badge" id="bcShiftBadge">☀️ Loading shift…</span>
                 <button class="bc-print-btn btn-reset" onclick="window.print()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(148,163,184,0.3);color:#94a3b8;border-radius:8px;">🖨️ Print</button>
                 <button class="btn-reset" id="bcAuditReportBtn" onclick="openBcAuditReport()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(52,211,153,0.5);color:#34d399;border-radius:8px;">📊 Variance Audit Report</button>
-                <button class="btn-reset" id="bcReconReportBtn" onclick="openBcReconReport()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(129,140,248,0.5);color:#818cf8;border-radius:8px;">📦 Pallet Reconciliation Report</button>
+                <button class="btn-reset" id="bcReconReportBtn" onclick="openBcReconReport()" style="font-size:12px;padding:7px 14px;border:1px solid rgba(129,140,248,0.5);color:#818cf8;border-radius:8px;">📦 Stocks/Merchandise Reconciliation Report</button>
                 <button class="btn-reset" id="bcRevokeAdminBtn" onclick="openBcRevokeAdmin()" style="display:none;font-size:12px;padding:7px 14px;border:1px solid rgba(248,113,113,0.5);color:#f87171;border-radius:8px;">🔒 Revoke Bin Cards (QA/SUP)</button>
                 <a href="index.html" style="font-size:12px;padding:7px 14px;border:1px solid rgba(245,158,11,0.3);color:#fbbf24;border-radius:8px;text-decoration:none;">← Home</a>
             </div>
@@ -3203,10 +3203,10 @@
         </div>
     </div>
 
-    <!-- ── Pallet Reconciliation Report modal ── -->
+    <!-- ── Stocks/Merchandise Reconciliation Report modal ── -->
     <div class="bc-modal-overlay" id="bcReconReportModal" style="display:none;">
         <div class="bc-modal bc-recon-report-modal" style="max-width:1000px;">
-            <h3>📦 Pallet Reconciliation Report</h3>
+            <h3>📦 Stocks/Merchandise Reconciliation Report</h3>
             <div class="bc-audit-filters bc-recon-filters">
                 <div><label>Date range</label>
                     <select id="bcReconDatePreset" onchange="onBcReconPresetChange()">
@@ -5244,7 +5244,9 @@
                             var html = '<table class="bc-zc-sku-table bc-recon-table"><thead><tr><th>SKU</th><th>Total Birthed</th><th>Total Qty</th><th>In Zones</th><th>In Transit</th><th>Dispatched</th><th>Reconciled</th><th>Notes</th></tr></thead><tbody>';
                             bcReconReportRows.forEach(function(r) {
                                 var reconCls = r.reconciled ? 'variance-match' : 'variance-short';
-                                html += '<tr><td>' + escapeHtml(r.sku) + '</td><td>' + fmt(r.totalBirthed) + '</td><td>' + fmt(r.totalQty) + '</td><td>' + fmt(r.inZonesCount) + ' (' + fmt(r.inZonesQty) + ')</td><td>' + fmt(r.inTransit) + '</td><td>' + fmt(r.dispatched) + '</td><td class="' + reconCls + '">' + (r.reconciled ? '✓' : '✗') + '</td><td style="font-size:11px">' + escapeHtml(r.notes || '') + '</td></tr>';
+                                var inTransitStr = r.inTransit > 0 ? fmt(r.inTransit) + ' (' + fmt(r.inTransitQty) + ')' : fmt(r.inTransit);
+                                var dispatchedStr = r.dispatched > 0 ? fmt(r.dispatched) + ' (' + fmt(r.dispatchedQty) + ')' : fmt(r.dispatched);
+                                html += '<tr><td>' + escapeHtml(r.sku) + '</td><td>' + fmt(r.totalBirthed) + '</td><td>' + fmt(r.totalQty) + '</td><td>' + fmt(r.inZonesCount) + ' (' + fmt(r.inZonesQty) + ')</td><td>' + inTransitStr + '</td><td>' + dispatchedStr + '</td><td class="' + reconCls + '">' + (r.reconciled ? '✓' : '✗') + '</td><td style="font-size:11px">' + escapeHtml(r.notes || '') + '</td></tr>';
                             });
                             html += '</tbody></table>';
                             tbl.innerHTML = html;
@@ -5256,15 +5258,15 @@
                 };
                 window.exportBcReconCsv = function() {
                     if (bcReconReportRows.length === 0) return;
-                    var hdr = 'SKU,TotalBirthed,TotalQty,InZonesCount,InZonesQty,InTransit,Dispatched,Reconciled,ZoneBreakdown,Notes';
+                    var hdr = 'SKU,TotalBirthed,TotalQty,InZonesCount,InZonesQty,InTransit,InTransitQty,Dispatched,DispatchedQty,Reconciled,ZoneBreakdown,Notes';
                     var rows = bcReconReportRows.map(function(r) {
-                        return [r.sku,r.totalBirthed,r.totalQty,r.inZonesCount,r.inZonesQty,r.inTransit,r.dispatched,r.reconciled ? 'Yes' : 'No',(r.zoneBreakdown||''),(r.notes||'')].map(function(x) { return '"' + String(x||'').replace(/"/g,'""') + '"'; }).join(',');
+                        return [r.sku,r.totalBirthed,r.totalQty,r.inZonesCount,r.inZonesQty,r.inTransit,r.inTransitQty,r.dispatched,r.dispatchedQty,r.reconciled ? 'Yes' : 'No',(r.zoneBreakdown||''),(r.notes||'')].map(function(x) { return '"' + String(x||'').replace(/"/g,'""') + '"'; }).join(',');
                     });
                     var csv = hdr + '\n' + rows.join('\n');
                     var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
                     var a = document.createElement('a');
                     a.href = (window.URL || window.webkitURL).createObjectURL(blob);
-                    a.download = 'pallet-reconciliation-' + new Date().toISOString().slice(0,10) + '.csv';
+                    a.download = 'stocks-merchandise-reconciliation-' + new Date().toISOString().slice(0,10) + '.csv';
                     a.style.display = 'none';
                     document.body.appendChild(a);
                     a.click();

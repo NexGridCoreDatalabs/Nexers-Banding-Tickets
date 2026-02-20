@@ -6397,13 +6397,15 @@ function getPalletReconciliationReport(params) {
     var zone = (row[cCurrentZone] || '').toString().trim();
     var qty = Number(row[cRemainingQty]) || Number(row[pi.Quantity]) || 1;
     var inTransit = (cInTransitTo >= 0 && (row[cInTransitTo] || '').toString().trim()) ? true : false;
-    if (!skuMap[sku]) skuMap[sku] = { totalBirthed: 0, totalQty: 0, byZone: {}, inTransit: 0, dispatched: 0 };
+    if (!skuMap[sku]) skuMap[sku] = { totalBirthed: 0, totalQty: 0, byZone: {}, inTransit: 0, inTransitQty: 0, dispatched: 0, dispatchedQty: 0 };
     skuMap[sku].totalBirthed += 1;
     skuMap[sku].totalQty += qty;
     if (inTransit) {
       skuMap[sku].inTransit += 1;
+      skuMap[sku].inTransitQty += qty;
     } else if (zone && DISPATCH_ZONES[zone.toLowerCase()]) {
       skuMap[sku].dispatched += 1;
+      skuMap[sku].dispatchedQty += qty;
     } else {
       var zKey = zone || 'Unknown';
       if (!skuMap[sku].byZone[zKey]) skuMap[sku].byZone[zKey] = { count: 0, qty: 0 };
@@ -6442,12 +6444,15 @@ function getPalletReconciliationReport(params) {
       inZonesCount: inZonesCount,
       inZonesQty: inZonesQty,
       inTransit: m.inTransit,
+      inTransitQty: m.inTransitQty || 0,
       dispatched: m.dispatched,
+      dispatchedQty: m.dispatchedQty || 0,
       zoneBreakdown: zoneBreakdown.join('; '),
       reconciled: reconciled,
       notes: reconciled ? '' : 'Gap: ' + (m.totalBirthed - accounted)
     });
   });
+  rows.sort(function(a, b) { return (b.totalQty || 0) - (a.totalQty || 0); });
 
   return createResponse({
     success: true,

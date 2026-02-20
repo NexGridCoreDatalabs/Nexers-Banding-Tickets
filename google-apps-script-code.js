@@ -1133,6 +1133,13 @@ function doGet(e) {
         revokedBy: e.parameter.revokedBy || ''
       });
     }
+    else if (action === 'getPalletReconciliationReport') {
+      return getPalletReconciliationReport({
+        datePreset: e.parameter.datePreset || '',
+        dateFrom:   e.parameter.dateFrom   || '',
+        dateTo:     e.parameter.dateTo     || ''
+      });
+    }
     
     return createResponse({ success: false, error: 'Invalid action' });
   } catch (error) {
@@ -6325,6 +6332,132 @@ function getBinCardVarianceReport(params) {
   return createResponse({ success: true, rows: rows });
 }
 
+/**
+ * Pallet Reconciliation Report: SKU-level view of birthed pallets and where they are.
+ * datePreset: today | 7day | 30day | month | custom. For custom, use dateFrom/dateTo.
+ */
+function getPalletReconciliationReport(params) {
+  params = params || {};
+  var datePreset = (params.datePreset || 'today').toString().trim().toLowerCase();
+  var dateFrom   = (params.dateFrom   || '').toString().trim();
+  var dateTo     = (params.dateTo     || '').toString().trim();
+
+  var now = new Date();
+  var pad = function(n) { return (n < 10 ? '0' : '') + n; };
+  var toYmd = function(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  var startDate, endDate;
+  if (datePreset === 'all') {
+    startDate = null;
+    endDate = null;
+  } else if (datePreset === 'today') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  } else if (datePreset === '7day') {
+    endDate = new Date(now);
+    startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 6);
+  } else if (datePreset === '30day') {
+    endDate = new Date(now);
+    startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 29);
+  } else if (datePreset === 'month') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    endDate = new Date(now);
+  } else if (datePreset === 'custom' && dateFrom && dateTo) {
+    startDate = new Date(dateFrom + 'T00:00:00');
+    endDate = new Date(dateTo + 'T23:59:59');
+  } else {
+    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  }
+
+  var workbook = SpreadsheetApp.openById(SHEET_ID);
+  var palletsSheet = workbook.getSheetByName('Pallets');
+  if (!palletsSheet) return createResponse({ success: false, error: 'Pallets sheet not found.' });
+
+  var data = palletsSheet.getDataRange().getValues();
+  var hdr = data[0] || [];
+  var pi = buildHeaderIndexMap(hdr);
+  var cCreatedAt = (pi.CreatedAt != null && pi.CreatedAt >= 0) ? pi.CreatedAt : hdr.indexOf('CreatedAt');
+  var cSKU = (pi.SKU != null && pi.SKU >= 0) ? pi.SKU : hdr.indexOf('SKU');
+  var cCurrentZone = (pi.CurrentZone != null && pi.CurrentZone >= 0) ? pi.CurrentZone : hdr.indexOf('CurrentZone');
+  var cRemainingQty = (pi.RemainingQuantity != null && pi.RemainingQuantity >= 0) ? pi.RemainingQuantity : hdr.indexOf('RemainingQuantity');
+  var cInTransitTo = (pi.InTransitToZone != null && pi.InTransitToZone >= 0) ? pi.InTransitToZone : hdr.indexOf('InTransitToZone');
+  if (cSKU < 0 || cCurrentZone < 0) return createResponse({ success: false, error: 'Pallets missing SKU or CurrentZone.' });
+
+  var DISPATCH_ZONES = { 'outbonded': true };  // Dispatched = pallets in Outbonded zone
+  var skuMap = {};
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (!row) continue;
+    var createdAt = row[cCreatedAt];
+    var createdDt = createdAt instanceof Date ? createdAt : (createdAt ? new Date(createdAt) : null);
+    if (startDate && endDate && cCreatedAt >= 0 && createdDt && !isNaN(createdDt.getTime()) && (createdDt < startDate || createdDt > endDate)) continue;
+    var sku = (row[cSKU] || 'Unknown').toString().trim();
+    var zone = (row[cCurrentZone] || '').toString().trim();
+    var qty = Number(row[cRemainingQty]) || Number(row[pi.Quantity]) || 1;
+    var inTransit = (cInTransitTo >= 0 && (row[cInTransitTo] || '').toString().trim()) ? true : false;
+    if (!skuMap[sku]) skuMap[sku] = { totalBirthed: 0, totalQty: 0, byZone: {}, inTransit: 0, dispatched: 0 };
+    skuMap[sku].totalBirthed += 1;
+    skuMap[sku].totalQty += qty;
+    if (inTransit) {
+      skuMap[sku].inTransit += 1;
+    } else if (zone && DISPATCH_ZONES[zone.toLowerCase()]) {
+      skuMap[sku].dispatched += 1;
+    } else {
+      var zKey = zone || 'Unknown';
+      if (!skuMap[sku].byZone[zKey]) skuMap[sku].byZone[zKey] = { count: 0, qty: 0 };
+      skuMap[sku].byZone[zKey].count += 1;
+      skuMap[sku].byZone[zKey].qty += qty;
+    }
+  }
+
+  var rows = [];
+  var zoneOrder = ['Receiving Area', 'Detergents Zone', 'Fats Zone', 'Liquids/Oils Zone', 'Soaps Zone', 'SuperMarket Area', 'QA Hold', 'Rework Zone', 'Dispatch Loading Area', 'Outbounding', 'Outbonded', 'Outbounded', 'Unknown'];
+  Object.keys(skuMap).sort().forEach(function(sku) {
+    var m = skuMap[sku];
+    var inZonesCount = 0;
+    var inZonesQty = 0;
+    var zoneBreakdown = [];
+    zoneOrder.forEach(function(z) {
+      if (m.byZone[z]) {
+        inZonesCount += m.byZone[z].count;
+        inZonesQty += m.byZone[z].qty;
+        zoneBreakdown.push(z + ': ' + m.byZone[z].count + ' (' + m.byZone[z].qty + ')');
+      }
+    });
+    Object.keys(m.byZone).forEach(function(z) {
+      if (zoneOrder.indexOf(z) < 0) {
+        inZonesCount += m.byZone[z].count;
+        inZonesQty += m.byZone[z].qty;
+        zoneBreakdown.push(z + ': ' + m.byZone[z].count + ' (' + m.byZone[z].qty + ')');
+      }
+    });
+    var accounted = inZonesCount + m.inTransit + m.dispatched;
+    var reconciled = (m.totalBirthed === accounted);
+    rows.push({
+      sku: sku,
+      totalBirthed: m.totalBirthed,
+      totalQty: m.totalQty,
+      inZonesCount: inZonesCount,
+      inZonesQty: inZonesQty,
+      inTransit: m.inTransit,
+      dispatched: m.dispatched,
+      zoneBreakdown: zoneBreakdown.join('; '),
+      reconciled: reconciled,
+      notes: reconciled ? '' : 'Gap: ' + (m.totalBirthed - accounted)
+    });
+  });
+
+  return createResponse({
+    success: true,
+    rows: rows,
+    filterLabel: datePreset === 'all' ? 'All pallets' : datePreset === 'today' ? 'Today' : datePreset === '7day' ? 'Last 7 days' : datePreset === '30day' ? 'Last 30 days' : datePreset === 'month' ? 'This month' : (dateFrom && dateTo ? dateFrom + ' to ' + dateTo : 'Today'),
+    dateFrom: startDate ? toYmd(startDate) : '',
+    dateTo: endDate ? toYmd(endDate) : ''
+  });
+}
+
 function getConfirmedBinCardsForAdmin(params) {
   params = params || {};
   var dateFrom = (params.dateFrom || '').toString().trim();
@@ -6381,18 +6514,22 @@ function revokeZoneBinCard(params) {
   var data = bcSheet.getDataRange().getValues();
   var hdr  = data[0] || [];
   var bci  = buildHeaderIndexMap(hdr);
+  var _c = function(n) { var i = (bci[n] != null && bci[n] >= 0) ? bci[n] : hdr.indexOf(n); return i >= 0 ? i : -1; };
+  var cZone = _c('Zone'), cShift = _c('Shift'), cShiftDate = _c('ShiftDate'), cStatus = _c('Status');
+  var cRevokedBy = _c('RevokedBy'), cRevokedAt = _c('RevokedAt');
+  if (cZone < 0 || cShift < 0 || cShiftDate < 0 || cStatus < 0) return createResponse({ success: false, error: 'BinCards missing required columns.' });
   var revokedAt = new Date().toISOString();
   var revokedCount = 0;
   for (var r = 1; r < data.length; r++) {
     var row = data[r];
     if (!row) continue;
-    if ((row[bci.Zone]      || '').toString().trim() !== zone)  continue;
-    if ((row[bci.Shift]     || '').toString().trim() !== shift) continue;
-    if ((row[bci.ShiftDate] || '').toString().trim() !== shiftDate) continue;
+    if ((row[cZone] || '').toString().trim() !== zone) continue;
+    if ((row[cShift] || '').toString().trim().toLowerCase() !== (shift || '').toLowerCase()) continue;
+    if (normalizeShiftDateToYmd(row[cShiftDate]) !== shiftDate) continue;
     var rn = r + 1;
-    bcSheet.getRange(rn, bci.Status + 1).setValue('Revoked');
-    if (bci.RevokedBy >= 0) bcSheet.getRange(rn, bci.RevokedBy + 1).setValue(revokedBy);
-    if (bci.RevokedAt >= 0) bcSheet.getRange(rn, bci.RevokedAt + 1).setValue(revokedAt);
+    bcSheet.getRange(rn, cStatus + 1).setValue('Revoked');
+    if (cRevokedBy >= 0) bcSheet.getRange(rn, cRevokedBy + 1).setValue(revokedBy);
+    if (cRevokedAt >= 0) bcSheet.getRange(rn, cRevokedAt + 1).setValue(revokedAt);
     revokedCount++;
   }
   if (revokedCount === 0) return createResponse({ success: false, error: 'No matching bin cards found.' });

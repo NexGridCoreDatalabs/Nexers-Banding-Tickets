@@ -87,7 +87,6 @@ function createChildPallet(parentTicket, quantity, targetZone, movedBy, reason) 
   if (lastMovedByCol >= 0) {
     palletSheet.getRange(parentInfo.rowIndex, lastMovedByCol + 1).setValue(movedBy || 'System');
   }
-  refreshInventorySnapshotSilently();
   const childCol = headers.indexOf('ChildPallets');
   if (childCol >= 0) {
     const existingChildren = parentRow[childCol] ? parentRow[childCol].toString().split(',').map(function(val) { return val.trim(); }).filter(Boolean) : [];
@@ -418,6 +417,22 @@ const SKU_ZONE_CACHE = {
 const SKU_ZONE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Run a write operation under LockService to prevent concurrent write conflicts.
+ * Returns createResponse({ success: false, error: '...' }) if lock cannot be acquired.
+ */
+function withWriteLock(fn) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    return createResponse({ success: false, error: 'Service busy. Please retry in a moment.' });
+  }
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Handle POST requests (writing data)
  */
 function doPost(e) {
@@ -516,7 +531,7 @@ function doPost(e) {
       return createResponse({ success: false, error: 'Invalid data structure. Received: ' + JSON.stringify(data) });
     }
     
-    return handleWriteOperation(data, sheet);
+    return withWriteLock(function() { return handleWriteOperation(data, sheet); });
   } catch (error) {
     // Only log critical errors
     Logger.log('doPost error: ' + error.toString());
@@ -575,17 +590,6 @@ function handleWriteOperation(data, sheet) {
       if (data.sku && data.qty && pt) {
         updateCalculations(data.sku, parseFloat(data.qty) || 0, pt, 0, false);
       }
-      
-      // Auto-refresh analytics every 10 new tickets
-      try {
-        var props = PropertiesService.getScriptProperties();
-        var count = parseInt(props.getProperty('TICKETS_SINCE_LAST_RECALC') || '0', 10) + 1;
-        props.setProperty('TICKETS_SINCE_LAST_RECALC', String(count));
-        if (count >= 10) {
-          props.setProperty('TICKETS_SINCE_LAST_RECALC', '0');
-          recalculateAllCalculations(sheet, false);
-        }
-      } catch (autoErr) {}
       
       return createResponse({ success: true, message: 'Data saved successfully' });
     } 
@@ -788,7 +792,7 @@ function doGet(e) {
       };
       
       // Use the same logic as doPost
-      return handleWriteOperation(data, sheet);
+      return withWriteLock(function() { return handleWriteOperation(data, sheet); });
     }
     
     if (action === 'read') {
@@ -841,6 +845,7 @@ function doGet(e) {
         return createResponse({ success: true, data: values });
       }
     } else if (action === 'createChildPallet') {
+      return withWriteLock(function() {
       const palletId = (e.parameter.palletId || '').toString().trim();
       const toZone = (e.parameter.toZone || '').toString().trim();
       const movedBy = (e.parameter.movedBy || '').toString().trim();
@@ -896,6 +901,7 @@ function doGet(e) {
         message: 'Child pallet ' + childResult.childId + ' initiated - awaiting receipt at ' + toZone,
         childPalletId: childResult.childId,
         parentRemaining: childResult.parentRemaining
+      });
       });
     } else if (action === 'inventorySnapshot') {
       return createInventorySnapshot();
@@ -1026,20 +1032,24 @@ function doGet(e) {
       });
     }
     else if (action === 'movePallet') {
-      return movePallet({
-        palletId: e.parameter.palletId || '',
-        toZone: e.parameter.toZone || '',
-        movedBy: e.parameter.movedBy || '',
-        reason: e.parameter.reason || '',
-        overrideReason: e.parameter.overrideReason || '',
-        quantity: e.parameter.quantity || '',
-        orderReference: e.parameter.orderReference || ''
+      return withWriteLock(function() {
+        return movePallet({
+          palletId: e.parameter.palletId || '',
+          toZone: e.parameter.toZone || '',
+          movedBy: e.parameter.movedBy || '',
+          reason: e.parameter.reason || '',
+          overrideReason: e.parameter.overrideReason || '',
+          quantity: e.parameter.quantity || '',
+          orderReference: e.parameter.orderReference || ''
+        });
       });
     }
     else if (action === 'receivePallet') {
-      return receivePallet({
-        palletId: e.parameter.palletId || '',
-        receivedBy: e.parameter.receivedBy || ''
+      return withWriteLock(function() {
+        return receivePallet({
+          palletId: e.parameter.palletId || '',
+          receivedBy: e.parameter.receivedBy || ''
+        });
       });
     }
     else if (action === 'getInboundsToZone') {
@@ -1049,14 +1059,16 @@ function doGet(e) {
       return getOutboundsFromZone({ zoneName: e.parameter.zoneName || '' });
     }
     else if (action === 'cancelTransit') {
-      return cancelTransit({
-        palletId: e.parameter.palletId || '',
-        cancelledBy: e.parameter.cancelledBy || '',
-        escalationReason: e.parameter.escalationReason || ''
+      return withWriteLock(function() {
+        return cancelTransit({
+          palletId: e.parameter.palletId || '',
+          cancelledBy: e.parameter.cancelledBy || '',
+          escalationReason: e.parameter.escalationReason || ''
+        });
       });
     }
     else if (action === 'runAutoRevertTransits') {
-      return runAutoRevertTransits();
+      return withWriteLock(function() { return runAutoRevertTransits(); });
     }
     else if (action === 'getBinCardData') {
       return getBinCardData({
@@ -1081,16 +1093,18 @@ function doGet(e) {
       });
     }
     else if (action === 'confirmZoneBinCard') {
-      return confirmZoneBinCard({
-        zone:                 e.parameter.zone                || '',
-        shift:                e.parameter.shift               || '',
-        shiftDate:            e.parameter.shiftDate           || '',
-        physicalCount:        e.parameter.physicalCount       || 0,
-        systemClosingBalance: e.parameter.systemClosingBalance || 0,
-        openingBalance:       e.parameter.openingBalance      || 0,
-        movedIn:              e.parameter.movedIn             || 0,
-        movedOut:             e.parameter.movedOut            || 0,
-        confirmedBy:          e.parameter.confirmedBy         || ''
+      return withWriteLock(function() {
+        return confirmZoneBinCard({
+          zone:                 e.parameter.zone                || '',
+          shift:                e.parameter.shift               || '',
+          shiftDate:            e.parameter.shiftDate           || '',
+          physicalCount:        e.parameter.physicalCount       || 0,
+          systemClosingBalance: e.parameter.systemClosingBalance || 0,
+          openingBalance:       e.parameter.openingBalance      || 0,
+          movedIn:              e.parameter.movedIn             || 0,
+          movedOut:             e.parameter.movedOut            || 0,
+          confirmedBy:          e.parameter.confirmedBy         || ''
+        });
       });
     }
     else if (action === 'confirmZoneBinCardPerSku') {
@@ -1101,12 +1115,14 @@ function doGet(e) {
       } catch (err) {
         return createResponse({ success: false, error: 'Invalid physicalCounts JSON.' });
       }
-      return confirmZoneBinCardPerSku({
-        zone:           e.parameter.zone     || '',
-        shift:          e.parameter.shift    || '',
-        shiftDate:      e.parameter.shiftDate || '',
-        confirmedBy:    e.parameter.confirmedBy || '',
-        physicalCounts: physicalCounts
+      return withWriteLock(function() {
+        return confirmZoneBinCardPerSku({
+          zone:           e.parameter.zone     || '',
+          shift:          e.parameter.shift    || '',
+          shiftDate:      e.parameter.shiftDate || '',
+          confirmedBy:    e.parameter.confirmedBy || '',
+          physicalCounts: physicalCounts
+        });
       });
     }
     else if (action === 'getBinCardVarianceReport') {
@@ -1126,11 +1142,13 @@ function doGet(e) {
       });
     }
     else if (action === 'revokeZoneBinCard') {
-      return revokeZoneBinCard({
-        zone:      e.parameter.zone     || '',
-        shift:     e.parameter.shift   || '',
-        shiftDate: e.parameter.shiftDate || '',
-        revokedBy: e.parameter.revokedBy || ''
+      return withWriteLock(function() {
+        return revokeZoneBinCard({
+          zone:      e.parameter.zone     || '',
+          shift:     e.parameter.shift   || '',
+          shiftDate: e.parameter.shiftDate || '',
+          revokedBy: e.parameter.revokedBy || ''
+        });
       });
     }
     else if (action === 'getPalletReconciliationReport') {
@@ -3836,7 +3854,9 @@ function ensureSheetWithHeaders(workbook, sheetName, headers) {
   if (needsHeaderUpdate) {
     headerRange.setValues([headers]);
   }
-  sheet.setFrozenRows(1);
+  if (sheet.getFrozenRows() !== 1) {
+    sheet.setFrozenRows(1);
+  }
   return sheet;
 }
 
@@ -4024,14 +4044,12 @@ function movePallet(params) {
     updates[notesCol] = existingNotes ? existingNotes + '\n[Initiate] ' + reason : '[Initiate] ' + reason;
   }
   if (Object.keys(updates).length > 0) {
-    const rowData = palletsSheet.getRange(targetRow + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
     Object.keys(updates).forEach(function(colIndexStr) {
-      rowData[Number(colIndexStr)] = updates[colIndexStr];
+      palletRowValues[Number(colIndexStr)] = updates[colIndexStr];
     });
-    palletsSheet.getRange(targetRow + 1, 1, 1, rowData.length).setValues([rowData]);
+    palletsSheet.getRange(targetRow + 1, 1, 1, palletRowValues.length).setValues([palletRowValues]);
   }
   logUserActivity('INITIATE MOVE: ' + palletId, 'From ' + currentZone + ' to ' + toZone + ' by ' + movedBy);
-  refreshInventorySnapshotSilently();
   return createResponse({
     success: true,
     message: 'Move initiated. Awaiting receipt at ' + toZone,
@@ -4185,12 +4203,11 @@ function receivePallet(params) {
   if (statusCol >= 0) {
     updates[statusCol] = zoneEligibility.targetStatus || 'Active';
   }
-  const rowData = palletsSheet.getRange(targetRow + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
   Object.keys(updates).forEach(function(k) {
     const idx = Number(k);
-    if (idx >= 0) rowData[idx] = updates[k];
+    if (idx >= 0) palletRowValues[idx] = updates[k];
   });
-  palletsSheet.getRange(targetRow + 1, 1, 1, rowData.length).setValues([rowData]);
+  palletsSheet.getRange(targetRow + 1, 1, 1, palletRowValues.length).setValues([palletRowValues]);
   const movSheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
   const movData = movSheet.getDataRange().getValues();
   const movHeaders = movData[0];
@@ -4200,14 +4217,14 @@ function receivePallet(params) {
   const movReceivedByCol = movHeaders.indexOf('ReceivedBy');
   for (let i = movData.length - 1; i >= 1; i--) {
     if ((movData[i][movIdCol] || '').toString().trim() === movementId) {
-      if (movStatusCol >= 0) movSheet.getRange(i + 1, movStatusCol + 1).setValue('Received');
-      if (movReceivedAtCol >= 0) movSheet.getRange(i + 1, movReceivedAtCol + 1).setValue(now);
-      if (movReceivedByCol >= 0) movSheet.getRange(i + 1, movReceivedByCol + 1).setValue(receivedBy);
+      if (movStatusCol >= 0) movData[i][movStatusCol] = 'Received';
+      if (movReceivedAtCol >= 0) movData[i][movReceivedAtCol] = now;
+      if (movReceivedByCol >= 0) movData[i][movReceivedByCol] = receivedBy;
+      movSheet.getRange(i + 1, 1, 1, movHeaders.length).setValues([movData[i]]);
       break;
     }
   }
   logUserActivity('RECEIVE: ' + palletId, 'Received at ' + toZone + ' by ' + receivedBy);
-  refreshInventorySnapshotSilently();
   return createResponse({
     success: true,
     message: 'Pallet received at ' + toZone,
@@ -4375,12 +4392,11 @@ function cancelTransit(params) {
     const existingNotes = palletRowValues[notesCol] || '';
     updates[notesCol] = existingNotes + '\n[Cancelled by ' + cancelledBy + '] ' + escalationReason;
   }
-  const rowData = palletsSheet.getRange(targetRow + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
   Object.keys(updates).forEach(function(k) {
     const idx = Number(k);
-    if (idx >= 0) rowData[idx] = updates[k];
+    if (idx >= 0) palletRowValues[idx] = updates[k];
   });
-  palletsSheet.getRange(targetRow + 1, 1, 1, rowData.length).setValues([rowData]);
+  palletsSheet.getRange(targetRow + 1, 1, 1, palletRowValues.length).setValues([palletRowValues]);
   const movSheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
   const movData = movSheet.getDataRange().getValues();
   const movHeaders = movData[0];
@@ -4391,15 +4407,15 @@ function cancelTransit(params) {
   const movEscalationCol = movHeaders.indexOf('CancelEscalationReason');
   for (let i = movData.length - 1; i >= 1; i--) {
     if ((movData[i][movIdCol] || '').toString().trim() === movementId) {
-      if (movStatusCol >= 0) movSheet.getRange(i + 1, movStatusCol + 1).setValue('Cancelled');
-      if (movCancelledAtCol >= 0) movSheet.getRange(i + 1, movCancelledAtCol + 1).setValue(now);
-      if (movCancelledByCol >= 0) movSheet.getRange(i + 1, movCancelledByCol + 1).setValue(cancelledBy);
-      if (movEscalationCol >= 0) movSheet.getRange(i + 1, movEscalationCol + 1).setValue(escalationReason);
+      if (movStatusCol >= 0) movData[i][movStatusCol] = 'Cancelled';
+      if (movCancelledAtCol >= 0) movData[i][movCancelledAtCol] = now;
+      if (movCancelledByCol >= 0) movData[i][movCancelledByCol] = cancelledBy;
+      if (movEscalationCol >= 0) movData[i][movEscalationCol] = escalationReason;
+      movSheet.getRange(i + 1, 1, 1, movHeaders.length).setValues([movData[i]]);
       break;
     }
   }
   logUserActivity('CANCEL TRANSIT: ' + palletId, 'By ' + cancelledBy + ' - ' + escalationReason);
-  refreshInventorySnapshotSilently();
   return createResponse({
     success: true,
     message: 'Transit cancelled. Pallet remains at origin.',
@@ -4425,6 +4441,12 @@ function runAutoRevertTransits() {
   if (inTransitToCol < 0 || inTransitAtCol < 0) {
     return createResponse({ success: true, reverted: 0, message: 'No in-transit columns' });
   }
+  const movSheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
+  const movData = movSheet.getDataRange().getValues();
+  const movHeaders = movData[0] || [];
+  const movIdCol = movHeaders.indexOf('MovementID');
+  const movStatusCol = movHeaders.indexOf('MovementStatus');
+  const movAutoRevertedCol = movHeaders.indexOf('AutoRevertedAt');
   const now = new Date();
   const cutoffMs = now.getTime() - (TRANSIT_TIMEOUT_MINUTES * 60 * 1000);
   const reverted = [];
@@ -4443,21 +4465,15 @@ function runAutoRevertTransits() {
       updates[inTransitMovementCol] = '';
       updates[inTransitAtCol] = '';
       updates[inTransitByCol] = '';
-      const rowData = palletsSheet.getRange(i + 1, 1, 1, palletsSheet.getLastColumn()).getValues()[0];
       Object.keys(updates).forEach(function(k) {
-        rowData[Number(k)] = updates[k];
+        row[Number(k)] = updates[k];
       });
-      palletsSheet.getRange(i + 1, 1, 1, rowData.length).setValues([rowData]);
-      const movSheet = ensureSheetWithHeaders(workbook, 'ZoneMovements', STOCK_MOVEMENT_SHEETS.ZoneMovements);
-      const movData = movSheet.getDataRange().getValues();
-      const movHeaders = movData[0];
-      const movIdCol = movHeaders.indexOf('MovementID');
-      const movStatusCol = movHeaders.indexOf('MovementStatus');
-      const movAutoRevertedCol = movHeaders.indexOf('AutoRevertedAt');
+      palletsSheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
       for (let j = movData.length - 1; j >= 1; j--) {
         if ((movData[j][movIdCol] || '').toString().trim() === movementId) {
-          if (movStatusCol >= 0) movSheet.getRange(j + 1, movStatusCol + 1).setValue('Auto-Reverted');
-          if (movAutoRevertedCol >= 0) movSheet.getRange(j + 1, movAutoRevertedCol + 1).setValue(now);
+          if (movStatusCol >= 0) movData[j][movStatusCol] = 'Auto-Reverted';
+          if (movAutoRevertedCol >= 0) movData[j][movAutoRevertedCol] = now;
+          movSheet.getRange(j + 1, 1, 1, movHeaders.length).setValues([movData[j]]);
           break;
         }
       }
@@ -4466,7 +4482,7 @@ function runAutoRevertTransits() {
     }
   }
   if (reverted.length > 0) {
-    refreshInventorySnapshotSilently();
+    // Snapshot refreshed by time-based trigger (every 5 min), not per-write
   }
   return createResponse({
     success: true,
@@ -4501,10 +4517,13 @@ function computeZoneInventoryStats() {
     outbound: 0,
     received: 0,
     receivedPallets: 0,
+    totalPalletsAll: 0,
     currentPallets: 0,
     outboundPallets: 0,
     activeSkuSet: new Set()
   };
+  const receivingAwaiting = { pallets: 0, qty: 0 };
+  const outboundingTotals = { pallets: 0, qty: 0 };
 
   function ensureZone(zoneName) {
     if (!zoneStats[zoneName]) {
@@ -4576,6 +4595,7 @@ function computeZoneInventoryStats() {
       facilityTotals.received += originalQty;
       facilityTotals.receivedPallets += 1;
     }
+    facilityTotals.totalPalletsAll += 1;
     if (isOriginalPallet && createdAt) {
       const dateKey = Utilities.formatDate(createdAt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
       addReceivingMetric(dateKey, sku, originalQty, 1);
@@ -4584,10 +4604,31 @@ function computeZoneInventoryStats() {
     const skuStats = ensureZoneSku(zoneName, sku);
     const zone = ensureZone(zoneName);
     if (zoneName === 'Outbounding') {
+      outboundingTotals.pallets += 1;
+      outboundingTotals.qty += remainingQty;
+      skuStats.currentQty += remainingQty;
+      zone.totals.current += remainingQty;
+      zone.totals.palletsCurrent += 1;
       if (lastMoved && (!skuStats.lastMovement || lastMoved > skuStats.lastMovement)) {
         skuStats.lastMovement = lastMoved;
       }
       continue;
+    }
+    const zoneLower = (zoneName || '').toLowerCase();
+    if (zoneLower === 'outbonded' || zoneLower === 'outbounded') {
+      skuStats.currentQty += remainingQty;
+      zone.totals.current += remainingQty;
+      zone.totals.palletsCurrent += 1;
+      if (lastMoved && (!skuStats.lastMovement || lastMoved > skuStats.lastMovement)) {
+        skuStats.lastMovement = lastMoved;
+      }
+      continue;
+    }
+
+    const inTransitTo = (palletIndex.InTransitToZone != null && palletIndex.InTransitToZone >= 0) ? (row[palletIndex.InTransitToZone] || '').toString().trim() : '';
+    if (zoneName === 'Receiving Area' && !inTransitTo) {
+      receivingAwaiting.pallets += 1;
+      receivingAwaiting.qty += remainingQty;
     }
 
     skuStats.currentQty += remainingQty;
@@ -4663,22 +4704,25 @@ function computeZoneInventoryStats() {
     }
   }
 
-  return { zoneStats: zoneStats, facilityTotals: facilityTotals, receivingSummary: receivingSummary, movementSummary: movementSummary, movementDetails: movementDetails };
+  return { zoneStats: zoneStats, facilityTotals: facilityTotals, receivingAwaiting: receivingAwaiting, outboundingTotals: outboundingTotals, receivingSummary: receivingSummary, movementSummary: movementSummary, movementDetails: movementDetails };
 }
 
 function getZoneInventoryTotals() {
   const computed = computeZoneInventoryStats();
   const zoneStats = computed.zoneStats;
+  const receivingAwaiting = computed.receivingAwaiting || { pallets: 0, qty: 0 };
   const zoneOrder = INVENTORY_ZONE_ORDER.concat(Object.keys(zoneStats).filter(function(zone) {
     return INVENTORY_ZONE_ORDER.indexOf(zone) === -1;
   }));
   const zones = zoneOrder.map(function(zoneName) {
     const zone = zoneStats[zoneName];
     if (!zone) return null;
+    const current = zoneName === 'Receiving Area' ? receivingAwaiting.qty : zone.totals.current;
+    const palletsCurrent = zoneName === 'Receiving Area' ? receivingAwaiting.pallets : zone.totals.palletsCurrent;
     return {
       zoneName: zoneName,
-      current: zone.totals.current,
-      palletsCurrent: zone.totals.palletsCurrent,
+      current: current,
+      palletsCurrent: palletsCurrent,
       outbound: zone.totals.outbound,
       palletsOutbound: zone.totals.palletsOutbound
     };
@@ -4699,6 +4743,8 @@ function createInventorySnapshot() {
   const computed = computeZoneInventoryStats();
   const zoneStats = computed.zoneStats;
   const facilityTotals = computed.facilityTotals;
+  const receivingAwaiting = computed.receivingAwaiting || { pallets: 0, qty: 0 };
+  const outboundingTotals = computed.outboundingTotals || { pallets: 0, qty: 0 };
   const receivingSummary = computed.receivingSummary;
   const movementSummary = computed.movementSummary;
   const movementDetails = computed.movementDetails;
@@ -4708,7 +4754,7 @@ function createInventorySnapshot() {
   sheet.getRange('A2:I2').merge().setValue('Refreshed: ' + Utilities.formatDate(timestamp, Session.getScriptTimeZone(), 'MMM d, yyyy HH:mm')).setFontColor('#4c51bf').setHorizontalAlignment('center');
   sheet.getRange('A3:I3').merge().setValue('RetiFlux™ Powered by NexGridCore DataLabs').setFontColor('#718096').setHorizontalAlignment('center').setFontStyle('italic');
   let rowCursor = 11;
-  sheet.getRange(rowCursor, 1, 1, 5).setValues([['Zone', 'Current Qty', 'Current Pallets', 'Outbound Qty', 'Outbound Pallets']]);
+  sheet.getRange(rowCursor, 1, 1, 5).setValues([['Zone', 'Current Qty (kar)', 'Current Pallets', 'Outbound Qty (kar)', 'Outbound Pallets']]);
   sheet.getRange(rowCursor, 1, 1, 5).setBackground('#1f2937').setFontColor('#ffffff').setFontWeight('bold');
   rowCursor += 1;
 
@@ -4719,10 +4765,12 @@ function createInventorySnapshot() {
   zoneOrder.forEach(function(zoneName) {
     const zone = zoneStats[zoneName];
     if (!zone) return;
+    const currentQty = zoneName === 'Receiving Area' ? receivingAwaiting.qty : zone.totals.current;
+    const currentPallets = zoneName === 'Receiving Area' ? receivingAwaiting.pallets : zone.totals.palletsCurrent;
     sheet.getRange(rowCursor, 1, 1, 5).setValues([[
       zoneName,
-      zone.totals.current,
-      zone.totals.palletsCurrent,
+      currentQty,
+      currentPallets,
       zone.totals.outbound,
       zone.totals.palletsOutbound
     ]]);
@@ -4730,7 +4778,7 @@ function createInventorySnapshot() {
   });
 
   rowCursor += 2;
-  sheet.getRange(rowCursor, 1, 1, 7).setValues([['Zone', 'SKU', 'Current Qty', 'Outbound Qty', 'Stock Status', 'Last Movement', '']]);
+  sheet.getRange(rowCursor, 1, 1, 7).setValues([['Zone', 'SKU', 'Current Qty (kar)', 'Outbound Qty (kar)', 'Stock Status', 'Last Movement', '']]);
   sheet.getRange(rowCursor, 1, 1, 7).setBackground('#2d3748').setFontColor('#ffffff').setFontWeight('bold');
   rowCursor += 1;
 
@@ -4783,7 +4831,7 @@ function createInventorySnapshot() {
     .setFontStyle('italic')
     .setFontColor('#4a5568');
   rowCursor += 1;
-  const receivingHeader = ['Date', 'Zone', 'SKU', 'Received (Cartons)', 'Pallets'];
+  const receivingHeader = ['Date', 'Zone', 'SKU', 'Received (kar)', 'Pallets'];
   sheet.getRange(rowCursor, 1, 1, receivingHeader.length).setValues([receivingHeader]);
   sheet.getRange(rowCursor, 1, 1, receivingHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');
   rowCursor += 1;
@@ -4818,7 +4866,7 @@ function createInventorySnapshot() {
     .setFontStyle('italic')
     .setFontColor('#4a5568');
   rowCursor += 1;
-  const movementHeader = ['Date', 'Zone', 'SKU', 'Moved In (Cartons)', 'Moved Out (Cartons)', 'Shipped (Cartons)', 'Current Stock (Cartons)'];
+  const movementHeader = ['Date', 'Zone', 'SKU', 'Moved In (kar)', 'Moved Out (kar)', 'Shipped (kar)', 'Current Stock (kar)'];
   sheet.getRange(rowCursor, 1, 1, movementHeader.length).setValues([movementHeader]);
   sheet.getRange(rowCursor, 1, 1, movementHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');
   rowCursor += 1;
@@ -4866,7 +4914,7 @@ function createInventorySnapshot() {
     .setFontStyle('italic')
     .setFontColor('#4a5568');
   rowCursor += 1;
-  const movementDetailHeader = ['Movement Date', 'Movement ID', 'Pallet ID', 'SKU', 'From Zone', 'To Zone', 'Quantity (Cartons)', 'Moved By', 'Order Ref', 'Reason / Notes'];
+  const movementDetailHeader = ['Movement Date', 'Movement ID', 'Pallet ID', 'SKU', 'From Zone', 'To Zone', 'Quantity (kar)', 'Moved By', 'Order Ref', 'Reason / Notes'];
   sheet.getRange(rowCursor, 1, 1, movementDetailHeader.length).setValues([movementDetailHeader]);
   sheet.getRange(rowCursor, 1, 1, movementDetailHeader.length).setBackground('#1a202c').setFontColor('#ffffff').setFontWeight('bold');
   rowCursor += 1;
@@ -4893,13 +4941,26 @@ function createInventorySnapshot() {
   });
 
   const receivingZone = zoneStats['Receiving Area'];
-  const receivingQty = facilityTotals.received;
-  const receivingPallets = facilityTotals.receivedPallets;
+  // Use receivingAwaiting (pallets in Receiving Area, InTransitToZone empty) — aligns with reconciliation "In Zones".
+  const receivingQty = receivingAwaiting.qty;
+  const receivingPallets = receivingAwaiting.pallets;
+  // Outbounded card: pallets currently in Outbonded zone (final shipped state). Case-insensitive lookup.
+  let outbondedQty = 0;
+  let outbondedPallets = 0;
+  Object.keys(zoneStats).forEach(function(k) {
+    const zl = (k || '').toLowerCase();
+    if (zl === 'outbonded' || zl === 'outbounded') {
+      outbondedQty += (zoneStats[k].totals && zoneStats[k].totals.current) || 0;
+      outbondedPallets += (zoneStats[k].totals && zoneStats[k].totals.palletsCurrent) || 0;
+    }
+  });
   const cardData = [
-    { range: 'A4:C6', title: 'Receiving Area', value: formatNumber(receivingQty), subtitle: receivingPallets + ' pallets awaiting processing', color: '#4dabf7' },
-    { range: 'D4:F6', title: 'In Stock', value: formatNumber(facilityTotals.current), subtitle: facilityTotals.currentPallets + ' pallets', color: '#48bb78' },
-    { range: 'G4:I6', title: 'Outbounded', value: formatNumber(facilityTotals.outbound), subtitle: facilityTotals.outboundPallets + ' pallets shipped', color: '#f6ad55' },
-    { range: 'A7:C9', title: 'Active SKUs', value: formatNumber(facilityTotals.activeSkuSet.size), subtitle: 'SKUs with stock', color: '#9f7aea' }
+    { range: 'A4:C6', title: 'Receiving Area', value: formatNumber(receivingQty) + ' kar', subtitle: receivingPallets + ' pallets awaiting processing', color: '#4dabf7' },
+    { range: 'D4:F6', title: 'In Stock', value: formatNumber(facilityTotals.current) + ' kar', subtitle: facilityTotals.currentPallets + ' pallets', color: '#48bb78' },
+    { range: 'G4:I6', title: 'Outbounding', value: formatNumber(outboundingTotals.qty) + ' kar', subtitle: outboundingTotals.pallets + ' pallets in dispatch staging', color: '#fbbf24' },
+    { range: 'A7:C9', title: 'Outbounded', value: formatNumber(outbondedQty) + ' kar', subtitle: outbondedPallets + ' pallets in Outbonded zone', color: '#f6ad55' },
+    { range: 'D7:F9', title: 'Active SKUs', value: formatNumber(facilityTotals.activeSkuSet.size), subtitle: 'SKUs with stock', color: '#9f7aea' },
+    { range: 'G7:I9', title: 'Total Ever Birthed', value: formatNumber(facilityTotals.totalPalletsAll), subtitle: formatNumber(facilityTotals.received) + ' kar received | incl. ' + (facilityTotals.totalPalletsAll - facilityTotals.receivedPallets) + ' split pallets', color: '#64748b' }
   ];
   cardData.forEach(function(card) {
     const range = sheet.getRange(card.range);
@@ -4929,7 +4990,6 @@ function refreshInventorySnapshotSilently() {
   try {
     const lock = LockService.getScriptLock();
     if (!lock.tryLock(100)) {
-      // Snapshot refresh skipped silently (lock in use)
       return;
     }
     try {
@@ -4940,6 +5000,54 @@ function refreshInventorySnapshotSilently() {
   } catch (err) {
     // Snapshot refresh error - silent fail
   }
+}
+
+/**
+ * Run ONCE from Script Editor to create all time-based triggers (Snapshot + Recalc).
+ * Optimizations: snapshot and analytics no longer run on every write.
+ */
+function scheduleAllOptimizationTriggers() {
+  scheduleInventorySnapshotTrigger();
+  scheduleRecalcTrigger();
+}
+
+/**
+ * Run ONCE from Script Editor to create a 5-minute time-based trigger for Inventory Snapshot.
+ * Snapshot is no longer refreshed on every write (optimization for concurrency).
+ */
+function scheduleInventorySnapshotTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'refreshInventorySnapshotSilently') {
+      return; // already exists
+    }
+  }
+  ScriptApp.newTrigger('refreshInventorySnapshotSilently')
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+}
+
+/**
+ * Run ONCE from Script Editor to create a 15-minute trigger for Calculations + Analytics refresh.
+ * Recalc no longer runs synchronously on every 10th ticket (optimization for concurrency).
+ */
+function scheduleRecalcTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'runRecalculateAllCalculationsTimer') return;
+  }
+  ScriptApp.newTrigger('runRecalculateAllCalculationsTimer')
+    .timeBased()
+    .everyMinutes(15)
+    .create();
+}
+
+function runRecalculateAllCalculationsTimer() {
+  try {
+    var sheet = SpreadsheetApp.openById(SHEET_ID);
+    recalculateAllCalculations(sheet, false);
+  } catch (err) {}
 }
 
 function generateMovementId() {
@@ -5607,7 +5715,6 @@ function createOrUpdatePalletFromTicket(ticket, overrides) {
   } else {
     palletSheet.appendRow(rowValues);
   }
-  refreshInventorySnapshotSilently();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

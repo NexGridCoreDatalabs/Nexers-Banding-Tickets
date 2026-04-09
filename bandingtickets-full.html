@@ -3158,8 +3158,8 @@
             
             <div class="form-group" style="margin-top: 25px; padding-top: 25px; border-top: 2px solid #e2e8f0;">
                 <label>📱 QR Code URL Configuration</label>
-                <input type="text" id="scanBaseUrl" placeholder="https://nexgridcoredatalabs.github.io/Nexers-Banding-Tickets/" style="margin-bottom: 10px;">
-                <small>Enter your network IP address and port (not localhost). This is what QR codes will link to. Find your IP with: ipconfig (Windows) or ifconfig (Mac/Linux)</small>
+                <input type="text" id="scanBaseUrl" placeholder="https://retifluxtm.vercel.app/" style="margin-bottom: 10px;">
+                <small>Public site origin (e.g. https://your-host/ ). QR codes deep-link to app/*.html on this host — not bandingtickets.html. For LAN testing use your machine IP, not localhost.</small>
                 <button type="button" class="btn-reset" onclick="saveScanUrlConfig()" style="margin-top: 10px; width: 100%;">💾 Save QR URL</button>
             </div>
         </div>
@@ -3707,29 +3707,95 @@
             }
         }
         
-        // HARDCODED: GitHub Pages URL - Update this with your actual GitHub Pages URL
-        const DEFAULT_SCAN_BASE_URL = 'https://nexgridcoredatalabs.github.io/Nexers-Banding-Tickets/bandingtickets.html';
-        
-        // Load saved scan URL or use hardcoded default
-        let SCAN_BASE_URL = localStorage.getItem('scanBaseUrl') || DEFAULT_SCAN_BASE_URL;
-        
-        // Auto-detect the current page URL if no saved URL exists
-        if (!localStorage.getItem('scanBaseUrl')) {
-            const { protocol, origin, pathname, hostname } = window.location;
-            
-            // If accessing via file:// protocol, use default URL or prompt user
-            if (protocol === 'file:') {
-                // Use default URL so QR codes still generate (user can change in config)
-                SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL;
-                localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
-            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                SCAN_BASE_URL = `${origin}${pathname}`;
-                localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
-            } else {
-                // Web server (GitHub Pages, etc.) - use current URL
-                SCAN_BASE_URL = `${origin}${pathname}`;
-                localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
+        // Default when no config: legacy GitHub Pages root. Prefer BANDFLOW_CONFIG.SCAN_BASE_URL (e.g. Vercel env) — public origin only, not bandingtickets.html.
+        const LEGACY_DEFAULT_SCAN = 'https://nexgridcoredatalabs.github.io/Nexers-Banding-Tickets/';
+        function publicOriginFromConfig() {
+            var cfg = window.BANDFLOW_CONFIG || {};
+            if (!cfg.SCAN_BASE_URL || !String(cfg.SCAN_BASE_URL).trim()) return '';
+            try {
+                return new URL(String(cfg.SCAN_BASE_URL).trim().split('?')[0]).origin + '/';
+            } catch (e) {
+                return '';
             }
+        }
+        const CFG_ORIGIN = publicOriginFromConfig();
+        const DEFAULT_SCAN_BASE_URL = CFG_ORIGIN || LEGACY_DEFAULT_SCAN;
+
+        function isLocalScanUrl(u) {
+            if (!u || !String(u).trim()) return false;
+            try {
+                var hn = new URL(String(u).trim().split('?')[0]).hostname;
+                return hn === 'localhost' || hn === '127.0.0.1';
+            } catch (e) { return false; }
+        }
+
+        // Drop stale localhost QR base when viewing the app from production (phones can't open localhost)
+        (function() {
+            var h = window.location.hostname || '';
+            var isLocal = h === 'localhost' || h === '127.0.0.1';
+            var stored = localStorage.getItem('scanBaseUrl');
+            if (stored && !isLocal && (stored.indexOf('localhost') >= 0 || stored.indexOf('127.0.0.1') >= 0)) {
+                try { localStorage.removeItem('scanBaseUrl'); } catch (e) {}
+            }
+        })();
+
+        // Priority: non-localhost user override (LAN IP / alt domain) > config SCAN_BASE_URL > stored/default.
+        // Never let dev localhost in localStorage override Vercel config (was causing printed QRs to stay on localhost).
+        var _storedScan = localStorage.getItem('scanBaseUrl');
+        let SCAN_BASE_URL;
+        if (_storedScan && !isLocalScanUrl(_storedScan)) {
+            SCAN_BASE_URL = _storedScan;
+        } else if (CFG_ORIGIN) {
+            SCAN_BASE_URL = CFG_ORIGIN;
+            try { localStorage.setItem('scanBaseUrl', SCAN_BASE_URL); } catch (e) {}
+        } else if (_storedScan && isLocalScanUrl(_storedScan)) {
+            var _pageLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            if (!_pageLocal) {
+                SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL;
+                try { localStorage.setItem('scanBaseUrl', SCAN_BASE_URL); } catch (e) {}
+            } else {
+                SCAN_BASE_URL = _storedScan;
+            }
+        } else {
+            SCAN_BASE_URL = _storedScan || DEFAULT_SCAN_BASE_URL;
+        }
+        (function migrateLegacyScanBase() {
+            try {
+                var u = String(SCAN_BASE_URL || '').trim();
+                if (/bandingtickets\.html$/i.test(u)) {
+                    SCAN_BASE_URL = new URL(u.split('?')[0]).origin + '/';
+                    localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
+                }
+            } catch (e) {}
+        })();
+
+        // Auto-detect when no saved URL yet (first visit; file:// or no prior key after clear)
+        if (!localStorage.getItem('scanBaseUrl')) {
+            const { protocol, origin } = window.location;
+            if (protocol === 'file:') {
+                SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL;
+            } else {
+                SCAN_BASE_URL = origin + '/';
+            }
+            localStorage.setItem('scanBaseUrl', SCAN_BASE_URL);
+        }
+
+        /** Origin embedded in QR codes — never localhost when this tab is on a real deploy (phones must reach it). */
+        function qrEncodeOrigin() {
+            var o = '';
+            try {
+                o = new URL(String(SCAN_BASE_URL).trim().split('?')[0]).origin;
+            } catch (e) {
+                o = (typeof location !== 'undefined' && location.origin) ? location.origin : 'https://retifluxtm.vercel.app';
+            }
+            var pageLocal = typeof location !== 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+            try {
+                if ((new URL(o).hostname === 'localhost' || new URL(o).hostname === '127.0.0.1') && !pageLocal) {
+                    if (CFG_ORIGIN) return new URL(String(CFG_ORIGIN).trim().split('?')[0]).origin;
+                    return 'https://retifluxtm.vercel.app';
+                }
+            } catch (e2) {}
+            return o;
         }
         
         // Load saved config into input field
@@ -3860,7 +3926,7 @@
                 var sep = h.indexOf('?') >= 0 ? '&' : '?';
                 a.href = h + sep + bypassQ;
             });
-            document.querySelectorAll('a[href*="bandingtickets.html"]').forEach(function(a) {
+            document.querySelectorAll('a[href*="app/"], a[href*="index.html"], a[href*="bandingtickets.html"]').forEach(function(a) {
                 var h = a.getAttribute('href') || '';
                 if (h.indexOf('geofence=bypass') >= 0) return;
                 var sep = h.indexOf('?') >= 0 ? '&' : '?';
@@ -5579,20 +5645,17 @@
         }
 
         function buildScanUrl(serial, mode = 'edit', color = 'blue') {
-            // Ensure SCAN_BASE_URL is always set
             if (!SCAN_BASE_URL || SCAN_BASE_URL === '') {
-                const { protocol, origin, pathname } = window.location;
-                // If file:// protocol, use default URL
+                const { protocol, origin } = window.location;
                 if (protocol === 'file:') {
                     SCAN_BASE_URL = DEFAULT_SCAN_BASE_URL;
                 } else {
-                    SCAN_BASE_URL = `${origin}${pathname}`;
+                    SCAN_BASE_URL = origin + '/';
                 }
             }
-            // Remove any existing query parameters from base URL
-            const baseUrl = SCAN_BASE_URL.split('?')[0];
-            const url = `${baseUrl}?mode=${mode}&serial=${encodeURIComponent(serial)}&color=${encodeURIComponent(color)}`;
-            return url;
+            var originBase = qrEncodeOrigin();
+            var page = mode === 'fill' ? 'fill' : mode === 'view' ? 'view' : mode === 'edit' ? 'edit' : mode === 'movement' ? 'movement' : 'bincards';
+            return originBase + '/app/' + page + '.html?serial=' + encodeURIComponent(serial) + '&color=' + encodeURIComponent(color);
         }
         
         function formatTimestamp(timestampStr) {

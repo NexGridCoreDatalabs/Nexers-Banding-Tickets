@@ -17,7 +17,12 @@ window.BANDFLOW_CONFIG = {
   GOOGLE_SHEET_ID: 'YOUR_GOOGLE_SHEET_ID_HERE',
   GOOGLE_API_KEY: 'YOUR_GOOGLE_API_KEY_HERE',
   GOOGLE_APPS_SCRIPT_URL: 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE',
-  SCAN_BASE_URL: 'https://yourdomain.com/bandingtickets.html',
+  /**
+   * Public site origin (any path is ignored; use the deployed host root).
+   * Cover-sheet / picker links: js/retiflux-qr.js. PRT label QRs: retiflux-print-4x6.html. Geofence: js/retiflux-geofence.js (URL bypass tokens are not honored).
+   * Production (Vercel): https://retifluxtm.vercel.app/
+   */
+  SCAN_BASE_URL: 'https://retifluxtm.vercel.app/',
   SUPABASE_URL: 'https://YOUR_PROJECT_REF.supabase.co',
   SUPABASE_ANON_KEY: 'YOUR_SUPABASE_ANON_KEY_HERE',
   /** Best-effort screenshot / print deterrence in the browser (not absolute; see js/retiflux-screenshot-guard.js). Set false to disable. */

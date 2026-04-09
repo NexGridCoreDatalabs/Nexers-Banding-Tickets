@@ -806,10 +806,13 @@
             recordedBy: recordedBy || ''
           };
           try { sessionStorage.setItem('prt_print_data', JSON.stringify(printData)); } catch (e) {}
+          // Popup windows do NOT share sessionStorage with the opener — use localStorage + short key (and hash backup).
+          var bridgeKey = 'prtprint_' + Date.now() + '_' + Math.random().toString(36).slice(2, 14);
+          try { localStorage.setItem(bridgeKey, JSON.stringify(printData)); } catch (e) {}
           var hashData = '';
           try { hashData = btoa(unescape(encodeURIComponent(JSON.stringify(printData)))); } catch (e) {}
           var printPath = (window.location.pathname || '').indexOf('/app/') !== -1 ? '../retiflux-print-4x6.html' : 'retiflux-print-4x6.html';
-          var printUrl = printPath + '?t=' + Date.now() + (hashData ? '#' + hashData : '');
+          var printUrl = printPath + '?k=' + encodeURIComponent(bridgeKey) + '&t=' + Date.now() + (hashData ? '#' + hashData : '');
           window.open(printUrl, 'RetiFluxPrint_' + Date.now(), 'width=480,height=720,scrollbars=yes');
         } catch (e) {
           status.textContent = '❌ ' + (e.message || 'Error');

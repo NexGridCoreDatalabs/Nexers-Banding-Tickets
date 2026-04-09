@@ -322,6 +322,7 @@
   <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
 
   <script src="../config.js"></script>
+  <script src="../js/retiflux-geofence.js?v=3"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
   (function(){
@@ -514,6 +515,12 @@
       document.getElementById('stateError').textContent = 'Missing serial in URL.';
       return;
     }
+    // Canonical address bar: serial only (ignore any legacy bypass query params).
+    try {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname + '?serial=' + encodeURIComponent(serial));
+      }
+    } catch (e) {}
     if (!sb) {
       hideSplash(true);
       document.getElementById('stateError').style.display = 'block';
@@ -521,6 +528,7 @@
       return;
     }
 
+    function loadTicketViewData() {
     var PALLET_SELECT = 'pallet_id, current_zone, remaining_quantity, quantity, status, sku, layers, batch_lot, manufacturing_date, expiry_date, shelf_life_days, last_moved_at, created_at, in_transit_to_zone, in_transit_initiated_at';
 
     function applyPalletDerivedUi(pallet, ticket, skuRow) {
@@ -687,6 +695,16 @@
       document.getElementById('stateError').style.display = 'block';
       document.getElementById('stateError').textContent = 'Could not load ticket: ' + (e && e.message ? e.message : e);
     });
+    }
+
+    if (window.RetifluxGeofence && typeof window.RetifluxGeofence.requireForView === 'function') {
+      window.RetifluxGeofence.requireForView(params).then(function(allowed) {
+        if (!allowed) return;
+        loadTicketViewData();
+      });
+    } else {
+      loadTicketViewData();
+    }
   })();
   </script>
 </body>

@@ -84,6 +84,7 @@
     <button class="btn" onclick="window.close()">Close</button>
   </div>
   <script src="../config.js"></script>
+  <script src="../js/retiflux-qr.js?v=3"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
@@ -143,7 +144,9 @@
       if(!contents.length) tb.innerHTML = '<tr><td colspan="3" style="color:var(--muted)">No contents (empty pallet)</td></tr>';
       else tb.innerHTML = contents.map(function(c){ return '<tr><td style="font-weight:800">'+esc(c.sku)+'</td><td>'+esc(c.quantity)+'</td><td>'+esc(c.source_pallet_id||'—')+'</td></tr>'; }).join('');
 
-      var target = orderId ? (window.location.origin + '/app/order-detail?order=' + encodeURIComponent(orderId)) : (window.location.origin + '/app/');
+      var target = orderId
+        ? window.RetifluxQr.appUrl('app/order-detail.html?order=' + encodeURIComponent(orderId))
+        : (window.RetifluxQr.publicOrigin() + '/app/');
       document.getElementById('qrHint').textContent = orderId ? 'Scan to open order' : 'Scan for home';
       var box = document.getElementById('qrBox');
       box.innerHTML = '';

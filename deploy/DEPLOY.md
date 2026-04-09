@@ -45,6 +45,7 @@ Add at least:
 
 - `SUPABASE_URL` = your Project URL  
 - `SUPABASE_ANON_KEY` = anon key  
+- `SCAN_BASE_URL` = `https://retifluxtm.vercel.app/` (public origin for **js/retiflux-qr.js** — PRT print labels, cover sheets; avoids localhost in QRs when testing locally)
 
 Enable for **Production** (and **Preview** if you use preview URLs).
 
@@ -63,7 +64,7 @@ Paste values when prompted; choose Production (and Preview if needed).
 vercel --prod
 ```
 
-CLI prints the live URL (e.g. `https://nexers-banding-tickets-xxx.vercel.app`).
+CLI prints the live URL. Production app: [https://retifluxtm.vercel.app](https://retifluxtm.vercel.app/).
 
 ## 7) Supabase checklist
 

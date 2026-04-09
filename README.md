@@ -32,7 +32,7 @@ git push origin main
 
 | Target | Notes |
 |--------|--------|
-| **Vercel (CLI from this folder)** | Step-by-step: **`deploy/DEPLOY.md`**. Set env vars (see **`deploy/env.example`**). Then `vercel --prod`. |
+| **Vercel (CLI from this folder)** | Step-by-step: **`deploy/DEPLOY.md`**. Set env vars (see **`deploy/env.example`**). Then `vercel --prod`. Live: **https://retifluxtm.vercel.app** |
 | **Vercel (Git)** | Connect repo in Vercel dashboard; same env vars. |
 | **GitHub Pages** | Workflow `.github/workflows/deploy.yml` injects `config.js` from **GitHub Actions secrets** (`SUPABASE_*` + legacy Google keys). |
 

@@ -17,12 +17,15 @@
     <script>
         (function() {
             var p = new URLSearchParams(window.location.search);
-            var parts = [];
-            var s = p.get('serial'); if (s) parts.push('serial=' + encodeURIComponent(s));
-            if (p.get('geofence') === 'bypass' && p.get('t') === 'BIDCO_BYPASS') {
-                parts.push('geofence=bypass', 't=BIDCO_BYPASS');
-            }
-            document.getElementById('app').src = 'ticket-view.html' + (parts.length ? '?' + parts.join('&') : '');
+            var s = p.get('serial');
+            // Never forward geofence/bypass into the iframe — URL tokens must not skip GPS (see js/retiflux-geofence.js).
+            var q = s ? ('serial=' + encodeURIComponent(s)) : '';
+            document.getElementById('app').src = 'ticket-view.html' + (q ? ('?' + q) : '');
+            try {
+                if (s && window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', window.location.pathname + '?serial=' + encodeURIComponent(s));
+                }
+            } catch (e) {}
         })();
     </script>
 </body>

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>RetiFlux™ · Print Label</title>
+<script src="config.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -533,7 +534,7 @@
     <div class="hero">
       <div class="qr-col">
         <div class="qr-frame">
-          <img id="qrImg" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=https%3A%2F%2Fnexgridcoredatalabs.github.io%2FNexers-Banding-Tickets%2Fbandingtickets.html%3Fmode%3Dview%26serial%3DFG-BND-01194%26geofence%3Dbypass%26t%3DBIDCO_BYPASS" alt="QR">
+          <img id="qrImg" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=https%3A%2F%2Fnexgridcoredatalabs.github.io%2FNexers-Banding-Tickets%2Fapp%2Fview.html%3Fserial%3DFG-BND-01194" alt="QR">
         </div>
       </div>
       <div class="product-col">
@@ -702,8 +703,22 @@
   document.getElementById('notesVal').textContent = notes || '';
   document.getElementById('footerTs').textContent = fmtTs(mfgDateRaw, time);
 
-  var base2 = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
-  var viewUrl = base2 + 'app/ticket-view.html?serial=' + encodeURIComponent(serial) + '&geofence=bypass&t=BIDCO_BYPASS';
+  function prtLabelViewQrUrl(s) {
+    var origin = '';
+    try {
+      var cfg = window.BANDFLOW_CONFIG || {};
+      if (cfg.SCAN_BASE_URL && String(cfg.SCAN_BASE_URL).trim()) {
+        origin = new URL(String(cfg.SCAN_BASE_URL).trim().split('?')[0]).origin;
+      }
+    } catch (e) {}
+    if (!origin && typeof location !== 'undefined') {
+      var h = location.hostname || '';
+      if (h && h !== 'localhost' && h !== '127.0.0.1') origin = location.origin;
+    }
+    if (!origin) origin = 'https://retifluxtm.vercel.app';
+    return origin + '/app/view.html?serial=' + encodeURIComponent(s == null ? '' : String(s));
+  }
+  var viewUrl = prtLabelViewQrUrl(serial);
   document.getElementById('qrImg').src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=' + encodeURIComponent(viewUrl);
   document.getElementById('qrImg').alt = 'QR · ' + serial;
 

@@ -537,6 +537,7 @@
   </div>
 
   <script src="../config.js"></script>
+  <script src="../js/retiflux-qr.js?v=3"></script>
   <script src="../js/retiflux-screenshot-guard.js"></script>
   <script src="../js/retiflux-auth-session.js"></script>
   <script src="../js/retiflux-notifications.js"></script>
@@ -1364,9 +1365,8 @@
           localStorage.setItem('palletCover_order', currentOrder.id);
           localStorage.setItem('palletCover_ts', String(Date.now()));
         } catch (_) {}
-        var path = (window.location.pathname || '').replace(/[^/]*$/, '') || '/';
         var q = 'pallet=' + encodeURIComponent(palletIdToComplete) + '&order=' + encodeURIComponent(currentOrder.id);
-        var url = window.location.origin + path + 'pallet-cover-sheet.html?' + q + '#' + q;
+        var url = (window.RetifluxQr && window.RetifluxQr.publicOrigin ? window.RetifluxQr.publicOrigin() : window.location.origin) + '/app/pallet-cover-sheet.html?' + q + '#' + q;
         window.open(url, 'PalletCover_'+palletIdToComplete, 'width=920,height=760,scrollbars=yes');
       } catch(e){ toast('Failed: ' + (e.message||e), 'error'); }
     };

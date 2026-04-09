@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>RetiFlux™ · Print Label</title>
+<script src="config.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -443,7 +444,8 @@
 
 <div class="screen-bar">
   <span class="screen-bar-title">RetiFlux™ · 4″ × 6″ Print Preview</span>
-  <button class="print-btn" onclick="window.print()">🖨 &nbsp;Print Label</button>
+  <button type="button" class="print-btn" id="prtPrintBtn">🖨 &nbsp;Print Label</button>
+  <span class="screen-bar-hint" id="prtPrintHint" style="font-size:11px;color:#64748b;max-width:220px;">No dialog? Allow pop-ups for this site, then click Print Label.</span>
 </div>
 
 <div class="label">
@@ -588,6 +590,20 @@
     recordedBy = d.recordedBy || '';
   }
 
+  // 0. localStorage bridge (window.open popups do NOT inherit the opener’s sessionStorage)
+  try {
+    var _bp = new URLSearchParams(window.location.search || '');
+    var _k = _bp.get('k');
+    if (_k) {
+      var _raw = localStorage.getItem(_k);
+      if (_raw) {
+        var _d = JSON.parse(_raw);
+        if (_d && _d.serial) applyData(_d);
+        try { localStorage.removeItem(_k); } catch (e2) {}
+      }
+    }
+  } catch (e) { /* ignore */ }
+
   // 1. Primary: URL hash (base64 JSON) — travels with window, works regardless of sessionStorage
   var hash = (window.location.hash || '').slice(1);
   if (hash) {
@@ -691,8 +707,23 @@
   document.getElementById('notesVal').textContent = notes || '—';
   document.getElementById('footerTs').textContent = (mfgDateRaw || time) ? fmtTs(mfgDateRaw, time) : '—';
 
-  var base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
-  var viewUrl = base + 'app/ticket-view.html?serial=' + encodeURIComponent(serial) + '&geofence=bypass&t=BIDCO_BYPASS';
+  /** Label QR must NOT include geofence bypass (facility GPS applies). Built inline so a cached retiflux-qr.js cannot reintroduce bypass. */
+  function prtLabelViewQrUrl(s) {
+    var origin = '';
+    try {
+      var cfg = window.BANDFLOW_CONFIG || {};
+      if (cfg.SCAN_BASE_URL && String(cfg.SCAN_BASE_URL).trim()) {
+        origin = new URL(String(cfg.SCAN_BASE_URL).trim().split('?')[0]).origin;
+      }
+    } catch (e) {}
+    if (!origin && typeof location !== 'undefined') {
+      var h = location.hostname || '';
+      if (h && h !== 'localhost' && h !== '127.0.0.1') origin = location.origin;
+    }
+    if (!origin) origin = 'https://retifluxtm.vercel.app';
+    return origin + '/app/view.html?serial=' + encodeURIComponent(s == null ? '' : String(s));
+  }
+  var viewUrl = prtLabelViewQrUrl(serial);
   var qrContainer = document.getElementById('qrContainer');
   qrContainer.innerHTML = '';
   if (serial && typeof QRCode !== 'undefined') {
@@ -708,8 +739,21 @@
   }
 
   document.title = 'RetiFlux™ · Print Label · ' + (serial || 'PRT');
-  if (window.location.search && serial) {
-    setTimeout(function() { window.print(); }, 500);
+
+  var printBtn = document.getElementById('prtPrintBtn');
+  if (printBtn) {
+    printBtn.onclick = function() { window.print(); };
+  }
+
+  // Auto-open print dialog when we have label data (browsers may still block without a user gesture — button is the fallback)
+  if (serial) {
+    var delay = 400;
+    try {
+      if (typeof QRCode !== 'undefined' && serial) delay = 600;
+    } catch (e) {}
+    setTimeout(function() {
+      try { window.print(); } catch (e) {}
+    }, delay);
   }
 })();
 </script>

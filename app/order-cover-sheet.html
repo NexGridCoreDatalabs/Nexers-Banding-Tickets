@@ -173,6 +173,7 @@
   </div>
 
   <script src="../config.js"></script>
+  <script src="../js/retiflux-qr.js?v=3"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
@@ -288,9 +289,8 @@
           : '');
       }
 
-      // Generate QR — hardcode to localhost:3000 for local dev
-      var base = window.location.origin + '/app/';
-      var target = base + 'order-detail?order=' + encodeURIComponent(orderId);
+      // QR uses public origin from config (js/retiflux-qr.js) — not localhost when printed from dev
+      var target = window.RetifluxQr.appUrl('app/order-detail.html?order=' + encodeURIComponent(orderId));
       document.getElementById('qrHint').textContent = target;
       var box = document.getElementById('qrBox');
       box.innerHTML = '';

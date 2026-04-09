@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ffffff">
+  <title>RetiFlux™ · Order Cover Sheet</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --ink:#111827;--muted:#475569;--gold:#b45309;
+      --line:#cbd5e1;--mono:'Cascadia Mono','Cascadia Code',Consolas,monospace;
+    }
+    body{background:#f1f5f9;color:var(--ink);font-family:var(--mono);padding:18px}
+    .sheet{
+      width:210mm;min-height:297mm;margin:0 auto;background:#fff;
+      border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,0.12);
+      padding:14mm 14mm 12mm;display:flex;flex-direction:column;gap:8mm;
+    }
+
+    /* Header */
+    .hdr{display:flex;justify-content:space-between;gap:14mm;border-bottom:2px solid var(--ink);padding-bottom:6mm}
+    .brand .name{font-size:20px;font-weight:900;letter-spacing:0.5px}
+    .brand .sub{font-size:10px;color:var(--muted);line-height:1.5;margin-top:2mm}
+    .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:4mm}
+    .badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);padding:4px 9px;border-radius:999px;font-size:10px;color:var(--muted)}
+    .badge strong{color:var(--ink)}
+
+    /* QR */
+    .qrWrap{width:46mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3mm}
+    .qrBox{width:46mm;height:46mm;border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .qrHint{font-size:9px;color:var(--muted);text-align:center;line-height:1.4;word-break:break-all}
+
+    /* Order info grid */
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:5mm 10mm}
+    .kv{display:flex;flex-direction:column;gap:1mm}
+    .k{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:800}
+    .v{font-size:13px;font-weight:900}
+    .v.sm{font-size:11px;font-weight:800}
+
+    /* Policy block */
+    .policy{border:1px solid var(--line);border-left:5px solid var(--gold);padding:5mm;border-radius:6px;display:flex;justify-content:space-between;gap:8mm;align-items:flex-start}
+    .policy-text{flex:1;font-size:11px;line-height:1.7;color:var(--ink)}
+    .sig-box{width:52mm;flex-shrink:0;border:1px dashed var(--line);border-radius:6px;padding:4mm}
+    .sig-title{font-size:9px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:5mm}
+    .sig-line{border-bottom:1px solid var(--ink);height:10mm}
+    .sig-hint{margin-top:2mm;font-size:9px;color:var(--muted)}
+
+    /* Lines table */
+    .tableWrap{border:1px solid var(--line);border-radius:6px;overflow:hidden;flex:1}
+    table{width:100%;border-collapse:collapse;font-size:11px}
+    thead th{text-align:left;background:#f8fafc;padding:8px 10px;border-bottom:1px solid var(--line);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+    tbody td{padding:7px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top}
+    tbody tr:last-child td{border-bottom:none}
+    tbody tr:nth-child(even){background:#f8fafc}
+
+    /* Footer */
+    .footer{margin-top:auto;padding-top:5mm;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-end;gap:8mm;color:var(--muted);font-size:9px;line-height:1.5}
+    .footer strong{color:var(--ink)}
+
+    /* Print actions */
+    .actions{display:flex;justify-content:center;gap:10px;margin:16px auto 0;max-width:210mm}
+    .btn{padding:10px 18px;border-radius:10px;border:1px solid #94a3b8;background:#fff;cursor:pointer;font-family:var(--mono);font-weight:900;font-size:13px}
+    .btn:hover{background:#f8fafc}
+    .btn-gold{background:#b45309;color:#fff;border-color:#b45309}
+    .btn-gold:hover{background:#92400e}
+
+    /* Loading/error state */
+    .loading{color:var(--muted);text-align:center;padding:20px;font-size:12px}
+    .err{color:#dc2626;text-align:center;padding:20px;font-size:12px}
+
+    @media print{
+      @page{size:A4;margin:0}
+      body{background:#fff;padding:0}
+      .sheet{box-shadow:none;border:none;width:210mm;min-height:297mm}
+      .actions{display:none}
+    }
+  </style>
+</head>
+<body>
+
+  <div class="sheet" id="sheet">
+
+    <!-- Header -->
+    <div class="hdr">
+      <div class="brand">
+        <div class="name">RetiFlux™ · Order Cover Sheet</div>
+        <div class="sub">Staple this sheet on top of the Sales Order. Scan QR to open the order on any device.</div>
+        <div class="badges">
+          <span class="badge">Status: <strong id="bStatus">—</strong></span>
+          <span class="badge">Type: <strong id="bType">—</strong></span>
+          <span class="badge">Lines: <strong id="bLines">—</strong></span>
+          <span class="badge">Units: <strong id="bUnits">—</strong></span>
+        </div>
+      </div>
+      <div class="qrWrap">
+        <div class="qrBox" id="qrBox">
+          <span style="font-size:10px;color:#94a3b8">Generating…</span>
+        </div>
+        <div class="qrHint" id="qrHint">Scan to open order detail</div>
+      </div>
+    </div>
+
+    <!-- Order info -->
+    <div class="grid">
+      <div class="kv"><div class="k">Sales order no</div><div class="v" id="vOrderNo">—</div></div>
+      <div class="kv"><div class="k">Assigned picker</div><div class="v" id="vPicker">—</div></div>
+      <div class="kv"><div class="k">Customer</div><div class="v sm" id="vCustomer">—</div></div>
+      <div class="kv"><div class="k">Customer code</div><div class="v sm" id="vCustCode">—</div></div>
+      <div class="kv"><div class="k">Order date</div><div class="v sm" id="vOrderDate">—</div></div>
+      <div class="kv"><div class="k">Delivery date</div><div class="v sm" id="vDelDate">—</div></div>
+      <div class="kv"><div class="k">Transporter</div><div class="v sm" id="vTransporter">—</div></div>
+      <div class="kv"><div class="k">Printed at</div><div class="v sm" id="vPrintedAt">—</div></div>
+    </div>
+
+    <!-- Policy + signature -->
+    <div class="policy">
+      <div class="policy-text">
+        <strong>Picking policy:</strong> No substitutions allowed. Do not mark <strong>SHORT</strong>
+        unless there is genuinely no stock anywhere in the warehouse. If SuperMarket lacks stock,
+        replenish from zones via zone clerks. Tasks are linked to this order.<br><br>
+        <span style="color:var(--muted)">Supervisor must release this order before picking begins.</span>
+      </div>
+      <div class="sig-box">
+        <div class="sig-title">Picker sign-off</div>
+        <div class="sig-line"></div>
+        <div class="sig-hint">Name / Signature / Time</div>
+        <div style="margin-top:6mm" class="sig-line"></div>
+        <div class="sig-hint">Supervisor release</div>
+      </div>
+    </div>
+
+    <!-- Lines table -->
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th style="width:100px">Item code</th>
+            <th>Description</th>
+            <th style="width:70px">Qty</th>
+            <th style="width:58px">Unit</th>
+            <th style="width:58px">Plant</th>
+            <th style="width:100px">Pick from</th>
+          </tr>
+        </thead>
+        <tbody id="linesBody">
+          <tr><td colspan="7" class="loading">Loading order lines…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div>
+        <div><strong>RetiFlux™</strong> · Powered by <strong>NexGridCore DataLabs</strong></div>
+        <div>This sheet is a cover reference only. Keep with documents until dispatch.</div>
+      </div>
+      <div style="text-align:right">
+        <div>Order ID: <strong id="vOrderId">—</strong></div>
+        <div style="margin-top:1mm;color:#94a3b8">Digital record is authoritative.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Actions -->
+  <div class="actions">
+    <button class="btn btn-gold" onclick="window.print()">🖨 Print (A4)</button>
+    <button class="btn" onclick="window.close()">Close</button>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+  (function(){
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var sb = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY)
+      ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
+      : null;
+
+    var params = new URLSearchParams(window.location.search);
+    var orderId = params.get('order') || '';
+
+    document.getElementById('vPrintedAt').textContent = new Date().toLocaleString();
+    document.getElementById('vOrderId').textContent = orderId || '—';
+
+    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+    function setText(id, v){ var e=document.getElementById(id); if(e) e.textContent = (v==null||v==='')?'—':String(v); }
+    function fmtDate(s){ if(!s)return'—'; try{ return new Date(s).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }catch(e){return s;} }
+    function fmtStatus(s){ return (s||'—').replace(/_/g,' '); }
+
+    async function load(){
+      if(!sb)    throw new Error('Supabase not configured — check config.js');
+      if(!orderId) throw new Error('No order ID in URL');
+
+      // Fetch order
+      var {data:order, error:e1} = await sb
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+      if(e1) throw new Error('Order query failed: ' + e1.message);
+      if(!order) throw new Error('Order not found: ' + orderId);
+
+      // Fetch lines
+      var {data:lines, error:e2} = await sb
+        .from('order_lines')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('line_no');
+      if(e2) throw new Error('Lines query failed: ' + e2.message);
+      lines = lines || [];
+
+      // Enrich with description, unit, plant from skus when missing
+      if(lines.length){
+        var codes = [...new Set(lines.map(function(l){ return l.item_code; }).filter(Boolean))];
+        var {data:skusData} = await sb.from('skus').select('sku, product_name, uom, subdivision, home_zone').in('sku', codes);
+        var skuMap = {};
+        (skusData || []).forEach(function(s){ skuMap[s.sku] = s; });
+        lines = lines.map(function(l){
+          var s = skuMap[l.item_code];
+          var hz = (s && s.home_zone) || l.plant || '';
+          return Object.assign({}, l, {
+            item_description: l.item_description || (s && s.product_name) || '',
+            unit: l.unit || (s && s.uom) || '',
+            plant: l.plant || (s && s.subdivision) || '',
+            home_zone: hz
+          });
+        });
+        var zones = ['SuperMarket Area'];
+        lines.forEach(function(l){ if(l.home_zone && zones.indexOf(l.home_zone)<0) zones.push(l.home_zone); });
+        var {data:pallets} = await sb.from('pallets')
+          .select('pallet_id, sku, current_zone, created_at, in_transit_to_zone')
+          .in('current_zone', zones)
+          .in('sku', codes);
+        pallets = (pallets || []).filter(function(p){ return !p.in_transit_to_zone || String(p.in_transit_to_zone).trim()===''; });
+        function getFifoPallet(arr, zone, sku){
+          var m = arr.filter(function(p){ return p.current_zone===zone && p.sku===sku; });
+          m.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+          return m[0] || null;
+        }
+        lines = lines.map(function(l){
+          var sm = getFifoPallet(pallets, 'SuperMarket Area', l.item_code);
+          var hz = l.home_zone ? getFifoPallet(pallets, l.home_zone, l.item_code) : null;
+          var p = sm || hz;
+          return Object.assign({}, l, { recommended_pallet: p ? p.pallet_id : null });
+        });
+      }
+
+      // Populate header
+      setText('vOrderNo',      order.external_order_no);
+      setText('vPicker',       order.assigned_picker_name || order.assigned_picker_user_id);
+      setText('vCustomer',     order.customer_name);
+      setText('vCustCode',     [order.customer_code, order.customer_no].filter(Boolean).join(' / '));
+      setText('vOrderDate',    fmtDate(order.order_date));
+      setText('vDelDate',      fmtDate(order.delivery_date));
+      setText('vTransporter',  order.transporter);
+      setText('bStatus',       fmtStatus(order.status));
+      setText('bType',         order.order_type);
+      setText('bLines',        String(order.total_lines || lines.length));
+      setText('bUnits',        String(order.total_units || 0));
+
+      document.title = 'Cover Sheet · ' + (order.external_order_no || orderId);
+
+      // Render lines
+      var tb = document.getElementById('linesBody');
+      if(!lines.length){
+        tb.innerHTML = '<tr><td colspan="7" class="loading">No lines found for this order.</td></tr>';
+      } else {
+        var MAX = 30;
+        tb.innerHTML = lines.slice(0, MAX).map(function(l){
+          return '<tr>' +
+            '<td>'+ esc(l.line_no) +'</td>'+
+            '<td style="font-weight:800">'+ esc(l.item_code) +'</td>'+
+            '<td>'+ esc(l.item_description||'') +'</td>'+
+            '<td style="font-weight:800">'+ esc(l.quantity) +'</td>'+
+            '<td>'+ esc(l.unit||'') +'</td>'+
+            '<td>'+ esc(l.plant||'') +'</td>'+
+            '<td style="font-weight:700;color:var(--gold)">'+ esc(l.recommended_pallet||'—') +'</td>'+
+          '</tr>';
+        }).join('') +
+        (lines.length > MAX
+          ? '<tr><td colspan="7" style="padding:10px;color:var(--muted);font-size:10px;">… '+(lines.length-MAX)+' more lines — see full order on detail page</td></tr>'
+          : '');
+      }
+
+      // Generate QR — hardcode to localhost:3000 for local dev
+      var base = window.location.origin + '/app/';
+      var target = base + 'order-detail?order=' + encodeURIComponent(orderId);
+      document.getElementById('qrHint').textContent = target;
+      var box = document.getElementById('qrBox');
+      box.innerHTML = '';
+      if(typeof QRCode !== 'undefined'){
+        try{ new QRCode(box, {text:target, width:172, height:172}); }
+        catch(e){ box.innerHTML = '<span style="font-size:9px;color:#dc2626">QR failed</span>'; }
+      }
+    }
+
+    load().catch(function(e){
+      document.getElementById('linesBody').innerHTML =
+        '<tr><td colspan="7" class="err">❌ ' + esc(e.message||'Failed to load order') + '</td></tr>';
+      console.error('Cover sheet error:', e);
+    });
+
+    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+  })();
+  </script>
+</body>
+</html>

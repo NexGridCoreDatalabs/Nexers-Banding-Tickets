@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>RetiFlux™ PRT — Create Ticket</title>
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    html { background: #0f172a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #0d0d0d;
+      --ink-soft: #4a4a4a;
+      --ink-faint: #888;
+      --gold: #f0c040;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --font-app: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+    }
+    body {
+      font-family: var(--font-app);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+      padding: 24px 16px 80px;
+    }
+    .container { max-width: none; margin: 0; width: 100%; }
+    .card {
+      background: rgba(15, 23, 42, 0.95);
+      border: 2px solid rgba(245, 158, 11, 0.3);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      backdrop-filter: blur(12px);
+    }
+    .card h2 {
+      font-family: var(--font-app);
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--gold);
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 20px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label {
+      font-family: var(--font-app);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      font-family: var(--font-app);
+      font-size: 14px;
+      padding: 10px 12px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      color: #e2e8f0;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(240, 192, 64, 0.2);
+    }
+    .form-group small {
+      font-size: 10px;
+      color: #94a3b8;
+    }
+    .readonly {
+      background: rgba(30, 58, 95, 0.5) !important;
+      color: #94a3b8;
+      cursor: default;
+    }
+    .serial-display {
+      font-family: var(--font-app);
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--gold);
+      letter-spacing: 2px;
+      padding: 12px 16px;
+      background: rgba(240, 192, 64, 0.1);
+      border: 2px solid rgba(240, 192, 64, 0.4);
+      border-radius: 8px;
+      text-align: center;
+    }
+    .btn-submit {
+      width: 100%;
+      padding: 16px 24px;
+      font-family: var(--font-app);
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn-submit:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(245, 158, 11, 0.4);
+    }
+    .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .status { margin-top: 12px; font-size: 13px; min-height: 20px; }
+    .status.success { color: #34d399; }
+    .status.error { color: #f87171; }
+    .page-title {
+      font-family: var(--font-app);
+      font-size: 24px;
+      font-weight: 900;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .page-sub { font-size: 13px; color: #94a3b8; margin-bottom: 24px; }
+    .prt-back-home {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 16px;
+      font-family: var(--font-app);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+      text-decoration: none;
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      border-radius: 8px;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .prt-back-home:hover {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fcd34d;
+    }
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+    .post-save-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .post-save-actions a, .post-save-actions button {
+      padding: 12px 20px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 10px;
+      cursor: pointer;
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      transition: all 0.2s;
+    }
+    .post-save-actions .btn-new {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+      border-color: var(--gold);
+    }
+    .post-save-actions .btn-new:hover { box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4); }
+    .post-save-actions .btn-home {
+      background: transparent;
+      color: var(--gold);
+    }
+    .post-save-actions .btn-home:hover { background: rgba(245, 158, 11, 0.15); }
+    .prt-field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+    .prt-field input {
+      width: 100%;
+      padding: 10px 12px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      color: #e2e8f0;
+      margin-bottom: 14px;
+    }
+    .prt-btn-login {
+      width: 100%;
+      padding: 14px 20px;
+      font-family: var(--font-app);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .prt-btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+    .prt-login-err { min-height: 22px; font-size: 13px; color: #f87171; margin-bottom: 10px; }
+    .prt-header-user {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .prt-header-user strong { color: #e2e8f0; }
+    .prt-btn-signout {
+      padding: 6px 12px;
+      font-family: var(--font-app);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      background: transparent;
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .prt-btn-signout:hover { background: rgba(245, 158, 11, 0.12); }
+  </style>
+</head>
+<body>
+  <div id="prtSplash" class="retiflux-splash" aria-hidden="true" style="display: none;">
+    <div class="splash-icon">
+      <div class="splash-glow"></div>
+      <img src="../favicon.png" alt="RetiFlux" width="96" height="96" loading="eager">
+    </div>
+    <div class="splash-title">RetiFlux™</div>
+    <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+  </div>
+  <div class="container" id="prtApp">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 12px; flex-wrap: wrap;">
+      <div>
+        <h1 class="page-title">Create PRT</h1>
+        <p class="page-sub">Production Run Ticket</p>
+        <div class="prt-header-user" id="prtSignedInRow" style="margin-top: 10px; display: none;">
+          <span>Signed in: <strong id="prtSignedInName">—</strong></span>
+          <span>· <span id="prtSignedInZone">—</span></span>
+          <button type="button" class="prt-btn-signout" id="btnPrtSignOut">Sign out</button>
+        </div>
+      </div>
+      <a href="../index.html" class="prt-back-home" target="_top">← Back to Home</a>
+    </div>
+
+    <div class="card" id="prtLoginCard" style="display: none;">
+      <h2>Receiving Clerk sign-in</h2>
+      <p class="page-sub" style="margin-bottom: 16px;">Sign in to save tickets.</p>
+      <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="prt-field">
+          <label for="inputPrtUserId">User ID</label>
+          <input id="inputPrtUserId" type="text" placeholder="e.g. RFX-RCV-WK-001" autocomplete="username" autocapitalize="characters">
+        </div>
+        <div class="prt-field">
+          <label for="inputPrtPasscode">Passcode</label>
+          <input id="inputPrtPasscode" type="password" placeholder="••••••" maxlength="32" inputmode="numeric" autocomplete="current-password">
+        </div>
+      </div>
+      <div class="prt-login-err" id="loginErr"></div>
+      <button type="button" class="prt-btn-login" id="btnPrtLogin" style="max-width: 280px;">Sign In</button>
+    </div>
+
+    <div class="card">
+      <h2>⬥ Ticket Identity</h2>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Serial (auto-generated)</label>
+          <div class="serial-display" id="serialDisplay">PRT000001RF</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⬥ Product & Quantity</h2>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label for="sku">SKU *</label>
+          <select id="sku" name="sku" required>
+            <option value="">Select SKU...</option>
+          </select>
+          <small>Product name, variant, UoM, subdivision from skus table</small>
+        </div>
+        <div class="form-group">
+          <label for="qty">Quantity *</label>
+          <input type="number" id="qty" name="qty" min="1" required placeholder="e.g. 105">
+        </div>
+        <div class="form-group">
+          <label for="uom">UoM</label>
+          <input type="text" id="uom" name="uom" readonly class="readonly" placeholder="From SKU">
+        </div>
+        <div class="form-group">
+          <label for="layers">Layers</label>
+          <input type="number" id="layers" name="layers" min="0" placeholder="e.g. 7">
+        </div>
+        <div class="form-group">
+          <label for="palletSize">Pallet Size</label>
+          <input type="number" id="palletSize" name="palletSize" min="1" readonly class="readonly" tabindex="-1" aria-readonly="true" placeholder="Same as quantity">
+        </div>
+        <div class="form-group">
+          <label for="maxStack">Max Stack (layers)</label>
+          <input type="number" id="maxStack" name="maxStack" min="1" max="99" placeholder="e.g. 7">
+          <small>Check the product packaging for the max stack height for this product</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⬥ Batch & Production</h2>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="batchLot">Batch / Lot *</label>
+          <input type="text" id="batchLot" name="batchLot" required placeholder="e.g. BT-0311-194">
+        </div>
+        <div class="form-group">
+          <label for="mfgDate">Mfg. Date *</label>
+          <input type="date" id="mfgDate" name="mfgDate" required>
+        </div>
+        <div class="form-group">
+          <label for="expiryDate">Expiry Date</label>
+          <input type="date" id="expiryDate" name="expiryDate">
+        </div>
+        <div class="form-group">
+          <label for="productionLine">Production Line</label>
+          <select id="productionLine" name="productionLine">
+            <option value="">—</option>
+            <option value="SP">SP</option>
+            <option value="PKN">PKN</option>
+            <option value="MB-250">MB-250</option>
+            <option value="MB-150">MB-150</option>
+            <option value="AL">AL</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="recordedBy">Recorded By</label>
+          <input type="text" id="recordedBy" name="recordedBy" readonly class="readonly" tabindex="-1" aria-readonly="true" placeholder="Your clerk ID">
+        </div>
+        <div class="form-group">
+          <label for="subdivision">Subdivision</label>
+          <input type="text" id="subdivision" name="subdivision" readonly class="readonly" placeholder="From SKU">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⬥ Notes</h2>
+      <div class="form-group">
+        <label for="notes">Notes / Override Reason</label>
+        <textarea id="notes" name="notes" rows="3" placeholder="Additional remarks..."></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <button type="button" class="btn-submit" id="submitBtn">💾 Save to PostgreSQL & Print Label</button>
+      <div class="status" id="status"></div>
+      <div class="post-save-actions" id="postSaveActions" style="display:none;">
+        <button type="button" class="btn-new" id="btnNewTicket">➕ Create New Ticket</button>
+        <a href="../index.html" class="btn-home">🏠 Back to Home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+  <script src="../config.js"></script>
+  <script src="../js/retiflux-screenshot-guard.js"></script>
+  <script src="../js/retiflux-auth-session.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    (function() {
+      var cfg = window.BANDFLOW_CONFIG || {};
+      var supabaseUrl = cfg.SUPABASE_URL || (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_SUPABASE_URL);
+      var supabaseKey = cfg.SUPABASE_ANON_KEY || (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      var supabase = (supabaseUrl && supabaseKey) ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
+
+      var PRT_SESSION_KEY = 'prt_rcv_session';
+      var currentUser = null;
+
+      async function sha256(str) {
+        var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+      }
+      function readPrtSession() {
+        try {
+          var raw = sessionStorage.getItem(PRT_SESSION_KEY);
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch (e) { return null; }
+      }
+      function writePrtSession(u) {
+        sessionStorage.setItem(PRT_SESSION_KEY, JSON.stringify({
+          user_id: u.user_id,
+          name: u.name,
+          role: u.role,
+          assigned_zone: u.assigned_zone
+        }));
+      }
+      function clearPrtSession() {
+        sessionStorage.removeItem(PRT_SESSION_KEY);
+      }
+      /** Ticket / label: clerk id without hyphens (DB user_id e.g. RFX-RCV-WK-001 → RFXRCVWK001). */
+      function recordedByFromUserId(u) {
+        if (!u || u.user_id == null || u.user_id === '') return '';
+        return String(u.user_id).replace(/-/g, '');
+      }
+      function applyPrtUserToUi(u) {
+        currentUser = u;
+        var nameEl = document.getElementById('prtSignedInName');
+        var zoneEl = document.getElementById('prtSignedInZone');
+        if (nameEl) nameEl.textContent = u.name || u.user_id || '—';
+        if (zoneEl) zoneEl.textContent = u.assigned_zone || '—';
+        var rb = document.getElementById('recordedBy');
+        if (rb) rb.value = recordedByFromUserId(u);
+        var loginCard = document.getElementById('prtLoginCard');
+        var signedRow = document.getElementById('prtSignedInRow');
+        if (loginCard) loginCard.style.display = 'none';
+        if (signedRow) signedRow.style.display = '';
+      }
+      function showPrtInlineLogin() {
+        var loginCard = document.getElementById('prtLoginCard');
+        var signedRow = document.getElementById('prtSignedInRow');
+        if (loginCard) loginCard.style.display = '';
+        if (signedRow) signedRow.style.display = 'none';
+        var p = document.getElementById('inputPrtPasscode');
+        if (p) p.value = '';
+        var uid = document.getElementById('inputPrtUserId');
+        if (uid) uid.value = '';
+        var e = document.getElementById('loginErr');
+        if (e) e.textContent = '';
+      }
+      window.doPrtLogin = async function() {
+        var errEl = document.getElementById('loginErr');
+        var btn = document.getElementById('btnPrtLogin');
+        if (errEl) errEl.textContent = '';
+        var userId = (document.getElementById('inputPrtUserId').value || '').trim();
+        var passcode = (document.getElementById('inputPrtPasscode').value || '').trim();
+        if (!userId || !passcode) {
+          if (errEl) errEl.textContent = 'Enter your User ID and passcode.';
+          return;
+        }
+        if (!supabase) {
+          if (errEl) errEl.textContent = 'Supabase not configured (config.js).';
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'Signing in…';
+        try {
+          var hash = await sha256(passcode);
+          var uid = userId.trim();
+          var res = await supabase.from('authorized_users')
+            .select('user_id, name, role, assigned_zone, passcode_hash')
+            .ilike('user_id', uid)
+            .maybeSingle();
+          var data = res.data;
+          var error = res.error;
+          if (error) throw new Error(error.message || 'Sign in failed.');
+          if (!data) throw new Error('User ID not found.');
+          var role = (data.role || '').trim();
+          if (!/^Receiving Clerk$/i.test(role)) {
+            throw new Error('Only Receiving Clerk accounts can create PRTs. Your role: ' + (role || '—'));
+          }
+          if (!data.assigned_zone) throw new Error('No zone assigned. Contact your supervisor.');
+          if (data.passcode_hash !== hash) throw new Error('Incorrect passcode.');
+          writePrtSession(data);
+          if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(data);
+          applyPrtUserToUi(data);
+          document.getElementById('inputPrtPasscode').value = '';
+          loadSkus();
+        } catch (ex) {
+          if (errEl) errEl.textContent = ex.message || 'Sign in failed.';
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Sign In';
+        }
+      };
+      document.getElementById('btnPrtLogin').addEventListener('click', function() { doPrtLogin(); });
+      document.getElementById('inputPrtPasscode').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doPrtLogin();
+      });
+      document.getElementById('btnPrtSignOut').addEventListener('click', function() {
+        clearPrtSession();
+        if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.clear();
+        window.location.href = '../index.html';
+      });
+      function bootPrtAccess() {
+        if (!supabase) {
+          var err0 = document.getElementById('loginErr');
+          if (err0) err0.textContent = 'Supabase not configured (config.js).';
+          var b0 = document.getElementById('btnPrtLogin');
+          if (b0) b0.disabled = true;
+          showPrtInlineLogin();
+          return;
+        }
+        var s = readPrtSession();
+        if (!s || !s.user_id || !/^Receiving Clerk$/i.test(s.role || '')) {
+          var rf = window.RetiFluxAuthSession && window.RetiFluxAuthSession.read();
+          if (rf && rf.user_id && /^Receiving Clerk$/i.test(rf.role || '') && rf.assigned_zone) {
+            s = {
+              user_id: rf.user_id,
+              name: rf.name,
+              role: rf.role,
+              assigned_zone: rf.assigned_zone
+            };
+            writePrtSession(s);
+          }
+        }
+        if (s && s.user_id && /^Receiving Clerk$/i.test(s.role || '')) {
+          if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(s);
+          applyPrtUserToUi(s);
+          loadSkus();
+          return;
+        }
+        clearPrtSession();
+        showPrtInlineLogin();
+        loadSkus();
+      }
+
+      // Set default date to today
+      var today = new Date().toISOString().slice(0, 10);
+      document.getElementById('mfgDate').value = today;
+
+      var _splashRef = 0;
+      function showSplash() { _splashRef++; var el = document.getElementById('prtSplash'); if (el) { el.style.display = 'flex'; el.classList.remove('fade-out'); el.setAttribute('aria-hidden', 'false'); } }
+      function hideSplash() { _splashRef = Math.max(0, _splashRef - 1); if (_splashRef > 0) return; var el = document.getElementById('prtSplash'); if (el) { el.classList.add('fade-out'); el.setAttribute('aria-hidden', 'true'); setTimeout(function() { el.style.display = 'none'; }, 250); } }
+
+      // SKU lookup from Supabase skus table
+      var skuCache = {};
+      async function loadSkus() {
+        if (!supabase) { hideSplash(); return; }
+        showSplash();
+        try {
+          var { data, error } = await supabase.from('skus').select('sku, product_name, variant, subdivision, uom, shelf_life_days, sachet_type, tablet_type').eq('is_active', true).order('sku');
+          if (error) throw error;
+          var sel = document.getElementById('sku');
+          sel.innerHTML = '<option value="">Select SKU...</option>';
+          (data || []).forEach(function(r) {
+            skuCache[r.sku] = r;
+            var opt = document.createElement('option');
+            opt.value = r.sku;
+            opt.textContent = r.sku + ' — ' + r.product_name + ' ' + (r.variant || '');
+            sel.appendChild(opt);
+          });
+        } catch (e) { console.warn('SKU load failed:', e.message); } finally { hideSplash(); }
+      }
+      document.getElementById('sku').addEventListener('change', function() {
+        var m = skuCache[this.value];
+        document.getElementById('uom').value = m ? m.uom : '';
+        document.getElementById('subdivision').value = m ? m.subdivision : '';
+      });
+      function syncPalletSizeFromQty() {
+        var q = document.getElementById('qty').value;
+        var ps = document.getElementById('palletSize');
+        if (!ps) return;
+        var n = parseFloat(q);
+        ps.value = q !== '' && !isNaN(n) && n > 0 ? String(n) : '';
+      }
+      document.getElementById('qty').addEventListener('input', syncPalletSizeFromQty);
+      document.getElementById('qty').addEventListener('change', syncPalletSizeFromQty);
+      bootPrtAccess();
+
+      // Back to Home
+      document.querySelectorAll('a.prt-back-home, a.btn-home, a[href="../index.html"]').forEach(function(a) {
+        a.addEventListener('click', function(e) {
+          if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+          e.preventDefault();
+          window.location.href = a.getAttribute('href');
+        });
+      });
+
+      // Create New Ticket — reset form, show submit button
+      document.getElementById('btnNewTicket').addEventListener('click', function() {
+        document.getElementById('submitBtn').style.display = '';
+        document.getElementById('submitBtn').textContent = '💾 Save to PostgreSQL & Print Label';
+        document.getElementById('postSaveActions').style.display = 'none';
+        document.getElementById('serialDisplay').textContent = '—';
+        document.getElementById('status').textContent = '';
+        document.getElementById('status').className = 'status';
+        document.getElementById('sku').value = '';
+        document.getElementById('qty').value = '';
+        document.getElementById('uom').value = '';
+        document.getElementById('layers').value = '';
+        syncPalletSizeFromQty();
+        document.getElementById('maxStack').value = '';
+        document.getElementById('batchLot').value = '';
+        document.getElementById('mfgDate').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('expiryDate').value = '';
+        document.getElementById('productionLine').value = '';
+        document.getElementById('recordedBy').value = recordedByFromUserId(currentUser);
+        document.getElementById('subdivision').value = '';
+        document.getElementById('notes').value = '';
+        isSaving = false;
+      });
+
+      // Fetch next serial — only when needed (avoids consuming sequence on load/refresh)
+      async function fetchNextSerial() {
+        if (!supabase) return 'PRT000001RF';
+        try {
+          var { data, error } = await supabase.rpc('get_next_prt_serial');
+          if (error) throw error;
+          return data || 'PRT000001RF';
+        } catch (e) {
+          console.warn('Serial fetch failed:', e.message);
+          return 'PRT000001RF';
+        }
+      }
+      function parseSerialNum(serial) {
+        var m = String(serial || '').match(/^PRT(\d{6})RF$/i);
+        return m ? parseInt(m[1], 10) : null;
+      }
+      function formatSerialNum(n) {
+        var x = Math.max(1, parseInt(n, 10) || 1);
+        return 'PRT' + String(x).padStart(6, '0') + 'RF';
+      }
+      async function fetchLatestTicketSerial() {
+        if (!supabase) return null;
+        try {
+          var { data, error } = await supabase
+            .from('tickets')
+            .select('serial')
+            .order('serial', { ascending: false })
+            .limit(1);
+          if (error) throw error;
+          return data && data[0] && data[0].serial ? String(data[0].serial) : null;
+        } catch (_e) {
+          return null;
+        }
+      }
+      async function getSaferNextSerial(currentSerial) {
+        var rpcSerial = await fetchNextSerial();
+        var a = parseSerialNum(currentSerial);
+        var b = parseSerialNum(rpcSerial);
+        var latest = await fetchLatestTicketSerial();
+        var c = parseSerialNum(latest);
+        var best = Math.max(a || 0, b || 0, c || 0) + 1;
+        return formatSerialNum(best);
+      }
+      // On load: show placeholder; serial assigned only on save
+      document.getElementById('serialDisplay').textContent = '—';
+
+      // Submit — prevent duplicate saves; open print after success
+      var isSaving = false;
+      document.getElementById('submitBtn').addEventListener('click', async function() {
+        var btn = this;
+        var status = document.getElementById('status');
+        if (isSaving) return;
+        isSaving = true;
+        btn.disabled = true;
+        status.textContent = 'Assigning serial...';
+        status.className = 'status';
+
+        var serial = document.getElementById('serialDisplay').textContent.trim();
+        if (!serial || serial === '—') {
+          serial = await fetchNextSerial();
+          document.getElementById('serialDisplay').textContent = serial;
+        }
+        var skuVal = document.getElementById('sku').value;
+        var mfgDate = document.getElementById('mfgDate').value;
+        var now = new Date();
+        var timeStr = now.toTimeString().slice(0, 5);
+        var hour = parseInt(timeStr.split(':')[0], 10);
+        var derivedShift = (!isNaN(hour) && hour >= 7 && hour < 19) ? 'Day Shift (DS)' : 'Night Shift (NS)';
+        var skuRec = skuCache[skuVal] || {};
+
+        if (!supabase) {
+          status.textContent = '⚠️ Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to config.js';
+          status.className = 'status error';
+          btn.disabled = false;
+          isSaving = false;
+          return;
+        }
+        if (!currentUser || !/^Receiving Clerk$/i.test(currentUser.role || '')) {
+          status.textContent = '⚠️ Sign in as a Receiving Clerk to save tickets.';
+          status.className = 'status error';
+          btn.disabled = false;
+          isSaving = false;
+          showPrtInlineLogin();
+          var lc = document.getElementById('prtLoginCard');
+          if (lc) try { lc.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+          return;
+        }
+        var recordedBy = recordedByFromUserId(currentUser) || (document.getElementById('recordedBy').value || '').trim();
+        if (!recordedBy) {
+          status.textContent = '⚠️ Your account has no user ID. Contact your supervisor.';
+          status.className = 'status error';
+          btn.disabled = false;
+          isSaving = false;
+          return;
+        }
+        syncPalletSizeFromQty();
+        var payload = {
+          serial: serial,
+          sku: skuVal,
+          qty: parseFloat(document.getElementById('qty').value) || 0,
+          layers: document.getElementById('layers').value || null,
+          pallet_size: document.getElementById('palletSize').value ? [document.getElementById('palletSize').value] : [],
+          product_type: [],
+          batch_lot: document.getElementById('batchLot').value,
+          date: mfgDate,
+          time: timeStr,
+          expiry_date: document.getElementById('expiryDate').value || null,
+          notes: document.getElementById('notes').value || null,
+          uom: document.getElementById('uom').value || null,
+          production_line: document.getElementById('productionLine').value || null,
+          shift: derivedShift || null,
+          subdivision: document.getElementById('subdivision').value || null,
+          recorded_by: recordedBy || null
+        };
+        // Backward-compatible payload for databases that haven't run newer ticket-column migrations.
+        var payloadLegacy = {
+          serial: payload.serial,
+          sku: payload.sku,
+          qty: payload.qty,
+          layers: payload.layers,
+          pallet_size: payload.pallet_size,
+          product_type: payload.product_type,
+          batch_lot: payload.batch_lot,
+          date: payload.date,
+          time: payload.time,
+          expiry_date: payload.expiry_date,
+          notes: payload.notes,
+          uom: payload.uom,
+          modified_by: recordedBy || null
+        };
+
+        try {
+          var ins = null;
+          var attempts = 0;
+          while (attempts < 3) {
+            attempts++;
+            payload.serial = serial;
+            payloadLegacy.serial = serial;
+            ins = await supabase.from('tickets').insert(payload).select();
+            if (ins.error && /column .* does not exist/i.test(ins.error.message || '')) {
+              // Retry against older schema without newer columns.
+              ins = await supabase.from('tickets').insert(payloadLegacy).select();
+            }
+            if (!ins.error) break;
+            // Sequence drift / race safety: fetch a fresh serial and retry.
+            if (/duplicate key value violates unique constraint "tickets_serial_key"/i.test(ins.error.message || '')) {
+              serial = await getSaferNextSerial(serial);
+              document.getElementById('serialDisplay').textContent = serial;
+              continue;
+            }
+            break;
+          }
+          if (ins && ins.error) throw ins.error;
+          status.textContent = '✅ Saved. Print label opened.';
+          status.className = 'status success';
+          btn.textContent = '✓ Saved';
+          btn.style.display = 'none';
+          document.getElementById('postSaveActions').style.display = 'flex';
+          document.getElementById('serialDisplay').textContent = '—';
+
+          // Open print page (prototype styling) — pass data via sessionStorage + hash
+          var palletSize = document.getElementById('palletSize').value || '';
+          var layers = document.getElementById('layers').value || '';
+          var layersNum = parseFloat(layers);
+          var palletConfig = (layers && layersNum > 0 && payload.qty)
+            ? layers + ' layers · ' + Math.round(payload.qty / layersNum) + ' ' + (payload.uom || '') + ' / layer'
+            : '';
+          var shelfLife = '';
+          if (mfgDate && payload.expiry_date) {
+            var m = new Date(mfgDate + 'T12:00:00').getTime();
+            var e = new Date(payload.expiry_date + 'T12:00:00').getTime();
+            var days = Math.round((e - m) / (1000 * 60 * 60 * 24));
+            shelfLife = days >= 365 ? Math.round(days / 30) + ' months' : days + ' days';
+          }
+          var printData = {
+            serial: serial,
+            productName: (skuRec.product_name || '').replace(/\s+/g, ' ').trim(),
+            variant: skuRec.variant || '',
+            sku: skuVal || '',
+            qty: String(payload.qty),
+            uom: payload.uom || '',
+            layers: layers,
+            palletSize: palletSize,
+            palletConfig: palletConfig,
+            maxStack: document.getElementById('maxStack').value || '',
+            subdivision: payload.subdivision || '',
+            batchLot: payload.batch_lot || '',
+            mfgDate: mfgDate,
+            expiryDate: payload.expiry_date || '',
+            line: payload.production_line || '',
+            shift: derivedShift || '',
+            notes: payload.notes || '',
+            shelfLife: shelfLife,
+            time: timeStr,
+            recordedBy: recordedBy || ''
+          };
+          try { sessionStorage.setItem('prt_print_data', JSON.stringify(printData)); } catch (e) {}
+          var hashData = '';
+          try { hashData = btoa(unescape(encodeURIComponent(JSON.stringify(printData)))); } catch (e) {}
+          var printPath = (window.location.pathname || '').indexOf('/app/') !== -1 ? '../retiflux-print-4x6.html' : 'retiflux-print-4x6.html';
+          var printUrl = printPath + '?t=' + Date.now() + (hashData ? '#' + hashData : '');
+          window.open(printUrl, 'RetiFluxPrint_' + Date.now(), 'width=480,height=720,scrollbars=yes');
+        } catch (e) {
+          status.textContent = '❌ ' + (e.message || 'Error');
+          status.className = 'status error';
+          btn.disabled = false;
+          isSaving = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

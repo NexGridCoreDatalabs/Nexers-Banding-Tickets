@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#0f172a">
+  <title>RetiFlux™ PRT Center — Recent Movements</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    html { background: #0f172a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #f0c040;
+      --bg: #0f172a;
+      --card: rgba(15, 23, 42, 0.95);
+      --font-app: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+    }
+    body {
+      font-family: var(--font-app);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+      background: rgba(15, 23, 42, 0.9);
+    }
+    .header h1 { font-size: 20px; font-weight: 800; color: var(--gold); }
+    .back-home {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+      text-decoration: none;
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .back-home:hover { background: rgba(245, 158, 11, 0.15); }
+    .content { padding: 20px; max-width: none; margin: 0; width: 100%; }
+    .card {
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 16px; color: var(--gold); margin-bottom: 16px; }
+    .btn {
+      padding: 10px 20px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); }
+    .btn-secondary { background: rgba(148, 163, 184, 0.2); color: #e2e8f0; border: 2px solid rgba(148, 163, 184, 0.4); }
+    .btn-secondary:hover { background: rgba(148, 163, 184, 0.3); }
+    .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .recent-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+    .recent-table th { padding: 10px 12px; text-align: left; background: rgba(245, 158, 11, 0.2); color: var(--gold); border-bottom: 2px solid rgba(245, 158, 11, 0.5); }
+    .recent-table td { padding: 10px 12px; border-bottom: 1px solid rgba(148, 163, 184, 0.2); color: #e2e8f0; }
+    .recent-table tr:nth-child(even) { background: rgba(15, 23, 42, 0.3); }
+    .recent-table .from-zone { color: #fca5a5; }
+    .recent-table .to-zone { color: #86efac; font-weight: 600; }
+    .empty { color: #64748b; padding: 24px; text-align: center; }
+    .error { color: #f87171; padding: 20px; text-align: center; }
+    .table-wrap { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div id="splash" class="retiflux-splash" aria-hidden="false">
+    <div class="splash-icon">
+      <div class="splash-glow"></div>
+      <img src="../favicon.png" alt="RetiFlux" width="96" height="96" loading="eager">
+    </div>
+    <div class="splash-title">RetiFlux™</div>
+    <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+  </div>
+  <div id="app" style="display:none;">
+    <div class="header">
+      <h1>📋 PRT Center — Recent Movements</h1>
+      <a href="../index.html" class="back-home" target="_top">← Back to Home</a>
+    </div>
+    <div class="content">
+      <div class="card">
+        <h2>⬥ Last 20 Zone Movements</h2>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">Most recent pallet movements across zones.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+          <button type="button" class="btn btn-primary" id="btnRefresh">🔄 Refresh</button>
+          <button type="button" class="btn btn-secondary" id="btnAutoRevert" title="Revert pallets stuck in transit &gt; 15 min">↩ Run auto-revert</button>
+        </div>
+        <div id="tableContainer" class="table-wrap" style="margin-top: 20px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+  (function() {
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var supabaseUrl = cfg.SUPABASE_URL;
+    var supabaseKey = cfg.SUPABASE_ANON_KEY;
+    var supabase = (supabaseUrl && supabaseKey) ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      var div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function hideSplash() {
+      var el = document.getElementById('splash');
+      if (el) { el.classList.add('fade-out'); el.setAttribute('aria-hidden', 'true'); setTimeout(function() { el.style.display = 'none'; }, 250); }
+      document.getElementById('app').style.display = '';
+    }
+
+    async function loadRecentMovements(limit) {
+      if (!supabase) return [];
+      var { data, error } = await supabase
+        .from('zone_movements')
+        .select('movement_id, pallet_id, from_zone, to_zone, movement_date, movement_time, moved_by, received_by, quantity, reason, movement_status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit || 20);
+      if (error) throw error;
+      return data || [];
+    }
+
+    async function refresh() {
+      var container = document.getElementById('tableContainer');
+      container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gold);">Loading...</div>';
+      try {
+        var movements = await loadRecentMovements(20);
+        if (!movements.length) {
+          container.innerHTML = '<div class="empty">No recent movements recorded yet.</div>';
+          return;
+        }
+        var html = '<table class="recent-table"><thead><tr><th>ID</th><th>Pallet</th><th>From</th><th>To</th><th>Moved By</th><th>Received By</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+        movements.forEach(function(m) {
+          var d = m.created_at ? new Date(m.created_at).toLocaleString() : (m.movement_date || '—');
+          html += '<tr><td>' + escapeHtml(m.movement_id || '—') + '</td><td>' + escapeHtml(m.pallet_id || '—') + '</td><td class="from-zone">' + escapeHtml(m.from_zone || '—') + '</td><td class="to-zone">' + escapeHtml(m.to_zone || '—') + '</td><td>' + escapeHtml(m.moved_by || '—') + '</td><td>' + escapeHtml(m.received_by || '—') + '</td><td>' + escapeHtml(m.movement_status || '—') + '</td><td>' + escapeHtml(d) + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = '<div class="error">Error: ' + escapeHtml(e.message || 'Failed to load') + '</div>';
+      }
+    }
+
+    async function runAutoRevert() {
+      if (!supabase) {
+        alert('Supabase not configured.');
+        return;
+      }
+      var btn = document.getElementById('btnAutoRevert');
+      btn.disabled = true;
+      btn.textContent = 'Running…';
+      try {
+        var { data, error } = await supabase.rpc('movement_auto_revert');
+        if (error) throw error;
+        var n = (data && data.reverted) || 0;
+        if (n > 0) {
+          alert('Auto-revert: ' + n + ' pallet(s) reverted to origin.');
+          await refresh();
+        } else {
+          alert('No pallets to revert. All in-transit pallets are within the 15 min window.');
+        }
+      } catch (e) {
+        alert('Error: ' + (e.message || 'Failed to run auto-revert'));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '↩ Run auto-revert';
+      }
+    }
+
+    document.getElementById('btnRefresh').onclick = refresh;
+    document.getElementById('btnAutoRevert').onclick = runAutoRevert;
+
+    (async function init() {
+      await refresh();
+      hideSplash();
+    })();
+  })();
+  </script>
+</body>
+</html>

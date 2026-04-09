@@ -1,0 +1,43 @@
+/**
+ * RetiFlux™ - Shared base styles for fragmented app pages
+ * Performance: minimal critical CSS, load per-page styles separately
+ */
+@import url('https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+*:focus-visible {
+    outline: 3px solid #f59e0b;
+    outline-offset: 2px;
+    border-radius: 4px;
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.2);
+}
+*:focus:not(:focus-visible) { outline: none; }
+
+:root { --font-app: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace; }
+
+body {
+    font-family: var(--font-app);
+    padding: 20px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    color: #e2e8f0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body.fill-mode-active {
+    background: linear-gradient(-45deg, #0f172a, #1e3a5f, #0f172a, #1e293b);
+    background-size: 400% 400%;
+    animation: gradientShift 20s ease infinite;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}

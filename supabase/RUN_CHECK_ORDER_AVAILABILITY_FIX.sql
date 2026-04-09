@@ -1,0 +1,3 @@
+-- Run this in Supabase SQL Editor to fix "invalid input syntax for type uuid: SM-20260317-02533"
+-- Makes check_order_availability and release_pallet_reservations accept UUID, external_order_no, or pallet_id.
+-- Same as migrations/022_check_order_availability_accept_text.sql

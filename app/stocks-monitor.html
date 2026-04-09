@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#0f172a">
+  <title>RetiFlux™ Stocks Monitor</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    html { background: #0f172a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #f0c040;
+      --bg: #0f172a;
+      --card: rgba(15, 23, 42, 0.95);
+      --font-app: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+    }
+    body {
+      font-family: var(--font-app);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+      background: rgba(15, 23, 42, 0.9);
+    }
+    .header h1 { font-size: 20px; font-weight: 800; color: var(--gold); }
+    .back-home {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+      text-decoration: none;
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .back-home:hover { background: rgba(245, 158, 11, 0.15); }
+    .content { padding: 20px; width: 100%; margin: 0; max-width: none; }
+    .card {
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: 16px; color: var(--gold); margin-bottom: 12px; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .btn {
+      padding: 9px 14px;
+      font-family: var(--font-app);
+      font-size: 12px;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); }
+    .pill {
+      font-size: 11px;
+      color: #cbd5e1;
+      background: rgba(30, 58, 95, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 999px;
+      padding: 6px 10px;
+    }
+    .search {
+      min-width: 220px;
+      flex: 1;
+      max-width: 420px;
+      padding: 9px 11px;
+      border-radius: 8px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: rgba(15, 23, 42, 0.75);
+      color: #e2e8f0;
+      font-family: var(--font-app);
+      font-size: 12px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+    .stat {
+      background: rgba(30, 58, 95, 0.45);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .stat-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; }
+    .stat-value { font-size: 17px; color: #f8fafc; font-weight: 800; margin-top: 4px; }
+    .table-wrap { overflow: auto; max-height: 68vh; }
+    .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .tbl th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      text-align: left;
+      padding: 10px 12px;
+      background: rgba(245, 158, 11, 0.22);
+      color: var(--gold);
+      border-bottom: 2px solid rgba(245, 158, 11, 0.5);
+      white-space: nowrap;
+    }
+    .tbl td {
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+      color: #e2e8f0;
+      vertical-align: top;
+    }
+    .tbl tr:nth-child(even) { background: rgba(15, 23, 42, 0.3); }
+    .right { text-align: right; }
+    .empty { color: #94a3b8; text-align: center; padding: 20px; }
+    .error { color: #f87171; text-align: center; padding: 20px; }
+    .muted { color: #94a3b8; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div id="splash" class="retiflux-splash" aria-hidden="false">
+    <div class="splash-icon">
+      <div class="splash-glow"></div>
+      <img src="../favicon.png" alt="RetiFlux" width="96" height="96" loading="eager">
+    </div>
+    <div class="splash-title">RetiFlux™</div>
+    <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+  </div>
+
+  <div id="app" style="display:none;">
+    <div class="header">
+      <h1>📦 Stocks Monitor — Whole Warehouse</h1>
+      <a href="../index.html" class="back-home" target="_top">← Back to Home</a>
+    </div>
+
+    <div class="content">
+      <div class="card">
+        <h2>⬥ Live Stock by SKU</h2>
+        <p class="muted" style="margin-bottom:12px;">Totals include pallets with stock in all zones (excluding in-transit pallets).</p>
+        <div class="controls">
+          <button type="button" class="btn btn-primary" id="btnRefresh">🔄 Refresh</button>
+          <input id="searchSku" class="search" type="text" placeholder="Search SKU...">
+          <span class="pill" id="lastUpdated">Updated: —</span>
+          <span class="pill" id="liveMode">Live: on</span>
+        </div>
+        <div class="stats-grid" style="margin-bottom:12px;">
+          <div class="stat"><div class="stat-label">Distinct SKUs</div><div class="stat-value" id="statSkus">0</div></div>
+          <div class="stat"><div class="stat-label">Pallets</div><div class="stat-value" id="statPallets">0</div></div>
+          <div class="stat"><div class="stat-label">Total Qty</div><div class="stat-value" id="statQty">0</div></div>
+          <div class="stat"><div class="stat-label">Filtered Rows</div><div class="stat-value" id="statFiltered">0</div></div>
+        </div>
+        <div id="tableContainer" class="table-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+  (function() {
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var supabaseUrl = cfg.SUPABASE_URL;
+    var supabaseKey = cfg.SUPABASE_ANON_KEY;
+    var supabase = (supabaseUrl && supabaseKey) ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
+
+    var allRows = [];
+    var refreshTimer = null;
+    var pollTimer = null;
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      var div = document.createElement('div');
+      div.textContent = String(s);
+      return div.innerHTML;
+    }
+    function fmtNum(n) {
+      var x = Number(n) || 0;
+      return x.toLocaleString();
+    }
+    function hideSplash() {
+      var el = document.getElementById('splash');
+      if (el) {
+        el.classList.add('fade-out');
+        el.setAttribute('aria-hidden', 'true');
+        setTimeout(function() { el.style.display = 'none'; }, 250);
+      }
+      document.getElementById('app').style.display = '';
+    }
+
+    function setStats(rows, filteredRows) {
+      var skus = rows.length;
+      var pallets = 0;
+      var qty = 0;
+      rows.forEach(function(r) {
+        pallets += Number(r.pallet_count) || 0;
+        qty += Number(r.total_qty_units) || 0;
+      });
+      document.getElementById('statSkus').textContent = fmtNum(skus);
+      document.getElementById('statPallets').textContent = fmtNum(pallets);
+      document.getElementById('statQty').textContent = fmtNum(Math.round(qty * 100) / 100);
+      document.getElementById('statFiltered').textContent = fmtNum(filteredRows.length);
+    }
+
+    function renderTable() {
+      var q = (document.getElementById('searchSku').value || '').trim().toLowerCase();
+      var rows = allRows.slice();
+      if (q) rows = rows.filter(function(r) { return String(r.sku || '').toLowerCase().indexOf(q) >= 0; });
+
+      setStats(allRows, rows);
+
+      var container = document.getElementById('tableContainer');
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty">' + (q ? 'No SKU matches your search.' : 'No stocks found.') + '</div>';
+        return;
+      }
+      var html = '<table class="tbl"><thead><tr>' +
+        '<th>SKU</th>' +
+        '<th class="right">Pallets</th>' +
+        '<th class="right">Total Qty</th>' +
+        '<th>Oldest Pallet</th>' +
+        '<th>Newest Pallet</th>' +
+        '<th>Zones</th>' +
+        '</tr></thead><tbody>';
+
+      rows.forEach(function(r) {
+        html += '<tr>' +
+          '<td><strong>' + escapeHtml(r.sku) + '</strong></td>' +
+          '<td class="right">' + escapeHtml(fmtNum(r.pallet_count)) + '</td>' +
+          '<td class="right">' + escapeHtml(fmtNum(Math.round((Number(r.total_qty_units) || 0) * 100) / 100)) + '</td>' +
+          '<td>' + escapeHtml(r.oldest_pallet || '—') + '<div class="muted">' + escapeHtml(r.oldest_at || '—') + '</div></td>' +
+          '<td>' + escapeHtml(r.newest_pallet || '—') + '<div class="muted">' + escapeHtml(r.newest_at || '—') + '</div></td>' +
+          '<td>' + escapeHtml((r.zones || []).join(', ') || '—') + '</td>' +
+        '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    async function refresh() {
+      var container = document.getElementById('tableContainer');
+      container.innerHTML = '<div class="empty">Loading stocks...</div>';
+      try {
+        if (!supabase) throw new Error('Supabase not configured');
+        var res = await supabase
+          .from('pallets')
+          .select('pallet_id, sku, current_zone, in_transit_to_zone, remaining_quantity, quantity, created_at')
+          .not('sku', 'is', null)
+          .limit(50000);
+        if (res.error) throw res.error;
+
+        var bySku = {};
+        (res.data || []).forEach(function(p) {
+          if (p.in_transit_to_zone && String(p.in_transit_to_zone).trim() !== '') return;
+          var sku = String(p.sku || '').trim();
+          if (!sku) return;
+          var qty = Number(p.remaining_quantity != null ? p.remaining_quantity : p.quantity || 0) || 0;
+          if (!bySku[sku]) {
+            bySku[sku] = {
+              sku: sku,
+              pallet_count: 0,
+              total_qty_units: 0,
+              oldest_pallet: null,
+              oldest_ts: null,
+              newest_pallet: null,
+              newest_ts: null,
+              zones_map: {}
+            };
+          }
+          var r = bySku[sku];
+          r.pallet_count += 1;
+          r.total_qty_units += qty;
+          if (p.current_zone) r.zones_map[p.current_zone] = true;
+          var ts = p.created_at ? new Date(p.created_at).getTime() : null;
+          if (ts != null && !Number.isNaN(ts)) {
+            if (r.oldest_ts == null || ts < r.oldest_ts) { r.oldest_ts = ts; r.oldest_pallet = p.pallet_id; }
+            if (r.newest_ts == null || ts > r.newest_ts) { r.newest_ts = ts; r.newest_pallet = p.pallet_id; }
+          }
+        });
+
+        allRows = Object.keys(bySku).map(function(k) {
+          var r = bySku[k];
+          return {
+            sku: r.sku,
+            pallet_count: r.pallet_count,
+            total_qty_units: r.total_qty_units,
+            oldest_pallet: r.oldest_pallet,
+            oldest_at: r.oldest_ts != null ? new Date(r.oldest_ts).toLocaleString() : null,
+            newest_pallet: r.newest_pallet,
+            newest_at: r.newest_ts != null ? new Date(r.newest_ts).toLocaleString() : null,
+            zones: Object.keys(r.zones_map).sort()
+          };
+        }).sort(function(a, b) {
+          if ((Number(b.total_qty_units) || 0) !== (Number(a.total_qty_units) || 0)) {
+            return (Number(b.total_qty_units) || 0) - (Number(a.total_qty_units) || 0);
+          }
+          return String(a.sku).localeCompare(String(b.sku));
+        });
+
+        document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+        renderTable();
+      } catch (e) {
+        container.innerHTML = '<div class="error">Error: ' + escapeHtml(e.message || 'Failed to load stocks') + '</div>';
+      }
+    }
+
+    function scheduleRefresh() {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(refresh, 300);
+    }
+
+    function wireLive() {
+      if (!supabase) return;
+      try {
+        var ch = supabase.channel('stocks-monitor-live');
+        ch
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'pallets' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'zone_movements' }, scheduleRefresh)
+          .subscribe();
+      } catch (_) {}
+      pollTimer = setInterval(refresh, 12000);
+    }
+
+    document.getElementById('btnRefresh').onclick = refresh;
+    document.getElementById('searchSku').addEventListener('input', renderTable);
+
+    (async function init() {
+      await refresh();
+      wireLive();
+      hideSplash();
+    })();
+  })();
+  </script>
+</body>
+</html>
+

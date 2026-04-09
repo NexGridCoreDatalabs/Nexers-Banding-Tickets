@@ -1,0 +1,24 @@
+/**
+ * RetiFlux™ — Responsive breakpoints & shared branding
+ * Phone: < 480px | Tablet: 480–768px | PC: 768–1200px | Big: > 1200px
+ */
+/* ── Base responsive container ── */
+.rf-container { width: 100%; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+@media (min-width: 480px) { .rf-container { padding-left: 20px; padding-right: 20px; } }
+@media (min-width: 768px) { .rf-container { padding-left: 24px; padding-right: 24px; max-width: 1100px; } }
+@media (min-width: 1200px) { .rf-container { max-width: 1400px; padding-left: 32px; padding-right: 32px; } }
+
+/* ── App page footer branding (RetiFlux™ Powered by NexGridCore DataLabs) ── */
+.rf-page-footer {
+  text-align: center;
+  margin-top: 32px;
+  padding: 16px 12px;
+  border-top: 1px solid rgba(245, 158, 11, 0.2);
+  font-size: 11px;
+  color: #64748b;
+  letter-spacing: 0.5px;
+  font-family: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+}
+.rf-page-footer .footer-brand { color: #fbbf24; font-weight: 700; }
+.rf-page-footer .footer-lab { color: #818cf8; font-weight: 700; }
+@media (min-width: 768px) { .rf-page-footer { font-size: 12px; padding: 20px 16px; margin-top: 40px; } }

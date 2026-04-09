@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>RetiFlux™ · Edge Function Test</title>
+  <style>
+    body { font-family: monospace; background: #0f172a; color: #e2e8f0; padding: 40px; }
+    h2 { color: #f0c040; margin-bottom: 6px; }
+    .sub { font-size: 12px; color: #94a3b8; margin-bottom: 24px; }
+    button { padding: 12px 20px; background: #f0c040; color: #0f172a; border: none; border-radius: 8px; font-weight: 900; cursor: pointer; font-size: 13px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .box { margin-top: 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; white-space: pre-wrap; font-size: 12px; min-height: 60px; line-height: 1.8; }
+    .ok  { color: #86efac; }
+    .err { color: #fca5a5; }
+    .warn{ color: #fde68a; }
+    .section { margin-top: 28px; }
+    .label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  </style>
+</head>
+<body>
+  <h2>RetiFlux™ · Edge Function Diagnostics</h2>
+  <div class="sub">Run each test in order — they pinpoint exactly where the connection breaks.</div>
+
+  <div class="section">
+    <div class="label">Test 1 — Config check</div>
+    <button onclick="testConfig()">▶ Check config.js</button>
+    <div id="r1" class="box">Not run yet.</div>
+  </div>
+
+  <div class="section">
+    <div class="label">Test 2 — Direct HTTP ping to Edge Function URL</div>
+    <button onclick="testDirect()">▶ Direct HTTP ping</button>
+    <div id="r2" class="box">Not run yet.</div>
+  </div>
+
+  <div class="section">
+    <div class="label">Test 3 — Supabase SDK invoke</div>
+    <button onclick="testSDK()">▶ SDK invoke</button>
+    <div id="r3" class="box">Not run yet.</div>
+  </div>
+
+  <script src="./config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var sb = null;
+
+    function r(id, msg, cls) {
+      var el = document.getElementById(id);
+      el.textContent = msg;
+      el.className = 'box ' + (cls||'');
+    }
+
+    function testConfig() {
+      if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
+        r('r1', '❌ BANDFLOW_CONFIG missing.\nMake sure config.js is in the same folder as this file.', 'err');
+        return;
+      }
+      sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+      r('r1',
+        '✅ config.js loaded\n\n' +
+        '   SUPABASE_URL:      ' + cfg.SUPABASE_URL + '\n' +
+        '   SUPABASE_ANON_KEY: ' + cfg.SUPABASE_ANON_KEY.slice(0,20) + '…\n\n' +
+        'Edge Function URL:\n' +
+        cfg.SUPABASE_URL + '/functions/v1/ocr-extract', 'ok');
+    }
+
+    async function testDirect() {
+      if (!cfg.SUPABASE_URL) { r('r2', '⚠ Run Test 1 first.', 'warn'); return; }
+      r('r2', 'Pinging…');
+      var url = cfg.SUPABASE_URL + '/functions/v1/ocr-extract';
+      try {
+        var res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + cfg.SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({ image_base64: 'dGVzdA==', media_type: 'image/jpeg' }),
+          mode: 'cors'
+        });
+        var text = await res.text();
+        var parsed; try { parsed = JSON.parse(text); } catch(e) { parsed = text; }
+
+        if (res.status === 404) {
+          r('r2',
+            '❌ 404 — Function not found\n\nURL tried: ' + url + '\n\n' +
+            'Fix:\n' +
+            '1. Supabase → Edge Functions\n' +
+            '2. Confirm function is named exactly: ocr-extract\n' +
+            '3. Confirm status shows Active (not Deploying)\n' +
+            '4. Delete and recreate if needed', 'err');
+        } else if (res.status === 401) {
+          r('r2',
+            '❌ 401 — JWT verification is ON\n\n' +
+            'Fix:\n' +
+            '1. Supabase → Edge Functions → ocr-extract\n' +
+            '2. Find "Verify JWT" toggle\n' +
+            '3. Turn it OFF and save', 'err');
+        } else if (res.status === 200 || res.status === 400) {
+          r('r2',
+            '✅ Function REACHABLE (HTTP ' + res.status + ')\n\n' +
+            'Response: ' + JSON.stringify(parsed, null, 2), 'ok');
+        } else {
+          r('r2', '⚠ HTTP ' + res.status + '\n\n' + JSON.stringify(parsed, null, 2), 'warn');
+        }
+      } catch(e) {
+        r('r2',
+          '❌ Network error: ' + (e.message || String(e)) + '\n\n' +
+          'Possible causes:\n' +
+          '— Function crashed on startup (syntax error in code)\n' +
+          '— CORS blocking the request\n' +
+          '— Wrong project URL', 'err');
+      }
+    }
+
+    async function testSDK() {
+      if (!sb) { r('r3', '⚠ Run Test 1 first.', 'warn'); return; }
+      r('r3', 'Invoking via SDK…');
+      try {
+        var { data, error } = await sb.functions.invoke('ocr-extract', {
+          body: { image_base64: 'dGVzdA==', media_type: 'image/jpeg' }
+        });
+        if (error) {
+          r('r3', '❌ SDK invoke failed\n\n' + JSON.stringify(error, null, 2), 'err');
+        } else if (data && data.error && data.error.includes('ANTHROPIC_API_KEY')) {
+          r('r3',
+            '❌ Secret name wrong\n\n' +
+            'Go to Edge Functions → Secrets\n' +
+            'Rename to exactly: ANTHROPIC_API_KEY\n' +
+            '(all caps, underscores, no spaces)', 'err');
+        } else if (data && data.error && data.error.includes('Anthropic API error')) {
+          r('r3',
+            '❌ API key rejected by Anthropic\n\nCreate a new key at console.anthropic.com', 'err');
+        } else {
+          r('r3',
+            '✅ Everything working!\n\n' +
+            'Response: ' + JSON.stringify(data, null, 2) + '\n\n' +
+            '🎉 Ready — use the intake page with a real scan!', 'ok');
+        }
+      } catch(e) {
+        r('r3', '❌ Exception: ' + (e.message || String(e)), 'err');
+      }
+    }
+  </script>
+</body>
+</html>

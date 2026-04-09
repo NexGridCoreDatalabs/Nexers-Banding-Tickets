@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#0f172a">
+  <title>RetiFlux™ Stock Movement</title>
+    <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+    html { background: #0f172a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #0d0d0d;
+      --gold: #f0c040;
+      --bg: #0f172a;
+      --card: rgba(15, 23, 42, 0.95);
+      --font-app: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+    }
+    body {
+      font-family: var(--font-app);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+      background: rgba(15, 23, 42, 0.9);
+    }
+    .header h1 { font-size: 20px; font-weight: 800; color: var(--gold); }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px 20px;
+      background: rgba(15, 23, 42, 0.6);
+      border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      font-weight: 700;
+      background: transparent;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      color: #94a3b8;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--gold);
+      border-color: var(--gold);
+    }
+    .tab-btn:hover:not(.active) { color: var(--gold); border-color: rgba(245, 158, 11, 0.6); }
+    .back-home {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+      text-decoration: none;
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .back-home:hover { background: rgba(245, 158, 11, 0.15); }
+    .content { padding: 20px; max-width: none; margin: 0; width: 100%; }
+    .movement-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 768px) {
+      .movement-grid { grid-template-columns: 1fr; }
+    }
+    .view { display: none; }
+    .view.active { display: block; }
+    .card {
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 16px; color: var(--gold); margin-bottom: 16px; }
+    label { display: block; font-size: 11px; color: var(--gold); margin-bottom: 6px; text-transform: uppercase; }
+    select, input {
+      width: 100%;
+      padding: 10px 12px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      color: #e2e8f0;
+      margin-bottom: 12px;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); }
+    .pallet-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      background: rgba(30, 58, 95, 0.5);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .pallet-card:hover { border-color: rgba(245, 158, 11, 0.5); }
+    .pallet-id { font-family: var(--font-app); font-weight: 700; color: var(--gold); }
+    .pallet-meta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .status { margin-top: 12px; font-size: 13px; min-height: 20px; }
+    .status.error { color: #f87171; }
+    .status.success { color: #34d399; }
+    .empty { color: #64748b; padding: 24px; text-align: center; }
+    .btn-secondary { background: rgba(148, 163, 184, 0.2); color: #e2e8f0; border: 2px solid rgba(148, 163, 184, 0.4); }
+    .btn-secondary:hover { background: rgba(148, 163, 184, 0.3); }
+    .overview-table, .recent-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+    .overview-table th, .recent-table th { padding: 10px 12px; text-align: left; background: rgba(245, 158, 11, 0.2); color: var(--gold); border-bottom: 2px solid rgba(245, 158, 11, 0.5); }
+    .overview-table td, .recent-table td { padding: 10px 12px; border-bottom: 1px solid rgba(148, 163, 184, 0.2); color: #e2e8f0; }
+    .overview-table tr:nth-child(even), .recent-table tr:nth-child(even) { background: rgba(15, 23, 42, 0.3); }
+    .pallet-card.selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4); }
+    input.readonly { background: rgba(15, 23, 42, 0.5); color: #94a3b8; }
+    .move-guidance { margin-bottom: 20px; padding: 16px; background: rgba(30, 58, 95, 0.4); border-radius: 10px; border-left: 4px solid var(--gold); font-size: 12px; line-height: 1.6; }
+    .guidance-section { margin-bottom: 12px; }
+    .guidance-section:last-child { margin-bottom: 0; }
+    .guidance-section ul { margin: 6px 0 0 18px; padding: 0; }
+    .guidance-section li { margin-bottom: 4px; }
+    .guidance-suggestions { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(245, 158, 11, 0.3); }
+    .guidance-suggestions .suggest-item { margin-bottom: 6px; padding: 8px 12px; background: rgba(251, 191, 36, 0.1); border-radius: 6px; }
+    .movement-toast {
+      position: fixed;
+      right: 20px;
+      bottom: 24px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      z-index: 100000;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      animation: toastSlideIn 0.25s ease-out;
+    }
+    .movement-toast.success { background: #059669; color: #fff; }
+    .movement-toast.error { background: #dc2626; color: #fff; }
+    @keyframes toastSlideIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+    .receiving-section {
+      margin-bottom: 16px;
+    }
+    .receiving-section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold);
+      user-select: none;
+    }
+    .receiving-section-title:hover { background: rgba(245, 158, 11, 0.25); }
+    .receiving-section-title::after { content: '▼'; font-size: 10px; opacity: 0.8; transition: transform 0.2s; }
+    .receiving-section-title.collapsed::after { transform: rotate(-90deg); }
+    .receiving-section-content {
+      padding: 8px 0 0 4px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .receiving-section-content.collapsed { display: none; }
+    </style>
+</head>
+<body>
+  <div id="movementSplash" class="retiflux-splash" aria-hidden="false">
+    <div class="splash-icon">
+      <div class="splash-glow"></div>
+      <img src="../favicon.png" alt="RetiFlux" width="96" height="96" loading="eager">
+    </div>
+    <div class="splash-title">RetiFlux™</div>
+    <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+  </div>
+  <div id="movementToastContainer" style="position:fixed;right:20px;bottom:24px;z-index:100000;pointer-events:none;"></div>
+  <div id="app">
+    <div class="header">
+      <h1>📦 Stock Movement</h1>
+      <a href="../index.html" class="back-home" target="_top">← Back to Home</a>
+    </div>
+    <div class="tabs">
+      <button type="button" class="tab-btn active" data-tab="monitor">Zone Monitor</button>
+      <button type="button" class="tab-btn" data-tab="receiving">Zone Receiving</button>
+      <button type="button" class="tab-btn" data-tab="replenishment">Replenishment Tasks</button>
+    </div>
+    <div class="content">
+      <div id="viewMonitor" class="view active">
+        <div class="movement-grid">
+        <div class="card">
+          <h2>⬥ Zone Monitor</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Select a zone and Refresh. Use <strong>Select SKU</strong> (suggests oldest pallet) or click a pallet to populate the form.</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 12px;">
+            <div style="flex: 1; min-width: 120px;">
+              <label>Zone</label>
+              <select id="zoneSelect"></select>
+            </div>
+            <div style="flex: 1; min-width: 100px;">
+              <label>Status</label>
+              <select id="zoneStatusFilter">
+                <option value="">Any status</option>
+                <option value="Active">Active</option>
+                <option value="Hold">Hold</option>
+                <option value="Rework">Rework</option>
+                <option value="Dispatch">Dispatch</option>
+                <option value="Shipped">Shipped</option>
+                <option value="Received">Received</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-primary" id="btnRefreshZone">🔄 Refresh</button>
+            <button type="button" class="btn btn-secondary" id="btnViewAllZones">📊 View All Zones</button>
+            <button type="button" class="btn btn-secondary" id="btnCheckReplenishment">📋 Check Replenishment</button>
+          </div>
+          <div id="zoneStatus" class="status"></div>
+          <div id="zoneOverviewContainer" style="display: none; margin-top: 16px; background: rgba(30, 58, 95, 0.5); border-radius: 12px; padding: 16px; border: 2px solid rgba(245, 158, 11, 0.3);"></div>
+          <div id="palletList" style="margin-top: 16px; max-height: 400px; overflow-y: auto;"></div>
+          <div id="zonePagination" style="display:none;margin-top:10px;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button type="button" class="btn btn-secondary" id="btnZonePrev">← Prev</button>
+              <button type="button" class="btn btn-secondary" id="btnZoneNext">Next →</button>
+              <span id="zonePageInfo" style="font-size:12px;color:#94a3b8;"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label for="zonePageSize" style="margin:0;font-size:12px;color:#94a3b8;">Page size</label>
+              <select id="zonePageSize" style="width:auto;min-width:90px;">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="200">200</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>⬥ Initiate Move</h2>
+          <div id="moveSuggestions" class="guidance-suggestions" style="display:none;"></div>
+          <label>Select SKU (optional — suggests oldest pallet)</label>
+          <select id="moveSkuSelect">
+            <option value="">— Select SKU first or click a pallet —</option>
+          </select>
+          <label>Pallet ID</label>
+          <input type="text" id="movePalletId" placeholder="e.g. PRT000001RF or click Select on a pallet">
+          <label>Current Zone</label>
+          <input type="text" id="moveCurrentZone" class="readonly" placeholder="Auto-filled when pallet selected" readonly>
+          <label>To Zone</label>
+          <select id="moveToZone"></select>
+          <label>Moved By</label>
+          <input type="text" id="moveMovedBy" placeholder="Your name">
+          <label>Reason (optional)</label>
+          <input type="text" id="moveReason" placeholder="e.g. FIFO rotation">
+          <div style="display: flex; gap: 12px; margin-top: 12px;">
+            <button type="button" class="btn btn-primary" id="btnInitiateMove">🚚 Initiate Move</button>
+            <button type="button" class="btn btn-secondary" id="btnClearMove">Clear</button>
+          </div>
+          <div id="moveStatus" class="status"></div>
+        </div>
+        </div>
+      </div>
+      <div id="viewReceiving" class="view">
+        <div class="card">
+          <h2>⬥ Receive Inbounds</h2>
+          <div class="guidance-box" style="margin-bottom: 16px; padding: 12px; background: rgba(245, 158, 11, 0.1); border-left: 4px solid var(--gold); border-radius: 8px; font-size: 12px; line-height: 1.5;">
+            <strong>📋 Zone Receiving — two views:</strong><br>
+            <strong>• Clerk who pushed:</strong> Select <em>your zone</em> to see <strong>Outbounds</strong> (what you sent) and <strong>Inbounds</strong> (what's arriving to you).<br>
+            <strong>• Clerk who receives:</strong> Select <em>your zone</em> to see <strong>Inbounds</strong> — click <strong>Receive</strong> when the pallet physically arrives.
+          </div>
+          <label>Zone</label>
+          <select id="receivingZoneSelect"></select>
+          <label>Your name (operator)</label>
+          <input type="text" id="operatorName" placeholder="e.g. J. Kamau">
+          <div id="receivingStatus" class="status"></div>
+          <div id="receivingSections"></div>
+        </div>
+      </div>
+      <div id="viewReplenishment" class="view">
+        <div class="card">
+          <h2>⬥ Replenishment Tasks</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Pending tasks for zone clerks. Click <strong>Execute</strong> to pre-fill the Initiate Move form with FIFO pallet.</p>
+          <button type="button" class="btn btn-secondary" id="btnRefreshReplenishment" style="margin-bottom: 12px;">🔄 Refresh Tasks</button>
+          <div id="replenishmentTaskList" class="status"></div>
+        </div>
+        <div class="card">
+          <h2>⬥ Replenishment Warnings</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Zones/SKUs at 30% stock. Acknowledge when addressed.</p>
+          <div id="replenishmentWarningsList" class="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script>
+        (function() {
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var supabaseUrl = cfg.SUPABASE_URL;
+    var supabaseKey = cfg.SUPABASE_ANON_KEY;
+    var supabase = (supabaseUrl && supabaseKey) ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
+
+    var params = new URLSearchParams(window.location.search);
+    var initialTab = params.get('tab') || 'monitor';
+    var zones = [];
+    var lastPallets = [];
+    var zoneMonitorTotal = 0;
+    var zoneMonitorPage = 1;
+    var zoneMonitorPageSize = 100;
+    var pendingTaskId = null;
+    var currentTab = 'monitor';
+    var realtimeRefreshTimer = null;
+    var autoReplenishmentBackfillRunning = false;
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      var div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function showToast(message, type, durationMs) {
+      type = type || 'success';
+      durationMs = durationMs || 4500;
+      var container = document.getElementById('movementToastContainer');
+      if (!container) return;
+      var existing = container.querySelector('.movement-toast');
+      if (existing) existing.remove();
+      var el = document.createElement('div');
+      el.className = 'movement-toast ' + type;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(function() {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.25s ease-out';
+        setTimeout(function() { el.remove(); }, 280);
+      }, durationMs);
+    }
+
+    var _splashRef = 0;
+    function showSplash() {
+      _splashRef++;
+      var el = document.getElementById('movementSplash');
+      if (el) { el.style.display = 'flex'; el.classList.remove('fade-out'); el.setAttribute('aria-hidden', 'false'); }
+    }
+    function hideSplash() {
+      _splashRef = Math.max(0, _splashRef - 1);
+      if (_splashRef > 0) return;
+      var el = document.getElementById('movementSplash');
+      if (el) { el.classList.add('fade-out'); el.setAttribute('aria-hidden', 'true'); setTimeout(function() { el.style.display = 'none'; }, 250); }
+    }
+
+    var zoneTransitions = [];
+    var skuToHomeZone = {};
+
+    // Fallback when zone_transitions fails to load (e.g. RLS). Matches RUN_SEED_ONLY + RUN_HOME_ZONE_AND_FB_ZONE.
+    var ZONE_TRANSITIONS_FALLBACK = [
+      { from_zone: 'Receiving Area', to_zone: 'Detergents Zone' }, { from_zone: 'Receiving Area', to_zone: 'Fats Zone' },
+      { from_zone: 'Receiving Area', to_zone: 'Liquids/Oils Zone' }, { from_zone: 'Receiving Area', to_zone: 'Soaps Zone' },
+      { from_zone: 'Receiving Area', to_zone: 'Foods & Beverages Zone' }, { from_zone: 'Receiving Area', to_zone: 'SuperMarket Area' },
+      { from_zone: 'Receiving Area', to_zone: 'QA Hold' }, { from_zone: 'Receiving Area', to_zone: 'Rework Zone' },
+      { from_zone: 'Receiving Area', to_zone: 'Dispatch Loading Area' },
+      { from_zone: 'Detergents Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Detergents Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Detergents Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Fats Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Fats Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Fats Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Liquids/Oils Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Liquids/Oils Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Liquids/Oils Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Soaps Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Soaps Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Soaps Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Foods & Beverages Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Foods & Beverages Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Foods & Beverages Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Rework Zone', to_zone: 'Receiving Area' }, { from_zone: 'Rework Zone', to_zone: 'QA Hold' }, { from_zone: 'Rework Zone', to_zone: 'SuperMarket Area' },
+      { from_zone: 'SuperMarket Area', to_zone: 'SuperMarket Area' }, { from_zone: 'SuperMarket Area', to_zone: 'Dispatch Loading Area' }, { from_zone: 'SuperMarket Area', to_zone: 'Rework Zone' }, { from_zone: 'SuperMarket Area', to_zone: 'QA Hold' },
+      { from_zone: 'QA Hold', to_zone: 'Rework Zone' }, { from_zone: 'QA Hold', to_zone: 'Dispatch Loading Area' }, { from_zone: 'QA Hold', to_zone: 'SuperMarket Area' }, { from_zone: 'QA Hold', to_zone: 'QA Hold' },
+      { from_zone: 'Dispatch Loading Area', to_zone: 'Outbounding' }, { from_zone: 'Dispatch Loading Area', to_zone: 'Rework Zone' }, { from_zone: 'Dispatch Loading Area', to_zone: 'QA Hold' }, { from_zone: 'Dispatch Loading Area', to_zone: 'SuperMarket Area' },
+      { from_zone: 'Outbounding', to_zone: 'Outbonded' }, { from_zone: 'Outbounding', to_zone: 'Rework Zone' }, { from_zone: 'Outbounding', to_zone: 'QA Hold' }
+    ];
+
+    async function loadZones() {
+      if (!supabase) throw new Error('Supabase not configured');
+      var { data, error } = await supabase.from('zone_config').select('zone_name, prefix, default_status, fifo_required').order('zone_name');
+      if (error) throw error;
+      zones = (data || []).map(function(r) {
+        return { ZoneName: r.zone_name, Prefix: r.prefix, DefaultStatus: r.default_status, FIFORequired: !!r.fifo_required };
+      });
+      try {
+        var { data: dt, error: et } = await supabase.from('zone_transitions').select('from_zone, to_zone');
+        if (!et && dt && dt.length > 0) {
+          zoneTransitions = dt;
+        } else {
+          zoneTransitions = ZONE_TRANSITIONS_FALLBACK;
+        }
+      } catch (e) {
+        zoneTransitions = ZONE_TRANSITIONS_FALLBACK;
+      }
+      try {
+        var { data: skuData, error: skuErr } = await supabase.from('skus').select('sku, home_zone, subdivision');
+        if (skuErr && (skuErr.message || '').indexOf('home_zone') >= 0) {
+          var { data: skuData2 } = await supabase.from('skus').select('sku, subdivision');
+          skuData = skuData2;
+          skuErr = null;
+        }
+        if (!skuErr && skuData) {
+          skuToHomeZone = {};
+          var subToZone = { 'Detergents': 'Detergents Zone', 'Soaps & Hygiene': 'Soaps Zone', 'Beverages': 'Foods & Beverages Zone', 'Foods': 'Foods & Beverages Zone' };
+          skuData.forEach(function(r) {
+            var hz = (r.home_zone && r.home_zone.trim()) || (r.subdivision && subToZone[r.subdivision]);
+            if (r.sku && hz) skuToHomeZone[r.sku] = hz;
+          });
+        }
+      } catch (e) { skuToHomeZone = {}; }
+      return zones;
+    }
+
+    function getHomeZone(sku) {
+      return (sku && skuToHomeZone[sku]) ? skuToHomeZone[sku] : null;
+    }
+
+    function isMisplacedZone(zoneName) {
+      var z = (zoneName || '').toLowerCase();
+      return z.includes('receiving area') || z === 'qa hold' || z.includes('rework');
+    }
+
+    function getAllowedDestinations(fromZone) {
+      if (!fromZone) return [];
+      var allowed = zoneTransitions
+        .filter(function(t) { return (t.from_zone || '').trim() === fromZone; })
+        .map(function(t) { return (t.to_zone || '').trim(); })
+        .filter(Boolean);
+      return allowed;
+    }
+
+    function recommendDestination(zone, palletStatus) {
+      var zoneName = (zone.ZoneName || '').trim();
+      var allowed = getAllowedDestinations(zoneName);
+      if (!allowed.length) return null;
+      var zoneLower = zoneName.toLowerCase();
+      var statusLower = (palletStatus || '').toLowerCase();
+      if (statusLower.includes('outbounding')) {
+        var obd = allowed.find(function(z) { return z.toLowerCase() === 'outbonded'; });
+        if (obd) return obd;
+        var rew = allowed.find(function(z) { return z.toLowerCase().includes('rework'); });
+        if (rew) return rew;
+        var qah = allowed.find(function(z) { return z.toLowerCase().includes('qa hold'); });
+        if (qah) return qah;
+      }
+      if (zoneLower.includes('receiving area')) {
+        var productZones = ['Detergents Zone', 'Fats Zone', 'Liquids/Oils Zone', 'Soaps Zone', 'Foods & Beverages Zone'];
+        for (var i = 0; i < productZones.length; i++) {
+          if (allowed.indexOf(productZones[i]) >= 0) return productZones[i];
+        }
+        if (allowed.indexOf('SuperMarket Area') >= 0) return 'SuperMarket Area';
+        if (allowed.indexOf('QA Hold') >= 0) return 'QA Hold';
+      }
+      if (zoneLower.includes('foods') || zoneLower.includes('beverages')) {
+        var dspFb = allowed.find(function(z) { return z.toLowerCase().includes('dispatch'); });
+        if (dspFb) return dspFb;
+        if (allowed.indexOf('SuperMarket Area') >= 0) return 'SuperMarket Area';
+        if (allowed.indexOf('QA Hold') >= 0) return 'QA Hold';
+      }
+      if (zoneLower.includes('detergents') || zoneLower.includes('fats') || zoneLower.includes('liquids') || zoneLower.includes('soaps')) {
+        var dsp = allowed.find(function(z) { return z.toLowerCase().includes('dispatch'); });
+        if (dsp) return dsp;
+        if (allowed.indexOf('SuperMarket Area') >= 0) return 'SuperMarket Area';
+        if (allowed.indexOf('QA Hold') >= 0) return 'QA Hold';
+      }
+      if (zoneLower.includes('supermarket')) {
+        var dsp2 = allowed.find(function(z) { return z.toLowerCase().includes('dispatch'); });
+        if (dsp2) return dsp2;
+        var rew2 = allowed.find(function(z) { return z.toLowerCase().includes('rework'); });
+        if (rew2) return rew2;
+        if (allowed.indexOf('QA Hold') >= 0) return 'QA Hold';
+      }
+      if (zoneLower.includes('dispatch loading')) {
+        var out = allowed.find(function(z) { return z.toLowerCase().includes('outbounding'); });
+        if (out) return out;
+      }
+      if (zoneLower.includes('outbounding')) {
+        var obd2 = allowed.find(function(z) { return z.toLowerCase() === 'outbonded'; });
+        if (obd2) return obd2;
+      }
+      return allowed[0] || null;
+    }
+
+    function formatDate(d) {
+      if (!d) return 'N/A';
+      try { return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return String(d); }
+    }
+
+    function populateZoneSelects() {
+      var sel = document.getElementById('zoneSelect');
+      var recSel = document.getElementById('receivingZoneSelect');
+      var opts = '<option value="">Select zone</option>';
+      zones.forEach(function(z) {
+        opts += '<option value="' + escapeHtml(z.ZoneName) + '">' + escapeHtml(z.ZoneName) + ' (' + escapeHtml(z.Prefix || '') + ')</option>';
+      });
+      if (sel) sel.innerHTML = opts;
+      if (recSel) recSel.innerHTML = opts;
+      populateMoveToZone(null);
+    }
+
+    async function loadPalletsInZone(zoneName, statusFilter, page, pageSize) {
+      if (!supabase || !zoneName) return [];
+      var q = supabase
+        .from('pallets')
+        .select('pallet_id, sku, quantity, remaining_quantity, current_zone, status, batch_lot, manufacturing_date, expiry_date, created_at')
+        .eq('current_zone', zoneName)
+        .is('in_transit_to_zone', null)
+        .order('created_at', { ascending: true });
+      if (statusFilter) q = q.eq('status', statusFilter);
+      if (page && pageSize) {
+        var from = (Math.max(1, Number(page)) - 1) * Number(pageSize);
+        var to = from + Number(pageSize) - 1;
+        q = q.range(from, to);
+      }
+      var { data, error } = await q;
+      if (error) throw error;
+      return (data || []).map(function(r) {
+        return {
+          PalletID: r.pallet_id,
+          SKU: r.sku,
+          Quantity: r.quantity,
+          RemainingQuantity: r.remaining_quantity,
+          CurrentZone: r.current_zone,
+          Status: r.status,
+          BatchLot: r.batch_lot,
+          ManufacturingDate: r.manufacturing_date,
+          ExpiryDate: r.expiry_date,
+          CreatedAt: r.created_at
+        };
+      });
+    }
+
+    async function countPalletsInZone(zoneName, statusFilter) {
+      if (!supabase || !zoneName) return 0;
+      var q = supabase
+        .from('pallets')
+        .select('pallet_id', { count: 'exact', head: true })
+        .eq('current_zone', zoneName)
+        .is('in_transit_to_zone', null);
+      if (statusFilter) q = q.eq('status', statusFilter);
+      var { count, error } = await q;
+      if (error) throw error;
+      return Number(count || 0);
+    }
+
+    async function loadInboundsToZone(zoneName) {
+      if (!supabase || !zoneName) return [];
+      var { data, error } = await supabase
+        .from('pallets')
+        .select('pallet_id, sku, quantity, remaining_quantity, current_zone, in_transit_to_zone, in_transit_initiated_at')
+        .eq('in_transit_to_zone', zoneName)
+        .order('in_transit_initiated_at', { ascending: true });
+      if (error) throw error;
+      return (data || []).map(function(r) {
+        return {
+          PalletID: r.pallet_id,
+          SKU: r.sku,
+          Quantity: r.quantity,
+          RemainingQuantity: r.remaining_quantity,
+          CurrentZone: r.current_zone,
+          InTransitToZone: r.in_transit_to_zone,
+          InTransitInitiatedAt: r.in_transit_initiated_at
+        };
+      });
+    }
+
+    function sortPalletsFifoPerSku(pallets) {
+      return pallets.slice().sort(function(a, b) {
+        var skuA = (a.SKU || a.sku || '').trim();
+        var skuB = (b.SKU || b.sku || '').trim();
+        if (skuA !== skuB) return skuA.localeCompare(skuB);
+        var da = new Date(a.CreatedAt || 0).getTime();
+        var db = new Date(b.CreatedAt || 0).getTime();
+        return da - db;
+      });
+    }
+
+    function pickPriorityPallet(pallets, zoneName, allowed) {
+      if (!pallets || !pallets.length) return null;
+      var ids = pickPriorityPalletIdsPerSku(pallets, zoneName, allowed);
+      return pallets.find(function(p) { return ids[(p.PalletID || '')]; }) || pallets[0];
+    }
+
+    function pickPriorityPalletIdsPerSku(pallets, zoneName, allowed) {
+      var out = {};
+      if (!pallets || !pallets.length) return out;
+      var zone = zoneName || '';
+      var bySku = {};
+      pallets.forEach(function(p) {
+        var sku = (p.SKU || p.sku || '').trim();
+        if (!sku) return;
+        if (!bySku[sku]) bySku[sku] = [];
+        bySku[sku].push(p);
+      });
+      Object.keys(bySku).forEach(function(sku) {
+        var skuPallets = bySku[sku];
+        var home = getHomeZone(sku);
+        var misplaced = zone && home && isMisplacedZone(zone) && home !== zone && (!allowed || allowed.indexOf(home) >= 0);
+        var candidates = misplaced ? skuPallets.filter(function(p) {
+          var h = getHomeZone(p.SKU || p.sku);
+          return h && isMisplacedZone(zone) && h !== zone && (!allowed || allowed.indexOf(h) >= 0);
+        }) : skuPallets;
+        if (!candidates.length) candidates = skuPallets;
+        var sorted = sortPalletsFifoPerSku(candidates);
+        var first = sorted[0];
+        if (first) out[first.PalletID] = true;
+      });
+      return out;
+    }
+
+    async function loadZoneOverview() {
+      if (!supabase || !zones.length) return [];
+      var zoneNames = zones.map(function(z) { return z.ZoneName; }).filter(Boolean);
+      var allPalletsByZone = {};
+      zoneNames.forEach(function(z) { allPalletsByZone[z] = []; });
+      try {
+        var { data, error } = await supabase
+          .from('pallets')
+          .select('pallet_id, sku, quantity, remaining_quantity, current_zone, status, batch_lot, manufacturing_date, expiry_date, created_at')
+          .in('current_zone', zoneNames)
+          .is('in_transit_to_zone', null)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        (data || []).forEach(function(r) {
+          var p = {
+            PalletID: r.pallet_id,
+            SKU: r.sku,
+            Quantity: r.quantity,
+            RemainingQuantity: r.remaining_quantity,
+            CurrentZone: r.current_zone,
+            Status: r.status,
+            BatchLot: r.batch_lot,
+            ManufacturingDate: r.manufacturing_date,
+            ExpiryDate: r.expiry_date,
+            CreatedAt: r.created_at
+          };
+          var z = r.current_zone;
+          if (z && allPalletsByZone[z]) allPalletsByZone[z].push(p);
+        });
+      } catch (e) {
+        return zones.map(function(z) {
+          return { zone: z, pallets: [], count: 0, totalQty: 0, oldestPallet: null, priorityPallet: null, fifoRequired: false, error: e.message };
+        });
+      }
+      var results = [];
+      for (var i = 0; i < zones.length; i++) {
+        var pallets = allPalletsByZone[zones[i].ZoneName] || [];
+        var fifoSorted = sortPalletsFifoPerSku(pallets);
+        var allowed = getAllowedDestinations(zones[i].ZoneName);
+        var priorityPallet = pickPriorityPallet(pallets, zones[i].ZoneName, allowed);
+        var totalQty = pallets.reduce(function(sum, p) {
+          return sum + (parseFloat(p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity) || 0);
+        }, 0);
+        results.push({
+          zone: zones[i],
+          pallets: fifoSorted,
+          count: pallets.length,
+          totalQty: totalQty,
+          oldestPallet: fifoSorted[0] || null,
+          priorityPallet: priorityPallet,
+          fifoRequired: !!zones[i].FIFORequired,
+          error: null
+        });
+      }
+      return results;
+    }
+
+    async function loadOutboundsFromZone(zoneName) {
+      if (!supabase || !zoneName) return [];
+      var { data, error } = await supabase
+        .from('pallets')
+        .select('pallet_id, sku, quantity, remaining_quantity, in_transit_to_zone, in_transit_initiated_at')
+        .eq('current_zone', zoneName)
+        .not('in_transit_to_zone', 'is', null)
+        .order('in_transit_initiated_at', { ascending: true });
+      if (error) throw error;
+      return (data || []).map(function(r) {
+        return {
+          PalletID: r.pallet_id,
+          SKU: r.sku,
+          Quantity: r.quantity,
+          RemainingQuantity: r.remaining_quantity,
+          InTransitToZone: r.in_transit_to_zone,
+          InTransitInitiatedAt: r.in_transit_initiated_at
+        };
+      });
+    }
+
+    async function receivePallet(palletId, receivedBy) {
+      if (!supabase) throw new Error('Supabase not configured');
+      var { data, error } = await supabase.rpc('movement_receive', {
+        p_pallet_id: palletId,
+        p_received_by: receivedBy
+      });
+      if (error) throw error;
+      var result = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!result.success) throw new Error(result.error || 'Receive failed');
+      return result;
+    }
+
+    async function runReplenishmentChecks() {
+      if (!supabase) return null;
+      var sm = { created: 0 }, zone = { warnings: 0, requests: 0 };
+      try {
+        var { data: smData } = await supabase.rpc('check_sm_replenishment');
+        if (smData && smData.created != null) sm.created = smData.created;
+      } catch (e) { console.warn('check_sm_replenishment:', e); }
+      try {
+        var { data: zoneData } = await supabase.rpc('check_zone_replenishment');
+        if (zoneData) {
+          zone.warnings = zoneData.warnings || 0;
+          zone.requests = zoneData.requests || 0;
+        }
+      } catch (e) { console.warn('check_zone_replenishment:', e); }
+      return { sm, zone };
+    }
+
+    function runReplenishmentChecksAfterReceive() {
+      runReplenishmentChecks().then(function(r) {
+        if (!r) return;
+        var total = (r.sm.created || 0) + (r.zone.requests || 0);
+        if (total > 0) showToast('Replenishment: ' + total + ' task(s) created after receive', 'success');
+      });
+    }
+
+    async function initiateMove(palletId, toZone, movedBy, reason) {
+      if (!supabase) throw new Error('Supabase not configured');
+      var { data, error } = await supabase.rpc('movement_initiate', {
+        p_pallet_id: palletId,
+        p_to_zone: toZone,
+        p_moved_by: movedBy,
+        p_reason: reason || ''
+      });
+      if (error) throw error;
+      var result = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!result.success) throw new Error(result.error || 'Initiate failed');
+      return result;
+    }
+
+    function populateMoveToZone(excludeZone, fromZone) {
+      var toSel = document.getElementById('moveToZone');
+      if (!toSel) return;
+      var allowed = fromZone && zoneTransitions.length ? getAllowedDestinations(fromZone) : null;
+      var opts = '<option value="">Select destination zone</option>';
+      var candidates = allowed && allowed.length ? zones.filter(function(z) { return allowed.indexOf(z.ZoneName) >= 0; }) : zones;
+      candidates.forEach(function(z) {
+        if (z.ZoneName && z.ZoneName !== excludeZone) {
+          opts += '<option value="' + escapeHtml(z.ZoneName) + '">' + escapeHtml(z.ZoneName) + ' (' + escapeHtml(z.Prefix || '') + ')</option>';
+        }
+      });
+      toSel.innerHTML = opts;
+    }
+
+    function selectPalletForMove(palletId) {
+      var pallet = lastPallets.find(function(p) { return (p.PalletID || '') === palletId; });
+      if (!pallet) return;
+      document.getElementById('movePalletId').value = pallet.PalletID || '';
+      document.getElementById('moveCurrentZone').value = pallet.CurrentZone || '';
+      var skuSel = document.getElementById('moveSkuSelect');
+      if (skuSel && (pallet.SKU || pallet.sku)) skuSel.value = (pallet.SKU || pallet.sku).trim();
+      var reasonEl = document.getElementById('moveReason');
+      if (!reasonEl.value.trim()) reasonEl.value = 'Move from ' + (pallet.CurrentZone || 'unknown zone');
+      populateMoveToZone(pallet.CurrentZone, pallet.CurrentZone);
+      var toSel = document.getElementById('moveToZone');
+      var currentZone = pallet.CurrentZone || '';
+      var allowed = getAllowedDestinations(currentZone);
+      var homeZone = getHomeZone(pallet.SKU || pallet.sku);
+      var isMisplaced = homeZone && isMisplacedZone(currentZone) && homeZone !== currentZone && allowed.indexOf(homeZone) >= 0;
+      var suggested = isMisplaced ? homeZone : recommendDestination(zones.find(function(z) { return z.ZoneName === currentZone; }) || { ZoneName: currentZone }, pallet.Status);
+      if (toSel) {
+        if (suggested) toSel.value = suggested;
+        if (!toSel.value && toSel.options.length > 1) toSel.selectedIndex = 1;
+      }
+      document.getElementById('moveStatus').textContent = 'Selected ' + pallet.PalletID + ' (currently ' + (pallet.CurrentZone || 'N/A') + ')';
+      document.getElementById('moveStatus').className = 'status';
+      document.querySelectorAll('.pallet-card').forEach(function(c) {
+        c.classList.toggle('selected', c.dataset.palletId === palletId);
+      });
+      updateMoveSuggestions(pallet, suggested);
+    }
+
+    function updateMoveSuggestions(pallet, suggested) {
+      var el = document.getElementById('moveSuggestions');
+      if (!el) return;
+      var suggestions = [];
+      var homeZone = getHomeZone(pallet.SKU || pallet.sku);
+      var currentZone = pallet.CurrentZone || '';
+      var allowed = getAllowedDestinations(currentZone);
+      var zone = zones.find(function(z) { return z.ZoneName === currentZone; });
+      var fifoRequired = zone ? !!zone.FIFORequired : false;
+      var isMisplaced = homeZone && isMisplacedZone(currentZone) && homeZone !== currentZone && allowed.indexOf(homeZone) >= 0;
+      var statusLower = (pallet.Status || '').toLowerCase();
+      if (statusLower.includes('outbounding')) {
+        suggestions.push({ type: 'outbound', text: '🚚 <strong>Outbounding:</strong> Can only move to Outbonded, Rework Zone, or QA Hold.' });
+      }
+      if (isMisplaced) {
+        suggestions.push({ type: 'home', text: '🏠 <strong>Home zone:</strong> This product belongs in ' + escapeHtml(homeZone) + '. Move there first.' });
+      }
+      if (suggested) {
+        suggestions.push({ type: 'suggest', text: '★ <strong>Suggested:</strong> ' + escapeHtml(suggested) + (isMisplaced && suggested === homeZone ? ' (home zone)' : '') });
+      }
+      if (fifoRequired) {
+        suggestions.push({ type: 'fifo', text: '📦 <strong>FIFO:</strong> Oldest pallet per SKU moves first (levelized).' });
+      }
+      if (allowed.length && allowed.length > 1) {
+        var productZones = ['Detergents Zone', 'Fats Zone', 'Liquids/Oils Zone', 'Soaps Zone', 'Foods & Beverages Zone'];
+        var others = suggested ? allowed.filter(function(z) { return z !== suggested; }) : allowed;
+        if (isMisplaced && homeZone) {
+          others = others.filter(function(z) { return productZones.indexOf(z) < 0; });
+        }
+        var optsText = others.length ? others.slice(0, 5).join(', ') + (others.length > 5 ? '…' : '') : '';
+        if (optsText) {
+          suggestions.push({ type: 'options', text: '• <strong>' + (suggested ? 'Other options' : 'Allowed') + ':</strong> ' + optsText });
+        }
+      }
+      if (suggestions.length) {
+        el.style.display = 'block';
+        el.innerHTML = '<strong style="color:var(--gold);">💡 Smart suggestions</strong>' + suggestions.map(function(s) {
+          return '<div class="suggest-item">' + s.text + '</div>';
+        }).join('');
+      } else {
+        el.style.display = 'none';
+      }
+    }
+
+    function resetMovementForm() {
+      document.getElementById('movePalletId').value = '';
+      document.getElementById('moveCurrentZone').value = '';
+      var skuSel = document.getElementById('moveSkuSelect');
+      if (skuSel) { skuSel.value = ''; }
+      populateMoveToZone(null);
+      document.getElementById('moveReason').value = '';
+      document.getElementById('moveStatus').textContent = '';
+      document.getElementById('moveStatus').className = 'status';
+      var sug = document.getElementById('moveSuggestions');
+      if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
+      document.querySelectorAll('.pallet-card').forEach(function(c) { c.classList.remove('selected'); });
+    }
+
+    function populateSkuSelect(pallets) {
+      var sel = document.getElementById('moveSkuSelect');
+      if (!sel) return;
+      var skus = [];
+      var seen = {};
+      (pallets || []).forEach(function(p) {
+        var sku = (p.SKU || p.sku || '').trim();
+        if (sku && !seen[sku]) { seen[sku] = true; skus.push(sku); }
+      });
+      skus.sort();
+      var opts = '<option value="">— Select SKU first or click a pallet —</option>';
+      skus.forEach(function(sku) {
+        opts += '<option value="' + escapeHtml(sku) + '">' + escapeHtml(sku) + '</option>';
+      });
+      sel.innerHTML = opts;
+    }
+
+    function getOldestPalletForSku(pallets, sku) {
+      if (!pallets || !pallets.length || !sku) return null;
+      var matches = pallets.filter(function(p) { return ((p.SKU || p.sku) || '').trim() === sku; });
+      if (!matches.length) return null;
+      matches.sort(function(a, b) {
+        var da = new Date(a.CreatedAt || 0).getTime();
+        var db = new Date(b.CreatedAt || 0).getTime();
+        return da - db;
+      });
+      return matches[0];
+    }
+
+    function renderPallets(pallets, zoneName) {
+      var list = document.getElementById('palletList');
+      if (!list) return;
+      if (!pallets.length) {
+        list.innerHTML = '<div class="empty">No pallets in this zone. Create a PRT ticket first to add pallets to Receiving Area.</div>';
+        return;
+      }
+      var currentZone = zones.find(function(z) { return z.ZoneName === zoneName; });
+      var fifoRequired = currentZone ? !!currentZone.FIFORequired : false;
+      var sorted = fifoRequired ? sortPalletsFifoPerSku(pallets) : pallets.slice();
+      var allowed = getAllowedDestinations(zoneName);
+      var priorityIds = pickPriorityPalletIdsPerSku(pallets, zoneName, allowed);
+      list.innerHTML = sorted.map(function(p) {
+        var qty = p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity;
+        var created = p.CreatedAt ? new Date(p.CreatedAt).toLocaleString() : '';
+        var status = p.Status ? '<span style="font-size:11px;color:#94a3b8;margin-left:6px;">' + escapeHtml(p.Status) + '</span>' : '';
+        var isPriority = !!priorityIds[p.PalletID];
+        var homeZone = getHomeZone(p.SKU || p.sku);
+        var isMisplaced = homeZone && isMisplacedZone(zoneName) && homeZone !== zoneName && allowed.indexOf(homeZone) >= 0;
+        var suggested = isMisplaced ? homeZone : (allowed.length ? recommendDestination(currentZone || { ZoneName: zoneName }, p.Status) : null);
+        var priorityMark = isPriority ? '<span style="color:var(--gold);font-size:16px;margin-right:6px;" title="Move this pallet first for ' + escapeHtml(p.SKU || '') + (isMisplaced ? ' (home zone)' : ' (FIFO)') + '">★</span>' : '';
+        var priorityBadge = isPriority ? '<span style="background:linear-gradient(135deg,var(--gold),#f59e0b);color:#0f172a;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-left:8px;">PRIORITY</span>' : '';
+        var suggestHint = isPriority && suggested ? '<div style="font-size:11px;color:rgba(251,191,36,0.8);margin-top:4px;">→ ' + (isMisplaced ? 'Home zone: ' : 'Suggested: ') + escapeHtml(suggested) + '</div>' : '';
+        return '<div class="pallet-card' + (isPriority ? ' priority-pallet' : '') + '" data-pallet-id="' + escapeHtml(p.PalletID) + '"' + (isPriority ? ' style="border-color:var(--gold);box-shadow:0 0 0 2px rgba(245,158,11,0.4);"' : '') + '><div><div>' + priorityMark + '<span class="pallet-id">' + escapeHtml(p.PalletID) + '</span>' + priorityBadge + status + '</div><div class="pallet-meta">' + escapeHtml(p.SKU) + ' · Qty: ' + escapeHtml(String(qty)) + ' · ' + escapeHtml(created) + '</div>' + suggestHint + '</div><button type="button" class="btn btn-primary btn-select-pallet">Select</button></div>';
+      }).join('');
+      list.querySelectorAll('.pallet-card').forEach(function(card) {
+        var pid = card.dataset.palletId;
+        if (!pid) return;
+        card.onclick = function(e) {
+          if (e.target.closest('.btn-select-pallet')) return;
+          selectPalletForMove(pid);
+        };
+      });
+      list.querySelectorAll('.btn-select-pallet').forEach(function(btn) {
+        btn.onclick = function(e) {
+          e.stopPropagation();
+          var card = btn.closest('.pallet-card');
+          var pid = card && card.dataset.palletId;
+          if (pid) selectPalletForMove(pid);
+        };
+      });
+    }
+
+    function renderZonePagination() {
+      var wrap = document.getElementById('zonePagination');
+      var prevBtn = document.getElementById('btnZonePrev');
+      var nextBtn = document.getElementById('btnZoneNext');
+      var info = document.getElementById('zonePageInfo');
+      if (!wrap || !prevBtn || !nextBtn || !info) return;
+      var totalPages = Math.max(1, Math.ceil((zoneMonitorTotal || 0) / zoneMonitorPageSize));
+      var hasRows = zoneMonitorTotal > 0;
+      wrap.style.display = hasRows ? 'flex' : 'none';
+      prevBtn.disabled = zoneMonitorPage <= 1;
+      nextBtn.disabled = zoneMonitorPage >= totalPages;
+      var fromRow = hasRows ? ((zoneMonitorPage - 1) * zoneMonitorPageSize + 1) : 0;
+      var toRow = hasRows ? Math.min(zoneMonitorPage * zoneMonitorPageSize, zoneMonitorTotal) : 0;
+      info.textContent = hasRows
+        ? ('Showing ' + fromRow + '-' + toRow + ' of ' + zoneMonitorTotal + ' (Page ' + zoneMonitorPage + '/' + totalPages + ')')
+        : '';
+    }
+
+    function buildReceivingSectionHtml(palletsInZone, inbounds, outbounds, totalInZone) {
+      var total = Number.isFinite(totalInZone) ? totalInZone : palletsInZone.length;
+      var html = '';
+      html += '<div class="receiving-section"><div class="receiving-section-title">Pallets in zone (' + total + ')</div><div class="receiving-section-content">';
+      if (!palletsInZone.length) html += '<div class="empty">No pallets in this zone.</div>';
+      else palletsInZone.forEach(function(p) {
+        var qty = p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity;
+        var created = p.CreatedAt ? new Date(p.CreatedAt).toLocaleString() : '';
+        html += '<div class="pallet-card"><div><span class="pallet-id">' + escapeHtml(p.PalletID) + '</span><div class="pallet-meta">' + escapeHtml(p.SKU || '') + ' · Qty: ' + escapeHtml(String(qty)) + ' · ' + escapeHtml(created) + '</div></div></div>';
+      });
+      html += '</div></div>';
+
+      html += '<div class="receiving-section"><div class="receiving-section-title collapsed">Inbounds awaiting receipt (' + inbounds.length + ')</div><div class="receiving-section-content collapsed">';
+      if (!inbounds.length) html += '<div class="empty">No inbounds awaiting receipt.</div>';
+      else inbounds.forEach(function(p) {
+        var qty = p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity;
+        var initiated = p.InTransitInitiatedAt ? new Date(p.InTransitInitiatedAt).toLocaleString() : '';
+        html += '<div class="pallet-card" data-pallet-id="' + escapeHtml(p.PalletID) + '"><div><span class="pallet-id">' + escapeHtml(p.PalletID) + '</span><div class="pallet-meta">Qty: ' + escapeHtml(String(qty)) + ' · From: ' + escapeHtml(p.CurrentZone || '—') + ' · ' + escapeHtml(initiated) + '</div></div><button type="button" class="btn btn-primary btn-receive">Receive</button></div>';
+      });
+      html += '</div></div>';
+
+      html += '<div class="receiving-section"><div class="receiving-section-title collapsed">Outbounds from this zone (' + outbounds.length + ')</div><div class="receiving-section-content collapsed">';
+      if (!outbounds.length) html += '<div class="empty">No outbounds from this zone.</div>';
+      else outbounds.forEach(function(p) {
+        var qty = p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity;
+        var initiated = p.InTransitInitiatedAt ? new Date(p.InTransitInitiatedAt).toLocaleString() : '';
+        html += '<div class="pallet-card"><div><span class="pallet-id">' + escapeHtml(p.PalletID) + '</span><div class="pallet-meta">Qty: ' + escapeHtml(String(qty)) + ' · To: ' + escapeHtml(p.InTransitToZone || '—') + ' · ' + escapeHtml(initiated) + '</div></div></div>';
+      });
+      html += '</div></div>';
+
+      return html;
+    }
+
+    async function refreshZone() {
+      var zone = document.getElementById('zoneSelect').value;
+      var statusFilter = document.getElementById('zoneStatusFilter').value;
+      var status = document.getElementById('zoneStatus');
+      document.getElementById('zoneOverviewContainer').style.display = 'none';
+      document.getElementById('palletList').style.display = '';
+      if (!zone) {
+        status.textContent = 'Select a zone first.';
+        status.className = 'status';
+        lastPallets = [];
+        populateSkuSelect([]);
+        renderPallets([]);
+        zoneMonitorTotal = 0;
+        renderZonePagination();
+        return;
+      }
+      status.textContent = 'Loading...';
+      status.className = 'status';
+      showSplash();
+      try {
+        var [pallets, totalInZone] = await Promise.all([
+          loadPalletsInZone(zone, statusFilter, zoneMonitorPage, zoneMonitorPageSize),
+          countPalletsInZone(zone, statusFilter)
+        ]);
+        zoneMonitorTotal = totalInZone;
+        var totalPages = Math.max(1, Math.ceil((zoneMonitorTotal || 0) / zoneMonitorPageSize));
+        if (zoneMonitorPage > totalPages) {
+          zoneMonitorPage = totalPages;
+          pallets = await loadPalletsInZone(zone, statusFilter, zoneMonitorPage, zoneMonitorPageSize);
+        }
+        lastPallets = pallets;
+        populateSkuSelect(pallets);
+        renderPallets(pallets, zone);
+        status.textContent = totalInZone + ' pallet(s) in zone.';
+        status.className = 'status success';
+        renderZonePagination();
+      } catch (e) {
+        status.textContent = 'Error: ' + (e.message || 'Failed to load');
+        status.className = 'status error';
+        lastPallets = [];
+        populateSkuSelect([]);
+        renderPallets([]);
+        zoneMonitorTotal = 0;
+        renderZonePagination();
+      } finally { hideSplash(); }
+    }
+
+    async function refreshZoneOverview() {
+      var container = document.getElementById('zoneOverviewContainer');
+      var palletList = document.getElementById('palletList');
+      var isVisible = container.style.display !== 'none';
+      container.style.display = isVisible ? 'none' : 'block';
+      if (palletList) palletList.style.display = isVisible ? '' : 'none';
+      if (isVisible) return;
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gold);">Loading zone overview...</div>';
+      showSplash();
+      try {
+        var overview = await loadZoneOverview();
+        var html = '<h3 style="margin:0 0 16px 0;color:var(--gold);font-size:16px;font-weight:700;">⬥ Zone Overview & FIFO Status</h3><div style="overflow-x:auto;"><table class="overview-table" style="font-size:13px;"><thead><tr><th style="text-align:left;">Zone</th><th style="text-align:center;">Pallets</th><th style="text-align:center;">SKUs</th><th style="text-align:center;">Total Qty</th><th style="text-align:left;">Oldest Pallet</th><th style="text-align:center;">FIFO</th><th style="text-align:left;">Action</th></tr></thead><tbody>';
+        overview.forEach(function(r, idx) {
+          var zone = r.zone;
+          var zoneName = zone.ZoneName || r.zone;
+          var hasError = !!r.error;
+          var oldestId = r.oldestPallet ? (r.oldestPallet.PalletID || 'N/A') : 'N/A';
+          var oldestDate = r.oldestPallet ? formatDate(r.oldestPallet.CreatedAt) : 'N/A';
+          var fifoRequired = r.fifoRequired;
+          var skuSet = {};
+          if (!hasError && r.pallets && r.pallets.length) {
+            r.pallets.forEach(function(p) {
+              var sku = (p.SKU || p.sku || '').trim();
+              if (sku) skuSet[sku] = (skuSet[sku] || 0) + 1;
+            });
+          }
+          var skuCount = Object.keys(skuSet).length;
+          var allowed = getAllowedDestinations(zoneName);
+          var priorityPallet = r.priorityPallet || r.oldestPallet;
+          var homeZone = priorityPallet ? getHomeZone(priorityPallet.SKU || priorityPallet.sku) : null;
+          var isMisplaced = priorityPallet && homeZone && isMisplacedZone(zoneName) && homeZone !== zoneName && allowed.indexOf(homeZone) >= 0;
+          var recommended = isMisplaced ? homeZone : recommendDestination(zone, priorityPallet ? priorityPallet.Status : '');
+          if (!recommended && allowed.length) recommended = allowed[0];
+          var actionHtml = '—';
+          if (!hasError && r.pallets && r.pallets.length) {
+            var moveFirstId = priorityPallet ? priorityPallet.PalletID : oldestId;
+            var optsHtml = '';
+            if (allowed.length) {
+              var starred = recommended ? '<span style="color:#fcd34d;font-weight:700;">★ ' + escapeHtml(recommended) + '</span>' : '';
+              var others = allowed.filter(function(d) { return d !== recommended; });
+              optsHtml = '<br><strong style="color:var(--gold);">→ Destinations:</strong><br>' + starred + (others.length ? others.map(function(d) { return '<br><span style="color:rgba(255,255,255,0.85);">• ' + escapeHtml(d) + '</span>'; }).join('') : '');
+            } else {
+              optsHtml = '<br><small style="color:rgba(252,165,165,0.8);">No zone_transitions. Run RUN_SEED_ONLY.sql</small>';
+            }
+            actionHtml = '<div style="font-size:11px;line-height:1.5;"><strong style="color:var(--gold);">Move First:</strong><br><span style="font-family:var(--font-app);font-weight:700;">' + escapeHtml(moveFirstId) + '</span>' + (isMisplaced ? '<br><small style="color:#fcd34d;">→ home zone</small>' : '') + optsHtml + (fifoRequired && r.pallets.length > 1 ? '<br><small style="color:rgba(251,191,36,0.7);">(FIFO per SKU)</small>' : '') + '</div>';
+          }
+          var fifoCell = hasError ? '—' : (fifoRequired ? '<span style="color:var(--gold);font-weight:700;">✓ Enforced</span>' : '—');
+          html += '<tr style="' + (idx % 2 ? 'background:rgba(15,23,42,0.3);' : '') + '"><td>' + escapeHtml(zoneName) + '<br><small style="color:rgba(251,191,36,0.7);">Prefix: ' + escapeHtml(zone.Prefix || 'N/A') + '</small>' + (hasError ? '<br><small style="color:#f87171;">⚠️ ' + escapeHtml(r.error) + '</small>' : '') + '</td><td style="text-align:center;">' + (hasError ? '—' : r.count) + '</td><td style="text-align:center;">' + (hasError ? '—' : skuCount) + '</td><td style="text-align:center;">' + (hasError ? '—' : (r.totalQty || 0)) + '</td><td>' + (hasError ? '—' : escapeHtml(oldestId) + '<br><small style="color:rgba(251,191,36,0.6);">' + escapeHtml(oldestDate) + '</small>') + '</td><td style="text-align:center;">' + fifoCell + '</td><td style="min-width:160px;">' + actionHtml + '</td></tr>';
+        });
+        html += '</tbody></table></div><div style="margin-top:12px;padding:12px;background:rgba(245,158,11,0.1);border-radius:8px;border-left:4px solid var(--gold);"><p style="margin:0;color:rgba(251,191,36,0.9);font-size:12px;line-height:1.6;"><strong>📋 Action:</strong> Pallet to move first + destinations. <strong>★</strong> = best suited. <strong>→ home zone</strong> = misplaced (in Receiving/QA/Rework). <strong>FIFO:</strong> Per SKU, levelized.</p></div><button type="button" class="btn btn-secondary" style="margin-top:12px;">🔽 Hide Zone Overview</button>';
+        container.innerHTML = html;
+        container.querySelector('button').onclick = refreshZoneOverview;
+      } catch (e) {
+        container.innerHTML = '<div style="color:#f87171;padding:20px;">Error: ' + escapeHtml(e.message) + '</div>';
+      } finally { hideSplash(); }
+    }
+
+    async function refreshReceiving() {
+      var zone = document.getElementById('receivingZoneSelect').value;
+      var status = document.getElementById('receivingStatus');
+      var container = document.getElementById('receivingSections');
+      if (!zone) {
+        status.textContent = 'Select a zone first.';
+        status.className = 'status';
+        if (container) container.innerHTML = '';
+        return;
+      }
+      status.textContent = 'Loading...';
+      status.className = 'status';
+      showSplash();
+      try {
+        var operator = document.getElementById('operatorName').value.trim();
+        var [palletsInZone, inbounds, outbounds, totalInZone] = await Promise.all([
+          loadPalletsInZone(zone, ''),
+          loadInboundsToZone(zone),
+          loadOutboundsFromZone(zone),
+          countPalletsInZone(zone, '')
+        ]);
+        var onReceive = async function(palletId, btn) {
+          if (!operator) {
+            alert('Enter your name (operator) first.');
+            return;
+          }
+          btn.disabled = true;
+          btn.textContent = '...';
+          showSplash();
+          try {
+            var recResult = await receivePallet(palletId, operator);
+            status.textContent = 'Pallet received.';
+            status.className = 'status success';
+            var pId = recResult.palletId || palletId;
+            var fromZ = recResult.fromZone || '';
+            var toZ = recResult.toZone || '';
+            showToast('Pallet ' + pId + ' from ' + fromZ + ' received at ' + toZ, 'success');
+            refreshReceiving();
+            runReplenishmentChecksAfterReceive();
+          } catch (e) {
+            var errMsg = e.message || 'Receive failed';
+            status.textContent = 'Error: ' + errMsg;
+            status.className = 'status error';
+            showToast(errMsg, 'error');
+            btn.disabled = false;
+            btn.textContent = 'Receive';
+          } finally { hideSplash(); }
+        };
+        var html = buildReceivingSectionHtml(palletsInZone, inbounds, outbounds, totalInZone);
+        if (container) container.innerHTML = html;
+
+        container.querySelectorAll('.receiving-section-title').forEach(function(btn) {
+          btn.onclick = function() {
+            var content = btn.nextElementSibling;
+            var isCollapsed = content.classList.contains('collapsed');
+            content.classList.toggle('collapsed', !isCollapsed);
+            btn.classList.toggle('collapsed', !isCollapsed);
+          };
+        });
+        container.querySelectorAll('.btn-receive').forEach(function(btn) {
+          btn.onclick = function() {
+            var card = btn.closest('.pallet-card');
+            var palletId = card && card.dataset.palletId;
+            if (palletId) onReceive(palletId, btn);
+          };
+        });
+
+        status.textContent = totalInZone + ' in zone, ' + inbounds.length + ' inbound(s), ' + outbounds.length + ' outbound(s).';
+        status.className = 'status';
+      } catch (e) {
+        status.textContent = 'Error: ' + (e.message || 'Failed to load');
+        status.className = 'status error';
+        if (container) container.innerHTML = '';
+      } finally {
+        hideSplash();
+      }
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.tab === tab);
+      });
+      document.getElementById('viewMonitor').classList.toggle('active', tab === 'monitor');
+      document.getElementById('viewReceiving').classList.toggle('active', tab === 'receiving');
+      var vRep = document.getElementById('viewReplenishment');
+      if (vRep) vRep.classList.toggle('active', tab === 'replenishment');
+      if (tab === 'monitor') return refreshZone();
+      if (tab === 'receiving') return refreshReceiving();
+      if (tab === 'replenishment') return refreshReplenishment();
+      return Promise.resolve();
+    }
+
+    function scheduleRealtimeRefresh(reason) {
+      if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+      realtimeRefreshTimer = setTimeout(function() {
+        if (currentTab === 'monitor') refreshZone();
+        if (currentTab === 'receiving') refreshReceiving();
+        if (currentTab === 'replenishment') refreshReplenishment();
+      }, reason === 'movement' ? 250 : 400);
+    }
+
+    async function refreshReplenishment(allowBackfill) {
+      var taskList = document.getElementById('replenishmentTaskList');
+      var warnList = document.getElementById('replenishmentWarningsList');
+      if (!supabase || !taskList) return;
+      if (allowBackfill === undefined) allowBackfill = true;
+      try {
+        var { data: tasks, error: te } = await supabase.from('replenishment_tasks')
+          .select('task_id, task_type, from_zone, to_zone, sku, quantity_needed, reserved_pallet_id, trigger_reason, priority')
+          .eq('status', 'PENDING')
+          .order('priority', { ascending: true })
+          .order('created_at', { ascending: true });
+        if (te) throw te;
+        if (!tasks || !tasks.length) {
+          taskList.innerHTML = '<div class="empty">No pending replenishment tasks.</div>';
+        } else {
+          var laneStats = {};
+          (tasks || []).forEach(function(t) {
+            var key = (t.from_zone || '') + '|' + (t.to_zone || '') + '|' + (t.sku || '');
+            if (!laneStats[key]) laneStats[key] = { qty: 0, pallets: 0 };
+            laneStats[key].qty += Number(t.quantity_needed || 0);
+            laneStats[key].pallets += 1;
+          });
+          taskList.innerHTML = '<table class="overview-table"><thead><tr><th>Type</th><th>From</th><th>To</th><th>SKU</th><th>Remaining Qty</th><th>Pallet</th><th>Trigger</th><th></th></tr></thead><tbody>' +
+            tasks.map(function(t) {
+              var pal = t.reserved_pallet_id ? ('<span style="color:#34d399;font-weight:700;">' + escapeHtml(t.reserved_pallet_id) + '</span>') : '<span style="color:#fbbf24;">Auto-FIFO</span>';
+              var key = (t.from_zone || '') + '|' + (t.to_zone || '') + '|' + (t.sku || '');
+              var lane = laneStats[key] || { qty: Number(t.quantity_needed || 0), pallets: 1 };
+              return '<tr><td>' + escapeHtml(t.task_type || '') + '</td><td>' + escapeHtml(t.from_zone || '') + '</td><td>' + escapeHtml(t.to_zone || '') + '</td><td>' + escapeHtml(t.sku || '') + '</td><td>' + escapeHtml(String(t.quantity_needed || 0)) + '<br><small style="color:#fbbf24;">Lane: ' + escapeHtml(String(lane.qty)) + ' qty / ' + escapeHtml(String(lane.pallets)) + ' pallets</small></td><td>' + pal + '</td><td>' + escapeHtml(t.trigger_reason || '') + '</td><td><button type="button" class="btn btn-primary btn-execute-task" data-task-id="' + escapeHtml(t.task_id || '') + '" data-from-zone="' + escapeHtml(t.from_zone || '') + '" data-to-zone="' + escapeHtml(t.to_zone || '') + '" data-sku="' + escapeHtml(t.sku || '') + '">Execute</button></td></tr>';
+            }).join('') + '</tbody></table>';
+          taskList.querySelectorAll('.btn-execute-task').forEach(function(btn) {
+            btn.onclick = function() { executeReplenishmentTask(btn.dataset.taskId, btn.dataset.fromZone, btn.dataset.toZone, btn.dataset.sku); };
+          });
+        }
+        if (warnList) {
+          var { data: warnings, error: we } = await supabase.from('replenishment_warnings')
+            .select('id, zone, sku, stock_pct, triggered_at')
+            .eq('acknowledged', false)
+            .order('triggered_at', { ascending: false })
+            .limit(50);
+          if (we) { warnList.innerHTML = '<div class="empty">Could not load warnings.</div>'; return; }
+          if (!warnings || !warnings.length) {
+            warnList.innerHTML = '<div class="empty">No unacknowledged warnings.</div>';
+          } else {
+            warnList.innerHTML = '<table class="overview-table"><thead><tr><th>Zone</th><th>SKU</th><th>Stock %</th><th>Triggered</th><th></th></tr></thead><tbody>' +
+              warnings.map(function(w) {
+                var d = w.triggered_at ? new Date(w.triggered_at).toLocaleString() : '';
+                return '<tr><td>' + escapeHtml(w.zone || '') + '</td><td>' + escapeHtml(w.sku || '') + '</td><td>' + escapeHtml(String(Number(w.stock_pct).toFixed(1))) + '%</td><td>' + escapeHtml(d) + '</td><td><button type="button" class="btn btn-secondary btn-ack-warning" data-id="' + escapeHtml(w.id || '') + '">Acknowledge</button></td></tr>';
+              }).join('') + '</tbody></table>';
+            warnList.querySelectorAll('.btn-ack-warning').forEach(function(btn) {
+              btn.onclick = function() { acknowledgeWarning(btn.dataset.id); };
+            });
+          }
+        }
+        if (allowBackfill && !autoReplenishmentBackfillRunning && (!tasks || !tasks.length)) {
+          autoReplenishmentBackfillRunning = true;
+          try {
+            var r = await runReplenishmentChecks();
+            var created = ((r && r.sm && r.sm.created) || 0) + ((r && r.zone && r.zone.requests) || 0);
+            if (created > 0) {
+              showToast('Replenishment backfill created ' + created + ' task(s).', 'success');
+              await refreshReplenishment(false);
+            }
+          } finally {
+            autoReplenishmentBackfillRunning = false;
+          }
+        }
+      } catch (e) {
+        taskList.innerHTML = '<div class="empty" style="color:#f87171;">Error: ' + escapeHtml(e.message || 'Failed') + '</div>';
+      }
+    }
+
+    async function executeReplenishmentTask(taskId, fromZone, toZone, sku) {
+      if (!supabase || !taskId || !fromZone || !toZone || !sku) return;
+      showSplash();
+      try {
+        var { data: fifo, error } = await supabase.rpc('get_fifo_pallet_for_zone_sku', { p_zone: fromZone, p_sku: sku });
+        if (error) throw error;
+        var palletId = (typeof fifo === 'string' ? fifo : (fifo && fifo.pallet_id)) || null;
+        if (!palletId) {
+          showToast('No pallet found for ' + sku + ' in ' + fromZone, 'error');
+          hideSplash();
+          return;
+        }
+        pendingTaskId = taskId;
+        document.getElementById('movePalletId').value = palletId;
+        document.getElementById('moveCurrentZone').value = fromZone;
+        document.getElementById('moveToZone').value = toZone;
+        document.getElementById('moveReason').value = 'Replenishment task ' + taskId;
+        var skuSel = document.getElementById('moveSkuSelect');
+        if (skuSel) skuSel.value = sku;
+        populateMoveToZone('', fromZone);
+        var toSel = document.getElementById('moveToZone');
+        if (toSel) toSel.value = toZone;
+        switchTab('monitor');
+        showToast('Form pre-filled. Complete the move to mark task done.', 'success');
+      } catch (e) {
+        showToast('Execute failed: ' + (e.message || e), 'error');
+      } finally { hideSplash(); }
+    }
+
+    async function acknowledgeWarning(warnId) {
+      if (!supabase || !warnId) return;
+      try {
+        var operator = (document.getElementById('moveMovedBy') || {}).value.trim() || (document.getElementById('operatorName') || {}).value.trim() || '';
+        var { error } = await supabase.from('replenishment_warnings').update({ acknowledged: true, acknowledged_at: new Date().toISOString(), acknowledged_by: operator || null }).eq('id', warnId);
+        if (error) throw error;
+        showToast('Warning acknowledged', 'success');
+        refreshReplenishment();
+      } catch (e) { showToast('Failed: ' + (e.message || e), 'error'); }
+    }
+
+    async function init() {
+      if (!supabase) {
+        hideSplash();
+        document.getElementById('zoneStatus').textContent = '⚠️ Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to config.js';
+        document.getElementById('zoneStatus').className = 'status error';
+        return;
+      }
+      try {
+        await loadZones();
+        populateZoneSelects();
+        await switchTab(initialTab);
+        hideSplash();
+        document.getElementById('zoneSelect').addEventListener('change', function() { zoneMonitorPage = 1; refreshZone(); });
+        document.getElementById('zoneStatusFilter').addEventListener('change', function() { zoneMonitorPage = 1; refreshZone(); });
+        var pageSizeEl = document.getElementById('zonePageSize');
+        if (pageSizeEl) {
+          pageSizeEl.value = String(zoneMonitorPageSize);
+          pageSizeEl.addEventListener('change', function() {
+            zoneMonitorPageSize = Math.max(1, Number(this.value) || 100);
+            zoneMonitorPage = 1;
+            refreshZone();
+          });
+        }
+        var prevBtn = document.getElementById('btnZonePrev');
+        if (prevBtn) prevBtn.onclick = function() {
+          if (zoneMonitorPage <= 1) return;
+          zoneMonitorPage--;
+          refreshZone();
+        };
+        var nextBtn = document.getElementById('btnZoneNext');
+        if (nextBtn) nextBtn.onclick = function() {
+          var totalPages = Math.max(1, Math.ceil((zoneMonitorTotal || 0) / zoneMonitorPageSize));
+          if (zoneMonitorPage >= totalPages) return;
+          zoneMonitorPage++;
+          refreshZone();
+        };
+        document.getElementById('btnViewAllZones').onclick = refreshZoneOverview;
+        document.getElementById('btnClearMove').onclick = function() { pendingTaskId = null; resetMovementForm(); };
+        var btnRefreshRep = document.getElementById('btnRefreshReplenishment');
+        if (btnRefreshRep) btnRefreshRep.onclick = refreshReplenishment;
+        document.getElementById('receivingZoneSelect').addEventListener('change', refreshReceiving);
+        document.getElementById('operatorName').addEventListener('blur', function() {
+          var v = (this.value || '').trim();
+          if (v) try { localStorage.setItem('movement_operator', v); } catch (e) {}
+        });
+        document.getElementById('operatorName').value = localStorage.getItem('movement_operator') || '';
+        document.getElementById('btnRefreshZone').onclick = refreshZone;
+        var btnCheckRep = document.getElementById('btnCheckReplenishment');
+        if (btnCheckRep) {
+          btnCheckRep.onclick = async function() {
+            btnCheckRep.disabled = true;
+            btnCheckRep.textContent = 'Checking...';
+            showSplash();
+            try {
+              var r = await runReplenishmentChecks();
+              var sm = (r && r.sm && r.sm.created) || 0;
+              var req = (r && r.zone && r.zone.requests) || 0;
+              var warn = (r && r.zone && r.zone.warnings) || 0;
+              var msg = 'SM: ' + sm + ' task(s); Zone: ' + req + ' request(s), ' + warn + ' warning(s).';
+              showToast(msg, sm + req > 0 ? 'success' : 'success');
+              document.getElementById('zoneStatus').textContent = msg;
+              document.getElementById('zoneStatus').className = 'status success';
+            } catch (e) {
+              showToast('Replenishment check failed: ' + (e.message || e), 'error');
+              document.getElementById('zoneStatus').textContent = 'Error: ' + (e.message || e);
+              document.getElementById('zoneStatus').className = 'status error';
+            } finally {
+              btnCheckRep.disabled = false;
+              btnCheckRep.textContent = '📋 Check Replenishment';
+              hideSplash();
+            }
+          };
+        }
+        document.getElementById('moveSkuSelect').addEventListener('change', function() {
+          var sku = (this.value || '').trim();
+          if (!sku) return;
+          var oldest = getOldestPalletForSku(lastPallets, sku);
+          if (oldest) selectPalletForMove(oldest.PalletID);
+        });
+        var btnInit = document.getElementById('btnInitiateMove');
+        if (btnInit) {
+          btnInit.onclick = async function() {
+            var palletId = (document.getElementById('movePalletId') || {}).value.trim();
+            var toZone = (document.getElementById('moveToZone') || {}).value;
+            var movedBy = (document.getElementById('moveMovedBy') || {}).value.trim();
+            var reason = (document.getElementById('moveReason') || {}).value.trim();
+            var status = document.getElementById('moveStatus');
+            if (!status) return;
+            if (!palletId || !toZone || !movedBy) {
+              status.textContent = 'Pallet ID, To Zone, and Moved By are required.';
+              status.className = 'status error';
+              status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              return;
+            }
+            status.textContent = 'Initiating...';
+            status.className = 'status';
+            btnInit.disabled = true;
+            showSplash();
+            try {
+              var fromZone = (document.getElementById('moveCurrentZone') || {}).value.trim();
+              var r = await initiateMove(palletId, toZone, movedBy, reason);
+              var msg = (r.message || 'Move initiated.') + ' The ' + toZone + ' clerk will receive when the pallet arrives.';
+              status.textContent = msg;
+              status.className = 'status success';
+              var fromZ = r.fromZone || fromZone || '';
+              var movId = r.movementId || r.movement_id || '';
+              showToast('Pallet ' + palletId + ' from ' + fromZ + ' movement initiated. Movement ID: ' + movId, 'success');
+              if (pendingTaskId) {
+                supabase.from('replenishment_tasks').update({ status: 'DONE', completed_at: new Date().toISOString(), completed_by: movedBy }).eq('task_id', pendingTaskId).then(function() { pendingTaskId = null; });
+                refreshReplenishment();
+              }
+              resetMovementForm();
+              refreshZone();
+              switchTab('receiving');
+              var recSel = document.getElementById('receivingZoneSelect');
+              if (recSel && fromZone) {
+                recSel.value = fromZone;
+                refreshReceiving();
+              }
+            } catch (e) {
+              var errMsg = e.message || 'Failed';
+              status.textContent = 'Error: ' + errMsg;
+              status.className = 'status error';
+              showToast(errMsg, 'error');
+              status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } finally {
+              btnInit.disabled = false;
+              hideSplash();
+            }
+          };
+        }
+        document.getElementById('moveMovedBy').value = localStorage.getItem('movement_operator') || '';
+        document.getElementById('moveMovedBy').addEventListener('blur', function() {
+          var v = (this.value || '').trim();
+          if (v) try { localStorage.setItem('movement_operator', v); } catch (e) {}
+        });
+        document.querySelectorAll('.tab-btn').forEach(function(b) {
+          b.onclick = function() { switchTab(b.dataset.tab); };
+        });
+        var rt = supabase.channel('movement-live');
+        rt
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'replenishment_tasks' }, function() { scheduleRealtimeRefresh('task'); })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'replenishment_warnings' }, function() { scheduleRealtimeRefresh('task'); })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'zone_movements' }, function() { scheduleRealtimeRefresh('movement'); })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'pallets' }, function() { scheduleRealtimeRefresh('movement'); })
+          .subscribe();
+        var backLink = document.querySelector('a.back-home');
+        if (backLink) {
+          backLink.addEventListener('click', function(e) {
+            if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            window.location.href = backLink.getAttribute('href');
+          });
+        }
+      } catch (e) {
+        console.error('Init error:', e);
+        hideSplash();
+        document.getElementById('zoneStatus').textContent = 'Error: ' + (e.message || 'Failed to load zones');
+        document.getElementById('zoneStatus').className = 'status error';
+      }
+    }
+
+    init();
+        })();
+    </script>
+</body>
+</html>

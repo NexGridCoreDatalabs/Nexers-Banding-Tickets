@@ -1,0 +1,3208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#0f172a">
+  <title>RetiFlux™ Zone Clerk Portal</title>
+    <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+    html { background: #0f172a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #0d0d0d;
+      --gold: #f0c040;
+      --bg: #0f172a;
+      --card: rgba(15, 23, 42, 0.95);
+      --font-app: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+    }
+    body {
+      font-family: var(--font-app);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+      background: rgba(15, 23, 42, 0.9);
+    }
+    .header h1 { font-size: 20px; font-weight: 800; color: var(--gold); }
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px 20px;
+      background: rgba(15, 23, 42, 0.6);
+      border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      font-weight: 700;
+      background: transparent;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      color: #94a3b8;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--gold);
+      border-color: var(--gold);
+    }
+    .tab-btn:hover:not(.active) { color: var(--gold); border-color: rgba(245, 158, 11, 0.6); }
+    .back-home {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+      text-decoration: none;
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .back-home:hover { background: rgba(245, 158, 11, 0.15); }
+    .content { padding: 20px; max-width: none; margin: 0; width: 100%; }
+    .movement-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 768px) {
+      .movement-grid { grid-template-columns: 1fr; }
+      .header { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
+      .header h1 { font-size: 16px; }
+      .tabs { flex-wrap: wrap; gap: 6px; padding: 12px 16px; }
+      .tab-btn { padding: 8px 14px; font-size: 12px; }
+      .content { padding: 12px 16px; }
+      .card { padding: 16px; }
+      .pallet-card { flex-direction: column; align-items: stretch; gap: 10px; }
+      .pallet-card .btn-select-pallet { align-self: flex-start; }
+      .task-card .btn-execute-task, .task-card .btn-release-order { width: 100%; }
+    }
+    .view { display: none; }
+    .view.active { display: block; }
+    .card {
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 16px; color: var(--gold); margin-bottom: 16px; }
+    label { display: block; font-size: 11px; color: var(--gold); margin-bottom: 6px; text-transform: uppercase; }
+    select, input {
+      width: 100%;
+      padding: 10px 12px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      color: #e2e8f0;
+      margin-bottom: 12px;
+    }
+    .btn {
+      padding: 10px 20px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+    }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); }
+    .btn-primary:disabled,
+    .btn-notify-zone-clerk:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .btn-notify-zone-clerk:disabled {
+      background: linear-gradient(135deg, #64748b, #475569);
+      color: #e2e8f0;
+    }
+    .pallet-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      background: rgba(30, 58, 95, 0.5);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .pallet-card:hover { border-color: rgba(245, 158, 11, 0.5); }
+    .pallet-id { font-family: var(--font-app); font-weight: 700; color: var(--gold); }
+    .pallet-meta { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .status { margin-top: 12px; font-size: 13px; min-height: 20px; }
+    .status.error { color: #f87171; }
+    .status.success { color: #34d399; }
+    .empty { color: #64748b; padding: 24px; text-align: center; }
+    .btn-secondary { background: rgba(148, 163, 184, 0.2); color: #e2e8f0; border: 2px solid rgba(148, 163, 184, 0.4); }
+    .btn-secondary:hover { background: rgba(148, 163, 184, 0.3); }
+    .overview-table, .recent-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+    .overview-table th, .recent-table th { padding: 10px 12px; text-align: left; background: rgba(245, 158, 11, 0.2); color: var(--gold); border-bottom: 2px solid rgba(245, 158, 11, 0.5); }
+    .overview-table td, .recent-table td { padding: 10px 12px; border-bottom: 1px solid rgba(148, 163, 184, 0.2); color: #e2e8f0; }
+    .overview-table tr:nth-child(even), .recent-table tr:nth-child(even) { background: rgba(15, 23, 42, 0.3); }
+    .replenishment-layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.8fr) minmax(0, 2fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .replenishment-main {
+      min-width: 0;
+      display: grid;
+      gap: 16px;
+    }
+    .replenishment-side {
+      min-width: 0;
+      position: sticky;
+      top: 14px;
+      display: grid;
+      gap: 16px;
+    }
+    .replenishment-main .card,
+    .replenishment-side .card {
+      margin-bottom: 0;
+      width: 100%;
+      overflow: hidden;
+    }
+    /* Prevent expanded task tables/cards from visually bleeding into sibling panels. */
+    #replenishmentTaskList .task-card { overflow: hidden; }
+    #replenishmentTaskList .overview-table {
+      width: 100%;
+      table-layout: fixed;
+    }
+    #replenishmentTaskList .overview-table th,
+    #replenishmentTaskList .overview-table td {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      vertical-align: top;
+    }
+    #replenishmentTaskList .btn-lane-toggle {
+      white-space: nowrap;
+      padding: 8px 12px;
+      font-size: 12px;
+      line-height: 1.2;
+      min-width: fit-content;
+      flex-shrink: 0;
+    }
+    #replenishmentTaskList .task-card > div:first-child {
+      row-gap: 8px;
+    }
+    .repl-notif-panel .order-pull-push-strip { margin-bottom: 0 !important; }
+    .repl-notif-empty {
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.45;
+      padding: 8px 0 2px;
+    }
+    @media (max-width: 1180px) {
+      .replenishment-layout { grid-template-columns: minmax(280px, 0.92fr) minmax(0, 1.7fr); }
+      .replenishment-side { position: static; }
+    }
+    @media (max-width: 1020px) {
+      .replenishment-layout { grid-template-columns: 1fr; }
+      .replenishment-side { position: static; }
+    }
+    .pallet-card.selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4); }
+    input.readonly { background: rgba(15, 23, 42, 0.5); color: #94a3b8; }
+    .move-guidance { margin-bottom: 20px; padding: 16px; background: rgba(30, 58, 95, 0.4); border-radius: 10px; border-left: 4px solid var(--gold); font-size: 12px; line-height: 1.6; }
+    .guidance-section { margin-bottom: 12px; }
+    .guidance-section:last-child { margin-bottom: 0; }
+    .guidance-section ul { margin: 6px 0 0 18px; padding: 0; }
+    .guidance-section li { margin-bottom: 4px; }
+    .guidance-suggestions { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(245, 158, 11, 0.3); }
+    .guidance-suggestions .suggest-item { margin-bottom: 6px; padding: 8px 12px; background: rgba(251, 191, 36, 0.1); border-radius: 6px; }
+    .movement-toast {
+      position: fixed;
+      right: 20px;
+      bottom: 24px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      z-index: 100000;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      animation: toastSlideIn 0.25s ease-out;
+    }
+    .movement-toast.success { background: #059669; color: #fff; }
+    .movement-toast.error { background: #dc2626; color: #fff; }
+    @keyframes toastSlideIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+    .receiving-section {
+      margin-bottom: 16px;
+    }
+    .receiving-section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold);
+      user-select: none;
+    }
+    .receiving-section-title:hover { background: rgba(245, 158, 11, 0.25); }
+    .receiving-section-title::after { content: '▼'; font-size: 10px; opacity: 0.8; transition: transform 0.2s; }
+    .receiving-section-title.collapsed::after { transform: rotate(-90deg); }
+    .receiving-section-content {
+      padding: 8px 0 0 4px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .receiving-section-content.collapsed { display: none; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .login-hero { text-align: center; margin-bottom: 32px; }
+    .login-hero img { width: 64px; height: 64px; margin-bottom: 12px; }
+    .login-hero h1 { font-size: 22px; font-weight: 900; color: #fff; margin-bottom: 4px; }
+    .login-hero p { font-size: 12px; color: #94a3b8; }
+    .field { margin-bottom: 16px; }
+    .field label { display: block; font-size: 10px; color: var(--gold); font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+    .field input { width: 100%; padding: 14px 16px; border-radius: 12px; border: 2px solid rgba(245,158,11,0.3); background: rgba(15,23,42,0.8); color: #e2e8f0; font-family: var(--font-app); font-size: 16px; }
+    .field input:focus { outline: none; border-color: var(--gold); }
+    .login-err { color: #f87171; font-size: 12px; text-align: center; min-height: 18px; margin-bottom: 8px; }
+    .btn-login { width: 100%; padding: 16px; border-radius: 14px; border: none; cursor: pointer; font-family: var(--font-app); font-weight: 900; font-size: 15px; background: linear-gradient(135deg, var(--gold), #f59e0b); color: #0f172a; }
+    .logout-btn { font-size: 11px; color: #94a3b8; background: none; border: 1px solid rgba(148,163,184,0.2); padding: 6px 12px; border-radius: 7px; cursor: pointer; font-family: var(--font-app); font-weight: 700; }
+    .logout-btn:hover { color: #fff; border-color: rgba(148,163,184,0.4); }
+    .zone-badge { display: inline-block; padding: 6px 12px; background: rgba(245,158,11,0.2); border: 1px solid rgba(245,158,11,0.4); border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--gold); margin-bottom: 12px; }
+    .task-card { background: rgba(30, 58, 95, 0.5); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+    .task-instruction { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 12px; line-height: 1.5; }
+    .task-instruction-title { font-size: 10px; color: var(--gold); font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+    .task-instruction strong { color: var(--gold); }
+    .notif-shell { margin: 0 20px 10px; border-radius: 12px; border: 1px solid rgba(34, 211, 238, 0.22); background: rgba(15, 23, 42, 0.55); overflow: hidden; }
+    .notif-shell.notif-shell--empty { border-color: rgba(148, 163, 184, 0.2); }
+    .notif-shell.notif-shell--error { border-color: rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.06); }
+    .notif-panel-toggle {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      padding: 10px 14px; border: none; cursor: pointer; font-family: var(--font-app);
+      background: rgba(34, 211, 238, 0.08); color: #e2e8f0; text-align: left;
+      transition: background 0.15s;
+    }
+    .notif-shell.notif-shell--empty .notif-panel-toggle { background: rgba(15, 23, 42, 0.25); }
+    .notif-panel-toggle:hover { background: rgba(34, 211, 238, 0.14); }
+    .notif-bell { font-size: 18px; line-height: 1; }
+    .notif-toggle-label { font-size: 12px; font-weight: 800; color: #22d3ee; letter-spacing: 0.4px; text-transform: uppercase; flex: 1; }
+    .notif-badge {
+      min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px;
+      font-size: 11px; font-weight: 900; display: none; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #f97316, #ea580c); color: #fff;
+      box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9);
+    }
+    .notif-badge.notif-badge--visible { display: inline-flex; }
+    .notif-chevron { font-size: 10px; color: #94a3b8; margin-left: 4px; }
+    .notif-panel-body { padding: 0 14px 12px; border-top: 1px solid rgba(34, 211, 238, 0.15); display: none; }
+    .notif-panel-body.notif-panel-body--open { display: block; }
+    .notif-bar-head { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding-top: 10px; }
+    .notif-item { font-size: 12px; color: #e2e8f0; padding: 8px 10px; margin-bottom: 6px; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border-left: 3px solid #f0c040; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+    .notif-item.kind-fl { border-left-color: #34d399; }
+    .notif-item.kind-pull { border-left-color: #f59e0b; }
+    .notif-item.kind-sm { border-left-color: #fbbf24; }
+    .notif-item .notif-meta { font-size: 10px; color: #94a3b8; margin-top: 4px; }
+    .notif-dismiss { flex-shrink: 0; font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(148,163,184,0.4); background: rgba(148,163,184,0.15); color: #e2e8f0; cursor: pointer; font-family: var(--font-app); font-weight: 700; }
+    .notif-dismiss:hover { background: rgba(148,163,184,0.28); }
+    .notif-recent-wrap { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(148, 163, 184, 0.2); }
+    .notif-recent-toggle { font-size: 11px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(148,163,184,0.35); background: rgba(15,23,42,0.5); color: #cbd5e1; cursor: pointer; font-family: var(--font-app); font-weight: 700; }
+    .notif-recent-toggle:hover { background: rgba(148,163,184,0.15); color: #e2e8f0; }
+    .notif-item.notif-item--read { opacity: 0.92; border-left-color: #64748b; }
+    </style>
+</head>
+<body>
+  <!--  LOGIN SCREEN -->
+  <div id="screenLogin" class="screen active" style="padding: 40px 24px; max-width: 400px; margin: 0 auto;">
+    <div class="login-hero">
+      <img src="../favicon.png" alt="RetiFlux">
+      <h1>RetiFlux™</h1>
+      <p>Zone Clerk Portal — sign in (Zone Clerk or Receiving Clerk)</p>
+    </div>
+    <div class="field">
+      <label>User ID</label>
+      <input id="inputUserId" type="text" placeholder="e.g. RFX-ZC-DET-001" autocomplete="username" autocapitalize="characters">
+    </div>
+    <div class="field">
+      <label>Passcode</label>
+      <input id="inputPasscode" type="password" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="current-password">
+    </div>
+    <div class="login-err" id="loginErr"></div>
+    <button class="btn btn-login" id="btnLogin" onclick="doZoneClerkLogin()">Sign In</button>
+    <div style="margin-top: 16px; text-align: center;">
+      <a href="traffic-center.html" class="back-home" style="display: inline-block;">← Warehouse Highway</a>
+    </div>
+  </div>
+
+  <div id="movementSplash" class="retiflux-splash" aria-hidden="false" style="display: none;">
+    <div class="splash-icon">
+      <div class="splash-glow"></div>
+      <img src="../favicon.png" alt="RetiFlux" width="96" height="96" loading="eager">
+    </div>
+    <div class="splash-title">RetiFlux™</div>
+    <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+  </div>
+  <div id="movementToastContainer" style="position:fixed;right:20px;bottom:24px;z-index:100000;pointer-events:none;"></div>
+  <div id="app" class="screen" style="display:none;">
+    <div class="header">
+      <h1>📦 Zone Clerk — <span id="headerZoneName">—</span></h1>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <a href="traffic-center.html" class="back-home" target="_top">← Warehouse Highway</a>
+        <button type="button" class="logout-btn" id="btnSignOut">Sign out</button>
+      </div>
+    </div>
+    <div id="zoneClerkNotifShell" class="notif-shell notif-shell--empty" aria-live="polite">
+      <button type="button" class="notif-panel-toggle" id="btnToggleNotifPanel" aria-expanded="false" aria-controls="zoneClerkNotifPanel">
+        <span class="notif-bell" aria-hidden="true">🔔</span>
+        <span class="notif-toggle-label">Notifications</span>
+        <span id="zoneClerkNotifBadge" class="notif-badge" title="Unread count">0</span>
+        <span class="notif-chevron" id="zoneClerkNotifChevron">▼</span>
+      </button>
+      <div id="zoneClerkNotifPanel" class="notif-panel-body" role="region" aria-label="Notification list">
+        <div class="notif-bar-head">
+          <button type="button" class="notif-dismiss" id="btnDismissAllNotifs" title="Mark all shown as read">Dismiss all</button>
+        </div>
+        <div id="zoneClerkNotifList"></div>
+        <div id="zoneClerkNotifRecentWrap" class="notif-recent-wrap" style="display:none;">
+          <button type="button" class="notif-recent-toggle" id="btnToggleRecentNotifs" aria-expanded="false">Recent (dismissed)</button>
+          <div id="zoneClerkNotifRecent" style="display:none;margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tabs">
+      <button type="button" class="tab-btn active" data-tab="monitor">Zone Monitor</button>
+      <button type="button" class="tab-btn" data-tab="release" id="tabRelease" style="display:none;">Release Orders</button>
+      <button type="button" class="tab-btn" data-tab="receiving">Zone Receiving</button>
+      <button type="button" class="tab-btn" data-tab="stocks">Stocks in Zone</button>
+      <button type="button" class="tab-btn" data-tab="replenishment">Replenishment Tasks</button>
+    </div>
+    <div class="content">
+      <div id="viewMonitor" class="view active">
+        <div class="movement-grid">
+        <div class="card">
+          <h2>⬥ Zone Monitor</h2>
+          <div id="zoneClerkZoneBadge" class="zone-badge">📍 Your zone</div>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Use <strong>Select SKU</strong> (suggests oldest pallet) or click a pallet to populate the form.</p>
+          <div id="zoneMonitorSMGuidance" style="display:none;font-size:12px;color:#34d399;margin-bottom:12px;padding:10px;background:rgba(52,211,153,0.1);border-radius:8px;border-left:4px solid #34d399;"><strong>SuperMarket:</strong> Pallets with <strong>KEEP</strong> are needed by orders — do not push to Dispatch. <strong>PRIORITY</strong> pallets are excess — push to Dispatch Loading Area.</div>
+          <div id="zoneMonitorActionFilterWrap" style="display:none;margin-bottom:12px;">
+            <label>Filter</label>
+            <select id="zoneMonitorActionFilter">
+              <option value="">All pallets</option>
+              <option value="push">Push to Dispatch only</option>
+              <option value="keep">Keep for orders only</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 12px;">
+            <div id="zoneSelectWrap" style="display:none;"><label>Zone</label><select id="zoneSelect"></select></div>
+            <div style="flex: 1; min-width: 100px;">
+              <label>Status</label>
+              <select id="zoneStatusFilter">
+                <option value="">Any status</option>
+                <option value="Active">Active</option>
+                <option value="Hold">Hold</option>
+                <option value="Rework">Rework</option>
+                <option value="Dispatch">Dispatch</option>
+                <option value="Shipped">Shipped</option>
+                <option value="Received">Received</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-primary" id="btnRefreshZone">🔄 Refresh</button>
+            <button type="button" class="btn btn-secondary" id="btnViewAllZones" style="display:none;">📊 View All Zones</button>
+            <button type="button" class="btn btn-secondary" id="btnCheckReplenishment" style="display:none;">📋 Check Replenishment</button>
+          </div>
+          <div id="zoneStatus" class="status"></div>
+          <div id="zoneOverviewContainer" style="display: none; margin-top: 16px; background: rgba(30, 58, 95, 0.5); border-radius: 12px; padding: 16px; border: 2px solid rgba(245, 158, 11, 0.3);"></div>
+          <div id="palletList" style="margin-top: 16px; max-height: 400px; overflow-y: auto;"></div>
+          <div id="zonePagination" style="display:none;margin-top:10px;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button type="button" class="btn btn-secondary" id="btnZonePrev">← Prev</button>
+              <button type="button" class="btn btn-secondary" id="btnZoneNext">Next →</button>
+              <span id="zonePageInfo" style="font-size:12px;color:#94a3b8;"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label for="zonePageSize" style="margin:0;font-size:12px;color:#94a3b8;">Page size</label>
+              <select id="zonePageSize" style="width:auto;min-width:90px;">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="200">200</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>⬥ Initiate Move</h2>
+          <div id="moveSuggestions" class="guidance-suggestions" style="display:none;"></div>
+          <label>Select SKU (optional — suggests oldest pallet)</label>
+          <select id="moveSkuSelect">
+            <option value="">— Select SKU first or click a pallet —</option>
+          </select>
+          <label>Pallet ID</label>
+          <input type="text" id="movePalletId" placeholder="e.g. PRT000001RF or click Select on a pallet">
+          <label>Current Zone</label>
+          <input type="text" id="moveCurrentZone" class="readonly" placeholder="Auto-filled when pallet selected" readonly>
+          <label>To Zone</label>
+          <select id="moveToZone"></select>
+          <label>Moved By</label>
+          <input type="text" id="moveMovedBy" placeholder="Auto-filled" class="readonly" readonly>
+          <label>Reason (optional)</label>
+          <input type="text" id="moveReason" placeholder="e.g. FIFO rotation">
+          <div style="display: flex; gap: 12px; margin-top: 12px;">
+            <button type="button" class="btn btn-primary" id="btnInitiateMove">🚚 Initiate Move</button>
+            <button type="button" class="btn btn-secondary" id="btnClearMove">Clear</button>
+          </div>
+          <div id="moveStatus" class="status"></div>
+        </div>
+        </div>
+      </div>
+      <div id="viewRelease" class="view">
+        <div class="card" id="cardPrepareForRelease" style="display:none;">
+          <h2>⬥ Prepare for Release (75%+ incoming)</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Orders at 75%+ picking — prepare to receive. They will appear in <strong>Release Orders</strong> when the picker submits.</p>
+          <div id="prepareForReleaseList" class="status"></div>
+        </div>
+        <div class="card">
+          <h2>⬥ Release Orders (SuperMarket)</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Pickers have submitted orders. Click <strong>Release</strong> to complete the transaction and send the order to dispatch.</p>
+          <button type="button" class="btn btn-secondary" id="btnRefreshRelease" style="margin-bottom: 12px;">🔄 Refresh</button>
+          <div id="releaseOrdersList" class="status"></div>
+        </div>
+      </div>
+      <div id="viewReceiving" class="view">
+        <div class="card">
+          <h2>⬥ Receive Inbounds</h2>
+          <div class="guidance-box" style="margin-bottom: 16px; padding: 12px; background: rgba(245, 158, 11, 0.1); border-left: 4px solid var(--gold); border-radius: 8px; font-size: 12px; line-height: 1.5;">
+            <strong>📋 Zone Receiving — two views:</strong><br>
+            <strong>• Clerk who pushed:</strong> Select <em>your zone</em> to see <strong>Outbounds</strong> (what you sent) and <strong>Inbounds</strong> (what's arriving to you).<br>
+            <strong>• Clerk who receives:</strong> Select <em>your zone</em> to see <strong>Inbounds</strong> — click <strong>Receive</strong> when the pallet physically arrives.
+          </div>
+          <div id="receivingZoneWrap" style="display:none;"><label>Zone</label><select id="receivingZoneSelect"></select></div>
+          <div id="operatorNameWrap" style="display:none;"><label>Your name (operator)</label><input type="text" id="operatorName" placeholder="e.g. J. Kamau"></div>
+          <div id="receivingStatus" class="status"></div>
+          <div id="receivingSections"></div>
+        </div>
+      </div>
+      <div id="viewStocks" class="view">
+        <div class="card" id="cardZoneStocks">
+          <h2>⬥ Stocks in Zone</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Live stock map for your assigned zone by SKU (pallets, units, oldest/newest pallets).</p>
+          <div id="zoneStocksList" class="status"></div>
+        </div>
+      </div>
+      <div id="viewReplenishment" class="view">
+        <div class="replenishment-layout">
+        <div class="replenishment-side">
+        <div class="card repl-notif-panel" id="cardReplenishmentNotifications">
+          <h2>⬥ Notifications</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Dedicated alert panel for your zone. Open move form directly from order-pull alerts.</p>
+          <div id="replenishmentNotifList" class="status"></div>
+        </div>
+        <div class="card" id="cardInboundTasks">
+          <h2>⬥ What's Coming to You (Receive)</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;" id="inboundCardDesc">Zone clerks are pushing pallets to your zone for pickers. When they arrive, click <strong>Receive</strong> in the Zone Receiving tab.</p>
+          <div id="inboundTaskList" class="status"></div>
+        </div>
+        <div class="card">
+          <h2>⬥ Replenishment Warnings</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Zones/SKUs at 30% stock. Acknowledge when addressed.</p>
+          <div id="replenishmentWarningsList" class="status"></div>
+        </div>
+        </div>
+        <div class="replenishment-main">
+        <div class="card" id="cardPushTasks">
+          <h2>⬥ Orders Needing Your Zone (Push)</h2>
+          <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;" id="pushCardDesc">When another area needs stock from your zone, use the action on each line to open the move form with the right pallet and destination. <strong style="color:#fde68a">Order-pull alerts</strong> (same as the bell panel) also appear at the top here.</p>
+          <button type="button" class="btn btn-secondary" id="btnRefreshReplenishment" style="margin-bottom: 12px;">🔄 Refresh Tasks</button>
+          <div id="replenishmentTaskList" class="status"></div>
+        </div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+
+  <script src="../config.js"></script>
+  <script src="../js/retiflux-screenshot-guard.js"></script>
+  <script src="../js/retiflux-auth-session.js"></script>
+  <script src="../js/retiflux-notifications.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script>
+        (function() {
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var supabaseUrl = cfg.SUPABASE_URL;
+    var supabaseKey = cfg.SUPABASE_ANON_KEY;
+    var supabase = (supabaseUrl && supabaseKey) ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
+
+    var params = new URLSearchParams(window.location.search);
+    var initialTab = params.get('tab') || 'monitor';
+    var zones = [];
+    var lastPallets = [];
+    var lastBookedPalletInfo = null;
+    var zoneMonitorTotal = 0;
+    var zoneMonitorPage = 1;
+    var zoneMonitorPageSize = 100;
+    var pendingTaskId = null;
+    var pendingTaskOrderRef = null;
+    var currentUser = null;
+    var assignedZone = null;
+    var currentTab = 'monitor';
+    var realtimeRefreshTimer = null;
+    var autoReplenishmentBackfillRunning = false;
+    /** Polling for alerts — works without enabling Realtime publication on zone_clerk_notifications */
+    var notifPollTimer = null;
+    var NOTIF_POLL_MS = 12000;
+    var notifRecentExpanded = false;
+    var notifPanelExpanded = false;
+    try { notifPanelExpanded = sessionStorage.getItem('zc_notif_open') === '1'; } catch (e0) {}
+
+    function applyNotifPanelUi() {
+      var p = document.getElementById('zoneClerkNotifPanel');
+      var b = document.getElementById('btnToggleNotifPanel');
+      var ch = document.getElementById('zoneClerkNotifChevron');
+      if (!p || !b) return;
+      p.classList.toggle('notif-panel-body--open', notifPanelExpanded);
+      b.setAttribute('aria-expanded', notifPanelExpanded ? 'true' : 'false');
+      if (ch) ch.textContent = notifPanelExpanded ? '▲' : '▼';
+    }
+
+    function isNoForkliftAvailableError(err) {
+      var m = '';
+      if (err && err.message) m = String(err.message);
+      else if (typeof err === 'string') m = err;
+      m = m.toLowerCase();
+      return m.indexOf('no available forklift') >= 0;
+    }
+    var lastRecentDismissedItems = [];
+
+    async function sha256(str) {
+      var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    }
+
+    window.doZoneClerkLogin = async function() {
+      var userId = document.getElementById('inputUserId').value.trim();
+      var passcode = document.getElementById('inputPasscode').value.trim();
+      var errEl = document.getElementById('loginErr');
+      var btn = document.getElementById('btnLogin');
+      errEl.textContent = '';
+      if (!userId || !passcode) { errEl.textContent = 'Please enter your ID and passcode.'; return; }
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+      try {
+        var hash = await sha256(passcode);
+        var uid = userId.trim();
+        var { data, error } = await supabase.from('authorized_users')
+          .select('user_id, name, role, assigned_zone, passcode_hash')
+          .ilike('user_id', uid)
+          .maybeSingle();
+        if (error) { throw new Error(error.message || 'Sign in failed.'); }
+        if (!data) { throw new Error('User ID not found. Check your ID and try again.'); }
+        var role = (data.role || '').trim();
+        if (!/^(Zone Clerk|Receiving Clerk)$/i.test(role)) {
+          throw new Error('Role "' + role + '" cannot access this portal. Zone Clerk or Receiving Clerk required.');
+        }
+        if (!data.assigned_zone) { throw new Error('No zone assigned. Contact your supervisor.'); }
+        if (data.passcode_hash !== hash) { throw new Error('Incorrect passcode.'); }
+        if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(data);
+        currentUser = data;
+        assignedZone = data.assigned_zone;
+        document.getElementById('inputPasscode').value = '';
+        document.getElementById('screenLogin').classList.remove('active');
+        document.getElementById('screenLogin').style.display = 'none';
+        document.getElementById('app').classList.add('active');
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('headerZoneName').textContent = assignedZone;
+        document.getElementById('zoneClerkZoneBadge').textContent = '📍 ' + assignedZone;
+        init();
+      } catch (e) {
+        errEl.textContent = e.message || 'Sign in failed.';
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+      }
+    };
+
+    document.getElementById('inputPasscode').addEventListener('keydown', function(e) { if (e.key === 'Enter') doZoneClerkLogin(); });
+
+    function stopZoneClerkNotifPolling() {
+      if (notifPollTimer) {
+        clearInterval(notifPollTimer);
+        notifPollTimer = null;
+      }
+    }
+
+    function startZoneClerkNotifPolling() {
+      stopZoneClerkNotifPolling();
+      if (!supabase) return;
+      notifPollTimer = setInterval(function() {
+        refreshZoneClerkNotifications();
+        if (currentTab === 'replenishment') refreshReplenishment(false);
+      }, NOTIF_POLL_MS);
+    }
+
+    document.getElementById('btnSignOut').onclick = function() {
+      stopZoneClerkNotifPolling();
+      if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.clear();
+      currentUser = null;
+      assignedZone = null;
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('screenLogin').style.display = 'block';
+      document.getElementById('screenLogin').classList.add('active');
+      document.getElementById('inputUserId').value = '';
+      document.getElementById('inputPasscode').value = '';
+      document.getElementById('loginErr').textContent = '';
+      document.getElementById('btnLogin').disabled = false;
+      document.getElementById('btnLogin').textContent = 'Sign In';
+    };
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      var div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    function r2zc(n) {
+      return Math.round((Number(n) || 0) * 100) / 100;
+    }
+    /**
+     * Open SM_PICK reservations → units the picker needs from SuperMarket per order line
+     * (e.g. 15 units off a pallet — not necessarily the full move qty).
+     */
+    async function fetchSmPickBalancesForTasks(sb, taskArr) {
+      var smPickByLineId = {};
+      var lineUnitById = {};
+      var orderIds = [];
+      var lineIds = [];
+      (taskArr || []).forEach(function(t) {
+        if (t.order_id) orderIds.push(t.order_id);
+        if (t.order_line_id) lineIds.push(t.order_line_id);
+      });
+      orderIds = orderIds.filter(function(v, i, a) { return a.indexOf(v) === i; });
+      lineIds = lineIds.filter(function(v, i, a) { return a.indexOf(v) === i; });
+      try {
+        if (orderIds.length && sb) {
+          var pr = await sb.from('pallet_reservations')
+            .select('order_line_id, quantity_reserved, reservation_type')
+            .in('order_id', orderIds)
+            .is('released_at', null);
+          if (!pr.error && pr.data) {
+            pr.data.forEach(function(r) {
+              if (!r.order_line_id || r.reservation_type !== 'SM_PICK') return;
+              var q = Number(r.quantity_reserved) || 0;
+              smPickByLineId[r.order_line_id] = (smPickByLineId[r.order_line_id] || 0) + q;
+            });
+          }
+        }
+        var needLine = {};
+        lineIds.forEach(function(id) { needLine[id] = true; });
+        Object.keys(smPickByLineId).forEach(function(id) { needLine[id] = true; });
+        var needLineIds = Object.keys(needLine);
+        if (needLineIds.length && sb) {
+          var ol = await sb.from('order_lines').select('id, unit').in('id', needLineIds);
+          if (!ol.error && ol.data) {
+            ol.data.forEach(function(row) {
+              lineUnitById[row.id] = row.unit || 'units';
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('fetchSmPickBalancesForTasks', e);
+      }
+      return { smPickByLineId: smPickByLineId, lineUnitById: lineUnitById };
+    }
+    function zoneClerkSmPickBalanceCell(t, smPickByLineId, lineUnitById) {
+      var tt = String(t.task_type || '').toUpperCase();
+      var toSm = String(t.to_zone || '').toLowerCase().indexOf('supermarket') >= 0;
+      if (tt === 'DT_MOVE') {
+        return '<span style="color:#94a3b8;font-size:11px">DT — full pallet, no SM pick</span>';
+      }
+      if (tt === 'ORDER_PICK' && toSm) {
+        var lid = t.order_line_id;
+        var sm = lid ? (Number(smPickByLineId[lid]) || 0) : 0;
+        var u = escapeHtml((lid && lineUnitById[lid]) ? String(lineUnitById[lid]) : 'units');
+        if (sm > 0) {
+          return '<div><span style="color:#93c5fd;font-weight:800">' + escapeHtml(String(r2zc(sm))) + '</span> ' + u + ' <span style="font-size:10px;color:#cbd5e1">from SM</span></div>' +
+            '<div style="font-size:9px;color:#94a3b8;margin-top:3px;line-height:1.35">Picker needs this many <strong>units</strong> from SuperMarket for the order line (often a partial off the pallet).</div>';
+        }
+        if (lid) {
+          return '<span style="color:#94a3b8;font-size:11px">No SM reservation</span>' +
+            '<div style="font-size:9px;color:#64748b;margin-top:3px;line-height:1.35">Move qty may reflect a full pallet; open order detail for split.</div>';
+        }
+        return '<span style="color:#94a3b8">—</span>';
+      }
+      return '<span style="color:#94a3b8">—</span>';
+    }
+
+    /** ORDER_PICK / DT_MOVE / anything with order_id = picker or order is waiting on this move. */
+    function isOrderDrivenReplenishmentTask(t) {
+      if (!t) return false;
+      var tt = String(t.task_type || '').toUpperCase();
+      if (tt === 'ORDER_PICK' || tt === 'DT_MOVE') return true;
+      if (t.order_id) return true;
+      return false;
+    }
+
+    /**
+     * Lane cards for a subset of tasks (capacity vs order-driven). idPrefix keeps DOM ids unique.
+     */
+    function buildReplenishmentLaneCardsHtml(tasksSubset, smPickByLineId, lineUnitById, sourceAvailByLane, laneProgress, idPrefix) {
+      if (!tasksSubset || !tasksSubset.length) return '';
+      var laneStats = {};
+      tasksSubset.forEach(function(t) {
+        var key = (t.from_zone || '') + '|' + (t.to_zone || '') + '|' + (t.sku || '');
+        if (!laneStats[key]) laneStats[key] = { qty: 0, pallets: 0 };
+        laneStats[key].qty += Number(t.quantity_needed || 0);
+        laneStats[key].pallets += 1;
+      });
+      var grouped = {};
+      var groupOrder = [];
+      tasksSubset.forEach(function(t) {
+        var gk = (t.from_zone || '') + '|' + (t.to_zone || '') + '|' + (t.sku || '');
+        if (!grouped[gk]) {
+          grouped[gk] = { from: t.from_zone || '', to: t.to_zone || '', sku: t.sku || '', rows: [], anyZoneDriven: false };
+          groupOrder.push(gk);
+        }
+        grouped[gk].rows.push(t);
+        var isZD = (t.task_type || '').toUpperCase() === 'ZONE_REPLENISH' || (t.trigger_reason || '').toUpperCase() === 'ZONE_BELOW_10PCT';
+        if (isZD) grouped[gk].anyZoneDriven = true;
+      });
+
+      var groupHtml = '';
+      groupOrder.forEach(function(gk, idx) {
+        var g = grouped[gk];
+        var lane = laneStats[gk] || { qty: 0, pallets: 0 };
+        var sourceKey = (g.from || '') + '|' + (g.sku || '');
+        var srcAvail = sourceAvailByLane[sourceKey] || { pallets: 0, qty: 0 };
+        var anyTask = g.rows[0] || {};
+        var progKey = (anyTask.lane_key || gk);
+        var movedCnt = (laneProgress[progKey] && laneProgress[progKey].moved) ? laneProgress[progKey].moved : 0;
+        var prog = { moved: movedCnt, total: movedCnt + Number(lane.pallets || 0) };
+        var panelId = (idPrefix || 'lane') + '_lanePanel_' + idx;
+        var smNotifiedAny = (g.rows || []).some(function(t) {
+          return (String(t.task_type || '').toUpperCase() === 'SM_REPLENISH') && !!t.sm_notified_at;
+        });
+        var hasOrderPickToSm = (g.rows || []).some(function(t) {
+          return String(t.task_type || '').toUpperCase() === 'ORDER_PICK' &&
+            String(t.to_zone || '').toLowerCase().indexOf('supermarket') >= 0;
+        });
+        var orderNeedSummary = '';
+        (function() {
+          var seen = {};
+          var parts = [];
+          (g.rows || []).forEach(function(t) {
+            if (!t.order_id) return;
+            var key = String(t.order_id);
+            if (seen[key]) return;
+            seen[key] = true;
+            var o = t.orders || {};
+            var ono = o.external_order_no || ('#' + key.slice(0, 8));
+            var pk = o.assigned_picker_name || o.assigned_picker_user_id || 'picker';
+            parts.push('<strong style="color:#e2e8f0">' + escapeHtml(ono) + '</strong> · ' + escapeHtml(String(pk)));
+          });
+          if (parts.length) orderNeedSummary = parts.join(' &nbsp;|&nbsp; ');
+        })();
+        groupHtml += '<div class="task-card" style="margin-bottom:10px;border-left:4px solid ' + (smNotifiedAny ? '#22d3ee' : (g.anyZoneDriven ? '#f59e0b' : '#34d399')) + ';">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+            '<div style="font-weight:700;color:#f8fafc;">' + escapeHtml(g.from) + ' → ' + escapeHtml(g.to) + ' · ' + escapeHtml(g.sku) + '</div>' +
+            '<button type="button" class="btn btn-secondary btn-lane-toggle" data-panel="' + panelId + '">Show Pallets (' + g.rows.length + ')</button>' +
+          '</div>' +
+          (orderNeedSummary
+            ? '<div style="font-size:11px;line-height:1.45;color:#a7f3d0;margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25)"><strong>📋 Picker / order still needs this SKU:</strong> ' + orderNeedSummary + '. <span style="color:#94a3b8">When enough stock reaches SuperMarket, short lines can reopen automatically for picking.</span></div>'
+            : '') +
+          '<div style="display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:#94a3b8;margin-top:8px;">' +
+            '<span title="Quantities needed in destination zone for this SKU">Lane Remaining Qty: <strong style="color:#fbbf24;">' + escapeHtml(String(lane.qty)) + '</strong> <small style="color:#cbd5e1;">(sum of pallet move quantities in ' + escapeHtml(g.to) + ')</small>' +
+            (hasOrderPickToSm ? '<br><small style="color:#93c5fd;display:block;margin-top:4px;line-height:1.35">For order pulls: the picker’s <strong>SM pick balance</strong> (exact units from SuperMarket, e.g. 15 off a pallet) is in the table column — not always equal to move qty.</small>' : '') +
+            '</span>' +
+            '<span title="Pallets still to move for this lane">Pallets Remaining: <strong style="color:#fbbf24;">' + escapeHtml(String(lane.pallets)) + '</strong> <small style="color:#cbd5e1;">(pallets to move)</small></span>' +
+            '<span title="Current source-zone stock for this SKU">Source Available: <strong style="color:#60a5fa;">' + escapeHtml(String(srcAvail.qty)) + ' qty / ' + escapeHtml(String(srcAvail.pallets)) + ' pallets</strong> <small style="color:#cbd5e1;">(available in ' + escapeHtml(g.from) + ')</small></span>' +
+            '<span>Progress: <strong style="color:#34d399;">' + escapeHtml(String(prog.moved)) + '/' + escapeHtml(String(prog.total || lane.pallets)) + '</strong></span>' +
+          '</div>' +
+          '<div id="' + panelId + '" style="display:none;margin-top:10px;">' +
+            '<table class="overview-table"><thead><tr><th>#</th><th>Type</th><th>Order / picker</th><th>Task ID</th><th>Move qty</th><th>SM pick (units)</th><th>Reserved Pallet</th><th>Status</th><th></th></tr></thead><tbody>' +
+            g.rows.map(function(t, i) {
+              var pal = t.reserved_pallet_id
+                ? '<span style="color:#34d399;font-weight:700;">' + escapeHtml(t.reserved_pallet_id) + '</span>'
+                : '<span style="color:#fbbf24;">Auto-FIFO</span>';
+              var statusTxt = String(t.status || 'PENDING');
+              if (t.sm_notified_at) statusTxt += ' (SM notified)';
+              var actLabel = replenishmentSupplyButtonLabel(t);
+              var ord = t.orders || {};
+              var orderPickerCell = t.order_id
+                ? '<strong style="color:#f1f5f9">' + escapeHtml(ord.external_order_no || ('Order ' + String(t.order_id).slice(0, 8))) + '</strong><br><span style="font-size:10px;color:#94a3b8">Picker: ' + escapeHtml(ord.assigned_picker_name || ord.assigned_picker_user_id || '—') + '</span>'
+                : '<span style="color:#64748b;font-size:11px">Zone / capacity</span>';
+              var typeCell = '<span style="font-size:10px;font-weight:800;color:#cbd5e1">' + escapeHtml(String(t.task_type || '—')) + '</span>' +
+                (t.trigger_reason ? '<br><span style="font-size:9px;color:#64748b">' + escapeHtml(String(t.trigger_reason)) + '</span>' : '');
+              return '<tr>' +
+                '<td>' + escapeHtml(String(i + 1)) + '</td>' +
+                '<td style="min-width:88px">' + typeCell + '</td>' +
+                '<td style="min-width:120px">' + orderPickerCell + '</td>' +
+                '<td>' + escapeHtml(t.task_id || '') + '</td>' +
+                '<td>' + escapeHtml(String(Number(t.quantity_needed || 0))) + '</td>' +
+                '<td style="min-width:120px;vertical-align:top">' + zoneClerkSmPickBalanceCell(t, smPickByLineId, lineUnitById) + '</td>' +
+                '<td>' + pal + '</td>' +
+                '<td>' + escapeHtml(statusTxt) + '</td>' +
+                '<td><button type="button" class="btn btn-primary btn-execute-task" data-task-id="' + escapeHtml(t.task_id || '') + '" data-from-zone="' + escapeHtml(t.from_zone || '') + '" data-to-zone="' + escapeHtml(t.to_zone || '') + '" data-sku="' + escapeHtml(t.sku || '') + '">' + escapeHtml(actLabel) + '</button></td>' +
+              '</tr>';
+            }).join('') +
+            '</tbody></table>' +
+          '</div>' +
+        '</div>';
+      });
+      return groupHtml;
+    }
+
+    function wrapReplenishmentSection(title, subtitle, accentColor, innerHtml, emptyMsg) {
+      var body = (innerHtml && innerHtml.trim())
+        ? innerHtml
+        : '<div class="empty" style="margin-top:8px">' + escapeHtml(emptyMsg) + '</div>';
+      return '<section class="replenishment-split-section" style="margin-bottom:20px;padding-bottom:4px">' +
+        '<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
+          '<span style="display:inline-block;width:4px;min-height:36px;border-radius:3px;background:' + accentColor + '"></span>' +
+          '<div>' +
+            '<h3 style="margin:0;font-size:15px;font-weight:800;color:#f8fafc;letter-spacing:0.02em">' + escapeHtml(title) + '</h3>' +
+            '<p style="margin:6px 0 0;font-size:11px;color:#94a3b8;line-height:1.45;max-width:52rem">' + subtitle + '</p>' +
+          '</div>' +
+        '</div>' +
+        body +
+        '</section>';
+    }
+
+    function showToast(message, type, durationMs) {
+      type = type || 'success';
+      durationMs = durationMs || 4500;
+      var container = document.getElementById('movementToastContainer');
+      if (!container) return;
+      var existing = container.querySelector('.movement-toast');
+      if (existing) existing.remove();
+      var el = document.createElement('div');
+      el.className = 'movement-toast ' + type;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(function() {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.25s ease-out';
+        setTimeout(function() { el.remove(); }, 280);
+      }, durationMs);
+    }
+
+    var _splashRef = 0;
+    function showSplash() {
+      _splashRef++;
+      var el = document.getElementById('movementSplash');
+      if (el) { el.style.display = 'flex'; el.classList.remove('fade-out'); el.setAttribute('aria-hidden', 'false'); }
+    }
+    function hideSplash() {
+      _splashRef = Math.max(0, _splashRef - 1);
+      if (_splashRef > 0) return;
+      var el = document.getElementById('movementSplash');
+      if (el) { el.classList.add('fade-out'); el.setAttribute('aria-hidden', 'true'); setTimeout(function() { el.style.display = 'none'; }, 250); }
+    }
+
+    var zoneTransitions = [];
+    var skuToHomeZone = {};
+
+    // Fallback when zone_transitions fails to load (e.g. RLS). Matches RUN_SEED_ONLY + RUN_HOME_ZONE_AND_FB_ZONE.
+    var ZONE_TRANSITIONS_FALLBACK = [
+      { from_zone: 'Receiving Area', to_zone: 'Detergents Zone' }, { from_zone: 'Receiving Area', to_zone: 'Fats Zone' },
+      { from_zone: 'Receiving Area', to_zone: 'Liquids/Oils Zone' }, { from_zone: 'Receiving Area', to_zone: 'Soaps Zone' },
+      { from_zone: 'Receiving Area', to_zone: 'Foods & Beverages Zone' }, { from_zone: 'Receiving Area', to_zone: 'SuperMarket Area' },
+      { from_zone: 'Receiving Area', to_zone: 'QA Hold' }, { from_zone: 'Receiving Area', to_zone: 'Rework Zone' },
+      { from_zone: 'Receiving Area', to_zone: 'Dispatch Loading Area' },
+      { from_zone: 'Detergents Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Detergents Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Detergents Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Fats Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Fats Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Fats Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Liquids/Oils Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Liquids/Oils Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Liquids/Oils Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Soaps Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Soaps Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Soaps Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Foods & Beverages Zone', to_zone: 'SuperMarket Area' }, { from_zone: 'Foods & Beverages Zone', to_zone: 'Dispatch Loading Area' }, { from_zone: 'Foods & Beverages Zone', to_zone: 'QA Hold' },
+      { from_zone: 'Rework Zone', to_zone: 'Receiving Area' }, { from_zone: 'Rework Zone', to_zone: 'QA Hold' }, { from_zone: 'Rework Zone', to_zone: 'SuperMarket Area' },
+      { from_zone: 'SuperMarket Area', to_zone: 'SuperMarket Area' }, { from_zone: 'SuperMarket Area', to_zone: 'Dispatch Loading Area' }, { from_zone: 'SuperMarket Area', to_zone: 'Rework Zone' }, { from_zone: 'SuperMarket Area', to_zone: 'QA Hold' },
+      { from_zone: 'QA Hold', to_zone: 'Rework Zone' }, { from_zone: 'QA Hold', to_zone: 'Dispatch Loading Area' }, { from_zone: 'QA Hold', to_zone: 'SuperMarket Area' }, { from_zone: 'QA Hold', to_zone: 'QA Hold' },
+      { from_zone: 'Dispatch Loading Area', to_zone: 'Outbounding' }, { from_zone: 'Dispatch Loading Area', to_zone: 'Rework Zone' }, { from_zone: 'Dispatch Loading Area', to_zone: 'QA Hold' }, { from_zone: 'Dispatch Loading Area', to_zone: 'SuperMarket Area' },
+      { from_zone: 'Outbounding', to_zone: 'Outbonded' }, { from_zone: 'Outbounding', to_zone: 'Rework Zone' }, { from_zone: 'Outbounding', to_zone: 'QA Hold' }
+    ];
+
+    async function loadZones() {
+      if (!supabase) throw new Error('Supabase not configured');
+      var { data, error } = await supabase.from('zone_config').select('zone_name, prefix, default_status, fifo_required').order('zone_name');
+      if (error) throw error;
+      zones = (data || []).map(function(r) {
+        return { ZoneName: r.zone_name, Prefix: r.prefix, DefaultStatus: r.default_status, FIFORequired: !!r.fifo_required };
+      });
+      try {
+        var { data: dt, error: et } = await supabase.from('zone_transitions').select('from_zone, to_zone');
+        if (!et && dt && dt.length > 0) {
+          zoneTransitions = dt;
+        } else {
+          zoneTransitions = ZONE_TRANSITIONS_FALLBACK;
+        }
+      } catch (e) {
+        zoneTransitions = ZONE_TRANSITIONS_FALLBACK;
+      }
+      try {
+        var { data: skuData, error: skuErr } = await supabase.from('skus').select('sku, home_zone, subdivision');
+        if (skuErr && (skuErr.message || '').indexOf('home_zone') >= 0) {
+          var { data: skuData2 } = await supabase.from('skus').select('sku, subdivision');
+          skuData = skuData2;
+          skuErr = null;
+        }
+        if (!skuErr && skuData) {
+          skuToHomeZone = {};
+          var subToZone = { 'Detergents': 'Detergents Zone', 'Soaps & Hygiene': 'Soaps Zone', 'Beverages': 'Foods & Beverages Zone', 'Foods': 'Foods & Beverages Zone' };
+          skuData.forEach(function(r) {
+            var hz = (r.home_zone && r.home_zone.trim()) || (r.subdivision && subToZone[r.subdivision]);
+            if (r.sku && hz) skuToHomeZone[r.sku] = hz;
+          });
+        }
+      } catch (e) { skuToHomeZone = {}; }
+      return zones;
+    }
+
+    function getHomeZone(sku) {
+      return (sku && skuToHomeZone[sku]) ? skuToHomeZone[sku] : null;
+    }
+
+    function isMisplacedZone(zoneName) {
+      var z = (zoneName || '').toLowerCase();
+      return z.includes('receiving area') || z === 'qa hold' || z.includes('rework');
+    }
+
+    function getAllowedDestinations(fromZone) {
+      if (!fromZone) return [];
+      var allowed = zoneTransitions
+        .filter(function(t) { return (t.from_zone || '').trim() === fromZone; })
+        .map(function(t) { return (t.to_zone || '').trim(); })
+        .filter(Boolean);
+      return allowed;
+    }
+
+    function recommendDestination(zone, palletStatus) {
+      var zoneName = (zone.ZoneName || '').trim();
+      var allowed = getAllowedDestinations(zoneName);
+      if (!allowed.length) return null;
+      var zoneLower = zoneName.toLowerCase();
+      var statusLower = (palletStatus || '').toLowerCase();
+      if (statusLower.includes('outbounding')) {
+        var obd = allowed.find(function(z) { return z.toLowerCase() === 'outbonded'; });
+        if (obd) return obd;
+        var rew = allowed.find(function(z) { return z.toLowerCase().includes('rework'); });
+        if (rew) return rew;
+        var qah = allowed.find(function(z) { return z.toLowerCase().includes('qa hold'); });
+        if (qah) return qah;
+      }
+      if (zoneLower.includes('receiving area')) {
+        var productZones = ['Detergents Zone', 'Fats Zone', 'Liquids/Oils Zone', 'Soaps Zone', 'Foods & Beverages Zone'];
+        for (var i = 0; i < productZones.length; i++) {
+          if (allowed.indexOf(productZones[i]) >= 0) return productZones[i];
+        }
+        if (allowed.indexOf('SuperMarket Area') >= 0) return 'SuperMarket Area';
+        if (allowed.indexOf('QA Hold') >= 0) return 'QA Hold';
+      }
+      if (zoneLower.includes('foods') || zoneLower.includes('beverages')) {
+        var dspFb = allowed.find(function(z) { return z.toLowerCase().includes('dispatch'); });
+        if (dspFb) return dspFb;
+        if (allowed.indexOf('SuperMarket Area') >= 0) return 'SuperMarket Area';
+        if (allowed.indexOf('QA Hold') >= 0) return 'QA Hold';
+      }
+      if (zoneLower.includes('detergents') || zoneLower.includes('fats') || zoneLower.includes('liquids') || zoneLower.includes('soaps')) {
+        var dsp = allowed.find(function(z) { return z.toLowerCase().includes('dispatch'); });
+        if (dsp) return dsp;
+        if (allowed.indexOf('SuperMarket Area') >= 0) return 'SuperMarket Area';
+        if (allowed.indexOf('QA Hold') >= 0) return 'QA Hold';
+      }
+      if (zoneLower.includes('supermarket')) {
+        var dsp2 = allowed.find(function(z) { return z.toLowerCase().includes('dispatch'); });
+        if (dsp2) return dsp2;
+        var rew2 = allowed.find(function(z) { return z.toLowerCase().includes('rework'); });
+        if (rew2) return rew2;
+        if (allowed.indexOf('QA Hold') >= 0) return 'QA Hold';
+      }
+      if (zoneLower.includes('dispatch loading')) {
+        var out = allowed.find(function(z) { return z.toLowerCase().includes('outbounding'); });
+        if (out) return out;
+      }
+      if (zoneLower.includes('outbounding')) {
+        var obd2 = allowed.find(function(z) { return z.toLowerCase() === 'outbonded'; });
+        if (obd2) return obd2;
+      }
+      return allowed[0] || null;
+    }
+
+    function formatDate(d) {
+      if (!d) return 'N/A';
+      try { return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch (e) { return String(d); }
+    }
+
+    function populateZoneSelects() {
+      var sel = document.getElementById('zoneSelect');
+      var recSel = document.getElementById('receivingZoneSelect');
+      if (assignedZone) {
+        if (sel) { sel.innerHTML = '<option value="' + escapeHtml(assignedZone) + '">' + escapeHtml(assignedZone) + '</option>'; sel.value = assignedZone; }
+        if (recSel) { recSel.innerHTML = '<option value="' + escapeHtml(assignedZone) + '">' + escapeHtml(assignedZone) + '</option>'; recSel.value = assignedZone; }
+      } else {
+        var opts = '<option value="">Select zone</option>';
+        zones.forEach(function(z) {
+          opts += '<option value="' + escapeHtml(z.ZoneName) + '">' + escapeHtml(z.ZoneName) + ' (' + escapeHtml(z.Prefix || '') + ')</option>';
+        });
+        if (sel) sel.innerHTML = opts;
+        if (recSel) recSel.innerHTML = opts;
+      }
+      populateMoveToZone(null);
+    }
+
+    async function loadPalletsInZone(zoneName, statusFilter, page, pageSize) {
+      if (!supabase || !zoneName) return [];
+      var q = supabase
+        .from('pallets')
+        .select('pallet_id, sku, quantity, remaining_quantity, current_zone, status, batch_lot, manufacturing_date, expiry_date, created_at')
+        .eq('current_zone', zoneName)
+        .is('in_transit_to_zone', null)
+        .order('created_at', { ascending: true });
+      if (statusFilter) q = q.eq('status', statusFilter);
+      if (page && pageSize) {
+        var from = (Math.max(1, Number(page)) - 1) * Number(pageSize);
+        var to = from + Number(pageSize) - 1;
+        q = q.range(from, to);
+      }
+      var { data, error } = await q;
+      if (error) throw error;
+      return (data || []).map(function(r) {
+        return {
+          PalletID: r.pallet_id,
+          SKU: r.sku,
+          Quantity: r.quantity,
+          RemainingQuantity: r.remaining_quantity,
+          CurrentZone: r.current_zone,
+          Status: r.status,
+          BatchLot: r.batch_lot,
+          ManufacturingDate: r.manufacturing_date,
+          ExpiryDate: r.expiry_date,
+          CreatedAt: r.created_at
+        };
+      });
+    }
+
+    async function countPalletsInZone(zoneName, statusFilter) {
+      if (!supabase || !zoneName) return 0;
+      var q = supabase
+        .from('pallets')
+        .select('pallet_id', { count: 'exact', head: true })
+        .eq('current_zone', zoneName)
+        .is('in_transit_to_zone', null);
+      if (statusFilter) q = q.eq('status', statusFilter);
+      var { count, error } = await q;
+      if (error) throw error;
+      return Number(count || 0);
+    }
+
+    async function loadInboundsToZone(zoneName) {
+      if (!supabase || !zoneName) return [];
+      var { data, error } = await supabase
+        .from('pallets')
+        .select('pallet_id, sku, quantity, remaining_quantity, current_zone, in_transit_to_zone, in_transit_initiated_at')
+        .eq('in_transit_to_zone', zoneName)
+        .order('in_transit_initiated_at', { ascending: true });
+      if (error) throw error;
+      return (data || []).map(function(r) {
+        return {
+          PalletID: r.pallet_id,
+          SKU: r.sku,
+          Quantity: r.quantity,
+          RemainingQuantity: r.remaining_quantity,
+          CurrentZone: r.current_zone,
+          InTransitToZone: r.in_transit_to_zone,
+          InTransitInitiatedAt: r.in_transit_initiated_at
+        };
+      });
+    }
+
+    function sortPalletsFifoPerSku(pallets) {
+      return pallets.slice().sort(function(a, b) {
+        var skuA = (a.SKU || a.sku || '').trim();
+        var skuB = (b.SKU || b.sku || '').trim();
+        if (skuA !== skuB) return skuA.localeCompare(skuB);
+        var da = new Date(a.CreatedAt || 0).getTime();
+        var db = new Date(b.CreatedAt || 0).getTime();
+        return da - db;
+      });
+    }
+
+    function pickPriorityPallet(pallets, zoneName, allowed, bookedPalletIds) {
+      if (!pallets || !pallets.length) return null;
+      var ids = pickPriorityPalletIdsPerSku(pallets, zoneName, allowed, bookedPalletIds);
+      return pallets.find(function(p) { return ids[(p.PalletID || '')]; }) || pallets[0];
+    }
+
+    function pickPriorityPalletIdsPerSku(pallets, zoneName, allowed, bookedPalletIds) {
+      var out = {};
+      if (!pallets || !pallets.length) return out;
+      var zone = zoneName || '';
+      var isSM = zone && (zone === 'SuperMarket Area' || zone.toLowerCase().includes('supermarket'));
+      var bySku = {};
+      pallets.forEach(function(p) {
+        var sku = (p.SKU || p.sku || '').trim();
+        if (!sku) return;
+        if (!bySku[sku]) bySku[sku] = [];
+        bySku[sku].push(p);
+      });
+      Object.keys(bySku).forEach(function(sku) {
+        var skuPallets = bySku[sku];
+        var home = getHomeZone(sku);
+        var misplaced = zone && home && isMisplacedZone(zone) && home !== zone && (!allowed || allowed.indexOf(home) >= 0);
+        var candidates = misplaced ? skuPallets.filter(function(p) {
+          var h = getHomeZone(p.SKU || p.sku);
+          return h && isMisplacedZone(zone) && h !== zone && (!allowed || allowed.indexOf(h) >= 0);
+        }) : skuPallets;
+        if (!candidates.length) candidates = skuPallets;
+        var sorted = sortPalletsFifoPerSku(candidates);
+        var first = null;
+        if (isSM && bookedPalletIds && bookedPalletIds.size) {
+          var nonBooked = sorted.filter(function(p) { return !bookedPalletIds.has(p.PalletID || p.pallet_id); });
+          first = nonBooked.length ? nonBooked[0] : null;
+        } else {
+          first = sorted[0];
+        }
+        if (first) out[first.PalletID] = true;
+      });
+      return out;
+    }
+
+    async function loadBookedPalletsForSM(smPallets) {
+      if (!supabase || !smPallets || !smPallets.length) return { bookedPalletIds: new Set(), palletToOrder: {} };
+      try {
+        var { data: lines, error } = await supabase
+          .from('order_lines')
+          .select('id, order_id, item_code, quantity, orders(id, external_order_no, assigned_picker_name)')
+          .in('status', ['OPEN', 'PICKER_REPORTED_SHORT'])
+          .order('order_id')
+          .order('line_no');
+        if (error || !lines || !lines.length) return { bookedPalletIds: new Set(), palletToOrder: {} };
+        var orderIds = [...new Set(lines.map(function(l) { return l.order_id; }))];
+        var { data: orders } = await supabase.from('orders').select('id, external_order_no, assigned_picker_name').in('id', orderIds).in('status', ['RELEASED', 'IN_PROGRESS']);
+        if (!orders || !orders.length) return { bookedPalletIds: new Set(), palletToOrder: {} };
+        var orderMap = {};
+        orders.forEach(function(o) { orderMap[o.id] = o; });
+        var relevantLines = lines.filter(function(l) { return orderMap[l.order_id]; });
+        if (!relevantLines.length) return { bookedPalletIds: new Set(), palletToOrder: {} };
+        var smBySku = {};
+        smPallets.forEach(function(p) {
+          var sku = (p.SKU || p.sku || '').trim();
+          if (!sku) return;
+          if (!smBySku[sku]) smBySku[sku] = [];
+          smBySku[sku].push(p);
+        });
+        Object.keys(smBySku).forEach(function(sku) {
+          smBySku[sku].sort(function(a, b) { return (new Date(a.CreatedAt || 0)).getTime() - (new Date(b.CreatedAt || 0)).getTime(); });
+        });
+        var bookedPalletIds = new Set();
+        var palletToOrder = {};
+        var qtyNeededBySku = {};
+        relevantLines.forEach(function(l) {
+          var sku = (l.item_code || '').trim();
+          if (!sku) return;
+          qtyNeededBySku[sku] = (qtyNeededBySku[sku] || 0) + (parseFloat(l.quantity) || 0);
+        });
+        Object.keys(qtyNeededBySku).forEach(function(sku) {
+          var pallets = smBySku[sku];
+          if (!pallets || !pallets.length) return;
+          var totalNeeded = qtyNeededBySku[sku];
+          if (totalNeeded <= 0) return;
+          var firstLine = relevantLines.find(function(l) { return (l.item_code || '').trim() === sku; });
+          var ord = firstLine ? orderMap[firstLine.order_id] : {};
+          var orderNo = ord.external_order_no || '—';
+          var picker = ord.assigned_picker_name || 'Picker';
+          var remaining = totalNeeded;
+          for (var i = 0; i < pallets.length && remaining > 0; i++) {
+            var p = pallets[i];
+            var pid = p.PalletID || p.pallet_id;
+            var pqty = parseFloat(p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity) || 0;
+            if (pqty <= 0) continue;
+            bookedPalletIds.add(pid);
+            palletToOrder[pid] = { orderNo: orderNo, picker: picker };
+            remaining -= pqty;
+          }
+        });
+        return { bookedPalletIds: bookedPalletIds, palletToOrder: palletToOrder };
+      } catch (e) {
+        return { bookedPalletIds: new Set(), palletToOrder: {} };
+      }
+    }
+
+    async function loadZoneOverview() {
+      if (!supabase || !zones.length) return [];
+      var zoneNames = zones.map(function(z) { return z.ZoneName; }).filter(Boolean);
+      var allPalletsByZone = {};
+      zoneNames.forEach(function(z) { allPalletsByZone[z] = []; });
+      try {
+        var { data, error } = await supabase
+          .from('pallets')
+          .select('pallet_id, sku, quantity, remaining_quantity, current_zone, status, batch_lot, manufacturing_date, expiry_date, created_at')
+          .in('current_zone', zoneNames)
+          .is('in_transit_to_zone', null)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        (data || []).forEach(function(r) {
+          var p = {
+            PalletID: r.pallet_id,
+            SKU: r.sku,
+            Quantity: r.quantity,
+            RemainingQuantity: r.remaining_quantity,
+            CurrentZone: r.current_zone,
+            Status: r.status,
+            BatchLot: r.batch_lot,
+            ManufacturingDate: r.manufacturing_date,
+            ExpiryDate: r.expiry_date,
+            CreatedAt: r.created_at
+          };
+          var z = r.current_zone;
+          if (z && allPalletsByZone[z]) allPalletsByZone[z].push(p);
+        });
+      } catch (e) {
+        return zones.map(function(z) {
+          return { zone: z, pallets: [], count: 0, totalQty: 0, oldestPallet: null, priorityPallet: null, fifoRequired: false, error: e.message };
+        });
+      }
+      var results = [];
+      for (var i = 0; i < zones.length; i++) {
+        var pallets = allPalletsByZone[zones[i].ZoneName] || [];
+        var fifoSorted = sortPalletsFifoPerSku(pallets);
+        var allowed = getAllowedDestinations(zones[i].ZoneName);
+        var priorityPallet = pickPriorityPallet(pallets, zones[i].ZoneName, allowed);
+        var totalQty = pallets.reduce(function(sum, p) {
+          return sum + (parseFloat(p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity) || 0);
+        }, 0);
+        results.push({
+          zone: zones[i],
+          pallets: fifoSorted,
+          count: pallets.length,
+          totalQty: totalQty,
+          oldestPallet: fifoSorted[0] || null,
+          priorityPallet: priorityPallet,
+          fifoRequired: !!zones[i].FIFORequired,
+          error: null
+        });
+      }
+      return results;
+    }
+
+    async function loadOutboundsFromZone(zoneName) {
+      if (!supabase || !zoneName) return [];
+      var { data, error } = await supabase
+        .from('pallets')
+        .select('pallet_id, sku, quantity, remaining_quantity, in_transit_to_zone, in_transit_initiated_at')
+        .eq('current_zone', zoneName)
+        .not('in_transit_to_zone', 'is', null)
+        .order('in_transit_initiated_at', { ascending: true });
+      if (error) throw error;
+      return (data || []).map(function(r) {
+        return {
+          PalletID: r.pallet_id,
+          SKU: r.sku,
+          Quantity: r.quantity,
+          RemainingQuantity: r.remaining_quantity,
+          InTransitToZone: r.in_transit_to_zone,
+          InTransitInitiatedAt: r.in_transit_initiated_at
+        };
+      });
+    }
+
+    async function receivePallet(palletId, receivedBy) {
+      if (!supabase) throw new Error('Supabase not configured');
+      var { data, error } = await supabase.rpc('movement_receive', {
+        p_pallet_id: palletId,
+        p_received_by: receivedBy
+      });
+      if (error) throw error;
+      var result = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!result.success) throw new Error(result.error || 'Receive failed');
+      return result;
+    }
+
+    async function runReplenishmentChecks() {
+      if (!supabase) return null;
+      var sm = { created: 0 }, zone = { warnings: 0, requests: 0 };
+      try {
+        var { data: smData } = await supabase.rpc('check_sm_replenishment');
+        if (smData && smData.created != null) sm.created = smData.created;
+      } catch (e) { console.warn('check_sm_replenishment:', e); }
+      try {
+        var { data: zoneData } = await supabase.rpc('check_zone_replenishment');
+        if (zoneData) {
+          zone.warnings = zoneData.warnings || 0;
+          zone.requests = zoneData.requests || 0;
+        }
+      } catch (e) { console.warn('check_zone_replenishment:', e); }
+      return { sm, zone };
+    }
+
+    function runReplenishmentChecksAfterReceive() {
+      runReplenishmentChecks().then(function(r) {
+        if (!r) return;
+        var total = (r.sm.created || 0) + (r.zone.requests || 0);
+        if (total > 0) showToast('Replenishment: ' + total + ' task(s) created after receive', 'success');
+      });
+    }
+
+    async function initiateMove(palletId, toZone, movedBy, reason, orderReference) {
+      if (!supabase) throw new Error('Supabase not configured');
+      var { data, error } = await supabase.rpc('movement_initiate', {
+        p_pallet_id: palletId,
+        p_to_zone: toZone,
+        p_moved_by: movedBy,
+        p_reason: reason || '',
+        p_order_reference: orderReference || ''
+      });
+      if (error) throw error;
+      var result = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!result.success) throw new Error(result.error || 'Initiate failed');
+      return result;
+    }
+
+    function populateMoveToZone(excludeZone, fromZone) {
+      var toSel = document.getElementById('moveToZone');
+      if (!toSel) return;
+      var allowed = fromZone && zoneTransitions.length ? getAllowedDestinations(fromZone) : null;
+      var opts = '<option value="">Select destination zone</option>';
+      var candidates = allowed && allowed.length ? zones.filter(function(z) { return allowed.indexOf(z.ZoneName) >= 0; }) : zones;
+      candidates.forEach(function(z) {
+        if (z.ZoneName && z.ZoneName !== excludeZone) {
+          opts += '<option value="' + escapeHtml(z.ZoneName) + '">' + escapeHtml(z.ZoneName) + ' (' + escapeHtml(z.Prefix || '') + ')</option>';
+        }
+      });
+      toSel.innerHTML = opts;
+    }
+
+    function selectPalletForMove(palletId) {
+      var pallet = lastPallets.find(function(p) { return (p.PalletID || '') === palletId; });
+      if (!pallet) return;
+      document.getElementById('movePalletId').value = pallet.PalletID || '';
+      document.getElementById('moveCurrentZone').value = pallet.CurrentZone || '';
+      var skuSel = document.getElementById('moveSkuSelect');
+      if (skuSel && (pallet.SKU || pallet.sku)) skuSel.value = (pallet.SKU || pallet.sku).trim();
+      var reasonEl = document.getElementById('moveReason');
+      if (!reasonEl.value.trim()) reasonEl.value = 'Move from ' + (pallet.CurrentZone || 'unknown zone');
+      populateMoveToZone(pallet.CurrentZone, pallet.CurrentZone);
+      var toSel = document.getElementById('moveToZone');
+      var currentZone = pallet.CurrentZone || '';
+      var allowed = getAllowedDestinations(currentZone);
+      var homeZone = getHomeZone(pallet.SKU || pallet.sku);
+      var isMisplaced = homeZone && isMisplacedZone(currentZone) && homeZone !== currentZone && allowed.indexOf(homeZone) >= 0;
+      var orderInfo = lastBookedPalletInfo && lastBookedPalletInfo.palletToOrder && lastBookedPalletInfo.palletToOrder[palletId];
+      var isBooked = !!(lastBookedPalletInfo && lastBookedPalletInfo.bookedPalletIds && lastBookedPalletInfo.bookedPalletIds.has(palletId));
+      var suggested = isBooked ? null : (isMisplaced ? homeZone : recommendDestination(zones.find(function(z) { return z.ZoneName === currentZone; }) || { ZoneName: currentZone }, pallet.Status));
+      if (toSel) {
+        if (suggested) toSel.value = suggested;
+        if (!toSel.value && toSel.options.length > 1) toSel.selectedIndex = 1;
+      }
+      document.getElementById('moveStatus').textContent = 'Selected ' + pallet.PalletID + ' (currently ' + (pallet.CurrentZone || 'N/A') + ')' + (isBooked ? ' — reserved for orders' : '');
+      document.getElementById('moveStatus').className = 'status';
+      document.querySelectorAll('.pallet-card').forEach(function(c) {
+        c.classList.toggle('selected', c.dataset.palletId === palletId);
+      });
+      updateMoveSuggestions(pallet, suggested, isBooked, orderInfo);
+    }
+
+    function updateMoveSuggestions(pallet, suggested, isBooked, orderInfo) {
+      var el = document.getElementById('moveSuggestions');
+      if (!el) return;
+      var suggestions = [];
+      var homeZone = getHomeZone(pallet.SKU || pallet.sku);
+      var currentZone = pallet.CurrentZone || '';
+      var allowed = getAllowedDestinations(currentZone);
+      var zone = zones.find(function(z) { return z.ZoneName === currentZone; });
+      var fifoRequired = zone ? !!zone.FIFORequired : false;
+      var isMisplaced = homeZone && isMisplacedZone(currentZone) && homeZone !== currentZone && allowed.indexOf(homeZone) >= 0;
+      var statusLower = (pallet.Status || '').toLowerCase();
+      if (isBooked) {
+        suggestions.push({ type: 'booked', text: '📋 <strong>Keep for orders:</strong> ' + (orderInfo ? 'Order ' + escapeHtml(orderInfo.orderNo) + ' (Picker: ' + escapeHtml(orderInfo.picker) + '). Do not push to Dispatch.' : 'This pallet is reserved. Do not push to Dispatch.') });
+      }
+      if (statusLower.includes('outbounding')) {
+        suggestions.push({ type: 'outbound', text: '🚚 <strong>Outbounding:</strong> Can only move to Outbonded, Rework Zone, or QA Hold.' });
+      }
+      if (isMisplaced && !isBooked) {
+        suggestions.push({ type: 'home', text: '🏠 <strong>Home zone:</strong> This product belongs in ' + escapeHtml(homeZone) + '. Move there first.' });
+      }
+      if (suggested && !isBooked) {
+        suggestions.push({ type: 'suggest', text: '★ <strong>Push to:</strong> ' + escapeHtml(suggested) + (isMisplaced && suggested === homeZone ? ' (home zone)' : '') });
+      }
+      if (fifoRequired) {
+        suggestions.push({ type: 'fifo', text: '📦 <strong>FIFO:</strong> Oldest pallet per SKU moves first (levelized).' });
+      }
+      if (allowed.length && allowed.length > 1) {
+        var productZones = ['Detergents Zone', 'Fats Zone', 'Liquids/Oils Zone', 'Soaps Zone', 'Foods & Beverages Zone'];
+        var others = suggested ? allowed.filter(function(z) { return z !== suggested; }) : allowed;
+        if (isMisplaced && homeZone) {
+          others = others.filter(function(z) { return productZones.indexOf(z) < 0; });
+        }
+        var optsText = others.length ? others.slice(0, 5).join(', ') + (others.length > 5 ? '…' : '') : '';
+        if (optsText) {
+          suggestions.push({ type: 'options', text: '• <strong>' + (suggested ? 'Other options' : 'Allowed') + ':</strong> ' + optsText });
+        }
+      }
+      if (suggestions.length) {
+        el.style.display = 'block';
+        el.innerHTML = '<strong style="color:var(--gold);">💡 Smart suggestions</strong>' + suggestions.map(function(s) {
+          return '<div class="suggest-item">' + s.text + '</div>';
+        }).join('');
+      } else {
+        el.style.display = 'none';
+      }
+    }
+
+    function resetMovementForm() {
+      document.getElementById('movePalletId').value = '';
+      document.getElementById('moveCurrentZone').value = '';
+      var skuSel = document.getElementById('moveSkuSelect');
+      if (skuSel) { skuSel.value = ''; }
+      populateMoveToZone(null);
+      document.getElementById('moveReason').value = '';
+      document.getElementById('moveStatus').textContent = '';
+      document.getElementById('moveStatus').className = 'status';
+      var sug = document.getElementById('moveSuggestions');
+      if (sug) { sug.style.display = 'none'; sug.innerHTML = ''; }
+      document.querySelectorAll('.pallet-card').forEach(function(c) { c.classList.remove('selected'); });
+      pendingTaskOrderRef = null;
+    }
+
+    function populateSkuSelect(pallets) {
+      var sel = document.getElementById('moveSkuSelect');
+      if (!sel) return;
+      var skus = [];
+      var seen = {};
+      (pallets || []).forEach(function(p) {
+        var sku = (p.SKU || p.sku || '').trim();
+        if (sku && !seen[sku]) { seen[sku] = true; skus.push(sku); }
+      });
+      skus.sort();
+      var opts = '<option value="">— Select SKU first or click a pallet —</option>';
+      skus.forEach(function(sku) {
+        opts += '<option value="' + escapeHtml(sku) + '">' + escapeHtml(sku) + '</option>';
+      });
+      sel.innerHTML = opts;
+    }
+
+    function getOldestPalletForSku(pallets, sku) {
+      if (!pallets || !pallets.length || !sku) return null;
+      var matches = pallets.filter(function(p) { return ((p.SKU || p.sku) || '').trim() === sku; });
+      if (!matches.length) return null;
+      matches.sort(function(a, b) {
+        var da = new Date(a.CreatedAt || 0).getTime();
+        var db = new Date(b.CreatedAt || 0).getTime();
+        return da - db;
+      });
+      return matches[0];
+    }
+
+    function renderPallets(pallets, zoneName, bookedPalletInfo) {
+      var list = document.getElementById('palletList');
+      if (!list) return;
+      if (!pallets.length) {
+        list.innerHTML = '<div class="empty">No pallets in this zone. Create a PRT ticket first to add pallets to Receiving Area.</div>';
+        return;
+      }
+      var bookedIds = (bookedPalletInfo && bookedPalletInfo.bookedPalletIds) ? bookedPalletInfo.bookedPalletIds : new Set();
+      var palletToOrder = (bookedPalletInfo && bookedPalletInfo.palletToOrder) ? bookedPalletInfo.palletToOrder : {};
+      var currentZone = zones.find(function(z) { return z.ZoneName === zoneName; });
+      var fifoRequired = currentZone ? !!currentZone.FIFORequired : false;
+      var sorted = fifoRequired ? sortPalletsFifoPerSku(pallets) : pallets.slice();
+      var allowed = getAllowedDestinations(zoneName);
+      var priorityIds = pickPriorityPalletIdsPerSku(pallets, zoneName, allowed, bookedIds.size ? bookedIds : null);
+      var isSM = zoneName && (zoneName === 'SuperMarket Area' || zoneName.toLowerCase().includes('supermarket'));
+      var actionFilter = (isSM && document.getElementById('zoneMonitorActionFilter')) ? document.getElementById('zoneMonitorActionFilter').value : '';
+      if (actionFilter === 'push') {
+        sorted = sorted.filter(function(p) { return !bookedIds.has(p.PalletID || p.pallet_id) && priorityIds[p.PalletID]; });
+      } else if (actionFilter === 'keep') {
+        sorted = sorted.filter(function(p) { return bookedIds.has(p.PalletID || p.pallet_id); });
+      }
+      if (!sorted.length) {
+        list.innerHTML = '<div class="empty">' + (actionFilter ? 'No pallets match this filter.' : 'No pallets in this zone.') + '</div>';
+        return;
+      }
+      list.innerHTML = sorted.map(function(p) {
+        var qty = p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity;
+        var created = p.CreatedAt ? new Date(p.CreatedAt).toLocaleString() : '';
+        var status = p.Status ? '<span style="font-size:11px;color:#94a3b8;margin-left:6px;">' + escapeHtml(p.Status) + '</span>' : '';
+        var isPriority = !!priorityIds[p.PalletID];
+        var homeZone = getHomeZone(p.SKU || p.sku);
+        var isMisplaced = homeZone && isMisplacedZone(zoneName) && homeZone !== zoneName && allowed.indexOf(homeZone) >= 0;
+        var suggested = null;
+        var suggestHint = '';
+        var isBooked = bookedIds.has(p.PalletID || p.pallet_id);
+        var orderInfo = palletToOrder[p.PalletID || p.pallet_id];
+        if (isSM && isBooked) {
+          suggestHint = orderInfo
+            ? '<div style="font-size:11px;color:#34d399;margin-top:4px;">→ <strong>Keep for Order ' + escapeHtml(orderInfo.orderNo) + '</strong> (Picker: ' + escapeHtml(orderInfo.picker) + ') — do not push to Dispatch</div>'
+            : '<div style="font-size:11px;color:#34d399;margin-top:4px;">→ <strong>Keep for orders</strong> — do not push to Dispatch</div>';
+        } else {
+          suggested = isMisplaced ? homeZone : (allowed.length ? recommendDestination(currentZone || { ZoneName: zoneName }, p.Status) : null);
+          suggestHint = isPriority && suggested ? '<div style="font-size:11px;color:rgba(251,191,36,0.8);margin-top:4px;">→ ' + (isMisplaced ? 'Home zone: ' : 'Push to: ') + escapeHtml(suggested) + '</div>' : '';
+        }
+        var priorityMark = isPriority ? '<span style="color:var(--gold);font-size:16px;margin-right:6px;" title="Move this pallet first for ' + escapeHtml(p.SKU || '') + (isMisplaced ? ' (home zone)' : (isBooked ? ' (reserved)' : ' (FIFO)')) + '">★</span>' : '';
+        var priorityBadge = isPriority ? '<span style="background:linear-gradient(135deg,var(--gold),#f59e0b);color:#0f172a;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-left:8px;">' + (isBooked ? 'RESERVE' : 'PRIORITY') + '</span>' : '';
+        if (isSM && isBooked && !isPriority) {
+          priorityBadge = '<span style="background:rgba(52,211,153,0.3);color:#34d399;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;margin-left:8px;">KEEP</span>';
+        }
+        return '<div class="pallet-card' + (isPriority ? ' priority-pallet' : '') + (isBooked ? ' booked-pallet' : '') + '" data-pallet-id="' + escapeHtml(p.PalletID) + '" data-booked="' + (isBooked ? '1' : '0') + '"' + (isPriority ? ' style="border-color:var(--gold);box-shadow:0 0 0 2px rgba(245,158,11,0.4);"' : '') + '><div><div>' + priorityMark + '<span class="pallet-id">' + escapeHtml(p.PalletID) + '</span>' + priorityBadge + status + '</div><div class="pallet-meta">' + escapeHtml(p.SKU) + ' · Qty: ' + escapeHtml(String(qty)) + ' · ' + escapeHtml(created) + '</div>' + suggestHint + '</div><button type="button" class="btn btn-primary btn-select-pallet">Select</button></div>';
+      }).join('');
+      list.querySelectorAll('.pallet-card').forEach(function(card) {
+        var pid = card.dataset.palletId;
+        if (!pid) return;
+        card.onclick = function(e) {
+          if (e.target.closest('.btn-select-pallet')) return;
+          selectPalletForMove(pid);
+        };
+      });
+      list.querySelectorAll('.btn-select-pallet').forEach(function(btn) {
+        btn.onclick = function(e) {
+          e.stopPropagation();
+          var card = btn.closest('.pallet-card');
+          var pid = card && card.dataset.palletId;
+          if (pid) selectPalletForMove(pid);
+        };
+      });
+    }
+
+    function renderZonePagination() {
+      var wrap = document.getElementById('zonePagination');
+      var prevBtn = document.getElementById('btnZonePrev');
+      var nextBtn = document.getElementById('btnZoneNext');
+      var info = document.getElementById('zonePageInfo');
+      if (!wrap || !prevBtn || !nextBtn || !info) return;
+      var totalPages = Math.max(1, Math.ceil((zoneMonitorTotal || 0) / zoneMonitorPageSize));
+      var hasRows = zoneMonitorTotal > 0;
+      wrap.style.display = hasRows ? 'flex' : 'none';
+      prevBtn.disabled = zoneMonitorPage <= 1;
+      nextBtn.disabled = zoneMonitorPage >= totalPages;
+      var fromRow = hasRows ? ((zoneMonitorPage - 1) * zoneMonitorPageSize + 1) : 0;
+      var toRow = hasRows ? Math.min(zoneMonitorPage * zoneMonitorPageSize, zoneMonitorTotal) : 0;
+      info.textContent = hasRows
+        ? ('Showing ' + fromRow + '-' + toRow + ' of ' + zoneMonitorTotal + ' (Page ' + zoneMonitorPage + '/' + totalPages + ')')
+        : '';
+    }
+
+    function buildReceivingSectionHtml(palletsInZone, inbounds, outbounds, totalInZone) {
+      var total = Number.isFinite(totalInZone) ? totalInZone : palletsInZone.length;
+      var html = '';
+      html += '<div class="receiving-section"><div class="receiving-section-title">Pallets in zone (' + total + ')</div><div class="receiving-section-content">';
+      if (!palletsInZone.length) html += '<div class="empty">No pallets in this zone.</div>';
+      else palletsInZone.forEach(function(p) {
+        var qty = p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity;
+        var created = p.CreatedAt ? new Date(p.CreatedAt).toLocaleString() : '';
+        html += '<div class="pallet-card"><div><span class="pallet-id">' + escapeHtml(p.PalletID) + '</span><div class="pallet-meta">' + escapeHtml(p.SKU || '') + ' · Qty: ' + escapeHtml(String(qty)) + ' · ' + escapeHtml(created) + '</div></div></div>';
+      });
+      html += '</div></div>';
+
+      html += '<div class="receiving-section"><div class="receiving-section-title collapsed">Inbounds awaiting receipt (' + inbounds.length + ')</div><div class="receiving-section-content collapsed">';
+      if (!inbounds.length) html += '<div class="empty">No inbounds awaiting receipt.</div>';
+      else inbounds.forEach(function(p) {
+        var qty = p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity;
+        var initiated = p.InTransitInitiatedAt ? new Date(p.InTransitInitiatedAt).toLocaleString() : '';
+        html += '<div class="pallet-card" data-pallet-id="' + escapeHtml(p.PalletID) + '"><div><span class="pallet-id">' + escapeHtml(p.PalletID) + '</span><div class="pallet-meta">Qty: ' + escapeHtml(String(qty)) + ' · From: ' + escapeHtml(p.CurrentZone || '—') + ' · ' + escapeHtml(initiated) + '</div></div><button type="button" class="btn btn-primary btn-receive">Receive</button></div>';
+      });
+      html += '</div></div>';
+
+      html += '<div class="receiving-section"><div class="receiving-section-title collapsed">Outbounds from this zone (' + outbounds.length + ')</div><div class="receiving-section-content collapsed">';
+      if (!outbounds.length) html += '<div class="empty">No outbounds from this zone.</div>';
+      else outbounds.forEach(function(p) {
+        var qty = p.RemainingQuantity != null ? p.RemainingQuantity : p.Quantity;
+        var initiated = p.InTransitInitiatedAt ? new Date(p.InTransitInitiatedAt).toLocaleString() : '';
+        html += '<div class="pallet-card"><div><span class="pallet-id">' + escapeHtml(p.PalletID) + '</span><div class="pallet-meta">Qty: ' + escapeHtml(String(qty)) + ' · To: ' + escapeHtml(p.InTransitToZone || '—') + ' · ' + escapeHtml(initiated) + '</div></div></div>';
+      });
+      html += '</div></div>';
+
+      return html;
+    }
+
+    async function refreshZone() {
+      var zone = document.getElementById('zoneSelect').value;
+      var statusFilter = document.getElementById('zoneStatusFilter').value;
+      var status = document.getElementById('zoneStatus');
+      document.getElementById('zoneOverviewContainer').style.display = 'none';
+      document.getElementById('palletList').style.display = '';
+      if (!zone) {
+        status.textContent = 'Select a zone first.';
+        status.className = 'status';
+        lastPallets = [];
+        lastBookedPalletInfo = null;
+        var smGuidance = document.getElementById('zoneMonitorSMGuidance');
+        if (smGuidance) smGuidance.style.display = 'none';
+        var actionFilterWrap = document.getElementById('zoneMonitorActionFilterWrap');
+        if (actionFilterWrap) actionFilterWrap.style.display = 'none';
+        populateSkuSelect([]);
+        renderPallets([]);
+        zoneMonitorTotal = 0;
+        renderZonePagination();
+        return;
+      }
+      status.textContent = 'Loading...';
+      status.className = 'status';
+      showSplash();
+      try {
+        var [pallets, totalInZone] = await Promise.all([
+          loadPalletsInZone(zone, statusFilter, zoneMonitorPage, zoneMonitorPageSize),
+          countPalletsInZone(zone, statusFilter)
+        ]);
+        zoneMonitorTotal = totalInZone;
+        var totalPages = Math.max(1, Math.ceil((zoneMonitorTotal || 0) / zoneMonitorPageSize));
+        if (zoneMonitorPage > totalPages) {
+          zoneMonitorPage = totalPages;
+          pallets = await loadPalletsInZone(zone, statusFilter, zoneMonitorPage, zoneMonitorPageSize);
+        }
+        lastPallets = pallets;
+        populateSkuSelect(pallets);
+        var isSM = zone && (zone === 'SuperMarket Area' || zone.toLowerCase().includes('supermarket'));
+        lastBookedPalletInfo = null;
+        if (isSM && pallets.length) {
+          lastBookedPalletInfo = await loadBookedPalletsForSM(pallets);
+        }
+        renderPallets(pallets, zone, lastBookedPalletInfo);
+        var smGuidance = document.getElementById('zoneMonitorSMGuidance');
+        if (smGuidance) smGuidance.style.display = isSM ? 'block' : 'none';
+        var actionFilterWrap = document.getElementById('zoneMonitorActionFilterWrap');
+        if (actionFilterWrap) actionFilterWrap.style.display = isSM ? 'block' : 'none';
+        status.textContent = totalInZone + ' pallet(s) in zone.';
+        status.className = 'status success';
+        renderZonePagination();
+      } catch (e) {
+        status.textContent = 'Error: ' + (e.message || 'Failed to load');
+        status.className = 'status error';
+        lastPallets = [];
+        lastBookedPalletInfo = null;
+        populateSkuSelect([]);
+        renderPallets([]);
+        zoneMonitorTotal = 0;
+        renderZonePagination();
+      } finally { hideSplash(); }
+    }
+
+    async function refreshZoneOverview() {
+      var container = document.getElementById('zoneOverviewContainer');
+      var palletList = document.getElementById('palletList');
+      var isVisible = container.style.display !== 'none';
+      container.style.display = isVisible ? 'none' : 'block';
+      if (palletList) palletList.style.display = isVisible ? '' : 'none';
+      if (isVisible) return;
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--gold);">Loading zone overview...</div>';
+      showSplash();
+      try {
+        var overview = await loadZoneOverview();
+        var html = '<h3 style="margin:0 0 16px 0;color:var(--gold);font-size:16px;font-weight:700;">⬥ Zone Overview & FIFO Status</h3><div style="overflow-x:auto;"><table class="overview-table" style="font-size:13px;"><thead><tr><th style="text-align:left;">Zone</th><th style="text-align:center;">Pallets</th><th style="text-align:center;">SKUs</th><th style="text-align:center;">Total Qty</th><th style="text-align:left;">Oldest Pallet</th><th style="text-align:center;">FIFO</th><th style="text-align:left;">Action</th></tr></thead><tbody>';
+        overview.forEach(function(r, idx) {
+          var zone = r.zone;
+          var zoneName = zone.ZoneName || r.zone;
+          var hasError = !!r.error;
+          var oldestId = r.oldestPallet ? (r.oldestPallet.PalletID || 'N/A') : 'N/A';
+          var oldestDate = r.oldestPallet ? formatDate(r.oldestPallet.CreatedAt) : 'N/A';
+          var fifoRequired = r.fifoRequired;
+          var skuSet = {};
+          if (!hasError && r.pallets && r.pallets.length) {
+            r.pallets.forEach(function(p) {
+              var sku = (p.SKU || p.sku || '').trim();
+              if (sku) skuSet[sku] = (skuSet[sku] || 0) + 1;
+            });
+          }
+          var skuCount = Object.keys(skuSet).length;
+          var allowed = getAllowedDestinations(zoneName);
+          var priorityPallet = r.priorityPallet || r.oldestPallet;
+          var homeZone = priorityPallet ? getHomeZone(priorityPallet.SKU || priorityPallet.sku) : null;
+          var isMisplaced = priorityPallet && homeZone && isMisplacedZone(zoneName) && homeZone !== zoneName && allowed.indexOf(homeZone) >= 0;
+          var recommended = isMisplaced ? homeZone : recommendDestination(zone, priorityPallet ? priorityPallet.Status : '');
+          if (!recommended && allowed.length) recommended = allowed[0];
+          var actionHtml = '—';
+          if (!hasError && r.pallets && r.pallets.length) {
+            var moveFirstId = priorityPallet ? priorityPallet.PalletID : oldestId;
+            var optsHtml = '';
+            if (allowed.length) {
+              var starred = recommended ? '<span style="color:#fcd34d;font-weight:700;">★ ' + escapeHtml(recommended) + '</span>' : '';
+              var others = allowed.filter(function(d) { return d !== recommended; });
+              optsHtml = '<br><strong style="color:var(--gold);">→ Destinations:</strong><br>' + starred + (others.length ? others.map(function(d) { return '<br><span style="color:rgba(255,255,255,0.85);">• ' + escapeHtml(d) + '</span>'; }).join('') : '');
+            } else {
+              optsHtml = '<br><small style="color:rgba(252,165,165,0.8);">No zone_transitions. Run RUN_SEED_ONLY.sql</small>';
+            }
+            actionHtml = '<div style="font-size:11px;line-height:1.5;"><strong style="color:var(--gold);">Move First:</strong><br><span style="font-family:var(--font-app);font-weight:700;">' + escapeHtml(moveFirstId) + '</span>' + (isMisplaced ? '<br><small style="color:#fcd34d;">→ home zone</small>' : '') + optsHtml + (fifoRequired && r.pallets.length > 1 ? '<br><small style="color:rgba(251,191,36,0.7);">(FIFO per SKU)</small>' : '') + '</div>';
+          }
+          var fifoCell = hasError ? '—' : (fifoRequired ? '<span style="color:var(--gold);font-weight:700;">✓ Enforced</span>' : '—');
+          html += '<tr style="' + (idx % 2 ? 'background:rgba(15,23,42,0.3);' : '') + '"><td>' + escapeHtml(zoneName) + '<br><small style="color:rgba(251,191,36,0.7);">Prefix: ' + escapeHtml(zone.Prefix || 'N/A') + '</small>' + (hasError ? '<br><small style="color:#f87171;">⚠️ ' + escapeHtml(r.error) + '</small>' : '') + '</td><td style="text-align:center;">' + (hasError ? '—' : r.count) + '</td><td style="text-align:center;">' + (hasError ? '—' : skuCount) + '</td><td style="text-align:center;">' + (hasError ? '—' : (r.totalQty || 0)) + '</td><td>' + (hasError ? '—' : escapeHtml(oldestId) + '<br><small style="color:rgba(251,191,36,0.6);">' + escapeHtml(oldestDate) + '</small>') + '</td><td style="text-align:center;">' + fifoCell + '</td><td style="min-width:160px;">' + actionHtml + '</td></tr>';
+        });
+        html += '</tbody></table></div><div style="margin-top:12px;padding:12px;background:rgba(245,158,11,0.1);border-radius:8px;border-left:4px solid var(--gold);"><p style="margin:0;color:rgba(251,191,36,0.9);font-size:12px;line-height:1.6;"><strong>📋 Action:</strong> Pallet to move first + destinations. <strong>★</strong> = best suited. <strong>→ home zone</strong> = misplaced (in Receiving/QA/Rework). <strong>FIFO:</strong> Per SKU, levelized.</p></div><button type="button" class="btn btn-secondary" style="margin-top:12px;">🔽 Hide Zone Overview</button>';
+        container.innerHTML = html;
+        container.querySelector('button').onclick = refreshZoneOverview;
+      } catch (e) {
+        container.innerHTML = '<div style="color:#f87171;padding:20px;">Error: ' + escapeHtml(e.message) + '</div>';
+      } finally { hideSplash(); }
+    }
+
+    async function refreshReceiving() {
+      var zone = document.getElementById('receivingZoneSelect').value;
+      var status = document.getElementById('receivingStatus');
+      var container = document.getElementById('receivingSections');
+      if (!zone) {
+        status.textContent = 'Select a zone first.';
+        status.className = 'status';
+        if (container) container.innerHTML = '';
+        return;
+      }
+      status.textContent = 'Loading...';
+      status.className = 'status';
+      showSplash();
+      try {
+        var operator = (currentUser && currentUser.user_id) || (document.getElementById('operatorName') && document.getElementById('operatorName').value.trim()) || '';
+        var [palletsInZone, inbounds, outbounds, totalInZone] = await Promise.all([
+          loadPalletsInZone(zone, ''),
+          loadInboundsToZone(zone),
+          loadOutboundsFromZone(zone),
+          countPalletsInZone(zone, '')
+        ]);
+        var onReceive = async function(palletId, btn) {
+          if (!operator) {
+            alert('Operator not set. Sign in again.');
+            return;
+          }
+          btn.disabled = true;
+          btn.textContent = '...';
+          showSplash();
+          try {
+            var recResult = await receivePallet(palletId, operator);
+            status.textContent = 'Pallet received.';
+            status.className = 'status success';
+            var pId = recResult.palletId || palletId;
+            var fromZ = recResult.fromZone || '';
+            var toZ = recResult.toZone || '';
+            showToast('Pallet ' + pId + ' from ' + fromZ + ' received at ' + toZ, 'success');
+            refreshReceiving();
+            runReplenishmentChecksAfterReceive();
+          } catch (e) {
+            var errMsg = e.message || 'Receive failed';
+            status.textContent = 'Error: ' + errMsg;
+            status.className = 'status error';
+            showToast(errMsg, 'error');
+            btn.disabled = false;
+            btn.textContent = 'Receive';
+          } finally { hideSplash(); }
+        };
+        var html = buildReceivingSectionHtml(palletsInZone, inbounds, outbounds, totalInZone);
+        if (container) container.innerHTML = html;
+
+        container.querySelectorAll('.receiving-section-title').forEach(function(btn) {
+          btn.onclick = function() {
+            var content = btn.nextElementSibling;
+            var isCollapsed = content.classList.contains('collapsed');
+            content.classList.toggle('collapsed', !isCollapsed);
+            btn.classList.toggle('collapsed', !isCollapsed);
+          };
+        });
+        container.querySelectorAll('.btn-receive').forEach(function(btn) {
+          btn.onclick = function() {
+            var card = btn.closest('.pallet-card');
+            var palletId = card && card.dataset.palletId;
+            if (palletId) onReceive(palletId, btn);
+          };
+        });
+
+        status.textContent = totalInZone + ' in zone, ' + inbounds.length + ' inbound(s), ' + outbounds.length + ' outbound(s).';
+        status.className = 'status';
+      } catch (e) {
+        status.textContent = 'Error: ' + (e.message || 'Failed to load');
+        status.className = 'status error';
+        if (container) container.innerHTML = '';
+      } finally {
+        hideSplash();
+      }
+    }
+
+    async function refreshRelease() {
+      var list = document.getElementById('releaseOrdersList');
+      var prepList = document.getElementById('prepareForReleaseList');
+      var prepCard = document.getElementById('cardPrepareForRelease');
+      var prepOrders = [];
+      if (!list || !supabase) return;
+      list.innerHTML = '<div style="text-align:center;padding:20px"><span class="spinner"></span></div>';
+      if (prepList) prepList.innerHTML = '';
+      try {
+        var isSM = assignedZone && (assignedZone === 'SuperMarket Area' || assignedZone.toLowerCase().includes('supermarket'));
+        if (isSM && prepList && prepCard) {
+          var { data: prepData, error: prepErr } = await supabase.rpc('get_orders_preparing_for_release');
+          prepOrders = prepData || [];
+          if (!prepErr && prepOrders.length) {
+            prepCard.style.display = '';
+            prepList.innerHTML = prepOrders.map(function(o) {
+              var pct = o.progress_pct != null ? o.progress_pct : 0;
+              var done = o.done_lines != null ? o.done_lines : 0;
+              var total = o.total_lines != null ? o.total_lines : 0;
+              return '<div class="task-card" style="border-left:4px solid #f59e0b;">' +
+                '<div><strong style="color:var(--gold);">Order #' + escapeHtml(o.external_order_no || (o.id ? o.id.toString().slice(0, 8) : '—')) + '</strong>' +
+                '<div style="font-size:12px;color:#94a3b8;margin-top:4px;">Customer: ' + escapeHtml(o.customer_name || '—') + ' · Picker: ' + escapeHtml(o.assigned_picker_name || '—') + '</div>' +
+                '<div style="font-size:11px;color:#64748b;margin-top:2px;"><strong style="color:#f59e0b;">' + pct + '%</strong> done · ' + done + ' / ' + total + ' lines · Incoming — prepare to release</div></div>' +
+                '</div>';
+            }).join('');
+          } else {
+            prepCard.style.display = 'none';
+          }
+        } else if (prepCard) prepCard.style.display = 'none';
+
+        var { data: orders, error } = await supabase
+          .from('orders')
+          .select('id, external_order_no, customer_name, assigned_picker_name, total_lines, picking_finished_at')
+          .eq('status', 'AWAITING_SM_RELEASE')
+          .order('picking_finished_at', { ascending: true });
+        if (error) throw error;
+        if (!orders || !orders.length) {
+          list.innerHTML = '<div class="empty">No orders awaiting release. Pickers will appear here when they submit.</div>';
+          updateReleaseTabBadge(0, prepOrders && prepOrders.length ? prepOrders.length : 0);
+          return;
+        }
+        var orderIds = orders.map(function(o) { return o.id; });
+        var palsByOrder = {};
+        try {
+          var { data: palsData } = await supabase.from('order_pallets').select('order_id, pallet_id, status, sequence').in('order_id', orderIds).order('sequence');
+          (palsData || []).forEach(function(p) {
+            if (!palsByOrder[p.order_id]) palsByOrder[p.order_id] = [];
+            palsByOrder[p.order_id].push(p);
+          });
+        } catch (_) {}
+        updateReleaseTabBadge(orders.length, prepOrders && prepOrders.length ? prepOrders.length : 0);
+        list.innerHTML = orders.map(function(o) {
+          var finished = o.picking_finished_at ? new Date(o.picking_finished_at).toLocaleString() : '—';
+          var pals = palsByOrder[o.id] || [];
+          var hasOrderPallets = pals.length > 0;
+          var palsHtml = '';
+          if (hasOrderPallets) {
+            palsHtml = pals.map(function(p) {
+              var canRelease = p.status === 'complete';
+              var isReleased = p.status === 'released';
+              var btn = isReleased ? '<span style="font-size:11px;color:#34d399;">✓ Released</span>' :
+                (canRelease ? '<button type="button" class="btn btn-primary btn-release-pallet" data-order-id="' + escapeHtml(o.id) + '" data-pallet-id="' + escapeHtml(p.pallet_id) + '" style="padding:6px 12px;font-size:12px;">Release</button>' :
+                  '<span style="font-size:11px;color:#94a3b8;">' + escapeHtml(p.status) + '</span>');
+              return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(148,163,184,0.2);"><span style="font-weight:700;color:var(--gold);">' + escapeHtml(p.pallet_id) + '</span>' + btn + '</div>';
+            }).join('');
+            palsHtml = '<div style="margin-top:8px;font-size:11px;"><strong style="color:#34d399;">Pallets:</strong><div style="margin-top:4px;">' + palsHtml + '</div></div>';
+          } else {
+            palsHtml = '<button type="button" class="btn btn-primary btn-release-order" data-order-id="' + escapeHtml(o.id) + '" style="margin-top:8px;">Release order</button>';
+          }
+          return '<div class="task-card" data-order-id="' + escapeHtml(o.id) + '">' +
+            '<div><strong style="color:var(--gold);">Order #' + escapeHtml(o.external_order_no || o.id.toString().slice(0, 8)) + '</strong>' +
+            '<div style="font-size:12px;color:#94a3b8;margin-top:4px;">Customer: ' + escapeHtml(o.customer_name || '—') + ' · Picker: ' + escapeHtml(o.assigned_picker_name || '—') + '</div>' +
+            '<div style="font-size:11px;color:#64748b;margin-top:2px;">' + escapeHtml(o.total_lines || 0) + ' lines · Submitted ' + escapeHtml(finished) + '</div>' + palsHtml + '</div>' +
+            '</div>';
+        }).join('');
+        list.querySelectorAll('.btn-release-order').forEach(function(btn) {
+          btn.onclick = function() { releaseOrder(btn.dataset.orderId); };
+        });
+        list.querySelectorAll('.btn-release-pallet').forEach(function(btn) {
+          btn.onclick = function() { releasePallet(btn.dataset.orderId, btn.dataset.palletId); };
+        });
+        updateReleaseTabBadge(orders.length, (prepOrders && prepOrders.length) ? prepOrders.length : 0);
+      } catch (e) {
+        list.innerHTML = '<div class="empty" style="color:#f87171;">Error: ' + escapeHtml(e.message || 'Failed') + '</div>';
+        updateReleaseTabBadge(0, 0);
+      }
+    }
+
+    function updateReleaseTabBadge(awaiting, preparing) {
+      var tab = document.getElementById('tabRelease');
+      if (!tab) return;
+      if (awaiting > 0 || preparing > 0) {
+        var txt = 'Release Orders';
+        if (awaiting > 0) txt += ' (' + awaiting + ')';
+        if (preparing > 0) txt += (awaiting > 0 ? ' + ' : ' (') + preparing + ' preparing' + (awaiting > 0 ? '' : ')');
+        tab.textContent = txt;
+      } else {
+        tab.textContent = 'Release Orders';
+      }
+    }
+
+    async function releasePallet(orderId, palletId) {
+      if (!supabase || !orderId || !palletId || !currentUser) return;
+      var releasedBy = currentUser.user_id || '';
+      if (!releasedBy) { showToast('Sign in required', 'error'); return; }
+      var btn = document.querySelector('.btn-release-pallet[data-order-id="' + orderId + '"][data-pallet-id="' + palletId + '"]');
+      if (btn) btn.disabled = true;
+      showSplash();
+      try {
+        var { data: relRes, error: relErr } = await supabase.rpc('release_order_pallet', { p_order_id: orderId, p_pallet_id: palletId, p_released_by: releasedBy });
+        if (relErr) throw new Error('Release pallet: ' + relErr.message);
+        if (relRes && relRes.success === false) throw new Error(relRes.error || 'Release failed');
+        var { data: pushRes, error: pushErr } = await supabase.rpc('push_pallet_to_dispatch', { p_pallet_id: palletId, p_moved_by: releasedBy });
+        if (pushErr) throw pushErr;
+        if (pushRes && pushRes.success === false) throw new Error(pushRes.error || 'Push failed');
+        var r = await supabase.from('order_pallets').select('status').eq('order_id', orderId);
+        var allReleased = (r.data || []).every(function(p) { return p.status === 'released'; });
+        if (allReleased) {
+          var now = new Date().toISOString();
+          // Guardrail: never mark COMPLETED if any line is still OPEN
+          var { error: guardErr1 } = await supabase.rpc('assert_order_can_complete', { p_order_id: orderId });
+          if (guardErr1) throw new Error(guardErr1.message || 'Completion guard failed');
+          await supabase.from('orders').update({
+            status: 'COMPLETED',
+            sm_released_at: now,
+            sm_released_by: releasedBy,
+            pushed_to_dispatch_at: now,
+            pushed_to_dispatch_by: releasedBy
+          }).eq('id', orderId);
+          try { await supabase.rpc('release_pallet_reservations', { p_order_id: orderId }); } catch (_) {}
+          showToast('Pallet ' + palletId + ' released — order complete', 'success');
+        } else {
+          showToast('Pallet ' + palletId + ' released and pushed to Dispatch', 'success');
+        }
+        refreshRelease();
+      } catch (e) {
+        showToast(e.message || 'Release failed', 'error');
+        if (btn) btn.disabled = false;
+      } finally { hideSplash(); }
+    }
+
+    async function releaseOrder(orderId) {
+      if (!supabase || !orderId || !currentUser) return;
+      var releasedBy = currentUser.user_id || '';
+      if (!releasedBy) { showToast('Sign in required', 'error'); return; }
+      var btn = document.querySelector('.btn-release-order[data-order-id="' + orderId + '"]');
+      if (btn) btn.disabled = true;
+      showSplash();
+      try {
+        var now = new Date().toISOString();
+        // Guardrail before pushing: if the order isn't fully terminal (no OPEN / no picker-reported short),
+        // we should not partially push and then fail completion.
+        var { error: guardErr0 } = await supabase.rpc('assert_order_can_complete', { p_order_id: orderId });
+        if (guardErr0) throw new Error(guardErr0.message || 'Completion guard failed');
+
+        var { data: pushRes, error: pushErr } = await supabase.rpc('push_order_to_dispatch', { p_order_id: orderId, p_moved_by: releasedBy });
+        if (pushErr) throw pushErr;
+        var nPallets = (pushRes && pushRes.pallets_moved) || 0;
+        var { error } = await supabase.from('orders').update({
+          status: 'COMPLETED',
+          sm_released_at: now,
+          sm_released_by: releasedBy
+        }).eq('id', orderId);
+        if (error) throw error;
+        try { await supabase.rpc('release_pallet_reservations', { p_order_id: orderId }); } catch (_) {}
+        showToast('Order released — ' + nPallets + ' pallet(s) auto-dispatched to Dispatch', 'success');
+        refreshRelease();
+      } catch (e) {
+        showToast(e.message || 'Release failed', 'error');
+        if (btn) btn.disabled = false;
+      } finally { hideSplash(); }
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.tab === tab);
+      });
+      document.getElementById('viewMonitor').classList.toggle('active', tab === 'monitor');
+      var vRel = document.getElementById('viewRelease');
+      if (vRel) vRel.classList.toggle('active', tab === 'release');
+      document.getElementById('viewReceiving').classList.toggle('active', tab === 'receiving');
+      var vStocks = document.getElementById('viewStocks');
+      if (vStocks) vStocks.classList.toggle('active', tab === 'stocks');
+      var vRep = document.getElementById('viewReplenishment');
+      if (vRep) vRep.classList.toggle('active', tab === 'replenishment');
+      if (tab === 'monitor') return refreshZone();
+      if (tab === 'release') return refreshRelease();
+      if (tab === 'receiving') return refreshReceiving();
+      if (tab === 'stocks') return refreshZoneStocksPanel();
+      if (tab === 'replenishment') return refreshReplenishment();
+      return Promise.resolve();
+    }
+
+    function scheduleRealtimeRefresh(reason) {
+      if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+      realtimeRefreshTimer = setTimeout(function() {
+        if (currentTab === 'monitor') refreshZone();
+        if (currentTab === 'receiving') refreshReceiving();
+        if (currentTab === 'stocks') refreshZoneStocksPanel();
+        if (currentTab === 'replenishment') refreshReplenishment(false);
+        if (currentTab === 'release') refreshRelease();
+      }, reason === 'movement' ? 250 : 400);
+    }
+
+    /** Unread order-pull notifications for this clerk’s zone (matches bell panel filter). */
+    async function fetchUnreadOrderPullNotificationsForZone() {
+      if (!supabase || !assignedZone) return [];
+      try {
+        var q = supabase.from('zone_clerk_notifications')
+          .select('id, target_zone, kind, title, body, created_at, payload')
+          .eq('kind', 'ORDER_PULL_TASK')
+          .is('read_at', null)
+          .order('created_at', { ascending: false })
+          .limit(40);
+        var r = await q;
+        if (r.error) throw r.error;
+        return (r.data || []).filter(notifMatchesAssignedZone);
+      } catch (e) {
+        console.warn('fetchUnreadOrderPullNotificationsForZone', e);
+        return [];
+      }
+    }
+
+    function buildOrderPullPushPanelHtml(notifs) {
+      if (!notifs || !notifs.length) return '';
+      return '<div class="order-pull-push-strip" style="margin-bottom:14px;">' +
+        '<div style="font-size:11px;font-weight:800;color:#fbbf24;margin-bottom:8px;letter-spacing:0.4px;">🔔 Order pull alerts <span style="font-weight:600;color:#94a3b8;">(same as bell — dismiss either place)</span></div>' +
+        notifs.map(function(n) {
+          var p = n.payload || {};
+          var pretty = (window.RetiFluxNotifs && window.RetiFluxNotifs.improveNotificationCopy)
+            ? window.RetiFluxNotifs.improveNotificationCopy(n.kind, n.title, n.body, p)
+            : { title: n.title || 'Order pull', body: n.body || '' };
+          var tid = String(p.task_id || '').trim();
+          var fz = String(p.from_zone || assignedZone || '').trim();
+          var tz = String(p.to_zone || '').trim();
+          var sku = String(p.sku || '').trim();
+          var canMove = !!(tid && fz && tz && sku);
+          var openBtn = canMove
+            ? '<button type="button" class="btn btn-primary btn-order-pull-open-move" data-task-id="' + escapeHtml(tid) + '" data-from-zone="' + escapeHtml(fz) + '" data-to-zone="' + escapeHtml(tz) + '" data-sku="' + escapeHtml(sku) + '">Open move form</button>'
+            : '<span style="font-size:11px;color:#94a3b8;">Open move from task row below if payload is incomplete.</span>';
+          var t0 = n.created_at ? new Date(n.created_at).toLocaleString() : '';
+          return '<div class="task-card notif-item kind-pull" style="margin-bottom:10px;border-left:4px solid #f59e0b;background:rgba(245,158,11,0.06);">' +
+            '<div style="font-weight:800;color:var(--gold);">' + escapeHtml(pretty.title || 'Order pull') + '</div>' +
+            '<div style="font-size:12px;color:#e2e8f0;margin-top:6px;line-height:1.45;">' + escapeHtml(pretty.body || '') + '</div>' +
+            '<div style="font-size:10px;color:#64748b;margin-top:6px;">' + escapeHtml(t0) + '</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center;">' + openBtn +
+            '<button type="button" class="btn btn-secondary btn-dismiss-order-pull-push" data-notif-id="' + escapeHtml(n.id) + '">Dismiss alert</button></div>' +
+            '</div>';
+        }).join('') +
+        '</div>';
+    }
+
+    function wireOrderPullPushPanelButtons(container) {
+      if (!container) return;
+      container.querySelectorAll('.btn-order-pull-open-move').forEach(function(btn) {
+        btn.onclick = function() {
+          executeReplenishmentTask(btn.dataset.taskId, btn.dataset.fromZone, btn.dataset.toZone, btn.dataset.sku);
+        };
+      });
+      container.querySelectorAll('.btn-dismiss-order-pull-push').forEach(function(btn) {
+        btn.onclick = function() { dismissZoneClerkNotification(btn.dataset.notifId); };
+      });
+    }
+
+    var zoneStocksSearchTerm = '';
+
+    async function refreshZoneStocksPanel() {
+      var stocksList = document.getElementById('zoneStocksList');
+      if (!stocksList) return;
+      if (!supabase || !assignedZone) {
+        stocksList.innerHTML = '<div class="empty">Sign in to view zone stock mapping.</div>';
+        return;
+      }
+      stocksList.innerHTML = '<div class="empty">Loading zone stocks…</div>';
+      try {
+        var { data: rows, error } = await supabase
+          .from('pallets')
+          .select('pallet_id, sku, remaining_quantity, quantity, current_zone, in_transit_to_zone, created_at')
+          .eq('current_zone', assignedZone)
+          .is('in_transit_to_zone', null)
+          .not('sku', 'is', null)
+          .limit(20000);
+        if (error) throw error;
+
+        var bySku = {};
+        var totalPallets = 0;
+        var totalQty = 0;
+        (rows || []).forEach(function(p) {
+          var sku = String(p.sku || '').trim();
+          if (!sku) return;
+          var qty = Number(p.remaining_quantity != null ? p.remaining_quantity : p.quantity || 0) || 0;
+          var createdAt = p.created_at ? new Date(p.created_at).getTime() : null;
+          if (!bySku[sku]) {
+            bySku[sku] = {
+              sku: sku,
+              pallets: 0,
+              qty: 0,
+              oldestTs: null,
+              oldestPallet: null,
+              newestTs: null,
+              newestPallet: null
+            };
+          }
+          bySku[sku].pallets += 1;
+          bySku[sku].qty += qty;
+          if (createdAt !== null && !Number.isNaN(createdAt)) {
+            if (bySku[sku].oldestTs === null || createdAt < bySku[sku].oldestTs) {
+              bySku[sku].oldestTs = createdAt;
+              bySku[sku].oldestPallet = p.pallet_id || null;
+            }
+            if (bySku[sku].newestTs === null || createdAt > bySku[sku].newestTs) {
+              bySku[sku].newestTs = createdAt;
+              bySku[sku].newestPallet = p.pallet_id || null;
+            }
+          }
+          totalPallets += 1;
+          totalQty += qty;
+        });
+
+        var skus = Object.keys(bySku).map(function(k) { return bySku[k]; });
+        if (!skus.length) {
+          stocksList.innerHTML = '<div class="empty">No available stock in <strong>' + escapeHtml(assignedZone) + '</strong> right now.</div>';
+          return;
+        }
+        skus.sort(function(a, b) {
+          if (b.qty !== a.qty) return b.qty - a.qty;
+          return String(a.sku).localeCompare(String(b.sku));
+        });
+
+        var search = String(zoneStocksSearchTerm || '').trim().toLowerCase();
+        var filtered = skus.filter(function(r) {
+          if (!search) return true;
+          return String(r.sku || '').toLowerCase().indexOf(search) >= 0;
+        });
+
+        function rowHtml(r, extraCols) {
+          var oldestText = r.oldestPallet
+            ? (String(r.oldestPallet) + ' · ' + new Date(r.oldestTs).toLocaleString())
+            : '—';
+          var newestText = r.newestPallet
+            ? (String(r.newestPallet) + ' · ' + new Date(r.newestTs).toLocaleString())
+            : '—';
+          return '<tr>' +
+            '<td><strong>' + escapeHtml(r.sku) + '</strong></td>' +
+            '<td style="text-align:right;">' + escapeHtml(String(r.pallets)) + '</td>' +
+            '<td style="text-align:right;">' + escapeHtml(String(Math.round(r.qty * 100) / 100)) + '</td>' +
+            (extraCols || '') +
+            '<td>' + escapeHtml(oldestText) + '</td>' +
+            '<td>' + escapeHtml(newestText) + '</td>' +
+          '</tr>';
+        }
+
+        var topHtml =
+          '<div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Zone: <strong style="color:#e2e8f0;">' + escapeHtml(assignedZone) + '</strong> · SKUs: <strong style="color:#e2e8f0;">' + escapeHtml(String(skus.length)) + '</strong> · Pallets: <strong style="color:#e2e8f0;">' + escapeHtml(String(totalPallets)) + '</strong> · Qty: <strong style="color:#e2e8f0;">' + escapeHtml(String(Math.round(totalQty * 100) / 100)) + '</strong></div>' +
+          '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">' +
+            '<input id="zoneStocksSearch" type="text" placeholder="Search SKU..." value="' + escapeHtml(zoneStocksSearchTerm) + '" style="flex:1;min-width:160px;padding:8px 10px;border-radius:8px;border:1px solid rgba(148,163,184,0.35);background:rgba(15,23,42,0.6);color:#e2e8f0;" />' +
+          '</div>';
+
+        var tableBase =
+          '<div style="overflow:auto;max-height:280px;">' +
+            '<table class="overview-table">' +
+              '<thead><tr><th>SKU</th><th style="text-align:right;">Pallets</th><th style="text-align:right;">Qty</th><th>Oldest pallet</th><th>Newest pallet</th></tr></thead>' +
+              '<tbody>' + filtered.map(function(r) { return rowHtml(r, ''); }).join('') + '</tbody>' +
+            '</table>' +
+          '</div>';
+
+        var html = topHtml + tableBase;
+
+        if (assignedZone === 'SuperMarket Area') {
+          var neededBySku = {};
+          try {
+            var { data: resRows } = await supabase
+              .from('pallet_reservations')
+              .select('pallet_id, quantity_reserved')
+              .eq('reservation_type', 'SM_PICK')
+              .is('released_at', null)
+              .limit(30000);
+            var resPalletIds = Array.from(new Set((resRows || []).map(function(r) { return r && r.pallet_id; }).filter(Boolean)));
+            var palletSkuById = {};
+            if (resPalletIds.length) {
+              var { data: pRows } = await supabase
+                .from('pallets')
+                .select('pallet_id, sku')
+                .in('pallet_id', resPalletIds)
+                .limit(30000);
+              (pRows || []).forEach(function(p) {
+                if (p && p.pallet_id && p.sku) palletSkuById[p.pallet_id] = p.sku;
+              });
+            }
+            (resRows || []).forEach(function(r) {
+              var sku = palletSkuById[r.pallet_id];
+              if (!sku) return;
+              var q = Number(r.quantity_reserved) || 0;
+              neededBySku[sku] = (neededBySku[sku] || 0) + q;
+            });
+          } catch (_eRes) {}
+
+          var smRows = filtered.map(function(r) {
+            var need = Number(neededBySku[r.sku] || 0);
+            var free = Math.max(0, Number(r.qty || 0) - need);
+            return {
+              sku: r.sku,
+              pallets: r.pallets,
+              qty: r.qty,
+              oldestTs: r.oldestTs,
+              oldestPallet: r.oldestPallet,
+              newestTs: r.newestTs,
+              newestPallet: r.newestPallet,
+              need: need,
+              free: free
+            };
+          });
+          var neededRows = smRows.filter(function(r) { return r.need > 0; });
+          var freeRows = smRows.filter(function(r) { return r.free > 0; });
+
+          function splitTable(title, rowsIn, qtyKey, qtyLabel, emptyMsg) {
+            return '<div style="margin-top:10px;">' +
+              '<div style="font-size:11px;font-weight:800;color:#fbbf24;margin-bottom:6px;">' + escapeHtml(title) + '</div>' +
+              '<div style="overflow:auto;max-height:220px;">' +
+                '<table class="overview-table">' +
+                  '<thead><tr><th>SKU</th><th style="text-align:right;">Pallets</th><th style="text-align:right;">Qty in SM</th><th style="text-align:right;">' + escapeHtml(qtyLabel) + '</th><th>Oldest pallet</th><th>Newest pallet</th></tr></thead>' +
+                  '<tbody>' +
+                    (rowsIn.length ? rowsIn.map(function(r) {
+                      return rowHtml(r, '<td style="text-align:right;">' + escapeHtml(String(Math.round(r[qtyKey] * 100) / 100)) + '</td>');
+                    }).join('') : '<tr><td colspan="6" style="color:#94a3b8;">' + escapeHtml(emptyMsg) + '</td></tr>') +
+                  '</tbody>' +
+                '</table>' +
+              '</div>' +
+            '</div>';
+          }
+
+          html = topHtml +
+            splitTable('Needed by orders (SM reservations)', neededRows, 'need', 'Needed qty', 'No active SM reservations for current SKUs.') +
+            splitTable('Free stock in SM (not reserved)', freeRows, 'free', 'Free qty', 'No free stock after reservations for current SKUs.');
+        }
+
+        stocksList.innerHTML = html;
+        var searchInput = document.getElementById('zoneStocksSearch');
+        if (searchInput) {
+          searchInput.oninput = function() {
+            zoneStocksSearchTerm = String(searchInput.value || '');
+            refreshZoneStocksPanel();
+          };
+        }
+      } catch (e) {
+        stocksList.innerHTML = '<div class="empty" style="color:#f87171;">Could not load zone stocks: ' + escapeHtml(e.message || 'query failed') + '</div>';
+      }
+    }
+
+    async function refreshReplenishment(allowBackfill) {
+      var taskList = document.getElementById('replenishmentTaskList');
+      var inboundList = document.getElementById('inboundTaskList');
+      var warnList = document.getElementById('replenishmentWarningsList');
+      var replNotifList = document.getElementById('replenishmentNotifList');
+      if (!supabase || !taskList) return;
+      if (allowBackfill === undefined) allowBackfill = true;
+      var pullNotifs = [];
+      try {
+        pullNotifs = await fetchUnreadOrderPullNotificationsForZone();
+      } catch (ePull) {
+        console.warn('order pull strip', ePull);
+        pullNotifs = [];
+      }
+      if (replNotifList) {
+        if (!pullNotifs.length) {
+          replNotifList.innerHTML = '<div class="repl-notif-empty">No order-pull alerts right now. New alerts appear here and in the bell panel.</div>';
+        } else {
+          replNotifList.innerHTML = buildOrderPullPushPanelHtml(pullNotifs);
+          wireOrderPullPushPanelButtons(replNotifList);
+        }
+      }
+      try {
+        var isSMAssigned = assignedZone && (assignedZone === 'SuperMarket Area' || assignedZone.toLowerCase().includes('supermarket'));
+        if (isSMAssigned) {
+          var pushDescSm = document.getElementById('pushCardDesc');
+          if (pushDescSm) pushDescSm.textContent = 'Inbound lanes to SuperMarket: what each zone should supply, quantities, and pallets. Use Notify to ping that zone’s clerk.';
+          var { data: smLanes, error: smLaneErr } = await supabase.rpc('get_replenishment_lanes_live', { p_to_zone: assignedZone });
+          if (smLaneErr) {
+            taskList.innerHTML = '<div class="empty" style="color:#f87171;">Lane view unavailable: ' + escapeHtml(smLaneErr.message || 'RPC error') + '</div>';
+          } else if (!smLanes || !smLanes.length) {
+            taskList.innerHTML = '<div class="empty">No inbound replenishment lanes to SuperMarket right now.</div>';
+          } else {
+            taskList.innerHTML = smLanes.map(function(l) {
+              var nextPal = l.next_reserved_pallet_id
+                ? '<span style="color:#34d399;font-weight:700;">' + escapeHtml(l.next_reserved_pallet_id) + '</span>'
+                : '<span style="color:#fbbf24;">Auto-FIFO</span>';
+              var isNotified = !!(l.next_sm_notified_at);
+              var notifyBtnText = isNotified ? 'Notified' : 'Notify Zone Clerk';
+              var notifyDisabled = isNotified ? 'disabled' : '';
+              return '<div class="task-card" style="margin-bottom:10px;border-left:4px solid #34d399;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                  '<div style="font-weight:700;color:#f8fafc;">' + escapeHtml(l.from_zone || '') + ' → ' + escapeHtml(l.to_zone || '') + ' · ' + escapeHtml(l.sku || '') + '</div>' +
+                  '<button type="button" class="btn btn-primary btn-notify-zone-clerk" ' + notifyDisabled + ' data-task-id="' + escapeHtml(l.next_task_id || '') + '" data-from-zone="' + escapeHtml(l.from_zone || '') + '" data-to-zone="' + escapeHtml(l.to_zone || '') + '" data-sku="' + escapeHtml(l.sku || '') + '" data-pallet-id="' + escapeHtml(l.next_reserved_pallet_id || '') + '" data-lane-qty="' + escapeHtml(String(Number(l.remaining_qty || 0))) + '">' + escapeHtml(notifyBtnText) + '</button>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:#94a3b8;margin-top:8px;">' +
+                  '<span title="Quantities needed in SuperMarket for this SKU">Lane Remaining Qty: <strong style="color:#fbbf24;">' + escapeHtml(String(Number(l.remaining_qty || 0))) + '</strong> <small style="color:#cbd5e1;">(qty needed in SM for this SKU)</small></span>' +
+                  '<span title="Pallets still to move for this lane">Pallets Remaining: <strong style="color:#fbbf24;">' + escapeHtml(String(Number(l.pallets_remaining || 0))) + '</strong> <small style="color:#cbd5e1;">(pallets to move)</small></span>' +
+                  '<span title="Current source-zone stock for this SKU">Source Available: <strong style="color:#60a5fa;">' + escapeHtml(String(Number(l.source_available_qty || 0))) + ' qty / ' + escapeHtml(String(Number(l.source_available_pallets || 0))) + ' pallets</strong> <small style="color:#cbd5e1;">(available in source zone)</small></span>' +
+                  '<span>Next Pallet: ' + nextPal + '</span>' +
+                  '<span>Trigger: <strong>' + escapeHtml(l.trigger_reason || '') + '</strong></span>' +
+                '</div>' +
+              '</div>';
+            }).join('');
+            taskList.querySelectorAll('.btn-notify-zone-clerk').forEach(function(btn) {
+              btn.onclick = function() {
+                if (btn.disabled) return;
+                notifyZoneClerkForSMTask(
+                  btn,
+                  btn.dataset.taskId,
+                  btn.dataset.fromZone,
+                  btn.dataset.toZone,
+                  btn.dataset.sku,
+                  btn.dataset.palletId,
+                  btn.dataset.laneQty
+                );
+              };
+            });
+          }
+        } else {
+        var tasksQuery = supabase.from('replenishment_tasks')
+          .select('task_id, task_type, from_zone, to_zone, sku, quantity_needed, reserved_pallet_id, notes, trigger_reason, priority, order_id, order_line_id, wave_id, lane_key, lane_seq, lane_total, sm_notified_at, sm_notified_by, orders(external_order_no, customer_name, assigned_picker_name)')
+          .eq('status', 'PENDING')
+          .order('priority', { ascending: true })
+          .order('created_at', { ascending: true });
+        if (assignedZone) tasksQuery = tasksQuery.eq('from_zone', assignedZone);
+        var { data: tasks, error: te } = await tasksQuery;
+        if (te) throw te;
+        var emptyPushMsg = (assignedZone && (assignedZone === 'SuperMarket Area' || assignedZone.toLowerCase().includes('supermarket')))
+          ? 'No order-driven replenishment tasks. You receive inbounds from product zones and push outbounds to Dispatch Loading, Rework, QA Hold — use Zone Monitor to initiate moves.'
+          : 'No orders need your zone right now. Pickers have enough stock in SuperMarket.';
+        if (!tasks || !tasks.length) {
+          taskList.innerHTML = '<div class="empty">' + emptyPushMsg + '</div>';
+        } else {
+          var smBalMaps = await fetchSmPickBalancesForTasks(supabase, tasks);
+          var smPickByLineId = smBalMaps.smPickByLineId;
+          var lineUnitById = smBalMaps.lineUnitById;
+          var sourceAvailByLane = {};
+          try {
+            var laneSkuList = [];
+            var seenLaneSku = {};
+            (tasks || []).forEach(function(t) {
+              var k = (t.from_zone || '') + '|' + (t.sku || '');
+              if (!seenLaneSku[k]) {
+                seenLaneSku[k] = true;
+                laneSkuList.push({ from: t.from_zone || '', sku: t.sku || '' });
+              }
+            });
+            var assignedFrom = assignedZone || (laneSkuList[0] && laneSkuList[0].from) || '';
+            var skuFilter = laneSkuList.map(function(x) { return x.sku; }).filter(Boolean);
+            if (assignedFrom && skuFilter.length) {
+              var { data: srcRows } = await supabase.from('pallets')
+                .select('sku, remaining_quantity, quantity, current_zone, in_transit_to_zone')
+                .eq('current_zone', assignedFrom)
+                .is('in_transit_to_zone', null)
+                .in('sku', skuFilter);
+              (srcRows || []).forEach(function(p) {
+                var lk = assignedFrom + '|' + (p.sku || '');
+                if (!sourceAvailByLane[lk]) sourceAvailByLane[lk] = { pallets: 0, qty: 0 };
+                sourceAvailByLane[lk].pallets += 1;
+                sourceAvailByLane[lk].qty += Number(p.remaining_quantity != null ? p.remaining_quantity : p.quantity || 0);
+              });
+            }
+          } catch (eAvail) {
+            console.warn('source availability calc failed', eAvail);
+          }
+          var keys = [];
+          var seenKeys = {};
+          (tasks || []).forEach(function(t) {
+            var k = (t.lane_key || ((t.from_zone || '') + '|' + (t.to_zone || '') + '|' + (t.sku || ''))) + '|' + (t.wave_id || '');
+            if (!seenKeys[k]) { seenKeys[k] = true; keys.push(k); }
+          });
+          var laneProgress = {};
+          if (keys.length) {
+            var { data: laneRows } = await supabase.from('replenishment_tasks')
+              .select('from_zone,to_zone,sku,status,wave_id,lane_key,lane_total')
+              .in('status', ['PENDING', 'IN_PROGRESS', 'DONE']);
+            (laneRows || []).forEach(function(x) {
+              var kx = (x.lane_key || ((x.from_zone || '') + '|' + (x.to_zone || '') + '|' + (x.sku || '')));
+              if (!seenKeys[kx]) return;
+              if (!laneProgress[kx]) laneProgress[kx] = { moved: 0 };
+              if ((x.status || '').toUpperCase() === 'DONE') laneProgress[kx].moved += 1;
+            });
+          }
+          var orderTasks = (tasks || []).filter(isOrderDrivenReplenishmentTask);
+          var capacityTasks = (tasks || []).filter(function(t) { return !isOrderDrivenReplenishmentTask(t); });
+
+          var orderCards = buildReplenishmentLaneCardsHtml(orderTasks, smPickByLineId, lineUnitById, sourceAvailByLane, laneProgress, 'ord');
+          var capacityCards = buildReplenishmentLaneCardsHtml(capacityTasks, smPickByLineId, lineUnitById, sourceAvailByLane, laneProgress, 'cap');
+
+          var orderSection = wrapReplenishmentSection(
+            'Order-driven pulls',
+            'Moves for <strong>live orders</strong>: ORDER_PICK to SuperMarket, DT_MOVE to dispatch, or any task linked to an order. Prioritise these when a picker is waiting.',
+            '#34d399',
+            orderCards,
+            'No order-driven replenishment tasks for your zone right now.'
+          );
+          var capacitySection = wrapReplenishmentSection(
+            'Capacity / zone replenishment',
+            'Moves from <strong>stock levels</strong> (e.g. SM_REPLENISH, ZONE_REPLENISH) — topping up SuperMarket or product zones. Not the same as a picker waiting on a specific order line.',
+            '#f59e0b',
+            capacityCards,
+            'No capacity / zone replenishment tasks for your zone right now.'
+          );
+
+          taskList.innerHTML = orderSection + capacitySection;
+          taskList.querySelectorAll('.btn-lane-toggle').forEach(function(btn) {
+            btn.onclick = function() {
+              var id = btn.dataset.panel;
+              var el = document.getElementById(id);
+              if (!el) return;
+              var willShow = el.style.display === 'none';
+              el.style.display = willShow ? 'block' : 'none';
+              btn.textContent = (willShow ? 'Hide Pallets' : 'Show Pallets') + ' (' + ((el.querySelectorAll('tbody tr') || []).length) + ')';
+            };
+          });
+          taskList.querySelectorAll('.btn-execute-task').forEach(function(btn) {
+            btn.onclick = function() { executeReplenishmentTask(btn.dataset.taskId, btn.dataset.fromZone, btn.dataset.toZone, btn.dataset.sku); };
+          });
+          /* legacy per-task card render kept below for quick rollback reference
+          taskList.innerHTML = tasks.map(function(t) {
+            var ord = t.orders || {};
+            var orderNo = ord.external_order_no || (t.order_id ? t.order_id.toString().slice(0, 8) : '—');
+            var customer = ord.customer_name || '—';
+            var picker = ord.assigned_picker_name || ord.assigned_picker_user_id || 'Picker';
+            var isDT = (t.task_type || '').toUpperCase() === 'DT_MOVE' || (t.to_zone || '').toLowerCase().includes('dispatch');
+            var isZoneDriven = (t.task_type || '').toUpperCase() === 'ZONE_REPLENISH' || (t.trigger_reason || '').toUpperCase() === 'ZONE_BELOW_10PCT';
+            var destLabel = isDT ? 'Dispatch' : (isZoneDriven ? (t.to_zone || 'target zone') : 'SuperMarket');
+            var taskQty = Number(t.quantity_needed || 0);
+            var reservedPallet = t.reserved_pallet_id || null;
+            var laneKey = (t.from_zone || '') + '|' + (t.to_zone || '') + '|' + (t.sku || '');
+            var lane = laneStats[laneKey] || { qty: taskQty, pallets: 1 };
+            var progKey = (t.lane_key || laneKey) + '|' + (t.wave_id || '');
+            var prog = laneProgress[progKey] || { moved: 0, total: Number(t.lane_total || lane.pallets || 1) };
+            var sourceKey = (t.from_zone || '') + '|' + (t.sku || '');
+            var srcAvail = sourceAvailByLane[sourceKey] || { pallets: 0, qty: 0 };
+            var instr;
+            var title;
+            if (isDT) {
+              title = '🚚 DT — Push full pallet to Dispatch';
+              instr = '1. Order <strong>#' + escapeHtml(orderNo) + '</strong> needs <strong>full pallet(s)</strong> → push to <strong>Dispatch</strong>.' +
+                '<br>2. For Order <strong>#' + escapeHtml(orderNo) + '</strong> (Customer: ' + escapeHtml(customer) + ').' +
+                '<br>3. Push pallet from <strong>' + escapeHtml(t.from_zone || '') + '</strong> to <strong>Dispatch</strong> now.';
+            } else if (isZoneDriven) {
+              title = '📦 Zone Replenishment — Zone Clerk action';
+              instr = '1. <strong>' + escapeHtml(t.to_zone || 'Target zone') + '</strong> is below stock threshold for <strong>' + escapeHtml(t.sku || '') + '</strong>.' +
+                '<br>2. This is a <strong>zone-driven</strong> refill task (not a picker/order request).' +
+                '<br>3. Move pallet from <strong>' + escapeHtml(t.from_zone || '') + '</strong> to <strong>' + escapeHtml(t.to_zone || '') + '</strong> now.' +
+                '<br>4. Remaining for this replenishment lane: <strong>' + escapeHtml(String(lane.qty)) + '</strong> unit(s) across <strong>' + escapeHtml(String(lane.pallets)) + '</strong> pallet task(s).' +
+                '<br>5. Source availability for this SKU: <strong>' + escapeHtml(String(srcAvail.qty)) + '</strong> unit(s) across <strong>' + escapeHtml(String(srcAvail.pallets)) + '</strong> pallet(s) in ' + escapeHtml(t.from_zone || '') + '.' +
+                '<br>5. Progress: <strong>' + escapeHtml(String(prog.moved)) + '/' + escapeHtml(String(prog.total || lane.pallets)) + '</strong> pallet(s) moved for this lane.' +
+                '<br>6. This pallet task quantity: <strong>' + escapeHtml(String(taskQty)) + '</strong> unit(s).';
+            } else {
+              title = '📋 What the picker needs from you';
+              instr = '1. Picker <strong>' + escapeHtml(picker) + '</strong> needs <strong>' + escapeHtml(String(t.quantity_needed || 0)) + '× ' + escapeHtml(t.sku || '') + '</strong> in SuperMarket.' +
+                '<br>2. For Order <strong>#' + escapeHtml(orderNo) + '</strong> (Customer: ' + escapeHtml(customer) + ').' +
+                '<br>3. Push pallet from <strong>' + escapeHtml(t.from_zone || '') + '</strong> to <strong>SuperMarket</strong> now.';
+            }
+            var reservedHtml = reservedPallet
+              ? '<span>Pallet: <strong style="color:#34d399;">' + escapeHtml(reservedPallet) + '</strong></span>'
+              : '<span>Pallet: <strong style="color:#fbbf24;">Auto-FIFO on Execute</strong></span>';
+            return '<div class="task-card"' + (isDT ? ' style="border-left:4px solid #34d399;"' : '') + '>' +
+              '<div class="task-instruction"><div class="task-instruction-title">' + title + '</div>' + instr + '</div>' +
+              '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:11px;color:#94a3b8;margin-bottom:10px">' +
+              '<span>From: <strong style="color:var(--gold)">' + escapeHtml(t.from_zone || '') + '</strong></span>' +
+              '<span>→ To: <strong style="color:#34d399">' + escapeHtml(t.to_zone || '') + '</strong></span>' +
+              '<span>SKU: ' + escapeHtml(t.sku || '') + '</span>' +
+              '<span>Remaining Qty: ' + escapeHtml(String(taskQty)) + '</span>' +
+              '<span>Lane Remaining Qty: <strong style="color:#fbbf24;">' + escapeHtml(String(lane.qty)) + '</strong></span>' +
+              '<span>Pallets Remaining: <strong style="color:#fbbf24;">' + escapeHtml(String(lane.pallets)) + '</strong></span>' +
+              '<span>Source Available: <strong style="color:#60a5fa;">' + escapeHtml(String(srcAvail.qty)) + ' qty / ' + escapeHtml(String(srcAvail.pallets)) + ' pallets</strong></span>' +
+              '<span>Progress: <strong style="color:#34d399;">' + escapeHtml(String(prog.moved)) + '/' + escapeHtml(String(prog.total || lane.pallets)) + '</strong></span>' +
+              reservedHtml +
+              '</div>' +
+              '<button type="button" class="btn btn-primary btn-execute-task" data-task-id="' + escapeHtml(t.task_id || '') + '" data-from-zone="' + escapeHtml(t.from_zone || '') + '" data-to-zone="' + escapeHtml(t.to_zone || '') + '" data-sku="' + escapeHtml(t.sku || '') + '">Execute — Pre-fill move form</button>' +
+              '</div>';
+          }).join('');
+          taskList.querySelectorAll('.btn-execute-task').forEach(function(btn) {
+            btn.onclick = function() { executeReplenishmentTask(btn.dataset.taskId, btn.dataset.fromZone, btn.dataset.toZone, btn.dataset.sku); };
+          });
+          */
+        }
+        }
+        var pushDesc = document.getElementById('pushCardDesc');
+        if (pushDesc) {
+          if (isSMAssigned) {
+            pushDesc.textContent = 'Inbound lanes to SuperMarket: what each zone should supply. Use Notify to ping that zone’s clerk. Order-pull alerts (bell) also appear at the top when relevant.';
+          } else {
+            pushDesc.textContent = 'Tasks are split: Order-driven pulls (pickers/orders) first, then Capacity / zone replenishment (stock-level top-ups). Open the move form from each pallet row. Order-pull alerts (bell) also appear at the top.';
+          }
+        }
+        if (inboundList && assignedZone) {
+          var inboundDesc = document.getElementById('inboundCardDesc');
+          if (inboundDesc && assignedZone === 'SuperMarket Area') {
+            inboundDesc.textContent = 'Product zone clerks (Detergents, Fats, Liquids, etc.) are pushing pallets to SuperMarket for pickers. When each pallet arrives, go to Zone Receiving tab and click Receive.';
+          }
+          var inboundQuery = supabase.from('replenishment_tasks')
+            .select('task_id, from_zone, to_zone, sku, quantity_needed, reserved_pallet_id, order_id, orders(external_order_no, customer_name, assigned_picker_name)')
+            .eq('status', 'PENDING')
+            .eq('to_zone', assignedZone)
+            .order('created_at', { ascending: true });
+          var { data: inbounds, error: ie } = await inboundQuery;
+          if (!ie && inbounds && inbounds.length) {
+            var inboundGroups = {};
+            var inboundOrder = [];
+            inbounds.forEach(function(t) {
+              var gk = (t.from_zone || '') + '|' + (t.to_zone || '') + '|' + (t.sku || '');
+              if (!inboundGroups[gk]) {
+                inboundGroups[gk] = { from: t.from_zone || '', to: t.to_zone || '', sku: t.sku || '', qty: 0, pallets: 0, rows: [] };
+                inboundOrder.push(gk);
+              }
+              inboundGroups[gk].qty += Number(t.quantity_needed || 0);
+              inboundGroups[gk].pallets += 1;
+              inboundGroups[gk].rows.push(t);
+            });
+            inboundList.innerHTML = inboundOrder.map(function(gk, idx) {
+              var g = inboundGroups[gk];
+              var panelId = 'inboundLane_' + idx;
+              var instr = '1. <strong>' + escapeHtml(g.from) + '</strong> clerk is pushing stock for <strong>' + escapeHtml(g.sku) + '</strong>.<br>2. Combined inbound for this SKU lane: <strong>' + escapeHtml(String(g.qty)) + '</strong> unit(s) across <strong>' + escapeHtml(String(g.pallets)) + '</strong> pallet task(s).<br>3. When pallets arrive, go to <strong>Zone Receiving</strong> and click Receive.';
+              return '<div class="task-card">' +
+                '<div class="task-instruction"><div class="task-instruction-title">📋 What to expect</div>' + instr + '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:#94a3b8;margin-top:8px;">' +
+                  '<span>From: <strong style="color:var(--gold)">' + escapeHtml(g.from) + '</strong></span>' +
+                  '<span>→ To: <strong style="color:#34d399">' + escapeHtml(g.to) + '</strong></span>' +
+                  '<span>SKU: <strong>' + escapeHtml(g.sku) + '</strong></span>' +
+                  '<span>Lane Remaining Qty: <strong style="color:#fbbf24;">' + escapeHtml(String(g.qty)) + '</strong></span>' +
+                  '<span>Pallets Remaining: <strong style="color:#fbbf24;">' + escapeHtml(String(g.pallets)) + '</strong></span>' +
+                  '<button type="button" class="btn btn-secondary btn-inbound-toggle" data-panel="' + panelId + '">Show Pallets (' + g.rows.length + ')</button>' +
+                '</div>' +
+                '<div id="' + panelId + '" style="display:none;margin-top:10px;">' +
+                  '<table class="overview-table"><thead><tr><th>#</th><th>Task ID</th><th>Qty</th><th>Pallet</th></tr></thead><tbody>' +
+                  g.rows.map(function(t, i) {
+                    var pal = t.reserved_pallet_id
+                      ? '<span style="color:#34d399;font-weight:700;">' + escapeHtml(t.reserved_pallet_id) + '</span>'
+                      : '<span style="color:#fbbf24;">Auto-FIFO</span>';
+                    return '<tr><td>' + escapeHtml(String(i + 1)) + '</td><td>' + escapeHtml(t.task_id || '') + '</td><td>' + escapeHtml(String(Number(t.quantity_needed || 0))) + '</td><td>' + pal + '</td></tr>';
+                  }).join('') +
+                  '</tbody></table>' +
+                '</div>' +
+              '</div>';
+            }).join('');
+            inboundList.querySelectorAll('.btn-inbound-toggle').forEach(function(btn) {
+              btn.onclick = function() {
+                var id = btn.dataset.panel;
+                var el = document.getElementById(id);
+                if (!el) return;
+                var willShow = el.style.display === 'none';
+                el.style.display = willShow ? 'block' : 'none';
+                btn.textContent = (willShow ? 'Hide Pallets' : 'Show Pallets') + ' (' + ((el.querySelectorAll('tbody tr') || []).length) + ')';
+              };
+            });
+          } else {
+            inboundList.innerHTML = '<div class="empty">No pallets inbound to your zone right now.</div>';
+          }
+        }
+        if (warnList) {
+          var warnQuery = supabase.from('replenishment_warnings')
+            .select('id, zone, sku, stock_pct, triggered_at')
+            .eq('acknowledged', false)
+            .order('triggered_at', { ascending: false })
+            .limit(50);
+          if (assignedZone) warnQuery = warnQuery.eq('zone', assignedZone);
+          var { data: warnings, error: we } = await warnQuery;
+          if (we) { warnList.innerHTML = '<div class="empty">Could not load warnings.</div>'; return; }
+          if (!warnings || !warnings.length) {
+            warnList.innerHTML = '<div class="empty">No unacknowledged warnings.</div>';
+          } else {
+            warnList.innerHTML = '<table class="overview-table"><thead><tr><th>Zone</th><th>SKU</th><th>Stock %</th><th>Triggered</th><th></th></tr></thead><tbody>' +
+              warnings.map(function(w) {
+                var d = w.triggered_at ? new Date(w.triggered_at).toLocaleString() : '';
+                return '<tr><td>' + escapeHtml(w.zone || '') + '</td><td>' + escapeHtml(w.sku || '') + '</td><td>' + escapeHtml(String(Number(w.stock_pct).toFixed(1))) + '%</td><td>' + escapeHtml(d) + '</td><td><button type="button" class="btn btn-secondary btn-ack-warning" data-id="' + escapeHtml(w.id || '') + '">Acknowledge</button></td></tr>';
+              }).join('') + '</tbody></table>';
+            warnList.querySelectorAll('.btn-ack-warning').forEach(function(btn) {
+              btn.onclick = function() { acknowledgeWarning(btn.dataset.id); };
+            });
+          }
+        }
+        var needsBackfill = allowBackfill && !autoReplenishmentBackfillRunning && (!tasks || !tasks.length);
+        if (needsBackfill) {
+          autoReplenishmentBackfillRunning = true;
+          try {
+            await runReplenishmentChecks();
+            await refreshReplenishment(false);
+          } finally {
+            autoReplenishmentBackfillRunning = false;
+          }
+        }
+      } catch (e) {
+        taskList.innerHTML = '<div class="empty" style="color:#f87171;">Error: ' + escapeHtml(e.message || 'Failed') + '</div>';
+      }
+    }
+
+    async function notifyZoneClerkForSMTask(btn, taskId, fromZone, toZone, sku, nextPalletId, laneQty) {
+      if (!fromZone || !toZone || !sku) return;
+      var prevText = btn && btn.textContent;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+      }
+      var palText = nextPalletId ? nextPalletId : 'FIFO pallet';
+      var operator = (currentUser && currentUser.user_id) || 'SM Clerk';
+      // Persist notification so the respective product-zone clerk UI can show it.
+      var { error: upErr } = await supabase
+        .from('replenishment_tasks')
+        .update({ sm_notified_at: new Date().toISOString(), sm_notified_by: operator })
+        .eq('task_id', taskId);
+      if (upErr) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = prevText || 'Notify Zone Clerk';
+        }
+        showToast('Notify failed: ' + (upErr.message || upErr), 'error');
+        return;
+      }
+      // In-app notification strip for the target zone clerk (and realtime for others).
+      try {
+        var msg = (window.RetiFluxNotifs && window.RetiFluxNotifs.buildOrderPullMessage)
+          ? window.RetiFluxNotifs.buildOrderPullMessage({
+            external_order_no: '',
+            sku: sku,
+            from_zone: fromZone,
+            to_zone: toZone,
+            task_id: taskId,
+            quantity_needed: laneQty
+          })
+          : null;
+        var titleLine = (msg && msg.title) ? msg.title : 'SuperMarket requests replenishment';
+        var bodyLine = (msg && msg.compact)
+          ? (msg.compact + ' What to do: Open move form and move ' + palText + '.')
+          : ('Move ' + palText + ' for SKU ' + sku + ' → ' + toZone + '. Task: ' + (taskId || '—') + '.');
+        var { error: nErr } = await supabase.from('zone_clerk_notifications').insert({
+          target_zone: fromZone,
+          kind: 'SM_PUSH_REQUEST',
+          title: titleLine,
+          body: bodyLine,
+          payload: { task_id: taskId, sku: sku, to_zone: toZone, reserved_pallet_id: nextPalletId || null, lane_qty: laneQty },
+          created_by: operator
+        });
+        if (nErr) console.warn('zone_clerk_notifications insert:', nErr);
+      } catch (eN) { console.warn('zone_clerk_notifications', eN); }
+      if (btn) {
+        btn.textContent = 'Notified';
+        btn.disabled = true;
+      }
+      var msg = 'Notified ' + fromZone + ' clerk. Move ' + palText + ' for SKU ' + sku + '. Task: ' + (taskId || '—') + '.';
+      showToast(msg, 'success', 6500);
+      try {
+        if (currentTab === 'replenishment') await refreshReplenishment(false);
+      } catch (eR) { console.warn('refresh after notify', eR); }
+    }
+
+    function replenishmentSupplyButtonLabel(t) {
+      var tt = (t.task_type || '').toUpperCase();
+      var to = String(t.to_zone || '').trim();
+      var from = String(t.from_zone || '').trim();
+      if (tt === 'SM_REPLENISH') return 'Supply downstream';
+      if (to === 'SuperMarket Area' && tt === 'ORDER_PICK') return 'Supply downstream';
+      if (tt === 'ZONE_REPLENISH' && from === 'Receiving Area') return 'Fill zone';
+      if (tt === 'ORDER_PICK') return 'Supply order';
+      return 'Start move';
+    }
+
+    function notifMatchesAssignedZone(n) {
+      return !n.target_zone || String(n.target_zone) === String(assignedZone);
+    }
+
+    function renderRecentDismissedList(recentListEl, btnToggle, items) {
+      if (!recentListEl || !btnToggle) return;
+      var chev = notifRecentExpanded ? '▲' : '▼';
+      if (!items.length) {
+        recentListEl.innerHTML = '<div class="empty" style="padding:6px 0;font-size:11px;color:#64748b;">No dismissed alerts yet.</div>';
+        btnToggle.textContent = 'Recent (dismissed) — 0 ' + chev;
+        recentListEl.style.display = notifRecentExpanded ? 'block' : 'none';
+        btnToggle.setAttribute('aria-expanded', notifRecentExpanded ? 'true' : 'false');
+        return;
+      }
+      btnToggle.textContent = 'Recent (dismissed) — ' + items.length + ' ' + chev;
+      btnToggle.setAttribute('aria-expanded', notifRecentExpanded ? 'true' : 'false');
+      recentListEl.innerHTML = items.map(function(n) {
+        var k = (n.kind || '').toUpperCase();
+        var cls = 'notif-item notif-item--read';
+        var pretty = (window.RetiFluxNotifs && window.RetiFluxNotifs.improveNotificationCopy)
+          ? window.RetiFluxNotifs.improveNotificationCopy(n.kind, n.title, n.body, n.payload || {})
+          : { title: n.title || '', body: n.body || '' };
+        if (k.indexOf('FORKLIFT') >= 0) cls += ' kind-fl';
+        else if (k.indexOf('STAGING') >= 0) cls += ' kind-fl';
+        else if (k.indexOf('ORDER_PULL') >= 0) cls += ' kind-pull';
+        else if (k.indexOf('SM') >= 0) cls += ' kind-sm';
+        var t0 = n.created_at ? new Date(n.created_at).toLocaleString() : '';
+        var t1 = n.read_at ? new Date(n.read_at).toLocaleString() : '';
+        var scope = n.target_zone ? ('Zone: ' + escapeHtml(n.target_zone)) : 'All zones';
+        return '<div class="' + cls + '">' +
+          '<div><strong style="color:#94a3b8">' + escapeHtml(pretty.title || '') + '</strong>' +
+          '<div style="margin-top:4px;">' + escapeHtml(pretty.body || '') + '</div>' +
+          '<div class="notif-meta">Sent: ' + escapeHtml(t0) + ' · Dismissed: ' + escapeHtml(t1) + ' · ' + scope + '</div></div></div>';
+      }).join('');
+      recentListEl.style.display = notifRecentExpanded ? 'block' : 'none';
+    }
+
+    async function refreshZoneClerkNotifications() {
+      var shell = document.getElementById('zoneClerkNotifShell');
+      var list = document.getElementById('zoneClerkNotifList');
+      var recentWrap = document.getElementById('zoneClerkNotifRecentWrap');
+      var recentList = document.getElementById('zoneClerkNotifRecent');
+      var btnToggle = document.getElementById('btnToggleRecentNotifs');
+      var badge = document.getElementById('zoneClerkNotifBadge');
+      var btnAll = document.getElementById('btnDismissAllNotifs');
+      if (!shell || !list) return;
+      if (recentWrap) recentWrap.style.display = 'none';
+      if (!supabase) {
+        shell.classList.add('notif-shell--empty');
+        shell.classList.remove('notif-shell--error');
+        if (badge) { badge.textContent = '0'; badge.classList.remove('notif-badge--visible'); badge.title = 'Unread'; }
+        list.innerHTML = '<div class="empty" style="padding:8px 0;">Supabase not configured — notifications disabled.</div>';
+        if (btnAll) btnAll.disabled = true;
+        applyNotifPanelUi();
+        return;
+      }
+      if (!assignedZone) {
+        shell.classList.add('notif-shell--empty');
+        shell.classList.remove('notif-shell--error');
+        if (badge) { badge.textContent = '0'; badge.classList.remove('notif-badge--visible'); badge.title = 'Unread'; }
+        list.innerHTML = '<div class="empty" style="padding:8px 0;">Sign in to load notifications for your zone.</div>';
+        if (btnAll) btnAll.disabled = true;
+        applyNotifPanelUi();
+        return;
+      }
+      try {
+        var { data, error } = await supabase.from('zone_clerk_notifications')
+          .select('id, target_zone, kind, title, body, created_at, payload')
+          .is('read_at', null)
+          .order('created_at', { ascending: false })
+          .limit(40);
+        if (error) throw error;
+        shell.classList.remove('notif-shell--error');
+        var rows = (data || []).filter(notifMatchesAssignedZone);
+        var flIds = [];
+        rows.forEach(function(n) {
+          var nk = (n.kind || '');
+          if ((nk === 'FORKLIFT_AVAILABLE' || nk === 'FORKLIFT_STAGING') && n.payload && n.payload.forklift_id) flIds.push(n.payload.forklift_id);
+        });
+        if (flIds.length) {
+          var { data: flData } = await supabase.from('forklifts').select('id,status,staging_queue_id').in('id', flIds);
+          var notAvailable = {};
+          var stagingByFl = {};
+          (flData || []).forEach(function(f) {
+            if (f && f.id) {
+              if (String(f.status || '').toLowerCase() !== 'available') notAvailable[f.id] = true;
+              stagingByFl[f.id] = f.staging_queue_id;
+            }
+          });
+          rows = rows.filter(function(n) {
+            var nk = (n.kind || '');
+            var fid = n.payload && n.payload.forklift_id;
+            var qid = n.payload && n.payload.queue_id;
+            if (nk === 'FORKLIFT_AVAILABLE') {
+              if (!fid) return true;
+              return !notAvailable[fid];
+            }
+            if (nk === 'FORKLIFT_STAGING') {
+              if (!fid) return true;
+              if (notAvailable[fid]) return false;
+              if (qid && stagingByFl[fid] && String(stagingByFl[fid]) !== String(qid)) return false;
+              return true;
+            }
+            return true;
+          });
+        }
+        var nUnread = rows.length;
+        if (badge) {
+          badge.textContent = String(nUnread);
+          badge.classList.toggle('notif-badge--visible', nUnread > 0);
+          badge.title = nUnread === 1 ? '1 unread alert' : (nUnread + ' unread alerts');
+        }
+        if (!rows.length) {
+          shell.classList.add('notif-shell--empty');
+          list.innerHTML = '<div class="empty" style="padding:8px 0;text-align:left;color:#94a3b8;">No alerts right now.</div>';
+          if (btnAll) btnAll.disabled = true;
+        } else {
+          shell.classList.remove('notif-shell--empty');
+          if (btnAll) btnAll.disabled = false;
+          list.innerHTML = rows.map(function(n) {
+            var k = (n.kind || '').toUpperCase();
+            var cls = 'notif-item';
+            if (k.indexOf('FORKLIFT') >= 0) cls += ' kind-fl';
+            else if (k.indexOf('STAGING') >= 0) cls += ' kind-fl';
+            else if (k.indexOf('ORDER_PULL') >= 0) cls += ' kind-pull';
+            else if (k.indexOf('SM') >= 0) cls += ' kind-sm';
+            var t = n.created_at ? new Date(n.created_at).toLocaleString() : '';
+            var scope = n.target_zone ? ('Zone: ' + escapeHtml(n.target_zone)) : 'All zones';
+            var pretty = (window.RetiFluxNotifs && window.RetiFluxNotifs.improveNotificationCopy)
+              ? window.RetiFluxNotifs.improveNotificationCopy(n.kind, n.title, n.body, n.payload || {})
+              : { title: n.title || '', body: n.body || '' };
+            return '<div class="' + cls + '" data-notif-id="' + escapeHtml(n.id) + '">' +
+              '<div><strong style="color:var(--gold)">' + escapeHtml(pretty.title || '') + '</strong>' +
+              '<div style="margin-top:4px;">' + escapeHtml(pretty.body || '') + '</div>' +
+              '<div class="notif-meta">' + escapeHtml(t) + ' · ' + scope + '</div></div>' +
+              '<button type="button" class="notif-dismiss btn-dismiss-one">Dismiss</button></div>';
+          }).join('');
+          list.querySelectorAll('.btn-dismiss-one').forEach(function(btn) {
+            btn.onclick = function() {
+              var card = btn.closest('.notif-item');
+              var id = card && card.dataset.notifId;
+              dismissZoneClerkNotification(id);
+            };
+          });
+        }
+
+        var { data: readData, error: readErr } = await supabase.from('zone_clerk_notifications')
+          .select('id, target_zone, kind, title, body, created_at, read_at, read_by')
+          .not('read_at', 'is', null)
+          .order('read_at', { ascending: false })
+          .limit(120);
+        if (readErr) throw readErr;
+        var recentRows = (readData || []).filter(notifMatchesAssignedZone).slice(0, 10);
+        lastRecentDismissedItems = recentRows;
+        if (recentWrap) recentWrap.style.display = '';
+        renderRecentDismissedList(recentList, btnToggle, recentRows);
+        applyNotifPanelUi();
+      } catch (e) {
+        lastRecentDismissedItems = [];
+        shell.classList.add('notif-shell--error');
+        shell.classList.remove('notif-shell--empty');
+        if (badge) { badge.textContent = '!'; badge.classList.add('notif-badge--visible'); badge.title = 'Could not load'; }
+        list.innerHTML = '<div class="empty" style="padding:8px 0;text-align:left;color:#fca5a5;">Alerts could not be loaded. Ask your admin to check the database setup.</div>';
+        if (btnAll) btnAll.disabled = true;
+        if (recentWrap) recentWrap.style.display = 'none';
+        applyNotifPanelUi();
+      }
+    }
+
+    async function dismissZoneClerkNotification(id) {
+      if (!supabase || !id) return;
+      var by = (currentUser && currentUser.user_id) || 'clerk';
+      var { error } = await supabase.from('zone_clerk_notifications')
+        .update({ read_at: new Date().toISOString(), read_by: by })
+        .eq('id', id);
+      if (!error) {
+        refreshZoneClerkNotifications();
+        if (currentTab === 'replenishment') refreshReplenishment(false);
+      }
+    }
+
+    async function dismissAllVisibleZoneClerkNotifications() {
+      var ids = [].slice.call(document.querySelectorAll('#zoneClerkNotifList .notif-item'))
+        .map(function(el) { return el.dataset.notifId; })
+        .filter(Boolean);
+      if (!supabase || !ids.length) return;
+      var by = (currentUser && currentUser.user_id) || 'clerk';
+      var now = new Date().toISOString();
+      for (var i = 0; i < ids.length; i++) {
+        await supabase.from('zone_clerk_notifications').update({ read_at: now, read_by: by }).eq('id', ids[i]);
+      }
+      refreshZoneClerkNotifications();
+      if (currentTab === 'replenishment') refreshReplenishment(false);
+    }
+
+    async function executeReplenishmentTask(taskId, fromZone, toZone, sku) {
+      if (!supabase || !taskId || !fromZone || !toZone || !sku) return;
+      showSplash();
+      try {
+        var { data: fifo, error } = await supabase.rpc('get_fifo_pallet_for_task', { p_task_id: taskId });
+        if (error) throw error;
+        var palletId = (typeof fifo === 'string' ? fifo : (fifo && fifo.pallet_id)) || null;
+        if (!palletId) {
+          showToast('No pallet found for ' + sku + ' in ' + fromZone, 'error');
+          hideSplash();
+          return;
+        }
+        pendingTaskId = taskId;
+        pendingTaskOrderRef = null;
+        try {
+          var { data: tRef } = await supabase
+            .from('replenishment_tasks')
+            .select('task_id, orders(external_order_no)')
+            .eq('task_id', taskId)
+            .maybeSingle();
+          pendingTaskOrderRef = tRef && tRef.orders && tRef.orders.external_order_no
+            ? String(tRef.orders.external_order_no)
+            : null;
+        } catch (_eRef) {
+          pendingTaskOrderRef = null;
+        }
+        document.getElementById('movePalletId').value = palletId;
+        document.getElementById('moveCurrentZone').value = fromZone;
+        document.getElementById('moveToZone').value = toZone;
+        document.getElementById('moveReason').value = 'Replenishment task ' + taskId;
+        var skuSel = document.getElementById('moveSkuSelect');
+        if (skuSel) skuSel.value = sku;
+        populateMoveToZone('', fromZone);
+        var toSel = document.getElementById('moveToZone');
+        if (toSel) toSel.value = toZone;
+        switchTab('monitor');
+        showToast('Form pre-filled. Complete the move to mark task done.', 'success');
+      } catch (e) {
+        showToast('Could not prepare move: ' + (e.message || e), 'error');
+      } finally { hideSplash(); }
+    }
+
+    async function acknowledgeWarning(warnId) {
+      if (!supabase || !warnId) return;
+      try {
+        var operator = (currentUser && currentUser.user_id) || (document.getElementById('moveMovedBy') || {}).value.trim() || (document.getElementById('operatorName') || {}).value.trim() || '';
+        var { error } = await supabase.from('replenishment_warnings').update({ acknowledged: true, acknowledged_at: new Date().toISOString(), acknowledged_by: operator || null }).eq('id', warnId);
+        if (error) throw error;
+        showToast('Warning acknowledged', 'success');
+        refreshReplenishment();
+      } catch (e) { showToast('Failed: ' + (e.message || e), 'error'); }
+    }
+
+    async function init() {
+      if (!supabase) {
+        hideSplash();
+        document.getElementById('zoneStatus').textContent = '⚠️ Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to config.js';
+        document.getElementById('zoneStatus').className = 'status error';
+        return;
+      }
+      try {
+        await loadZones();
+        populateZoneSelects();
+        var isSMZone = assignedZone && (assignedZone === 'SuperMarket Area' || assignedZone.toLowerCase().includes('supermarket'));
+        var tabRel = document.getElementById('tabRelease');
+        if (tabRel) tabRel.style.display = isSMZone ? '' : 'none';
+        if (!isSMZone && initialTab === 'release') initialTab = 'monitor';
+        await switchTab(initialTab);
+        refreshZoneClerkNotifications();
+        var btnDismissAll = document.getElementById('btnDismissAllNotifs');
+        if (btnDismissAll) btnDismissAll.onclick = function() { dismissAllVisibleZoneClerkNotifications(); };
+        hideSplash();
+        document.getElementById('zoneSelect').addEventListener('change', function() { zoneMonitorPage = 1; refreshZone(); });
+        document.getElementById('zoneStatusFilter').addEventListener('change', function() { zoneMonitorPage = 1; refreshZone(); });
+        var pageSizeEl = document.getElementById('zonePageSize');
+        if (pageSizeEl) {
+          pageSizeEl.value = String(zoneMonitorPageSize);
+          pageSizeEl.addEventListener('change', function() {
+            zoneMonitorPageSize = Math.max(1, Number(this.value) || 100);
+            zoneMonitorPage = 1;
+            refreshZone();
+          });
+        }
+        var prevBtn = document.getElementById('btnZonePrev');
+        if (prevBtn) prevBtn.onclick = function() {
+          if (zoneMonitorPage <= 1) return;
+          zoneMonitorPage--;
+          refreshZone();
+        };
+        var nextBtn = document.getElementById('btnZoneNext');
+        if (nextBtn) nextBtn.onclick = function() {
+          var totalPages = Math.max(1, Math.ceil((zoneMonitorTotal || 0) / zoneMonitorPageSize));
+          if (zoneMonitorPage >= totalPages) return;
+          zoneMonitorPage++;
+          refreshZone();
+        };
+        var actionFilterEl = document.getElementById('zoneMonitorActionFilter');
+        if (actionFilterEl) actionFilterEl.addEventListener('change', function() {
+          var zone = document.getElementById('zoneSelect').value;
+          if (zone && lastPallets.length) renderPallets(lastPallets, zone, lastBookedPalletInfo);
+        });
+        var btnViewAll = document.getElementById('btnViewAllZones');
+        if (btnViewAll && btnViewAll.style.display !== 'none') btnViewAll.onclick = refreshZoneOverview;
+        document.getElementById('btnClearMove').onclick = function() { pendingTaskId = null; pendingTaskOrderRef = null; resetMovementForm(); };
+        var btnRefreshRep = document.getElementById('btnRefreshReplenishment');
+        if (btnRefreshRep) btnRefreshRep.onclick = refreshReplenishment;
+        var btnRefreshRel = document.getElementById('btnRefreshRelease');
+        if (btnRefreshRel) btnRefreshRel.onclick = refreshRelease;
+        if (isSMZone && supabase) {
+          supabase.channel('orders-awaiting-release').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, function(payload) {
+            var s = (payload.new && payload.new.status) || '';
+            if (s === 'AWAITING_SM_RELEASE' || s === 'COMPLETED') refreshRelease();
+          }).subscribe();
+        }
+        var recSel = document.getElementById('receivingZoneSelect');
+        if (recSel) recSel.addEventListener('change', refreshReceiving);
+        var opEl = document.getElementById('operatorName');
+        if (opEl) {
+          opEl.addEventListener('blur', function() { var v = (this.value || '').trim(); if (v) try { localStorage.setItem('movement_operator', v); } catch (e) {} });
+          if (!assignedZone) opEl.value = localStorage.getItem('movement_operator') || '';
+        }
+        document.getElementById('btnRefreshZone').onclick = refreshZone;
+        var btnCheckRep = document.getElementById('btnCheckReplenishment');
+        if (btnCheckRep) {
+          btnCheckRep.onclick = async function() {
+            btnCheckRep.disabled = true;
+            btnCheckRep.textContent = 'Checking...';
+            showSplash();
+            try {
+              var r = await runReplenishmentChecks();
+              var sm = (r && r.sm && r.sm.created) || 0;
+              var req = (r && r.zone && r.zone.requests) || 0;
+              var warn = (r && r.zone && r.zone.warnings) || 0;
+              var msg = 'SM: ' + sm + ' task(s); Zone: ' + req + ' request(s), ' + warn + ' warning(s).';
+              showToast(msg, sm + req > 0 ? 'success' : 'success');
+              document.getElementById('zoneStatus').textContent = msg;
+              document.getElementById('zoneStatus').className = 'status success';
+            } catch (e) {
+              showToast('Replenishment check failed: ' + (e.message || e), 'error');
+              document.getElementById('zoneStatus').textContent = 'Error: ' + (e.message || e);
+              document.getElementById('zoneStatus').className = 'status error';
+            } finally {
+              btnCheckRep.disabled = false;
+              btnCheckRep.textContent = '📋 Check Replenishment';
+              hideSplash();
+            }
+          };
+        }
+        document.getElementById('moveSkuSelect').addEventListener('change', function() {
+          var sku = (this.value || '').trim();
+          if (!sku) return;
+          var oldest = getOldestPalletForSku(lastPallets, sku);
+          if (oldest) selectPalletForMove(oldest.PalletID);
+        });
+        var btnInit = document.getElementById('btnInitiateMove');
+        if (btnInit) {
+          btnInit.onclick = async function() {
+            var palletId = (document.getElementById('movePalletId') || {}).value.trim();
+            var toZone = (document.getElementById('moveToZone') || {}).value;
+            var movedBy = (document.getElementById('moveMovedBy') || {}).value.trim();
+            var reason = (document.getElementById('moveReason') || {}).value.trim();
+            var status = document.getElementById('moveStatus');
+            if (!status) return;
+            if (!palletId || !toZone || !movedBy) {
+              status.textContent = 'Pallet ID, To Zone, and Moved By are required.';
+              status.className = 'status error';
+              status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              return;
+            }
+            status.textContent = 'Initiating...';
+            status.className = 'status';
+            btnInit.disabled = true;
+            showSplash();
+            try {
+              var fromZone = (document.getElementById('moveCurrentZone') || {}).value.trim();
+              var r = await initiateMove(palletId, toZone, movedBy, reason, pendingTaskOrderRef);
+              var msg = (r.message || 'Move initiated.') + ' The ' + toZone + ' clerk will receive when the pallet arrives.';
+              status.textContent = msg;
+              status.className = 'status success';
+              var fromZ = r.fromZone || fromZone || '';
+              var movId = r.movementId || r.movement_id || '';
+              showToast('Pallet ' + palletId + ' from ' + fromZ + ' movement initiated. Movement ID: ' + movId, 'success');
+              if (pendingTaskId) {
+                var completedBy = (currentUser && currentUser.user_id) || movedBy;
+                supabase.from('replenishment_tasks').update({ status: 'DONE', completed_at: new Date().toISOString(), completed_by: completedBy }).eq('task_id', pendingTaskId).then(function() { pendingTaskId = null; pendingTaskOrderRef = null; });
+                refreshReplenishment();
+              }
+              resetMovementForm();
+              refreshZone();
+              switchTab('receiving');
+              var recSel = document.getElementById('receivingZoneSelect');
+              if (recSel && fromZone) {
+                recSel.value = fromZone;
+                refreshReceiving();
+              }
+            } catch (e) {
+              var errMsg = e.message || 'Failed';
+              status.textContent = 'Error: ' + errMsg;
+              status.className = 'status error';
+              showToast(errMsg, 'error');
+              if (isNoForkliftAvailableError(e) && supabase && palletId && fromZone && toZone) {
+                try {
+                  var enq = await supabase.rpc('enqueue_forklift_staging_intent', {
+                    p_pallet_id: palletId,
+                    p_from_zone: fromZone,
+                    p_to_zone: toZone,
+                    p_priority: 10,
+                    p_reason: reason || '',
+                    p_requested_by: movedBy || ''
+                  });
+                  var ej = enq.data;
+                  var enqErr = enq.error;
+                  if (enqErr) console.warn('enqueue_forklift_staging_intent', enqErr);
+                  if (!enqErr && ej) {
+                    if (typeof ej === 'string') { try { ej = JSON.parse(ej); } catch (j) {} }
+                    if (ej && ej.success) {
+                      showToast('No forklift free — your move is queued. The next matching FL will be directed to ' + fromZone + '. Try Initiate again when you get the alert.', 'success', 8000);
+                    }
+                  }
+                } catch (eq) { console.warn('enqueue staging', eq); }
+              }
+              status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } finally {
+              btnInit.disabled = false;
+              hideSplash();
+            }
+          };
+        }
+        var movedByEl = document.getElementById('moveMovedBy');
+        if (assignedZone && currentUser) {
+          movedByEl.value = currentUser.user_id;
+          movedByEl.readOnly = true;
+        } else {
+          movedByEl.value = localStorage.getItem('movement_operator') || '';
+          movedByEl.addEventListener('blur', function() { var v = (this.value || '').trim(); if (v) try { localStorage.setItem('movement_operator', v); } catch (e) {} });
+        }
+        document.querySelectorAll('.tab-btn').forEach(function(b) {
+          b.onclick = function() { switchTab(b.dataset.tab); };
+        });
+        var rt = supabase.channel('zone-clerk-live');
+        rt
+          /* Optional: instant alert updates if table is in Realtime publication; polling below still refreshes every ~12s */
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'zone_clerk_notifications' }, function() {
+            refreshZoneClerkNotifications();
+            if (currentTab === 'replenishment') refreshReplenishment(false);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'replenishment_tasks' }, function() { scheduleRealtimeRefresh('task'); })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'replenishment_warnings' }, function() { scheduleRealtimeRefresh('task'); })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'zone_movements' }, function() { scheduleRealtimeRefresh('movement'); })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'pallets' }, function() { scheduleRealtimeRefresh('movement'); })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, function() { if (currentTab === 'release') scheduleRealtimeRefresh('order'); })
+          .subscribe();
+        var btnNotifToggle = document.getElementById('btnToggleNotifPanel');
+        if (btnNotifToggle && !btnNotifToggle._zcBound) {
+          btnNotifToggle._zcBound = true;
+          applyNotifPanelUi();
+          btnNotifToggle.onclick = function() {
+            notifPanelExpanded = !notifPanelExpanded;
+            try { sessionStorage.setItem('zc_notif_open', notifPanelExpanded ? '1' : '0'); } catch (e1) {}
+            applyNotifPanelUi();
+          };
+        }
+        startZoneClerkNotifPolling();
+        var btnRecentNotif = document.getElementById('btnToggleRecentNotifs');
+        if (btnRecentNotif && !btnRecentNotif._rzBound) {
+          btnRecentNotif._rzBound = true;
+          btnRecentNotif.onclick = function() {
+            notifRecentExpanded = !notifRecentExpanded;
+            renderRecentDismissedList(
+              document.getElementById('zoneClerkNotifRecent'),
+              btnRecentNotif,
+              lastRecentDismissedItems
+            );
+          };
+        }
+        if (assignedZone) {
+          document.getElementById('zoneSelect').value = assignedZone;
+          document.getElementById('receivingZoneSelect').value = assignedZone;
+        }
+        var backLink = document.querySelector('.header a.back-home');
+        if (backLink) {
+          backLink.addEventListener('click', function(e) {
+            if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            window.location.href = backLink.getAttribute('href');
+          });
+        }
+      } catch (e) {
+        console.error('Init error:', e);
+        hideSplash();
+        document.getElementById('zoneStatus').textContent = 'Error: ' + (e.message || 'Failed to load zones');
+        document.getElementById('zoneStatus').className = 'status error';
+      }
+    }
+
+    function bootFromSharedSession() {
+      if (!supabase) return;
+      var s = window.RetiFluxAuthSession && window.RetiFluxAuthSession.read();
+      if (!s || !s.user_id) return;
+      var role = (s.role || '').trim();
+      if (!/^(Zone Clerk|Receiving Clerk)$/i.test(role)) return;
+      if (!s.assigned_zone) return;
+      currentUser = { user_id: s.user_id, name: s.name || '', role: s.role, assigned_zone: s.assigned_zone };
+      assignedZone = s.assigned_zone;
+      document.getElementById('inputPasscode').value = '';
+      document.getElementById('inputUserId').value = s.user_id;
+      document.getElementById('screenLogin').classList.remove('active');
+      document.getElementById('screenLogin').style.display = 'none';
+      document.getElementById('app').classList.add('active');
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('headerZoneName').textContent = assignedZone;
+      document.getElementById('zoneClerkZoneBadge').textContent = '📍 ' + assignedZone;
+    }
+    bootFromSharedSession();
+
+    if (!document.getElementById('screenLogin').classList.contains('active')) init();
+        })();
+    </script>
+</body>
+</html>

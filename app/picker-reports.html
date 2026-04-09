@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <title>RetiFlux™ · Picker Reports</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link rel="stylesheet" href="../css/retiflux-responsive.css">
+  <script src="../js/retiflux-performance.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{--gold:#f0c040;--gold2:#f59e0b;--bg:#0f172a;--card:rgba(15,23,42,0.97);--font:'Cascadia Mono','Cascadia Code',Consolas,monospace;--muted:#94a3b8;--border:rgba(245,158,11,0.3);--green:#86efac;--red:#fca5a5}
+    html{background:var(--bg)}
+    body{font-family:var(--font);background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);min-height:100vh;color:#e2e8f0;padding:20px 16px 80px}
+    .container{max-width:none;margin:0;width:100%}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+    .title{font-size:20px;font-weight:900;color:#fff}
+    .sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .back{display:inline-flex;align-items:center;padding:8px 14px;border:2px solid rgba(245,158,11,0.5);border-radius:10px;color:var(--gold);text-decoration:none;font-weight:800;font-size:13px}
+    .back:hover{background:rgba(245,158,11,0.15)}
+    .card{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:18px;margin-bottom:16px}
+    .card-title{font-size:11px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;font-weight:800}
+    .report-row{
+      display:grid;grid-template-columns:1fr auto auto;gap:16px;align-items:center;
+      padding:14px 16px;margin-bottom:10px;border-radius:12px;
+      background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);
+      animation:amberGlow 2s ease-in-out infinite
+    }
+    @keyframes amberGlow{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0.2)}50%{box-shadow:0 0 12px 2px rgba(245,158,11,0.15)}}
+    .report-row:last-child{margin-bottom:0}
+    .report-info{display:flex;flex-direction:column;gap:4px}
+    .report-order{font-weight:900;color:#fff;font-size:14px}
+    .report-line{font-size:12px;color:var(--muted)}
+    .report-reason{font-size:12px;color:#e2e8f0;margin-top:6px;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px}
+    .report-meta{font-size:10px;color:var(--muted);margin-top:4px}
+    .report-actions{display:flex;gap:8px;flex-shrink:0}
+    .btn{padding:8px 14px;border-radius:8px;border:none;cursor:pointer;font-family:var(--font);font-weight:800;font-size:11px}
+    .btn-short{background:rgba(252,165,165,0.15);border:1px solid rgba(252,165,165,0.3);color:var(--red)}
+    .btn-clear{background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--muted)}
+    .btn-view{background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.35);color:var(--gold);text-decoration:none;display:inline-flex;align-items:center}
+    .empty{text-align:center;padding:40px;color:var(--muted);font-size:14px}
+    .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(245,158,11,0.3);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(max-width:640px){.report-row{grid-template-columns:1fr;gap:12px}.report-actions{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div>
+        <div class="title">Picker Reports</div>
+        <div class="sub">Lines reported short by pickers — confirm or clear</div>
+      </div>
+      <a class="back" href="../index.html">← Home</a>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⚠ Awaiting supervisor</div>
+      <div id="reportsList"><div class="empty"><span class="spinner"></span> Loading…</div></div>
+    </div>
+
+    <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+  (function(){
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var sb = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
+
+    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+    function fmtDate(s){ if(!s)return'—'; try{ return new Date(s).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(e){return s;} }
+
+    async function load(){
+      if(!sb){ document.getElementById('reportsList').innerHTML='<div class="empty">Supabase not configured</div>'; return; }
+      try{
+        var {data:lines, error:e1} = await sb.from('order_lines')
+          .select('id, order_id, line_no, item_code, quantity, short_reason, picker_reported_by, picker_reported_at')
+          .eq('status', 'PICKER_REPORTED_SHORT')
+          .order('picker_reported_at', {ascending: false});
+        if(e1) throw e1;
+        lines = lines || [];
+        if(!lines.length){
+          document.getElementById('reportsList').innerHTML='<div class="empty">No picker reports. All clear ✓</div>';
+          return;
+        }
+        var orderIds = [...new Set(lines.map(function(l){ return l.order_id; }))];
+        var {data:orders} = await sb.from('orders').select('id, external_order_no, customer_name').in('id', orderIds);
+        var orderMap = {};
+        (orders||[]).forEach(function(o){ orderMap[o.id] = o; });
+
+        var html = lines.map(function(l){
+          var o = orderMap[l.order_id] || {};
+          var orderUrl = 'order-detail.html?order=' + encodeURIComponent(l.order_id);
+          var lid = String(l.id).replace(/'/g, "\\'");
+          return '<div class="report-row" data-line-id="'+lid+'">'+
+            '<div class="report-info">'+
+              '<span class="report-order">'+esc(o.external_order_no||'Order')+' · '+esc(o.customer_name||'')+'</span>'+
+              '<span class="report-line">Line '+l.line_no+': '+esc(l.item_code)+' × '+esc(l.quantity)+'</span>'+
+              (l.short_reason ? '<div class="report-reason">'+esc(l.short_reason)+'</div>' : '')+
+              '<span class="report-meta">Reported by '+esc(l.picker_reported_by||'—')+' · '+fmtDate(l.picker_reported_at)+'</span>'+
+            '</div>'+
+            '<div class="report-actions">'+
+              '<a class="btn btn-view" href="'+orderUrl+'">View order</a>'+
+              '<button class="btn btn-short" data-action="confirm" data-id="'+lid+'">Confirm short</button>'+
+              '<button class="btn btn-clear" data-action="clear" data-id="'+lid+'">Clear</button>'+
+            '</div>'+
+          '</div>';
+        }).join('');
+        document.getElementById('reportsList').innerHTML = html;
+        document.getElementById('reportsList').querySelectorAll('[data-action="confirm"]').forEach(function(btn){
+          btn.onclick = function(){ confirmShort(btn.getAttribute('data-id')); };
+        });
+        document.getElementById('reportsList').querySelectorAll('[data-action="clear"]').forEach(function(btn){
+          btn.onclick = function(){ clearReport(btn.getAttribute('data-id')); };
+        });
+      } catch(e){
+        document.getElementById('reportsList').innerHTML='<div class="empty" style="color:var(--red)">❌ '+esc(e.message)+'</div>';
+      }
+    }
+
+    window.confirmShort = function(lineId){
+      sb.from('order_lines').update({status:'SHORT'}).eq('id', lineId).then(function(r){
+        if(r.error){ alert('Failed: '+r.error.message); return; }
+        var row = document.querySelector('.report-row[data-line-id="'+lineId+'"]');
+        if(row) row.remove();
+        if(!document.querySelectorAll('.report-row').length)
+          document.getElementById('reportsList').innerHTML='<div class="empty">No picker reports. All clear ✓</div>';
+      });
+    };
+    window.clearReport = function(lineId){
+      sb.from('order_lines').update({status:'OPEN', short_reason:null, picker_reported_by:null, picker_reported_at:null}).eq('id', lineId).then(function(r){
+        if(r.error){ alert('Failed: '+r.error.message); return; }
+        var row = document.querySelector('.report-row[data-line-id="'+lineId+'"]');
+        if(row) row.remove();
+        if(!document.querySelectorAll('.report-row').length)
+          document.getElementById('reportsList').innerHTML='<div class="empty">No picker reports. All clear ✓</div>';
+      });
+    };
+
+    load();
+    setInterval(load, 30000);
+  })();
+  </script>
+</body>
+</html>

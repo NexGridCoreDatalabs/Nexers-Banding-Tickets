@@ -1,0 +1,2020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>RetiFlux™ · Picker Portal</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-responsive.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <script src="../js/retiflux-performance.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    :root{
+      --gold:#f0c040;--gold2:#f59e0b;
+      --bg:#0f172a;--card:rgba(15,23,42,0.97);
+      --font:'Cascadia Mono',Consolas,monospace;
+      --muted:#94a3b8;--border:rgba(245,158,11,0.3);
+      --green:#86efac;--red:#fca5a5;--blue:#93c5fd;
+    }
+    html,body{height:100%;background:var(--bg)}
+    body{
+      font-family:var(--font);
+      background:linear-gradient(160deg,#0f172a 0%,#1a2e4a 100%);
+      color:#e2e8f0;min-height:100vh;
+      display:flex;flex-direction:column;
+    }
+
+    /* ── Screens ── */
+    .screen{display:none;flex:1;flex-direction:column;padding:20px 16px 32px;width:100%;margin:0;max-width:none}
+    .screen.active{display:flex}
+
+    /* ── Top bar ── */
+    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+    .logo{font-size:16px;font-weight:900;color:var(--gold);letter-spacing:0.5px}
+    .logout-btn{font-size:11px;color:var(--muted);background:none;border:1px solid rgba(148,163,184,0.2);padding:5px 10px;border-radius:7px;cursor:pointer;font-family:var(--font)}
+    .logout-btn:hover{color:#fff;border-color:rgba(148,163,184,0.4)}
+    .nav-home,.nav-back{font-size:12px;font-weight:800;padding:6px 12px;border-radius:8px;text-decoration:none;font-family:var(--font);display:inline-flex;align-items:center;gap:4px}
+    .nav-home{color:var(--gold);border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.08)}
+    .nav-home:hover{background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.5)}
+    .nav-back{color:var(--gold);border:1px solid rgba(245,158,11,0.3);background:none;cursor:pointer}
+    .nav-back:hover{background:rgba(245,158,11,0.1)}
+    .field input:hover{border-color:rgba(245,158,11,0.5)}
+
+    /* ── Login screen ── */
+    .login-hero{text-align:center;margin-bottom:32px}
+    .login-hero img{width:64px;height:64px;margin-bottom:12px}
+    .login-hero h1{font-size:22px;font-weight:900;color:#fff;margin-bottom:4px}
+    .login-hero p{font-size:12px;color:var(--muted)}
+    .field{margin-bottom:16px}
+    .field label{display:block;font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+    .field input{
+      width:100%;padding:14px 16px;border-radius:12px;
+      border:2px solid rgba(245,158,11,0.3);
+      background:rgba(15,23,42,0.8);
+      color:#e2e8f0;font-family:var(--font);font-size:16px;
+      transition:border-color .15s;
+    }
+    .field input:focus{outline:none;border-color:var(--gold)}
+    .field input[type="password"]{letter-spacing:4px;font-size:20px}
+    .login-err{color:var(--red);font-size:12px;text-align:center;min-height:18px;margin-bottom:8px}
+
+    /* ── Buttons ── */
+    .btn{width:100%;padding:16px;border-radius:14px;border:none;cursor:pointer;font-family:var(--font);font-weight:900;font-size:15px;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+    .btn:disabled{opacity:0.45;cursor:not-allowed}
+    .btn:active{opacity:0.8}
+    .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#0f172a}
+    .btn-green{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
+    .btn-red{background:rgba(252,165,165,0.1);border:1px solid rgba(252,165,165,0.3);color:var(--red)}
+    .btn-sm{padding:10px 16px;font-size:13px;border-radius:10px;width:auto}
+
+    /* ── Orders list ── */
+    .section-title{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-weight:800;margin-bottom:12px}
+    .order-card{
+      background:rgba(15,23,42,0.8);
+      border:1.5px solid rgba(245,158,11,0.25);
+      border-radius:14px;padding:16px;margin-bottom:12px;cursor:pointer;
+      transition:border-color .15s,background .15s;
+    }
+    .order-card:hover{background:rgba(30,58,95,0.5);border-color:rgba(245,158,11,0.4)}
+    .order-card:active{background:rgba(30,58,95,0.6);border-color:var(--gold)}
+    .order-card-no{font-size:18px;font-weight:900;color:#fff;margin-bottom:4px}
+    .order-card-customer{font-size:13px;color:var(--muted);margin-bottom:8px}
+    .order-card-meta{display:flex;gap:8px;flex-wrap:wrap}
+    .meta-pill{font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25);color:var(--gold)}
+    .meta-pill.green{background:rgba(134,239,172,0.1);border-color:rgba(134,239,172,0.25);color:var(--green)}
+    .empty-orders{text-align:center;color:var(--muted);font-size:13px;padding:40px 20px;line-height:1.8}
+
+    /* ── Picking screen ── */
+    .picking-layout{display:flex;flex-direction:column;gap:20px}
+    .picking-sidebar{min-width:0}
+    .picking-main{
+      min-width:0;
+      background:rgba(15,23,42,0.72);
+      border:1.5px solid rgba(245,158,11,0.22);
+      border-radius:14px;
+      padding:14px;
+    }
+    .sidebar-panels{display:grid;gap:12px}
+    .picking-header{margin-bottom:16px}
+    .picking-order-no{font-size:20px;font-weight:900;color:#fff}
+    .picking-customer{font-size:12px;color:var(--muted);margin-top:2px}
+
+    /* Timer */
+    .timer-wrap{
+      background:rgba(15,23,42,0.8);border:1.5px solid rgba(245,158,11,0.25);
+      border-radius:14px;padding:14px 16px;margin-bottom:16px;
+      display:flex;align-items:center;justify-content:space-between;
+    }
+    .timer-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:800}
+    .timer-display{font-size:28px;font-weight:900;color:var(--gold);letter-spacing:2px;font-variant-numeric:tabular-nums}
+    .timer-display.warning{color:#f97316}
+    .timer-display.danger{color:var(--red)}
+
+    /* Progress bar */
+    .progress-wrap{margin-bottom:16px}
+    .progress-top{display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px}
+    .progress-pct{color:var(--gold);font-weight:800}
+    .progress-count{color:var(--muted)}
+    .progress-bar{height:8px;background:rgba(148,163,184,0.15);border-radius:999px;overflow:hidden}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--green));border-radius:999px;transition:width .4s}
+
+    /* Zone sections */
+    .zone-section{margin-bottom:20px}
+    .zone-header{
+      display:flex;align-items:center;gap:10px;
+      padding:8px 12px;border-radius:10px;
+      background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);
+      margin-bottom:10px;
+    }
+    .zone-name{font-size:12px;font-weight:900;color:var(--gold);text-transform:uppercase;letter-spacing:1px}
+    .zone-count{font-size:10px;color:var(--muted);margin-left:auto}
+
+    /* Line cards */
+    .line-card{
+      background:rgba(15,23,42,0.7);
+      border:1.5px solid rgba(148,163,184,0.15);
+      border-radius:12px;padding:14px;margin-bottom:8px;
+      transition:border-color .15s;
+    }
+    .line-card.picked{opacity:0.5;border-color:rgba(134,239,172,0.2);background:rgba(134,239,172,0.03)}
+    /* SHORT: not “finished” — waiting on zone stock; keep readable (no heavy grey-out) */
+    .line-card.short{opacity:1;border-color:rgba(245,158,11,0.55);background:rgba(245,158,11,0.1);box-shadow:0 0 0 1px rgba(245,158,11,0.15) inset}
+    .line-card.reported{border-color:rgba(245,158,11,0.5);background:rgba(245,158,11,0.08);animation:amberGlow 2s ease-in-out infinite}
+    @keyframes amberGlow{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0.3)}50%{box-shadow:0 0 12px 2px rgba(245,158,11,0.2)}}
+    .pill-reported{background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.4);color:#f59e0b}
+    .btn-report-short{flex:1;padding:11px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-weight:800;font-size:12px;background:rgba(245,158,11,0.12);border:1.5px solid rgba(245,158,11,0.35);color:#f59e0b}
+    .btn-report-short:hover{background:rgba(245,158,11,0.2)}
+    .btn-pick-line:hover{background:rgba(134,239,172,0.2)}
+    .line-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+    .line-code{font-size:13px;font-weight:900;color:#fff}
+    .line-status-pill{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px}
+    .pill-open{background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.2);color:var(--muted)}
+    .pill-picked{background:rgba(134,239,172,0.15);border:1px solid rgba(134,239,172,0.3);color:var(--green)}
+    .pill-short{background:rgba(245,158,11,0.18);border:1px solid rgba(245,158,11,0.45);color:#fbbf24}
+    .short-recover-callout{font-size:11px;line-height:1.45;color:#fde68a;margin:8px 0 0;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3)}
+    .line-desc{font-size:13px;color:#e2e8f0;margin-bottom:6px;line-height:1.4}
+    .line-meta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+    .line-meta-item{font-size:11px;color:var(--muted)}
+    .line-meta-item strong{color:#fff;font-weight:700}
+    .line-zone-badge{
+      display:inline-flex;align-items:center;gap:4px;
+      font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;
+      background:rgba(147,197,253,0.1);border:1px solid rgba(147,197,253,0.25);color:var(--blue);
+    }
+    .line-pallet-badge{
+      display:inline-flex;align-items:center;gap:4px;
+      font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;
+      background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.35);color:var(--gold);
+    }
+    /* Interactive pick instructions */
+    .pick-instruction{
+      background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.25);
+      border-radius:10px;padding:12px 14px;margin-bottom:12px;
+    }
+    .pick-instruction-title{font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px}
+    .pick-step{font-size:13px;color:#e2e8f0;line-height:1.6;margin-bottom:4px}
+    .pick-step:last-child{margin-bottom:0}
+    .pick-step strong{color:var(--gold);font-weight:900}
+    .pick-step.inbound-wait{
+      background:rgba(245,158,11,0.12);border-left:3px solid #f59e0b;padding:8px 10px;border-radius:8px;margin-bottom:8px;
+      font-size:12px;color:#fde68a;line-height:1.45
+    }
+    .pick-step.inbound-wait strong{color:var(--gold)}
+    .inbound-callout{
+      margin-bottom:16px;padding:14px 16px;border-radius:14px;
+      background:rgba(245,158,11,0.1);border:1.5px solid rgba(245,158,11,0.35);
+    }
+    .inbound-callout-title{font-size:11px;font-weight:900;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+    .inbound-callout-body{font-size:12px;color:#e2e8f0;line-height:1.55;margin-bottom:10px}
+    .inbound-task-list{margin:0 0 10px 16px;padding:0;font-size:11px;color:var(--muted);line-height:1.6}
+    .btn-refresh-inbound{
+      padding:8px 14px;border-radius:10px;border:1px solid rgba(245,158,11,0.4);
+      background:rgba(15,23,42,0.6);color:var(--gold);font-family:var(--font);font-weight:800;font-size:11px;cursor:pointer
+    }
+    .btn-refresh-inbound:hover{background:rgba(245,158,11,0.15)}
+    /* Order channel + allocator SM/DT/MT totals */
+    .pick-dtmt-strip{
+      margin-top:10px;padding:10px 12px;border-radius:12px;
+      background:rgba(15,23,42,0.75);border:1px solid rgba(245,158,11,0.28);
+    }
+    .pick-dtmt-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+    .pick-dtmt-pills span{
+      font-size:10px;font-weight:900;padding:4px 8px;border-radius:8px;
+      border:1px solid rgba(148,163,184,0.25);
+    }
+    .pick-dtmt-pills .p-sm{color:#93c5fd;border-color:rgba(147,197,253,0.35);background:rgba(147,197,253,0.08)}
+    .pick-dtmt-pills .p-dt{color:#fca5a5;border-color:rgba(252,165,165,0.35);background:rgba(252,165,165,0.08)}
+    .pick-dtmt-pills .p-mt{color:#86efac;border-color:rgba(134,239,172,0.35);background:rgba(134,239,172,0.08)}
+    .line-alloc-strip{font-size:9px;color:var(--muted);margin-top:6px;line-height:1.4}
+    .line-alloc-strip strong{font-weight:800}
+    .line-alloc-strip .a-sm{color:#93c5fd}
+    .line-alloc-strip .a-dt{color:#fca5a5}
+    .line-alloc-strip .a-mt{color:#86efac}
+    .line-actions{display:flex;gap:8px}
+    .btn-pick-line{
+      flex:1;padding:11px;border-radius:10px;border:none;cursor:pointer;
+      font-family:var(--font);font-weight:900;font-size:13px;
+      background:rgba(134,239,172,0.12);border:1.5px solid rgba(134,239,172,0.3);color:var(--green);
+    }
+    .btn-pick-line:active{background:rgba(134,239,172,0.25)}
+    .btn-short-line{
+      flex:1;padding:11px;border-radius:10px;border:none;cursor:pointer;
+      font-family:var(--font);font-weight:900;font-size:13px;
+      background:rgba(252,165,165,0.08);border:1.5px solid rgba(252,165,165,0.2);color:var(--red);
+    }
+    .btn-short-line:active{background:rgba(252,165,165,0.2)}
+    .btn-reset-line{
+      padding:11px 14px;border-radius:10px;border:none;cursor:pointer;
+      font-family:var(--font);font-weight:800;font-size:12px;
+      background:rgba(148,163,184,0.08);border:1.5px solid rgba(148,163,184,0.15);color:var(--muted);
+    }
+
+    /* Finish order button */
+    .finish-wrap{
+      margin-top:8px;padding:16px;
+      background:rgba(134,239,172,0.05);
+      border:1.5px solid rgba(134,239,172,0.2);
+      border-radius:14px;
+    }
+    .finish-label{font-size:11px;color:var(--green);text-align:center;margin-bottom:10px}
+
+    /* Spinner */
+    .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(245,158,11,0.3);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Notification toast */
+    .toast{
+      position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      padding:10px 20px;border-radius:12px;font-size:13px;font-weight:700;
+      z-index:9999;pointer-events:none;opacity:0;transition:opacity .25s;
+      white-space:nowrap;
+    }
+    .toast.show{opacity:1}
+    .toast.success{background:#166534;color:var(--green);border:1px solid rgba(134,239,172,0.3)}
+    .toast.error{background:#7f1d1d;color:var(--red);border:1px solid rgba(252,165,165,0.3)}
+
+    /* ── Branded modal (short reason) ── */
+    .modal-backdrop{
+      position:fixed;inset:0;
+      background:
+        radial-gradient(70% 60% at 50% 20%, rgba(245,158,11,0.16), rgba(245,158,11,0) 65%),
+        rgba(2,6,23,0.72);
+      backdrop-filter:blur(6px);
+      z-index:10000;display:none;align-items:center;justify-content:center;
+      padding:20px;opacity:0;transition:opacity .24s ease;
+    }
+    .modal-backdrop.show{display:flex;opacity:1}
+    .modal-card{
+      position:relative;overflow:hidden;
+      background:linear-gradient(165deg,rgba(30,41,59,0.98) 0%,rgba(15,23,42,0.99) 100%);
+      border:1px solid rgba(245,158,11,0.45);
+      border-radius:18px;padding:24px;max-width:420px;width:100%;
+      box-shadow:0 20px 60px rgba(2,6,23,0.6), 0 0 0 1px rgba(148,163,184,0.06) inset;
+      transform:translateY(10px) scale(0.97);
+      transition:transform .24s ease, box-shadow .24s ease;
+    }
+    .modal-card::before{
+      content:"";
+      position:absolute;left:-40px;top:-56px;width:200px;height:140px;pointer-events:none;
+      background:radial-gradient(circle, rgba(245,158,11,0.22) 0%, rgba(245,158,11,0) 72%);
+    }
+    .modal-backdrop.show .modal-card{
+      transform:translateY(0) scale(1);
+      box-shadow:0 26px 70px rgba(2,6,23,0.68), 0 0 0 1px rgba(245,158,11,0.1) inset;
+    }
+    .modal-title{
+      font-size:13px;font-weight:900;color:var(--gold);text-transform:uppercase;
+      letter-spacing:1.3px;margin-bottom:8px
+    }
+    .modal-sub{font-size:12px;color:#cbd5e1;margin-bottom:16px;line-height:1.55}
+    .modal-field label{
+      display:block;font-size:10px;color:#f8d284;font-weight:800;letter-spacing:1px;
+      text-transform:uppercase;margin-bottom:8px
+    }
+    .modal-field textarea{
+      width:100%;min-height:100px;padding:13px 14px;border-radius:12px;
+      border:1px solid rgba(245,158,11,0.32);
+      background:linear-gradient(180deg,rgba(15,23,42,0.88),rgba(15,23,42,0.74));
+      color:#e2e8f0;font-family:var(--font);font-size:14px;resize:vertical;
+      transition:border-color .15s, box-shadow .15s;
+    }
+    .modal-field textarea:focus{
+      outline:none;border-color:#fbbf24;
+      box-shadow:0 0 0 3px rgba(251,191,36,0.18);
+    }
+    .modal-field textarea::placeholder{color:#94a3b8;opacity:0.85}
+    .modal-actions{display:flex;gap:12px;margin-top:20px}
+    .modal-actions .btn{flex:1}
+    .modal-actions .btn-secondary{
+      background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.34);color:#cbd5e1
+    }
+    .modal-actions .btn-secondary:hover{background:rgba(148,163,184,0.22)}
+    @media(max-width:520px){
+      .modal-backdrop{padding:14px}
+      .modal-card{padding:18px;border-radius:16px}
+      .modal-actions{flex-direction:column}
+      .modal-actions .btn{width:100%}
+    }
+    @media(min-width:768px){.modal-card{max-width:500px;padding:28px}}
+
+    /* ── Responsive: small phones ── */
+    @media(max-width:379px){
+      .screen{padding:16px 12px 24px}
+      .line-actions{flex-direction:column}
+      .btn-pick-line,.btn-report-short,.btn-reset-line{width:100%}
+    }
+
+    /* ── Responsive: tablets, laptops, desktops ── */
+    @media(min-width:480px){
+      .screen{padding:24px 20px 40px;max-width:none}
+      .line-card{padding:16px}
+      .zone-section{margin-bottom:24px}
+      .login-hero img{width:72px;height:72px}
+      .login-hero h1{font-size:24px}
+      .order-card{padding:18px}
+      .order-card-no{font-size:20px}
+      .picking-order-no{font-size:22px}
+    }
+    @media(min-width:768px){
+      .screen{padding:28px 24px 48px;max-width:none}
+      #screenLogin,#screenOrders,#screenPicking{max-width:none;margin:0}
+      .picking-layout{display:grid;grid-template-columns:280px 1fr;gap:24px;align-items:start}
+      .picking-sidebar{position:sticky;top:20px}
+      .zones-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+      .zone-section{margin-bottom:0}
+      .line-card{padding:18px}
+      .line-top{flex-wrap:wrap;gap:8px}
+      .line-meta{gap:12px}
+      .line-actions{flex-wrap:wrap}
+      .orders-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    }
+    @media(min-width:1024px){
+      .screen{padding:32px 28px 56px;max-width:none}
+      #screenOrders,#screenPicking{max-width:none;margin:0}
+      .picking-layout{grid-template-columns:300px 1fr}
+      .zones-grid{grid-template-columns:repeat(2,1fr);gap:24px}
+      .order-card{padding:20px}
+      .order-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.2)}
+      .order-card:active{transform:none}
+      .timer-wrap{padding:18px 20px}
+      .timer-display{font-size:32px}
+      .orders-grid{grid-template-columns:repeat(3,1fr)}
+    }
+    @media(min-width:1280px){
+      .screen{max-width:none;padding:36px 32px 64px}
+      #screenPicking{max-width:none;margin:0}
+      .zones-grid{grid-template-columns:repeat(3,1fr);gap:24px}
+      .orders-grid{grid-template-columns:repeat(3,1fr)}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── SCREEN 1: Login ── -->
+  <div id="screenLogin" class="screen active">
+    <div class="topbar" style="margin-bottom:20px">
+      <a href="traffic-center.html" class="nav-home">← Warehouse Highway</a>
+      <div class="logo">RetiFlux™</div>
+      <span style="width:70px"></span>
+    </div>
+    <div class="login-hero">
+      <img src="../favicon.png" alt="RetiFlux">
+      <h1>RetiFlux™</h1>
+      <p>Picker Portal — sign in to start picking</p>
+    </div>
+    <div class="field">
+      <label>Picker ID</label>
+      <input id="inputUserId" type="text" placeholder="e.g. RFX-PCK-IW-001" autocomplete="username" autocapitalize="characters">
+    </div>
+    <div class="field">
+      <label>Passcode</label>
+      <input id="inputPasscode" type="password" placeholder="••••••" maxlength="6" inputmode="numeric" autocomplete="current-password">
+    </div>
+    <div class="login-err" id="loginErr"></div>
+    <button class="btn btn-gold" id="btnLogin" onclick="doLogin()">Sign In</button>
+  </div>
+
+  <!-- ── SCREEN 2: My Orders ── -->
+  <div id="screenOrders" class="screen">
+    <div class="topbar">
+      <a href="traffic-center.html" class="nav-home">← Warehouse Highway</a>
+      <div class="logo">RetiFlux™</div>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+    <div class="section-title" id="ordersGreeting">My orders</div>
+    <div id="ordersList"><div style="text-align:center;padding:40px"><span class="spinner"></span></div></div>
+  </div>
+
+  <!-- ── SCREEN 3: Picking ── -->
+  <div id="screenPicking" class="screen">
+    <div class="topbar">
+      <button class="nav-back" onclick="backToOrders()">← Orders</button>
+      <div class="logo">RetiFlux™</div>
+      <a href="traffic-center.html" class="nav-home">Warehouse Highway</a>
+    </div>
+
+    <div class="picking-layout">
+      <div class="picking-sidebar">
+        <div class="picking-header">
+          <div class="picking-order-no" id="pickOrderNo">—</div>
+          <div class="picking-customer" id="pickCustomer">—</div>
+          <div id="pickDtMtStrip" class="pick-dtmt-strip" style="display:none" aria-live="polite"></div>
+        </div>
+        <div class="sidebar-panels">
+        <!-- Timer -->
+        <div class="timer-wrap">
+      <div>
+        <div class="timer-label">Picking time</div>
+        <div class="timer-display" id="timerDisplay">00:00:00</div>
+      </div>
+      <div style="text-align:right">
+        <div class="timer-label">Started</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:3px" id="timerStarted">—</div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-wrap">
+      <div class="progress-top">
+        <span class="progress-pct" id="pickPct">0%</span>
+        <span class="progress-count" id="pickCount">0 / 0 lines</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="pickFill" style="width:0%"></div></div>
+    </div>
+
+        <!-- Order pallets (create, select, complete) -->
+        <div class="order-pallets-wrap" id="orderPalletsWrap" style="margin-bottom:16px">
+          <div class="zone-header" style="margin-bottom:8px"><span class="zone-name">Order pallets</span></div>
+          <div id="orderPalletsList" style="font-size:11px;color:var(--muted);margin-bottom:8px">Create a pallet to start picking</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-gold btn-sm" id="btnCreatePallet" onclick="createOrderPallet()">+ Create order pallet</button>
+            <button class="btn btn-green btn-sm" id="btnCompletePallet" onclick="completeOrderPallet()" style="display:none">✓ Complete pallet</button>
+          </div>
+        </div>
+
+        <!-- Finish button (shown when all lines done) -->
+        <div class="finish-wrap" id="finishWrap" style="display:none">
+          <div class="finish-label">✓ All lines marked — submit for SM release</div>
+          <button class="btn btn-green" id="btnFinish" onclick="finishOrder()">
+            Submit for SM release
+          </button>
+        </div>
+
+        <!-- Halt / Resume picking (with reason) -->
+        <div id="haltWrap" style="display:none; margin-top:10px">
+          <div class="finish-label" style="color:#fbbf24; margin-bottom:8px" id="haltLabel">Picking paused</div>
+          <button class="btn btn-red" id="btnResumePicking" onclick="resumePicking()" style="width:100%;justify-content:center">Resume picking</button>
+          <div style="height:8px"></div>
+          <button class="btn btn-gold" id="btnHaltPicking" onclick="haltPicking()" style="width:100%;justify-content:center">Halt picking (reason)</button>
+        </div>
+        </div>
+      </div>
+
+      <!-- Zone-grouped lines -->
+      <div class="picking-main">
+        <div id="pickingZones"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+
+  <!-- Notify supervisor modal -->
+  <div id="shortReasonModal" class="modal-backdrop" role="dialog" aria-labelledby="shortModalTitle" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-title" id="shortModalTitle">⚠ Notify supervisor if short</div>
+      <div class="modal-sub">The system shows stock is available. If you cannot find it, report here. Supervisor will review and confirm or clear.</div>
+      <div class="modal-field">
+        <label for="shortReasonInput">Reason (required)</label>
+        <textarea id="shortReasonInput" placeholder="e.g. No stock in SM, damaged cartons, wrong location…" maxlength="500"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="shortModalCancel">Cancel</button>
+        <button type="button" class="btn btn-red" id="shortModalSubmit">Notify supervisor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Halt picking modal -->
+  <div id="haltPickingModal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-title">⏸️ Halt picking</div>
+      <div class="modal-sub">Add a reason. The order will be paused and cannot be picked further until resumed.</div>
+      <div class="modal-field">
+        <label for="haltReasonInput">Reason (required)</label>
+        <textarea id="haltReasonInput" placeholder="e.g. Waiting for replenishment / damaged pallets / need supervisor assistance…" maxlength="500"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="haltModalCancel">Cancel</button>
+        <button type="button" class="btn btn-red" id="haltModalSubmit">Confirm halt</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pick to order pallet modal (quantity only — source pallet enforced by system) -->
+  <div id="pickToPalletModal" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-title">Pick to order pallet</div>
+      <div class="modal-sub" id="pickModalSku">—</div>
+      <div class="modal-field">
+        <label for="pickQtyInput">Quantity</label>
+        <input type="number" id="pickQtyInput" min="0.01" step="0.01" placeholder="0" style="width:100%;padding:12px;border-radius:10px;border:2px solid rgba(245,158,11,0.3);background:rgba(15,23,42,0.8);color:#e2e8f0;font-size:16px;font-family:inherit">
+      </div>
+      <div class="modal-field" id="pickSourceDisplay" style="font-size:12px;color:var(--muted)">
+        <span id="pickSourceLabel">Pick from: </span><strong id="pickSourceValue" style="color:var(--gold)">—</strong>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="pickModalCancel">Cancel</button>
+        <button type="button" class="btn btn-gold" id="pickModalConfirm">✓ Confirm pick</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="../js/retiflux-screenshot-guard.js"></script>
+  <script src="../js/retiflux-auth-session.js"></script>
+  <script src="../js/retiflux-notifications.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+  (function(){
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var sb = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY)
+      ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
+      : null;
+
+    var currentUser  = null;
+    var currentOrder = null;
+    var currentLines = null;
+    var currentOrderPallets = [];
+    var currentOrderPalletId = null;
+    var timerInterval = null;
+    var timerStart   = null;
+    var orderPullTasks = [];
+    /** order_line_id → { pallet_id, reservation_type } for open reservations */
+    var currentResByLine = {};
+    /** order_line_id -> preferred partial SM source pallet (picker-entered) */
+    var preferredSmPalletByLine = {};
+    /** cached candidate pallets for quick validation */
+    var lastPalletsFiltered = [];
+    var autoRefreshInterval = null;
+    var autoRefreshRunning = false;
+
+    // ── Helpers ─────────────────────────────────────────────────
+    function esc(s){ var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML; }
+    function fmtDate(s){ if(!s)return'—';try{return new Date(s).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return s;} }
+    function fmtTs(s){
+      if(!s) return '—';
+      try { return new Date(s).toLocaleString('en-GB', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short'}); }
+      catch(e){ return s; }
+    }
+
+    function showScreen(id){
+      document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
+      document.getElementById(id).classList.add('active');
+    }
+
+    function toast(msg, type){
+      var el = document.getElementById('toast');
+      var pretty = (window.RetiFluxNotifs && window.RetiFluxNotifs.humanizeUiMessage)
+        ? window.RetiFluxNotifs.humanizeUiMessage(msg, type)
+        : msg;
+      el.textContent = pretty;
+      el.className = 'toast show ' + (type||'success');
+      clearTimeout(el._t);
+      el._t = setTimeout(function(){ el.className = 'toast'; }, 2500);
+    }
+
+    // ── SHA-256 hash ─────────────────────────────────────────────
+    async function sha256(str){
+      var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+    }
+
+    // ── LOGIN ────────────────────────────────────────────────────
+    window.doLogin = async function(){
+      var userId   = document.getElementById('inputUserId').value.trim();
+      var passcode = document.getElementById('inputPasscode').value.trim();
+      var errEl    = document.getElementById('loginErr');
+      var btn      = document.getElementById('btnLogin');
+
+      errEl.textContent = '';
+      if(!userId || !passcode){ errEl.textContent = 'Please enter your ID and passcode.'; return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Signing in…';
+
+      try{
+        var hash = await sha256(passcode);
+        var {data, error} = await sb
+          .from('authorized_users')
+          .select('user_id, name, role, passcode_hash')
+          .ilike('user_id', userId.trim())
+          .eq('role', 'Picker')
+          .maybeSingle();
+
+        if(error){ throw new Error(error.message || 'Sign in failed.'); }
+        if(!data){ throw new Error('Picker ID not found. Check your ID and try again.'); }
+        if(data.passcode_hash !== hash){ throw new Error('Incorrect passcode.'); }
+
+        if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(data);
+        currentUser = data;
+        document.getElementById('inputPasscode').value = '';
+        loadMyOrders();
+
+      } catch(e){
+        errEl.textContent = e.message || 'Sign in failed.';
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+      }
+    };
+
+    // Enter key on passcode → login
+    document.getElementById('inputPasscode').addEventListener('keydown', function(e){
+      if(e.key === 'Enter') window.doLogin();
+    });
+
+    // ── LOGOUT ───────────────────────────────────────────────────
+    window.doLogout = function(){
+      if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.clear();
+      currentUser = null;
+      currentOrder = null;
+      currentLines = null;
+      stopTimer();
+      stopAutoRefreshPicking();
+      document.getElementById('inputUserId').value = '';
+      document.getElementById('inputPasscode').value = '';
+      document.getElementById('loginErr').textContent = '';
+      document.getElementById('btnLogin').disabled = false;
+      document.getElementById('btnLogin').textContent = 'Sign In';
+      showScreen('screenLogin');
+    };
+
+    // ── LOAD MY ORDERS ───────────────────────────────────────────
+    async function loadMyOrders(){
+      showScreen('screenOrders');
+      var greet = document.getElementById('ordersGreeting');
+      greet.textContent = 'My orders — ' + (currentUser.name || currentUser.user_id);
+
+      var list = document.getElementById('ordersList');
+      list.innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
+
+      try{
+        var {data, error} = await sb
+          .from('orders')
+          .select('id, external_order_no, customer_name, order_type, status, order_date, delivery_date, total_lines, total_units, picking_started_at, picking_finished_at, picking_duration_seconds, picking_halted_reason, picking_halted_at')
+          .eq('assigned_picker_user_id', currentUser.user_id)
+          .in('status', ['RELEASED','IN_PROGRESS','PICKING_HALTED','AWAITING_SM_RELEASE','COMPLETED'])
+          .order('created_at', {ascending: true});
+
+        if(error) throw error;
+        data = data || [];
+
+        if(!data.length){
+          list.innerHTML = '<div class="empty-orders">No assigned orders for you right now.<br><br>Ask your supervisor to release an order.</div>';
+          return;
+        }
+
+        // Summaries: count line statuses per order (used for Completed cards).
+        var countsByOrder = {};
+        try{
+          var orderIds = data.map(function(o){ return o.id; });
+          var {data:lineStats, error:lsErr} = await sb
+            .from('order_lines')
+            .select('order_id, status')
+            .in('order_id', orderIds);
+          if(!lsErr && lineStats){
+            (lineStats || []).forEach(function(l){
+              if(!countsByOrder[l.order_id]) countsByOrder[l.order_id] = {};
+              countsByOrder[l.order_id][l.status] = (countsByOrder[l.order_id][l.status] || 0) + 1;
+            });
+          }
+        } catch(_){}
+
+        list.innerHTML = '<div class="orders-grid">' + data.map(function(o){
+          var inProgress = o.status === 'IN_PROGRESS';
+          var awaitingRelease = o.status === 'AWAITING_SM_RELEASE';
+          var isCompleted = o.status === 'COMPLETED';
+          var c = countsByOrder[o.id] || {};
+          var shortCount = c['SHORT'] || 0;
+          var reportedCount = c['PICKER_REPORTED_SHORT'] || 0;
+          return '<div class="order-card" onclick="openOrder(\''+esc(o.id)+'\')">' +
+            '<div class="order-card-no">Order #'+esc(o.external_order_no||o.id.slice(0,8))+'</div>'+
+            '<div class="order-card-customer">'+esc(o.customer_name||'—')+'</div>'+
+            '<div class="order-card-meta">'+
+              '<span class="meta-pill">'+esc(o.order_type||'—')+'</span>'+
+              '<span class="meta-pill">'+esc(o.total_lines||0)+' lines</span>'+
+              '<span class="meta-pill">'+esc(o.total_units||0)+' units</span>'+
+              '<span class="meta-pill">Del: '+esc(fmtDate(o.delivery_date))+'</span>'+
+              (inProgress ? '<span class="meta-pill green">▶ In Progress</span>' : '')+
+              (awaitingRelease ? '<span class="meta-pill" style="background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.35);color:#fbbf24">Awaiting release</span>' : '')+
+              (o.status === 'PICKING_HALTED'
+                ? '<span class="meta-pill" style="background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.3);color:#f59e0b">⏸ Halted</span>'
+                : '')+
+              (isCompleted ? '<span class="meta-pill" style="background:rgba(134,239,172,0.15);border-color:rgba(134,239,172,0.35);color:var(--green)">✓ Completed</span>' : '')+
+              (isCompleted ? '<span class="meta-pill">Picked: '+esc(fmtTs(o.picking_started_at))+' → '+esc(fmtTs(o.picking_finished_at))+'</span>' : '')+
+              (isCompleted && (shortCount > 0 || reportedCount > 0) ? '<span class="meta-pill" style="background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.3);color:#f59e0b">Shorts: '+esc(shortCount)+' · Reports: '+esc(reportedCount)+'</span>' : '')+
+            '</div>'+
+          '</div>';
+        }).join('') + '</div>';
+
+      } catch(e){
+        list.innerHTML = '<div class="empty-orders" style="color:var(--red)">❌ '+esc(e.message)+'</div>';
+      }
+    }
+
+    window.backToOrders = function(){
+      stopTimer();
+      stopAutoRefreshPicking();
+      var _ps = document.getElementById('pickDtMtStrip');
+      if(_ps){ _ps.style.display = 'none'; _ps.innerHTML = ''; }
+      loadMyOrders();
+    };
+
+    // ── OPEN ORDER ───────────────────────────────────────────────
+    window.openOrder = async function(orderId){
+      showScreen('screenPicking');
+      document.getElementById('pickingZones').innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
+
+      try{
+        // Fetch order
+        var {data:order, error:e1} = await sb.from('orders').select('*').eq('id', orderId).single();
+        if(e1) throw e1;
+        currentOrder = order;
+        var isReadOnly = (order.status === 'COMPLETED' || order.status === 'PICKING_HALTED');
+
+        // Fetch lines with SKU home_zone
+        var {data:lines, error:e2} = await sb
+          .from('order_lines')
+          .select('*, skus(home_zone, product_name)')
+          .eq('order_id', orderId)
+          .order('line_no');
+        if(e2) throw e2;
+        currentLines = lines || [];
+
+        // Enrich lines with home_zone
+        currentLines.forEach(function(l){
+          l.home_zone = (l.skus && l.skus.home_zone) ? l.skus.home_zone : (l.plant || 'Unassigned');
+        });
+
+        await loadOrderPullTasks(orderId);
+
+        // Open pallet reservations (SM_PICK etc.) keyed by order line
+        var resRows = [];
+        currentResByLine = {};
+        try{
+          var {data:resData} = await sb.from('pallet_reservations')
+            .select('order_line_id, pallet_id, reservation_type, quantity_reserved')
+            .eq('order_id', orderId)
+            .is('released_at', null);
+          resRows = resData || [];
+          resRows.forEach(function(r){
+            if(r && r.order_line_id) currentResByLine[r.order_line_id] = r;
+          });
+        } catch(_){ currentResByLine = {}; resRows = []; }
+
+        // Pallets in SM + product home zones (for FIFO + reservation checks only)
+        var zones = ['SuperMarket Area'];
+        currentLines.forEach(function(l){ if(l.home_zone && zones.indexOf(l.home_zone)<0) zones.push(l.home_zone); });
+        var skus = [...new Set(currentLines.map(function(l){ return l.item_code; }).filter(Boolean))];
+        var {data:pallets} = await sb.from('pallets')
+          .select('pallet_id, sku, current_zone, remaining_quantity, quantity, created_at, in_transit_to_zone')
+          .in('current_zone', zones)
+          .in('sku', skus);
+        var palletsFiltered = (pallets || []).filter(function(p){
+          var inTransit = !!(p.in_transit_to_zone && String(p.in_transit_to_zone).trim() !== '');
+          if(inTransit) return false;
+          var avail = Number(p.remaining_quantity != null ? p.remaining_quantity : p.quantity || 0) || 0;
+          return avail > 0;
+        });
+        lastPalletsFiltered = palletsFiltered;
+        loadPreferredSmPalletMap();
+
+        applyPickRouting(currentLines, palletsFiltered, orderPullTasks, currentResByLine);
+
+        await refreshPickerFulfillmentSplit(orderId, resRows);
+
+        // Update header
+        document.getElementById('pickOrderNo').textContent = 'Order #' + (order.external_order_no || orderId.slice(0,8));
+        document.getElementById('pickCustomer').textContent = order.customer_name || '—';
+
+        // Update finish button label
+        document.getElementById('btnFinish').textContent = 'Submit for SM release';
+        if(isReadOnly){
+          // Completed orders are view-only for pickers.
+          var fw = document.getElementById('finishWrap');
+          if(fw) fw.style.display = 'none';
+          var btnF = document.getElementById('btnFinish');
+          if(btnF) btnF.style.display = 'none';
+
+          // Show real picking time instead of the default 00:00:00.
+          // The timer normally only runs for active picking, so we must
+          // populate it from persisted timestamps.
+          try{
+            var timerDisplayEl = document.getElementById('timerDisplay');
+            var timerStartedEl = document.getElementById('timerStarted');
+            var startedAt = order.picking_started_at;
+            var finishedAt = order.picking_finished_at;
+            var durationSeconds = order.picking_duration_seconds;
+
+            var secs = null;
+            if(durationSeconds !== null && durationSeconds !== undefined && durationSeconds !== ''){
+              secs = parseInt(durationSeconds, 10);
+            } else if(startedAt && finishedAt){
+              secs = Math.floor((new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000);
+            }
+
+            if(Number.isFinite(secs) && secs >= 0){
+              var h = Math.floor(secs / 3600);
+              var m = Math.floor((secs % 3600) / 60);
+              var s = secs % 60;
+              var pad = function(n){ return String(n).padStart(2,'0'); };
+              if(timerDisplayEl){
+                timerDisplayEl.textContent = pad(h) + ':' + pad(m) + ':' + pad(s);
+              }
+            } else {
+              if(timerDisplayEl) timerDisplayEl.textContent = '—';
+            }
+
+            if(timerStartedEl){
+              timerStartedEl.textContent = startedAt
+                ? new Date(startedAt).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'})
+                : '—';
+            }
+          } catch(_){}
+        }
+
+        // Save picking_started_at if not already set
+        if(!order.picking_started_at && !isReadOnly){
+          var now = new Date().toISOString();
+          await sb.from('orders').update({
+            picking_started_at: now,
+            status: 'IN_PROGRESS'
+          }).eq('id', orderId);
+          currentOrder.picking_started_at = now;
+          currentOrder.status = 'IN_PROGRESS';
+        }
+
+        // Start timer
+        if(!isReadOnly) startTimer(new Date(currentOrder.picking_started_at));
+
+        // Load order pallets (if table exists)
+        await loadOrderPallets();
+
+        // Render zones
+        renderZones();
+
+        // Auto-refresh instructions when replenishment/pallet state changes.
+        if(!isReadOnly) startAutoRefreshPicking();
+
+      } catch(e){
+        var _ps = document.getElementById('pickDtMtStrip');
+        if(_ps){ _ps.style.display = 'none'; _ps.innerHTML = ''; }
+        document.getElementById('pickingZones').innerHTML =
+          '<div style="color:var(--red);padding:20px;text-align:center">❌ '+esc(e.message)+'</div>';
+      }
+    };
+
+    function normalizePickerSku(s){ return String(s == null ? '' : s).trim(); }
+    function loadPreferredSmPalletMap(){
+      if(!currentOrder || !currentOrder.id){ preferredSmPalletByLine = {}; return; }
+      try{
+        var raw = localStorage.getItem('pickerPreferredSmPallet:' + currentOrder.id);
+        preferredSmPalletByLine = raw ? (JSON.parse(raw) || {}) : {};
+      } catch(_e){ preferredSmPalletByLine = {}; }
+    }
+    function savePreferredSmPalletMap(){
+      if(!currentOrder || !currentOrder.id) return;
+      try{
+        localStorage.setItem('pickerPreferredSmPallet:' + currentOrder.id, JSON.stringify(preferredSmPalletByLine || {}));
+      } catch(_e){}
+    }
+
+    /** Same logic as allocation: SM from SM_PICK reservations; DT from DT_MOVE tasks; MT from MT_MOVE reservations only. */
+    function applyPickerFulfillmentSplit(linesArr, resRows, routeTasks){
+      var smByLine = {};
+      var mtByLine = {};
+      (resRows || []).forEach(function(r){
+        if(!r || !r.order_line_id) return;
+        var q = Number(r.quantity_reserved) || 0;
+        if(r.reservation_type === 'SM_PICK'){
+          smByLine[r.order_line_id] = (smByLine[r.order_line_id] || 0) + q;
+        } else if(r.reservation_type === 'MT_MOVE'){
+          mtByLine[r.order_line_id] = (mtByLine[r.order_line_id] || 0) + q;
+        }
+      });
+      var dtByLine = {};
+      (routeTasks || []).forEach(function(t){
+        if(!t || !t.order_line_id || t.task_type !== 'DT_MOVE' || String(t.status || '').toUpperCase() === 'CANCELLED') return;
+        var q = Number(t.quantity_needed) || 0;
+        dtByLine[t.order_line_id] = (dtByLine[t.order_line_id] || 0) + q;
+      });
+      var totals = { sm: 0, dt: 0, mt: 0, lineQty: 0, hasData: false, hasOrderPick: false };
+      (routeTasks || []).forEach(function(t){
+        if(t && t.task_type === 'ORDER_PICK' && t.order_line_id && String(t.status || '').toUpperCase() !== 'CANCELLED') totals.hasOrderPick = true;
+      });
+      (linesArr || []).forEach(function(l){
+        var sm = smByLine[l.id] || 0;
+        var dt = dtByLine[l.id] || 0;
+        var mt = mtByLine[l.id] || 0;
+        var qty = Number(l.quantity) || 0;
+        l.fulfill_sm_units = sm;
+        l.fulfill_dt_units = dt;
+        l.fulfill_mt_units = mt;
+        totals.sm += sm;
+        totals.dt += dt;
+        totals.mt += mt;
+        totals.lineQty += qty;
+      });
+      totals.hasData = (resRows || []).some(function(r){ return r && (r.reservation_type === 'SM_PICK' || r.reservation_type === 'MT_MOVE'); }) ||
+        (routeTasks || []).some(function(t){
+          return t && (t.task_type === 'DT_MOVE' || t.task_type === 'ORDER_PICK') && String(t.status || '').toUpperCase() !== 'CANCELLED';
+        });
+      return totals;
+    }
+
+    function pickerFmtUCount(n, u){
+      var unit = (u && String(u).trim()) ? String(u).trim() : 'units';
+      var x = Math.round((Number(n) || 0) * 100) / 100;
+      return esc(String(x)) + ' ' + esc(unit);
+    }
+    /** Clear unit balances: SM = exact units from SM reservations (e.g. 15 off a pallet). */
+    function pickerLineSmBalancesHtml(l){
+      var sm = Number(l.fulfill_sm_units) || 0;
+      var dt = Number(l.fulfill_dt_units) || 0;
+      var mt = Number(l.fulfill_mt_units) || 0;
+      var u = l.unit || 'units';
+      var q = Number(l.quantity) || 0;
+      var pq = Number(l.picked_quantity) || 0;
+      var rem = Math.max(0, q - pq);
+      var rows = [];
+      if (sm > 0){
+        rows.push('<div><span class="a-sm">SM pick balance</span> — <strong>' + pickerFmtUCount(sm, u) + '</strong> from SuperMarket <span style="opacity:0.85">(this is how many units the order needs from SM here — not always a full pallet)</span></div>');
+      }
+      if (dt > 0){
+        rows.push('<div><span class="a-dt">Dispatch (DT)</span> — <strong>' + pickerFmtUCount(dt, u) + '</strong> <span style="opacity:0.85">full-pallet route, no SM pick</span></div>');
+      }
+      if (mt > 0){
+        rows.push('<div><span class="a-mt">MT path</span> — <strong>' + pickerFmtUCount(mt, u) + '</strong> from SM <span style="opacity:0.85">after zone moves stock in</span></div>');
+      }
+      if (!rows.length && q > 0){
+        rows.push('<div style="color:#94a3b8">No reservation split loaded yet. Using live SuperMarket stock guidance for this line.</div>');
+      }
+      var s = '<div class="line-alloc-strip" style="line-height:1.45">' + rows.join('') + '</div>';
+      if (q > 0){
+        s += '<div style="font-size:9px;color:var(--muted);margin-top:4px">Line: <strong>' + pickerFmtUCount(pq, u) + '</strong> picked · <strong>' + pickerFmtUCount(rem, u) + '</strong> left of <strong>' + pickerFmtUCount(q, u) + '</strong></div>';
+      }
+      return s;
+    }
+
+    function renderPickerDtMtStrip(){
+      var strip = document.getElementById('pickDtMtStrip');
+      if(!strip || !currentOrder) return;
+      var ot = currentOrder.order_type;
+      var ch = ot === 'DT' ? 'DT — Direct Trade' : (ot === 'MT' ? 'MT — Modern Trade' : (ot || '—'));
+      var t = currentOrder.fulfillTotals;
+      strip.style.display = 'block';
+      if(!t || !t.hasData){
+        strip.innerHTML = '<div style="font-size:10px;color:var(--muted);line-height:1.45">' +
+          '<strong style="color:var(--gold)">Order channel:</strong> ' + esc(ch) +
+          ' · <span style="color:#94a3b8">Fulfillment split (SM / DT / MT) shows here after allocation when you open the order.</span></div>';
+        return;
+      }
+      var r2 = function(n){ return Math.round((Number(n) || 0) * 100) / 100; };
+      strip.innerHTML =
+        '<div style="font-size:10px;color:var(--muted);margin-bottom:6px"><strong style="color:var(--gold)">Order channel:</strong> ' + esc(ch) + '</div>' +
+        '<div style="font-size:9px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.6px;font-weight:800">Physical split (units)</div>' +
+        '<div class="pick-dtmt-pills">' +
+          '<span class="p-sm">SM ' + esc(String(r2(t.sm))) + '</span>' +
+          '<span class="p-dt">DT ' + esc(String(r2(t.dt))) + '</span>' +
+          '<span class="p-mt">MT ' + esc(String(r2(t.mt))) + '</span>' +
+        '</div>' +
+        '<div style="font-size:9px;color:var(--muted);margin-top:8px;line-height:1.45">' +
+        '<strong style="color:#93c5fd">SM pick balance</strong> = <strong>' + esc(String(r2(t.sm))) + '</strong> total <strong>units</strong> to take from SuperMarket for this order (from reservations — often a <strong>partial</strong> per line, e.g. 15 units, not a whole pallet). ' +
+        '<strong style="color:#fca5a5">DT</strong> ' + esc(String(r2(t.dt))) + ' u dispatch. ' +
+        '<strong style="color:#86efac">MT</strong> ' + esc(String(r2(t.mt))) + ' u from SM after zone moves.</div>';
+    }
+
+    async function refreshPickerFulfillmentSplit(orderId, resRowsOpt){
+      if(!sb || !orderId || !currentLines || !currentLines.length){
+        if(currentOrder) currentOrder.fulfillTotals = { sm: 0, dt: 0, mt: 0, lineQty: 0, hasData: false };
+        renderPickerDtMtStrip();
+        return;
+      }
+      try{
+        var resRows = resRowsOpt;
+        var taskQ = sb.from('replenishment_tasks')
+          .select('order_line_id, task_type, quantity_needed, status')
+          .eq('order_id', orderId)
+          .in('task_type', ['DT_MOVE', 'ORDER_PICK']);
+        if(resRows == null){
+          var resQ = sb.from('pallet_reservations')
+            .select('order_line_id, quantity_reserved, reservation_type')
+            .eq('order_id', orderId)
+            .is('released_at', null);
+          var [{ data: r1 }, { data: routeTasks }] = await Promise.all([resQ, taskQ]);
+          resRows = r1 || [];
+        } else {
+          var { data: routeTasks } = await taskQ;
+        }
+        currentOrder.fulfillTotals = applyPickerFulfillmentSplit(currentLines, resRows || [], routeTasks || []);
+      } catch(e){
+        currentOrder.fulfillTotals = { sm: 0, dt: 0, mt: 0, lineQty: 0, hasData: false };
+        (currentLines || []).forEach(function(l){
+          l.fulfill_sm_units = 0; l.fulfill_dt_units = 0; l.fulfill_mt_units = 0;
+        });
+      }
+      renderPickerDtMtStrip();
+    }
+
+    function tasksForSkuPicker(tasks, sku){
+      var n = normalizePickerSku(sku);
+      return (tasks || []).filter(function(t){ return normalizePickerSku(t.sku) === n; });
+    }
+
+    // Picker should only pick the SM-phase allocation (SM + MT), not full order line qty.
+    function pickerTargetQtyForLine(line){
+      if(!line) return 0;
+      var smMt = (Number(line.fulfill_sm_units) || 0) + (Number(line.fulfill_mt_units) || 0);
+      return Math.max(0, smMt);
+    }
+    function isDispatchOnlyLine(line){
+      if(!line) return false;
+      if(line.provisional_dispatch_only) return true;
+      return (line.pick_zone_mode === 'DT') ||
+        ((Number(line.fulfill_dt_units) || 0) > 0 &&
+         (Number(line.fulfill_sm_units) || 0) <= 0 &&
+         (Number(line.fulfill_mt_units) || 0) <= 0);
+    }
+    function isPickerDoneLine(line){
+      if(!line) return true;
+      if(line.status === 'SHORT' || line.status === 'PICKED') return true;
+      if(isDispatchOnlyLine(line)) return true;
+      var unresolvedNeed = pickerRemainingNeedForLine(line);
+      if(unresolvedNeed > 0) return false;
+      var target = pickerTargetQtyForLine(line);
+      var picked = Number(line.picked_quantity) || 0;
+      return picked >= target;
+    }
+    function pickerRemainingNeedForLine(line){
+      if(!line) return 0;
+      var picked = Number(line.picked_quantity) || 0;
+      var target = pickerTargetQtyForLine(line);
+      var need = Math.max(0, target - picked);
+      var lineQty = Number(line.quantity) || 0;
+      var lineRemainder = Math.max(0, lineQty - picked);
+      var smUnits = Number(line.fulfill_sm_units) || 0;
+      var mtUnits = Number(line.fulfill_mt_units) || 0;
+      var dtUnits = Number(line.fulfill_dt_units) || 0;
+      var hasNoSplit = (smUnits + mtUnits + dtUnits) <= 0;
+      var smNow = Number(line.sm_total_avail_qty) || 0;
+      var smFullNow = Number(line.sm_full_avail_qty) || 0;
+
+      // OPEN line with no split rows can happen after undo/reopen before allocator rows refresh.
+      // If SM has stock, do not show fake "Need: 0"; use line remainder guidance.
+      if(need <= 0 && line.status === 'OPEN' && !isDispatchOnlyLine(line) && hasNoSplit && smNow > 0 && lineRemainder > 0){
+        if(smFullNow >= lineRemainder) return 0;
+        return lineRemainder;
+      }
+
+      // Short lines can temporarily lose active reservations while still needing units.
+      // In that case, show the operational shortage as remaining need.
+      if(need <= 0 && line.status === 'SHORT'){
+        // DT-only lines are dispatch flow and should never become picker need.
+        if(isDispatchOnlyLine(line)) return 0;
+        // If line already has DT allocation, avoid pulling picker need from short fallback.
+        if(dtUnits > 0) return 0;
+        var shortQty = Number(line.short_quantity) || 0;
+        if(shortQty > 0) return shortQty;
+        if(lineRemainder > 0) return lineRemainder;
+      }
+      return need;
+    }
+
+    /** Set pick_zone / pick_zone_mode / recommended_pallet — picker works the SM pick phase unless line is DT-only. */
+    function applyPickRouting(lines, palletsFiltered, tasks, resByLine){
+      if(!lines || !lines.length) return;
+      function palletAvailQty(p){
+        if(!p) return 0;
+        return Number(p.remaining_quantity != null ? p.remaining_quantity : p.quantity || 0) || 0;
+      }
+      var totalSmAvailBySku = {};
+      var totalSmFullAvailBySku = {};
+      var totalZoneAvailBySku = {};
+      (palletsFiltered || []).forEach(function(p){
+        if(!p || !p.sku) return;
+        var a = palletAvailQty(p);
+        if(a <= 0) return;
+        // SM-phase instructions must only consider stock physically in SuperMarket.
+        if(p.current_zone === 'SuperMarket Area'){
+          totalSmAvailBySku[p.sku] = (totalSmAvailBySku[p.sku] || 0) + a;
+          var orig = Number(p.quantity != null ? p.quantity : 0) || 0;
+          if(orig > 0 && a >= orig){
+            totalSmFullAvailBySku[p.sku] = (totalSmFullAvailBySku[p.sku] || 0) + a;
+          }
+        } else {
+          totalZoneAvailBySku[p.sku] = (totalZoneAvailBySku[p.sku] || 0) + a;
+        }
+      });
+      function getFifoPallet(arr, zone, sku){
+        var m = arr.filter(function(p){
+          return p.current_zone === zone && p.sku === sku &&
+            (!p.in_transit_to_zone || String(p.in_transit_to_zone).trim() === '');
+        });
+        m.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+        return m[0] || null;
+      }
+      lines.forEach(function(l){
+        var code = l.item_code;
+        l.sm_total_avail_qty = totalSmAvailBySku[code] || 0;
+        l.sm_full_avail_qty = totalSmFullAvailBySku[code] || 0;
+        l.zone_total_avail_qty = totalZoneAvailBySku[code] || 0;
+        var smPallet = getFifoPallet(palletsFiltered, 'SuperMarket Area', code);
+        var skuTasks = tasksForSkuPicker(tasks, code);
+        var tOrder = skuTasks.find(function(t){ return t.task_type === 'ORDER_PICK'; });
+        var tDt = skuTasks.find(function(t){ return t.task_type === 'DT_MOVE'; });
+        var res = resByLine && resByLine[l.id];
+
+        l.recommended_pallet = null;
+        l.recommended_pallet_qty = 0;
+
+        // Picker-entered partial pallet in SM takes top priority when valid.
+        var preferredId = preferredSmPalletByLine && l.id ? String(preferredSmPalletByLine[l.id] || '').trim() : '';
+        if(preferredId){
+          var pp = (palletsFiltered || []).find(function(p){
+            var avail = palletAvailQty(p);
+            var orig = Number(p.quantity != null ? p.quantity : 0) || 0;
+            return p &&
+              String(p.pallet_id || '').trim() === preferredId &&
+              p.current_zone === 'SuperMarket Area' &&
+              normalizePickerSku(p.sku) === normalizePickerSku(code) &&
+              avail > 0 &&
+              orig > 0 &&
+              avail < orig;
+          });
+          if(pp){
+            l.recommended_pallet = String(pp.pallet_id).trim();
+            l.recommended_pallet_qty = palletAvailQty(pp);
+          }
+        }
+
+        // Prefer line-backed reservations first (gives correct per-line quantity).
+        if(!l.recommended_pallet && res && res.reservation_type === 'SM_PICK' && res.pallet_id){
+          var pr = (palletsFiltered || []).find(function(p){
+            return p.pallet_id === res.pallet_id && p.current_zone === 'SuperMarket Area';
+          });
+          // Only recommend the reserved pallet if it is currently available in SuperMarket.
+          // Otherwise we could keep telling the picker to take from an exhausted pallet.
+          if(pr){
+            l.recommended_pallet = res.pallet_id;
+            var reservedQty = Number(res.quantity_reserved != null ? res.quantity_reserved : 0) || 0;
+            var availQty = palletAvailQty(pr);
+            l.recommended_pallet_qty = reservedQty > 0 ? Math.min(reservedQty, availQty) : availQty;
+          }
+        }
+        else if(!l.recommended_pallet && tOrder && tOrder.reserved_pallet_id){
+          var rid = String(tOrder.reserved_pallet_id).trim();
+          if(rid){
+            var tp = (palletsFiltered || []).find(function(p){
+              return p.pallet_id === rid && p.current_zone === 'SuperMarket Area';
+            });
+            if(tp){
+              l.recommended_pallet = rid;
+              l.recommended_pallet_qty = palletAvailQty(tp);
+            }
+          }
+        }
+        else if(!l.recommended_pallet && smPallet){
+          // Fallback: FIFO pallet currently in SuperMarket.
+          l.recommended_pallet = smPallet.pallet_id;
+          l.recommended_pallet_qty = palletAvailQty(smPallet);
+        }
+
+        var lineQty = Number(l.quantity) || 0;
+        var pickedQty = Number(l.picked_quantity) || 0;
+        var lineRemainder = Math.max(0, lineQty - pickedQty);
+        var splitTotal = (Number(l.fulfill_sm_units) || 0) + (Number(l.fulfill_mt_units) || 0) + (Number(l.fulfill_dt_units) || 0);
+        var smFullAvail = Number(l.sm_full_avail_qty) || 0;
+        l.provisional_dispatch_only = (splitTotal <= 0 && lineRemainder > 0 && smFullAvail >= lineRemainder);
+
+        if(tOrder || smPallet || l.recommended_pallet){
+          l.pick_zone = 'SuperMarket Area';
+          l.pick_zone_mode = 'SM';
+        } else if(l.provisional_dispatch_only || (tDt && !tOrder)){
+          l.pick_zone = 'Dispatch path · zone clerk';
+          l.pick_zone_mode = 'DT';
+        } else {
+          l.pick_zone = 'SuperMarket Area';
+          l.pick_zone_mode = 'SM';
+        }
+      });
+    }
+    window.applyPreferredSmPallet = function(idx){
+      var line = currentLines[idx];
+      if(!line || !line.id) return;
+      if(line.pick_zone_mode === 'DT'){ toast('Dispatch line: no SM pallet entry needed.', 'error'); return; }
+      var inp = document.getElementById('smPalletInput-' + idx);
+      var entered = inp && inp.value ? String(inp.value).trim() : '';
+      if(!entered){ toast('Enter a pallet ID first.', 'error'); return; }
+      var source = (lastPalletsFiltered || []).find(function(p){
+        var avail = Number(p.remaining_quantity != null ? p.remaining_quantity : p.quantity || 0) || 0;
+        var orig = Number(p.quantity != null ? p.quantity : 0) || 0;
+        return String(p.pallet_id || '').trim() === entered &&
+          p.current_zone === 'SuperMarket Area' &&
+          normalizePickerSku(p.sku) === normalizePickerSku(line.item_code) &&
+          avail > 0 &&
+          orig > 0 &&
+          avail < orig;
+      });
+      if(!source){
+        toast('Invalid partial SM pallet. Use a partially picked pallet for this SKU.', 'error');
+        return;
+      }
+      preferredSmPalletByLine[line.id] = entered;
+      savePreferredSmPalletMap();
+      applyPickRouting(currentLines, lastPalletsFiltered || [], orderPullTasks, currentResByLine);
+      renderZones();
+      toast('Using partial pallet ' + entered + ' for this line.', 'success');
+    };
+
+    async function refreshPickerPalletsAndRouting(){
+      if(!sb || !currentOrder || !currentLines || !currentLines.length) return;
+      var zones = ['SuperMarket Area'];
+      currentLines.forEach(function(l){ if(l.home_zone && zones.indexOf(l.home_zone)<0) zones.push(l.home_zone); });
+      var skus = [...new Set(currentLines.map(function(l){ return l.item_code; }).filter(Boolean))];
+      try{
+        var {data:pallets} = await sb.from('pallets')
+          .select('pallet_id, sku, current_zone, remaining_quantity, quantity, created_at, in_transit_to_zone')
+          .in('current_zone', zones)
+          .in('sku', skus);
+        var palletsFiltered = (pallets || []).filter(function(p){
+          var inTransit = !!(p.in_transit_to_zone && String(p.in_transit_to_zone).trim() !== '');
+          if(inTransit) return false;
+          var avail = Number(p.remaining_quantity != null ? p.remaining_quantity : p.quantity || 0) || 0;
+          return avail > 0;
+        });
+        lastPalletsFiltered = palletsFiltered;
+        applyPickRouting(currentLines, palletsFiltered, orderPullTasks, currentResByLine);
+      } catch(_){}
+    }
+
+    async function loadOrderPullTasks(orderId){
+      orderPullTasks = [];
+      if(!sb || !orderId) return;
+      try{
+        var { data, error } = await sb.from('replenishment_tasks')
+          .select('task_id, sku, quantity_needed, from_zone, to_zone, task_type, status, reserved_pallet_id')
+          .eq('order_id', orderId)
+          .in('status', ['PENDING', 'IN_PROGRESS'])
+          .in('task_type', ['ORDER_PICK', 'DT_MOVE']);
+        if(error) return;
+        orderPullTasks = data || [];
+      } catch(e){ orderPullTasks = []; }
+    }
+
+    window.refreshOrderPullTasks = async function(){
+      if(!sb || !currentOrder || !currentLines || !currentLines.length) return;
+      await loadOrderPullTasks(currentOrder.id);
+      await refreshPickerPalletsAndRouting();
+      await refreshPickerFulfillmentSplit(currentOrder.id);
+      renderZones();
+      toast('Move status refreshed', 'success');
+    };
+
+    function orderPullTasksForLine(line){
+      var skuTasks = tasksForSkuPicker(orderPullTasks, line && line.item_code);
+      return {
+        orderPick: skuTasks.find(function(t){ return t.task_type === 'ORDER_PICK'; }) || null,
+        dtMove: skuTasks.find(function(t){ return t.task_type === 'DT_MOVE'; }) || null
+      };
+    }
+
+    function orderPullTaskForLine(line){
+      if(!line || line.status !== 'OPEN' || !orderPullTasks.length) return null;
+      var t = orderPullTasksForLine(line);
+      return t.orderPick || t.dtMove || null;
+    }
+
+    // ── ORDER PALLETS ─────────────────────────────────────────────
+    async function loadOrderPallets(){
+      if(!sb || !currentOrder) return;
+      try{
+        var {data, error} = await sb.from('order_pallets').select('*').eq('order_id', currentOrder.id).order('sequence');
+        if(error) return;
+        currentOrderPallets = data || [];
+        var inProg = currentOrderPallets.find(function(op){ return op.status === 'in_progress'; });
+        if(inProg && !currentOrderPalletId) currentOrderPalletId = inProg.pallet_id;
+        renderOrderPallets();
+      } catch(e){}
+    }
+    function renderOrderPallets(){
+      var wrap = document.getElementById('orderPalletsWrap');
+      var list = document.getElementById('orderPalletsList');
+      var btnComplete = document.getElementById('btnCompletePallet');
+      if(!wrap || !list) return;
+      if(!currentOrderPallets.length){
+        list.textContent = 'Create a pallet to start picking';
+        list.style.color = 'var(--muted)';
+        if(btnComplete) btnComplete.style.display = 'none';
+        return;
+      }
+      list.innerHTML = currentOrderPallets.map(function(op){
+        var sel = op.pallet_id === currentOrderPalletId ? ' ✓' : '';
+        var click = ' onclick="selectOrderPallet(\''+esc(op.pallet_id)+'\')"';
+        return '<div style="padding:4px 0;cursor:pointer'+click+'">📦 '+esc(op.pallet_id)+' — '+esc(op.status)+sel+'</div>';
+      }).join('');
+      if(btnComplete) btnComplete.style.display = (currentOrderPalletId && currentOrderPallets.some(function(op){ return op.pallet_id===currentOrderPalletId && op.status==='in_progress'; })) ? 'inline-flex' : 'none';
+    }
+    window.selectOrderPallet = function(pid){ currentOrderPalletId = pid; renderOrderPallets(); renderZones(); };
+    window.createOrderPallet = async function(){
+      if(!sb || !currentOrder) return;
+      var btn = document.getElementById('btnCreatePallet');
+      if(btn) btn.disabled = true;
+      try{
+        var {data, error} = await sb.rpc('create_order_pallet', { p_order_id: currentOrder.id, p_created_by: currentUser ? currentUser.user_id : '' });
+        if(error) throw error;
+        if(data && !data.success) throw new Error(data.error || 'Failed');
+        currentOrderPalletId = data.pallet_id;
+        await loadOrderPallets();
+        renderOrderPallets();
+        renderZones();
+        toast('Order pallet ' + data.pallet_id + ' created', 'success');
+      } catch(e){ toast('Failed: ' + (e.message||e), 'error'); }
+      if(btn) btn.disabled = false;
+    };
+    window.completeOrderPallet = async function(){
+      if(!sb || !currentOrder || !currentOrderPalletId) return;
+      var palletIdToComplete = currentOrderPalletId;
+      try{
+        var {data, error} = await sb.rpc('complete_order_pallet', { p_order_id: currentOrder.id, p_pallet_id: palletIdToComplete, p_completed_by: currentUser ? currentUser.user_id : '' });
+        if(error) throw error;
+        if(data && !data.success) throw new Error(data.error || 'Failed');
+        await loadOrderPallets();
+        currentOrderPalletId = null;
+        renderOrderPallets();
+        renderZones();
+        toast('Pallet marked complete for zone clerk', 'success');
+        try {
+          localStorage.setItem('palletCover_pallet', palletIdToComplete);
+          localStorage.setItem('palletCover_order', currentOrder.id);
+          localStorage.setItem('palletCover_ts', String(Date.now()));
+        } catch (_) {}
+        var path = (window.location.pathname || '').replace(/[^/]*$/, '') || '/';
+        var q = 'pallet=' + encodeURIComponent(palletIdToComplete) + '&order=' + encodeURIComponent(currentOrder.id);
+        var url = window.location.origin + path + 'pallet-cover-sheet.html?' + q + '#' + q;
+        window.open(url, 'PalletCover_'+palletIdToComplete, 'width=920,height=760,scrollbars=yes');
+      } catch(e){ toast('Failed: ' + (e.message||e), 'error'); }
+    };
+
+    // ── RENDER ZONES ─────────────────────────────────────────────
+    function renderZones(){
+      updateProgress();
+
+      var frozen = currentOrder && (currentOrder.status === 'COMPLETED' || currentOrder.status === 'PICKING_HALTED' || currentOrder.status === 'CANCELLED');
+      var inboundBanner = '';
+      if(!frozen && orderPullTasks.length){
+        inboundBanner =
+          '<div class="inbound-callout" role="status">' +
+            '<div class="inbound-callout-title">⏳ Stock still moving for this order</div>' +
+            '<div class="inbound-callout-body">Order-pull tasks are active. Pick only from <strong>SuperMarket</strong>. If SM is short, wait for zone moves.</div>' +
+            '<ul class="inbound-task-list">' +
+            orderPullTasks.map(function(t){
+              return '<li><strong style="color:#e2e8f0">' + esc(t.sku) + '</strong> · ' + esc(t.quantity_needed) + ' u · ' + esc(t.from_zone) + ' → ' + esc(t.to_zone) + ' · <code style="font-size:10px">' + esc(t.task_id) + '</code></li>';
+            }).join('') +
+            '</ul>' +
+            '<button type="button" class="btn-refresh-inbound" onclick="refreshOrderPullTasks()">↻ Refresh move status</button>' +
+          '</div>';
+      }
+      var hasShortLines = !frozen && currentLines.some(function(l){
+        return l.status === 'SHORT' && !isDispatchOnlyLine(l);
+      });
+      var shortRecoverBanner = '';
+      if(hasShortLines){
+        shortRecoverBanner =
+          '<div class="inbound-callout" role="status" style="border-left:4px solid rgba(245,158,11,0.6);margin-top:10px">' +
+            '<div class="inbound-callout-title">✕ Short lines — you can pick them again</div>' +
+            '<div class="inbound-callout-body">A <strong>short</strong> line is <strong>not</strong> the same as “picked.” It usually means stock was missing in the <strong>SuperMarket pick phase</strong> and may still be <strong>on the way from a product zone</strong>. When enough stock arrives in SuperMarket, the line can reopen automatically so you can continue picking. If needed, you can still use <strong>↩ Undo</strong> as a manual fallback.</div>' +
+          '</div>';
+      }
+
+      // Group by pick phase / routing (what the picker actually does), not SKU home zone
+      var zonesMap = {};
+      currentLines.forEach(function(l){
+        var z = l.pick_zone || 'SuperMarket Area';
+        if(!zonesMap[z]) zonesMap[z] = [];
+        zonesMap[z].push(l);
+      });
+
+      var zoneKeys = Object.keys(zonesMap).sort(function(a, b){
+        function sortKey(x){
+          if(x === 'SuperMarket Area') return '\u0000';
+          if(String(x).indexOf('Dispatch') !== -1) return '\u0001' + x;
+          return '\u0002' + x;
+        }
+        return sortKey(a).localeCompare(sortKey(b));
+      });
+      var html = '';
+
+      zoneKeys.forEach(function(zone){
+        var zLines = zonesMap[zone];
+        var zoneDone = zLines.filter(function(l){ return isPickerDoneLine(l); }).length;
+        var zoneReported = zLines.filter(function(l){ return l.status==='PICKER_REPORTED_SHORT'; }).length;
+        var zoneTotal = zLines.length;
+        var allDone = zoneDone === zoneTotal;
+
+        var zoneTitle = (zone === 'SuperMarket Area') ? 'SuperMarket Area · pick phase' : zone;
+        html += '<div class="zone-section">' +
+          '<div class="zone-header">' +
+            '<span style="font-size:16px">📍</span>' +
+            '<span class="zone-name">'+esc(zoneTitle)+'</span>' +
+            '<span class="zone-count">'+zoneDone+' / '+zoneTotal+' done'+(zoneReported>0?' <span style="color:#f59e0b">('+zoneReported+' reported)</span>':'')+(allDone?' ✓':'')+'</span>'+
+          '</div>';
+
+        zLines.forEach(function(l, li){
+          var globalIdx = currentLines.indexOf(l);
+          var isPicked  = l.status === 'PICKED';
+          var isShort   = l.status === 'SHORT';
+          var isReported = l.status === 'PICKER_REPORTED_SHORT';
+          var isDone    = isPicked || isShort;
+          var cardClass = 'line-card' + (isPicked?' picked':(isShort?' short':(isReported?' reported':'')));
+          var pillClass = isPicked?'pill-picked':(isShort?'pill-short':(isReported?'pill-reported':'pill-open'));
+          var pillText  = isPicked?'✓ Picked':(isShort?'✕ Short (await stock)':(isReported?'⚠ Reported':'Open'));
+
+          var pickZone = l.pick_zone || zone || 'SuperMarket Area';
+          var pickPallet = l.recommended_pallet
+            ? esc(l.recommended_pallet)
+            : (l.pick_zone_mode === 'DT' ? 'Reserved / dispatch route' : 'Enter partial pallet (if any), else FIFO in SuperMarket');
+          // For SM pick-phase instructions, use reservation target, but keep short lines meaningful.
+          var lineNeed = pickerRemainingNeedForLine(l);
+          var palletAvail = Number(l.recommended_pallet_qty) || 0;
+          var totalSmAvail = Number(l.sm_total_avail_qty) || 0;
+          var totalZoneAvail = Number(l.zone_total_avail_qty) || 0;
+          var canPick = lineNeed > 0;
+          var hasKnownPalletQty = canPick && palletAvail > 0;
+          var hasRecommendedPallet = canPick && !!l.recommended_pallet;
+          var pickNow = hasKnownPalletQty ? Math.min(lineNeed, palletAvail) : 0;
+          var remainingAfter = Math.max(0, lineNeed - pickNow);
+          var hasEnoughSmForLine = canPick && (totalSmAvail >= lineNeed);
+          var pickQty = pickNow + ' ' + esc(l.unit||'units');
+          var tp = orderPullTasksForLine(l);
+          var dispatchOnlyLine = isDispatchOnlyLine(l);
+          var inboundStep = '';
+          if(!isDone){
+            if(!dispatchOnlyLine && tp.orderPick){
+              inboundStep = '<div class="pick-step inbound-wait"><strong>Wait — stock moving to SuperMarket.</strong> Clerks move this SKU from <strong>' + esc(tp.orderPick.from_zone) + '</strong> → <strong>' + esc(tp.orderPick.to_zone) + '</strong> (task ' + esc(tp.orderPick.task_id) + '). When it hits <strong>SuperMarket</strong>, pick in the <strong>pick phase</strong> — not from the product zone.</div>';
+            }
+          }
+          var shortRecoverStep = '';
+          if(isShort){
+            shortRecoverStep = '<div class="short-recover-callout"><strong>Short line:</strong> Zone clerks are notified to move stock for this order.</div>';
+          }
+          html += '<div class="'+cardClass+'" id="line-'+globalIdx+'">' +
+            '<div class="line-top">' +
+              '<span class="line-code">'+esc(l.item_code)+'</span>'+
+              '<span class="line-status-pill '+pillClass+'">'+pillText+'</span>'+
+            '</div>'+
+            '<div class="pick-instruction">' +
+              '<div class="pick-instruction-title">📍 Pick phase instructions</div>' +
+              inboundStep +
+              shortRecoverStep +
+              (dispatchOnlyLine
+                ? '<div class="pick-step">1. <strong>Fulfilled via Dispatch flow.</strong></div>' +
+                  '<div class="pick-step">2. No SuperMarket pick required for this line right now.</div>'
+                : '<div class="pick-step">1. Go to <strong>'+esc(pickZone)+'</strong> (your pick phase)</div>' +
+                  '<div class="pick-step">2. Use pallet <strong>'+pickPallet+'</strong></div>' +
+                  '<div class="pick-step" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">' +
+                    '<span style="font-size:11px;color:#93c5fd">Partial SM pallet:</span>' +
+                    '<input id="smPalletInput-'+globalIdx+'" placeholder="Enter pallet ID" value="'+esc((preferredSmPalletByLine && preferredSmPalletByLine[l.id]) ? preferredSmPalletByLine[l.id] : '')+'" style="min-width:170px;padding:6px 8px;border-radius:8px;border:1px solid rgba(148,163,184,.35);background:rgba(2,6,23,.45);color:#e2e8f0;font-size:11px" />' +
+                    '<button type="button" class="btn btn-sm btn-pick" onclick="applyPreferredSmPallet('+globalIdx+')">Use partial</button>' +
+                  '</div>' +
+                  '<div class="pick-step" style="color:#cbd5e1">Need: <strong>' + esc(String(Math.round(lineNeed * 100) / 100)) + ' ' + esc(l.unit||'units') + '</strong> · SM now: <strong>' + esc(String(Math.round(totalSmAvail * 100) / 100)) + '</strong> · Zone now: <strong>' + esc(String(Math.round(totalZoneAvail * 100) / 100)) + '</strong></div>' +
+                  '<div class="pick-step">3. ' + (
+                    canPick
+                      ? (
+                          hasKnownPalletQty
+                            ? ('Pick <strong>' + pickQty + '</strong> from this pallet.')
+                            : (hasRecommendedPallet
+                                ? 'Pick available units from this pallet.'
+                                : 'Pick available units in SuperMarket.'
+                              )
+                        )
+                      : '<strong>Nothing left to pick in SuperMarket for this line.</strong>'
+                  ) + '</div>' +
+                  (remainingAfter > 0
+                    ? '<div class="pick-step">4. ' + (
+                        hasEnoughSmForLine
+                    ? ('Pick the remaining <strong>' + esc(String(Math.round(remainingAfter * 100) / 100)) + ' ' + esc(l.unit||'units') + '</strong> from the next SuperMarket pallet(s) (FIFO).')
+                          : ('Wait for zone move to <strong>SuperMarket</strong> for remaining <strong>' + esc(String(Math.round(remainingAfter * 100) / 100)) + ' ' + esc(l.unit||'units') + '</strong>.')
+                      ) + '</div>'
+                    : '')) +
+            '</div>'+
+            '<div class="line-desc">'+esc(l.item_description||'—')+'</div>'+
+            pickerLineSmBalancesHtml(l)+
+            (l.short_reason?'<div class="line-short-reason" style="font-size:10px;color:var(--muted);margin-top:4px">Reason: '+esc(l.short_reason)+'</div>':'')+
+            '<div class="line-meta">'+
+              '<div class="line-meta-item">Qty: <strong>'+esc(l.quantity)+'</strong>' + ((l.picked_quantity||0) > 0 ? ' <span style="color:var(--green)">('+(l.picked_quantity||0)+' picked)</span>' : '') + '</div>'+
+              '<div class="line-meta-item">Unit: <strong>'+esc(l.unit||'—')+'</strong></div>'+
+              '<div class="line-zone-badge" title="Pick routing for this portal (not SKU home zone)">'+esc(l.pick_zone_mode === 'DT' ? '🚚 DISPATCH PHASE' : 'PICK PHASE')+'</div>'+
+              (l.home_zone ? '<div class="line-meta-item" style="font-size:10px">SKU home: <strong>'+esc(l.home_zone)+'</strong> (reference)</div>' : '')+
+              (l.recommended_pallet ? '<div class="line-pallet-badge" title="Pick from this pallet">📦 '+esc(l.recommended_pallet)+'</div>' : '')+
+            '</div>'+
+            '<div class="line-actions">'+
+              ((currentOrder && currentOrder.status === 'PICKING_HALTED')
+                ? '<span class="reported-wait" style="font-size:11px;color:#fbbf24;font-weight:900">Picking halted</span>'
+                : ((currentOrder && currentOrder.status === 'COMPLETED')
+                    ? '<span class="reported-wait" style="font-size:11px;color:var(--muted);font-weight:800">Locked</span>'
+                    : (isReported
+                      ? '<span class="reported-wait" style="font-size:11px;color:#f59e0b;font-weight:700">Awaiting supervisor</span>'
+                      : (!isDone && !dispatchOnlyLine && lineNeed > 0)
+                        ? '<button class="btn-pick-line" onclick="showPickModal('+globalIdx+')">✓ Pick to pallet</button>' +
+                          '<button class="btn-report-short" onclick="markLine('+globalIdx+',\'SHORT\')">⚠ Notify supervisor if short</button>'
+                        : (!isDone && !dispatchOnlyLine && lineNeed <= 0)
+                          ? '<span class="reported-wait" style="font-size:11px;color:#94a3b8;font-weight:800">Waiting for allocation wave</span>'
+                        : (!isDone && dispatchOnlyLine)
+                          ? '<span class="reported-wait" style="font-size:11px;color:#60a5fa;font-weight:800">Dispatch flow in progress</span>'
+                        : '<button class="btn-reset-line" onclick="markLine('+globalIdx+',\'OPEN\')" title="' + (isShort ? 'Reopen this line when stock is available again — then pick as normal' : 'Undo line status') + '">' + (isShort ? '↩ Undo — reopen to pick' : '↩ Undo') + '</button>'
+                    )
+                  )
+              )+
+            '</div>'+
+          '</div>';
+        });
+
+        html += '</div>';
+      });
+
+      document.getElementById('pickingZones').innerHTML = inboundBanner + shortRecoverBanner + '<div class="zones-grid">' + html + '</div>';
+
+      // Show/hide finish button
+      // Allow submit when picker-responsible work is done; dispatch-only lines should not block.
+      var allDone = currentLines.every(function(l){ return isPickerDoneLine(l); }); // PICKER_REPORTED_SHORT blocks unless reopened
+      if(currentOrder && (currentOrder.status === 'COMPLETED' || currentOrder.status === 'PICKING_HALTED')){
+        document.getElementById('finishWrap').style.display = 'none';
+      } else {
+        document.getElementById('finishWrap').style.display = allDone ? 'block' : 'none';
+      }
+
+      updateHaltControls();
+    }
+
+    // ── Short reason modal ────────────────────────────────────────
+    var pendingShortIdx = null;
+    function showShortReasonModal(idx){
+      pendingShortIdx = idx;
+      var inp = document.getElementById('shortReasonInput');
+      var modal = document.getElementById('shortReasonModal');
+      if(inp) inp.value = '';
+      modal.classList.add('show');
+      if(inp){ inp.focus(); inp.select(); }
+    }
+    function hideShortReasonModal(){
+      document.getElementById('shortReasonModal').classList.remove('show');
+      pendingShortIdx = null;
+    }
+    function doMarkShortWithReason(){
+      var idx = pendingShortIdx;
+      if(idx == null) return;
+      var inp = document.getElementById('shortReasonInput');
+      var reason = inp && inp.value ? String(inp.value).trim() : '';
+      if(!reason){
+        toast('Please enter a reason.', 'error');
+        return;
+      }
+      hideShortReasonModal();
+      reportShortToSupervisor(idx, reason);
+    }
+    document.getElementById('shortModalCancel').onclick = hideShortReasonModal;
+    document.getElementById('shortModalSubmit').onclick = doMarkShortWithReason;
+    document.getElementById('shortReasonModal').addEventListener('click', function(e){ if(e.target === this) hideShortReasonModal(); });
+    document.getElementById('shortReasonInput').addEventListener('keydown', function(e){
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); doMarkShortWithReason(); }
+      if(e.key === 'Escape'){ e.preventDefault(); hideShortReasonModal(); }
+    });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && document.getElementById('shortReasonModal').classList.contains('show')) hideShortReasonModal(); });
+
+    // ── Halt picking modal ─────────────────────────────────────────
+    function showHaltPickingModal(){
+      var modal = document.getElementById('haltPickingModal');
+      if(!modal) return;
+      var inp = document.getElementById('haltReasonInput');
+      if(inp){
+        inp.value = '';
+        inp.focus();
+        inp.select();
+      }
+      modal.classList.add('show');
+    }
+    function hideHaltPickingModal(){
+      var modal = document.getElementById('haltPickingModal');
+      if(modal) modal.classList.remove('show');
+    }
+    function doConfirmHaltPicking(){
+      var inp = document.getElementById('haltReasonInput');
+      var reason = inp && inp.value ? String(inp.value).trim() : '';
+      if(!reason){
+        toast('Please enter a reason for halting.', 'error');
+        return;
+      }
+      hideHaltPickingModal();
+      haltPickingWithReason(reason);
+    }
+    document.getElementById('haltModalCancel').onclick = hideHaltPickingModal;
+    document.getElementById('haltModalSubmit').onclick = doConfirmHaltPicking;
+    document.getElementById('haltPickingModal').addEventListener('click', function(e){
+      if(e.target === this) hideHaltPickingModal();
+    });
+    document.getElementById('haltReasonInput').addEventListener('keydown', function(e){
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); doConfirmHaltPicking(); }
+      if(e.key === 'Escape'){ e.preventDefault(); hideHaltPickingModal(); }
+    });
+
+    // ── PICK TO PALLET MODAL ──────────────────────────────────────
+    var pendingPickIdx = null;
+    window.showPickModal = function(idx){
+      var line = currentLines[idx];
+      if(!line) return;
+      if(!currentOrderPalletId){ toast('Create an order pallet first', 'error'); return; }
+      if(!line.recommended_pallet){ toast('No source pallet assigned for this SKU — replenishment may be needed', 'error'); return; }
+      pendingPickIdx = idx;
+      var remaining = Math.max(0, pickerTargetQtyForLine(line) - (Number(line.picked_quantity) || 0));
+      if(remaining <= 0){ toast('Line already fully picked', 'error'); return; }
+      document.getElementById('pickModalSku').textContent = (line.item_code || '—') + ' · ' + (line.item_description || '').slice(0, 40) + (line.item_description && line.item_description.length > 40 ? '…' : '');
+      document.getElementById('pickQtyInput').value = remaining;
+      document.getElementById('pickQtyInput').max = remaining;
+      var lbl = document.getElementById('pickSourceLabel');
+      if(lbl) lbl.textContent = line.pick_zone_mode === 'DT' ? 'Source (dispatch path — confirm with traffic): ' : 'SuperMarket pick phase · pallet: ';
+      document.getElementById('pickSourceValue').textContent = line.recommended_pallet || '—';
+      document.getElementById('pickModalConfirm').disabled = false;
+      document.getElementById('pickToPalletModal').classList.add('show');
+      document.getElementById('pickQtyInput').focus();
+    }
+    function hidePickModal(){ document.getElementById('pickToPalletModal').classList.remove('show'); pendingPickIdx = null; }
+    function doConfirmPick(){
+      var idx = pendingPickIdx;
+      if(idx == null) return;
+      var line = currentLines[idx];
+      if(!line) return;
+      var qtyInp = document.getElementById('pickQtyInput');
+      var qty = parseFloat(qtyInp && qtyInp.value ? qtyInp.value : 0);
+      var srcPallet = line.recommended_pallet ? String(line.recommended_pallet).trim() : '';
+      if(!qty || qty <= 0){ toast('Enter a valid quantity', 'error'); return; }
+      var remaining = Math.max(0, pickerTargetQtyForLine(line) - (Number(line.picked_quantity) || 0));
+      if(qty > remaining){ toast('Quantity cannot exceed ' + remaining + ' remaining', 'error'); return; }
+      if(!srcPallet){ toast('No source pallet assigned', 'error'); return; }
+      hidePickModal();
+      sb.rpc('pick_to_order_pallet', {
+        p_order_id: currentOrder.id,
+        p_pallet_id: currentOrderPalletId,
+        p_order_line_id: line.id,
+        p_source_pallet_id: srcPallet,
+        p_quantity: qty,
+        p_created_by: currentUser ? currentUser.user_id : ''
+      }).then(async function(r){
+        if(r.error){ toast('Failed: ' + r.error.message, 'error'); return; }
+        if(r.data && !r.data.success){
+          // If the source pallet is already short, auto-report to supervisor for review.
+          var errMsg = r.data.error ? String(r.data.error) : '';
+          var m = errMsg.match(/Source pallet has only\\s*([0-9]+(?:\\.[0-9]+)?)\\s*available;\\s*requested\\s*([0-9]+(?:\\.[0-9]+)?)\\s*$/i);
+          if(m){
+            var avail = parseFloat(m[1]);
+            var requested = parseFloat(m[2]);
+            var autoReason = 'Auto-detected short while picking: source pallet has only ' + avail +
+              ' available; requested ' + requested + '.';
+            reportShortToSupervisor(idx, autoReason);
+            return;
+          }
+          toast('Failed: ' + (r.data.error||'Unknown'), 'error'); return;
+        }
+        var newPicked = (Number(line.picked_quantity) || 0) + qty;
+        var isFullyPicked = newPicked >= pickerTargetQtyForLine(line);
+        var payload = { picked_quantity: newPicked };
+        if(isFullyPicked) payload.status = 'PICKED';
+        var {error} = await sb.from('order_lines').update(payload).eq('id', line.id);
+        if(error){ toast('Split recorded but line update failed', 'error'); return; }
+        currentLines[idx].picked_quantity = newPicked;
+        if(isFullyPicked) currentLines[idx].status = 'PICKED';
+        loadOrderPullTasks(currentOrder.id).then(function(){
+          return refreshPickerPalletsAndRouting();
+        }).then(function(){
+          renderZones();
+          renderOrderPallets();
+        });
+        toast('✓ Picked ' + qty + ' to ' + currentOrderPalletId, 'success');
+      }).catch(function(e){ toast('Failed: ' + e.message, 'error'); });
+    }
+    document.getElementById('pickModalCancel').onclick = hidePickModal;
+    document.getElementById('pickModalConfirm').onclick = doConfirmPick;
+    document.getElementById('pickToPalletModal').addEventListener('click', function(e){ if(e.target === this) hidePickModal(); });
+    document.getElementById('pickQtyInput').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); doConfirmPick(); } if(e.key === 'Escape'){ e.preventDefault(); hidePickModal(); } });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && document.getElementById('pickToPalletModal').classList.contains('show')) hidePickModal(); });
+
+    // ── MARK LINE ─────────────────────────────────────────────────
+    function reportShortToSupervisor(idx, reason){
+      var line = currentLines[idx];
+      if(!line) return;
+      var payload = {
+        status: 'PICKER_REPORTED_SHORT',
+        short_reason: reason,
+        picker_reported_by: currentUser ? currentUser.user_id : null,
+        picker_reported_at: new Date().toISOString()
+      };
+      sb.from('order_lines').update(payload).eq('id', line.id).then(function(r){
+        if(r.error){ toast('Failed: ' + r.error.message, 'error'); return; }
+        currentLines[idx].status = 'PICKER_REPORTED_SHORT';
+        currentLines[idx].short_reason = reason;
+        currentLines[idx].picker_reported_by = payload.picker_reported_by;
+        currentLines[idx].picker_reported_at = payload.picker_reported_at;
+        loadOrderPullTasks(currentOrder.id).then(function(){
+          return refreshPickerPalletsAndRouting();
+        }).then(function(){ renderZones(); });
+        toast('Supervisor notified', 'success');
+      }).catch(function(e){ toast('Failed: ' + e.message, 'error'); });
+    }
+    function applyMarkLine(idx, newStatus, shortReason){
+      var line = currentLines[idx];
+      if(!line) return;
+      if(newStatus === 'PICKED' && currentOrderPalletId && line.recommended_pallet){
+        sb.rpc('pick_to_order_pallet', {
+          p_order_id: currentOrder.id,
+          p_pallet_id: currentOrderPalletId,
+          p_order_line_id: line.id,
+          p_source_pallet_id: line.recommended_pallet,
+          p_quantity: line.quantity,
+          p_created_by: currentUser ? currentUser.user_id : ''
+        }).then(async function(r){
+          if(r.error){ toast('Failed: ' + r.error.message, 'error'); return; }
+          if(r.data && !r.data.success){ toast('Failed: ' + (r.data.error||'Unknown'), 'error'); return; }
+          var payload = {status: 'PICKED'};
+          var {error} = await sb.from('order_lines').update(payload).eq('id', line.id);
+          if(error){ toast('Line updated but split may have failed', 'error'); return; }
+          currentLines[idx].status = 'PICKED';
+          loadOrderPullTasks(currentOrder.id).then(function(){
+            return refreshPickerPalletsAndRouting();
+          }).then(function(){
+            renderZones();
+            renderOrderPallets();
+          });
+          toast('✓ Picked to ' + currentOrderPalletId, 'success');
+        }).catch(function(e){ toast('Failed: ' + e.message, 'error'); });
+        return;
+      }
+      if(newStatus === 'PICKED' && currentOrderPalletId && !line.recommended_pallet){
+        toast('No recommended pallet for this SKU — pick manually or create replenishment', 'error');
+        return;
+      }
+      var payload = {status: newStatus};
+      if(newStatus === 'SHORT') payload.short_reason = shortReason || null;
+      else if(newStatus === 'OPEN'){ payload.short_reason = null; payload.picker_reported_by = null; payload.picker_reported_at = null; payload.picked_quantity = 0; }
+      sb.from('order_lines').update(payload).eq('id', line.id).then(function(r){
+        if(r.error){ toast('Failed: ' + r.error.message, 'error'); return; }
+        currentLines[idx].status = newStatus;
+        if(newStatus === 'SHORT') currentLines[idx].short_reason = payload.short_reason;
+        else if(newStatus === 'OPEN'){ currentLines[idx].short_reason = null; currentLines[idx].picked_quantity = 0; }
+        loadOrderPullTasks(currentOrder.id).then(function(){
+          return refreshPickerPalletsAndRouting();
+        }).then(function(){ renderZones(); });
+        if(newStatus === 'PICKED') toast('✓ Picked!', 'success');
+        else if(newStatus === 'SHORT') toast('Marked short', 'error');
+        else toast('Reset to open', 'success');
+      }).catch(function(e){ toast('Failed: ' + e.message, 'error'); });
+    }
+    window.markLine = async function(idx, newStatus){
+      var line = currentLines[idx];
+      if(!line) return;
+      if(newStatus === 'SHORT'){
+        showShortReasonModal(idx);
+        return;
+      }
+      applyMarkLine(idx, newStatus);
+    };
+
+    // ── PROGRESS ──────────────────────────────────────────────────
+    function updateProgress(){
+      var total = currentLines.length;
+      var done  = currentLines.filter(function(l){ return l.status==='PICKED'||l.status==='SHORT'; }).length;
+      var pct   = total ? Math.round(done/total*100) : 0;
+      document.getElementById('pickPct').textContent   = pct + '%';
+      document.getElementById('pickCount').textContent = done + ' / ' + total + ' lines';
+      document.getElementById('pickFill').style.width  = pct + '%';
+    }
+
+    // ── TIMER ────────────────────────────────────────────────────
+    function startTimer(fromDate){
+      stopTimer();
+      timerStart = fromDate;
+      var startedEl = document.getElementById('timerStarted');
+      startedEl.textContent = fromDate.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+
+      timerInterval = setInterval(function(){
+        var elapsed = Math.floor((Date.now() - timerStart.getTime()) / 1000);
+        var h = Math.floor(elapsed / 3600);
+        var m = Math.floor((elapsed % 3600) / 60);
+        var s = elapsed % 60;
+        var display = pad(h) + ':' + pad(m) + ':' + pad(s);
+        var el = document.getElementById('timerDisplay');
+        el.textContent = display;
+        el.className = 'timer-display' + (elapsed > 7200 ? ' danger' : elapsed > 3600 ? ' warning' : '');
+      }, 1000);
+    }
+
+    function stopTimer(){
+      if(timerInterval){ clearInterval(timerInterval); timerInterval = null; }
+    }
+
+    function stopAutoRefreshPicking(){
+      if(autoRefreshInterval){ clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+      autoRefreshRunning = false;
+    }
+
+    function startAutoRefreshPicking(){
+      stopAutoRefreshPicking();
+      autoRefreshInterval = setInterval(function(){
+        if(autoRefreshRunning) return;
+        if(!sb || !currentOrder) return;
+        if(currentOrder.status !== 'IN_PROGRESS') return;
+        autoRefreshRunning = true;
+        refreshPickingStateAuto().finally(function(){ autoRefreshRunning = false; });
+      }, 8000);
+    }
+
+    async function refreshPickingStateAuto(){
+      if(!sb || !currentOrder || !currentOrder.id) return;
+      try{
+        // Refresh lines (picked/short statuses)
+        var {data:lines, error:e2} = await sb.from('order_lines')
+          .select('*, skus(home_zone, product_name)')
+          .eq('order_id', currentOrder.id)
+          .order('line_no');
+        if(e2) return;
+        currentLines = lines || [];
+        currentLines.forEach(function(l){
+          l.home_zone = (l.skus && l.skus.home_zone) ? l.skus.home_zone : (l.plant || 'Unassigned');
+        });
+
+        // Refresh open pallet reservations for routing/allocation balances
+        currentResByLine = {};
+        var resRows = [];
+        try{
+          var {data:resData} = await sb.from('pallet_reservations')
+            .select('order_line_id, pallet_id, reservation_type, quantity_reserved')
+            .eq('order_id', currentOrder.id)
+            .is('released_at', null);
+          resRows = resData || [];
+          resRows.forEach(function(r){
+            if(r && r.order_line_id) currentResByLine[r.order_line_id] = r;
+          });
+        } catch(_){ currentResByLine = {}; resRows = []; }
+
+        // Refresh tasks + routing/pallets + SM/DT/MT allocator split
+        await loadOrderPullTasks(currentOrder.id);
+        await refreshPickerPalletsAndRouting();
+        await refreshPickerFulfillmentSplit(currentOrder.id, resRows);
+        renderZones();
+        updateProgress();
+      } catch(_){ /* ignore auto refresh errors */ }
+    }
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+
+    // ── Halt / Resume controls ────────────────────────────────────
+    function updateHaltControls(){
+      var hw = document.getElementById('haltWrap');
+      if(!hw) return;
+      var s = currentOrder ? currentOrder.status : '';
+      var btnHalt = document.getElementById('btnHaltPicking');
+      var btnResume = document.getElementById('btnResumePicking');
+
+      if(s === 'PICKING_HALTED'){
+        hw.style.display = 'block';
+        if(btnHalt) btnHalt.style.display = 'none';
+        if(btnResume) btnResume.style.display = 'inline-flex';
+      } else if(s === 'IN_PROGRESS'){
+        hw.style.display = 'block';
+        if(btnHalt) btnHalt.style.display = 'inline-flex';
+        if(btnResume) btnResume.style.display = 'none';
+      } else {
+        hw.style.display = 'none';
+      }
+    }
+
+    window.haltPicking = function(){
+      if(!currentOrder || currentOrder.status !== 'IN_PROGRESS'){
+        toast('Order is not pickable right now.', 'error');
+        return;
+      }
+      showHaltPickingModal();
+    };
+
+    async function haltPickingWithReason(reason){
+      if(!sb || !currentOrder || !currentOrder.id) return;
+      stopTimer();
+      try{
+        var now = new Date().toISOString();
+        var userId = currentUser ? currentUser.user_id : null;
+        var {error} = await sb.from('orders').update({
+          status: 'PICKING_HALTED',
+          picking_halted_at: now,
+          picking_halted_reason: reason,
+          picking_halted_by: userId
+        }).eq('id', currentOrder.id);
+        if(error) throw error;
+        currentOrder.status = 'PICKING_HALTED';
+        currentOrder.picking_halted_at = now;
+        currentOrder.picking_halted_reason = reason;
+        currentOrder.picking_halted_by = userId;
+        renderZones();
+        updateHaltControls();
+        toast('Picking halted (reason saved)', 'error');
+      } catch(e){
+        toast('Failed to halt: ' + (e.message||e), 'error');
+      }
+    }
+
+    window.resumePicking = async function(){
+      if(!sb || !currentOrder || !currentOrder.id) return;
+      try{
+        var now = new Date().toISOString();
+        var {error} = await sb.from('orders').update({
+          status: 'IN_PROGRESS',
+          picking_halted_at: null,
+          picking_halted_reason: null,
+          picking_halted_by: null
+        }).eq('id', currentOrder.id);
+        if(error) throw error;
+
+        currentOrder.status = 'IN_PROGRESS';
+        currentOrder.picking_halted_at = null;
+        currentOrder.picking_halted_reason = null;
+        currentOrder.picking_halted_by = null;
+
+        // Resume timer from persisted started_at
+        if(!currentOrder.picking_started_at){
+          currentOrder.picking_started_at = now;
+          await sb.from('orders').update({ picking_started_at: now }).eq('id', currentOrder.id);
+        }
+        startTimer(new Date(currentOrder.picking_started_at));
+        renderZones();
+        updateHaltControls();
+        toast('Picking resumed', 'success');
+      } catch(e){
+        toast('Failed to resume: ' + (e.message||e), 'error');
+      }
+    };
+
+    // ── FINISH ORDER ──────────────────────────────────────────────
+    window.finishOrder = async function(){
+      var btn = document.getElementById('btnFinish');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Saving…';
+
+      try{
+        var now = new Date().toISOString();
+        var durationSeconds = timerStart
+          ? Math.floor((Date.now() - timerStart.getTime()) / 1000)
+          : null;
+
+        var {error} = await sb.from('orders').update({
+          status:                  'AWAITING_SM_RELEASE',
+          picking_finished_at:     now,
+          picking_duration_seconds: durationSeconds
+        }).eq('id', currentOrder.id);
+
+        if(error) throw error;
+
+        stopTimer();
+        toast('✓ Submitted for SM release — zone clerk will complete the transaction', 'success');
+
+        setTimeout(function(){
+          loadMyOrders();
+        }, 1800);
+
+      } catch(e){
+        toast('Failed: ' + e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Submit for SM release';
+      }
+    };
+
+    // ── INIT ─────────────────────────────────────────────────────
+    if(!sb){
+      document.getElementById('loginErr').textContent = 'Supabase not configured — check config.js';
+    } else {
+      (function bootPickerFromSharedSession() {
+        var s = window.RetiFluxAuthSession && window.RetiFluxAuthSession.read();
+        if (!s || !s.user_id) return;
+        if (!/^Picker$/i.test(s.role || '')) return;
+        currentUser = { user_id: s.user_id, name: s.name || '', role: s.role };
+        document.getElementById('inputUserId').value = s.user_id;
+        loadMyOrders();
+      })();
+    }
+
+  })();
+  </script>
+</body>
+</html>

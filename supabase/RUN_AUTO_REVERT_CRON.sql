@@ -1,0 +1,20 @@
+-- RetiFlux™ — Schedule auto-receive at Dispatch (7–10 min) + auto-revert (15 min)
+-- Run AFTER RUN_PUSH_TO_DISPATCH_MOVEMENTS.sql
+--
+-- Option 1: pg_cron (Supabase Pro / self-hosted with pg_cron)
+-- Uncomment and run if pg_cron is available:
+--
+-- SELECT cron.schedule(
+--   'retiflux-auto-dispatch',
+--   '*/3 * * * *',  -- every 3 minutes
+--   $$SELECT movement_auto_receive_dispatch(8)$$
+-- );
+-- SELECT cron.schedule(
+--   'retiflux-auto-revert',
+--   '*/5 * * * *',  -- every 5 minutes
+--   $$SELECT movement_auto_revert()$$
+-- );
+--
+-- Option 2: External cron — call supabase.rpc('movement_auto_receive_dispatch', {p_minutes: 8}) then movement_auto_revert
+--
+-- Option 3: Traffic Center — "Run auto-revert" runs both; or keep page open (auto-runs every 5 min)

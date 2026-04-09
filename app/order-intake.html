@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RetiFlux™ · New Order</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-responsive.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <script src="../js/retiflux-performance.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --gold:#f0c040;--gold2:#f59e0b;
+      --bg:#0f172a;--card:rgba(15,23,42,0.97);
+      --font:'Cascadia Mono',Consolas,monospace;
+      --muted:#94a3b8;--border:rgba(245,158,11,0.3);
+      --red:#fca5a5;--green:#86efac;
+    }
+    html{background:var(--bg)}
+    body{font-family:var(--font);background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);min-height:100vh;color:#e2e8f0;padding:24px 16px 100px}
+    .container{max-width:none;margin:0;width:100%;padding-left:16px;padding-right:16px}
+    @media(max-width:480px){body{padding:16px 12px 80px}.topbar{flex-direction:column;align-items:stretch}.title{font-size:18px}}
+    @media(min-width:768px){.container{max-width:none;padding-left:24px;padding-right:24px}}
+    @media(min-width:1200px){.container{max-width:none;padding-left:32px;padding-right:32px}}
+
+    /* Topbar */
+    .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:20px}
+    .title{font-size:22px;font-weight:900;color:#fff}
+    .sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.6}
+    .back-home{display:inline-flex;align-items:center;white-space:nowrap;padding:8px 16px;border:2px solid rgba(245,158,11,0.5);border-radius:10px;color:var(--gold);text-decoration:none;font-weight:800;font-size:13px}
+    .back-home:hover{background:rgba(245,158,11,0.15)}
+
+    /* Layout */
+    .layout{display:grid;grid-template-columns:1fr 1.4fr;gap:16px}
+    @media(max-width:900px){.layout{grid-template-columns:1fr}}
+
+    /* Cards */
+    .card{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:20px}
+    .card-title{font-size:12px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:16px;font-weight:800}
+
+    /* Form fields */
+    .field{margin-bottom:14px}
+    .field label{display:block;font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px}
+    .field input,.field select,.field textarea{
+      width:100%;padding:10px 12px;border-radius:10px;
+      border:2px solid rgba(245,158,11,0.3);
+      background:rgba(15,23,42,0.8);
+      color:#e2e8f0;font-family:var(--font);font-size:13px;
+      transition:border-color .15s;
+    }
+    .field input:focus,.field select:focus,.field textarea:focus{
+      outline:none;border-color:var(--gold);
+    }
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    @media(max-width:560px){.row2,.row3{grid-template-columns:1fr}}
+
+    /* Line items table */
+    .lines-wrap{border:1px solid rgba(148,163,184,0.2);border-radius:12px;overflow:hidden;margin-bottom:14px}
+    .lines-wrap table{width:100%;border-collapse:collapse;font-size:12px}
+    .lines-wrap thead th{background:rgba(245,158,11,0.12);color:var(--gold);text-align:left;padding:10px 10px;border-bottom:1px solid rgba(245,158,11,0.2);font-size:10px;letter-spacing:1px;text-transform:uppercase}
+    .lines-wrap td{padding:6px 8px;border-bottom:1px solid rgba(148,163,184,0.1);vertical-align:middle}
+    .lines-wrap tr:nth-child(even){background:rgba(15,23,42,0.2)}
+    .lines-wrap tr:last-child td{border-bottom:none}
+    .lines-wrap input,.lines-wrap select{
+      width:100%;padding:6px 8px;border-radius:7px;
+      border:1px solid rgba(245,158,11,0.25);
+      background:rgba(15,23,42,0.6);
+      color:#e2e8f0;font-family:var(--font);font-size:12px;
+    }
+    .lines-wrap input:focus,.lines-wrap select:focus{outline:none;border-color:var(--gold)}
+
+    /* SKU autocomplete */
+    .sku-wrap{position:relative}
+    .sku-dropdown{
+      position:absolute;top:100%;left:0;right:0;z-index:999;
+      background:#1e293b;border:1px solid rgba(245,158,11,0.4);
+      border-radius:8px;max-height:200px;overflow-y:auto;
+      display:none;box-shadow:0 8px 24px rgba(0,0,0,0.4);
+    }
+    .sku-dropdown.open{display:block}
+    .sku-option{
+      padding:8px 12px;cursor:pointer;font-size:12px;
+      border-bottom:1px solid rgba(148,163,184,0.1);
+      display:flex;flex-direction:column;gap:2px;
+    }
+    .sku-option:hover{background:rgba(245,158,11,0.12)}
+    .sku-option .sku-code{color:var(--gold);font-weight:700;font-size:11px}
+    .sku-option .sku-name{color:#e2e8f0}
+    .sku-option .sku-sub{color:var(--muted);font-size:10px}
+
+    /* Buttons */
+    .btn{padding:10px 16px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-weight:800;font-size:12px;transition:opacity .15s}
+    .btn:disabled{opacity:0.5;cursor:not-allowed}
+    .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#0f172a}
+    .btn-outline{background:transparent;border:1px solid rgba(245,158,11,0.4);color:var(--gold)}
+    .btn-outline:hover{background:rgba(245,158,11,0.1)}
+    .btn-danger{background:transparent;border:1px solid rgba(252,165,165,0.3);color:var(--red);padding:4px 8px;font-size:11px;border-radius:6px}
+    .btn-danger:hover{background:rgba(252,165,165,0.1)}
+    .btn-lg{width:100%;padding:14px;font-size:14px;border-radius:12px;margin-top:4px}
+
+    /* Status */
+    .status{margin-top:12px;min-height:18px;font-size:12px;color:var(--muted);line-height:1.6;padding:0 2px}
+    .status.error{color:var(--red)}
+    .status.success{color:var(--green)}
+
+    /* Summary pill */
+    .summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid rgba(245,158,11,0.25);background:rgba(245,158,11,0.08);color:var(--gold);font-size:11px;font-weight:700}
+
+    /* Add line row */
+    .add-line-row{display:flex;gap:10px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap}
+    .add-line-row .field{margin-bottom:0;flex:1;min-width:140px}
+
+    /* Loading spinner */
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(245,158,11,0.3);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+
+  <div id="splash" class="retiflux-splash" aria-hidden="false">
+    <div class="splash-icon"><div class="splash-glow"></div><img src="../favicon.png" alt="RetiFlux" width="96" height="96"></div>
+    <div class="splash-title">RetiFlux™</div>
+    <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+  </div>
+
+  <div class="container">
+    <div class="topbar">
+      <div>
+        <div class="title">New Sales Order</div>
+        <div class="sub">Fill in the order details from the physical document. Select items from the SKU list. Picker is auto-assigned when order is released.</div>
+      </div>
+      <a class="back-home" href="../index.html" target="_top">← Back to Home</a>
+    </div>
+
+    <div class="layout">
+
+      <!-- LEFT: Order header -->
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-title">Order Header</div>
+
+          <div class="row2">
+            <div class="field">
+              <label>Sales Order No</label>
+              <input id="orderNo" type="text" placeholder="e.g. 51619754" maxlength="20">
+            </div>
+            <div class="field">
+              <label>Order Type</label>
+              <select id="orderType">
+                <option value="DT">DT — Direct Trade</option>
+                <option value="MT">MT — Modern Trade</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Customer Name</label>
+            <input id="customerName" type="text" placeholder="e.g. Gilanis Distributors Ltd">
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label>Customer Code</label>
+              <input id="customerCode" type="text" placeholder="e.g. 121160" maxlength="20">
+            </div>
+            <div class="field">
+              <label>Transporter Code</label>
+              <input id="transporter" type="text" placeholder="e.g. 121160" maxlength="20">
+            </div>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label>Order Date</label>
+              <input id="orderDate" type="date">
+            </div>
+            <div class="field">
+              <label>Delivery Date</label>
+              <input id="deliveryDate" type="date">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Assignment</div>
+          <div class="field">
+            <label>Assigned Picker (optional — auto-assigned on release)</label>
+            <select id="pickerSelect">
+              <option value="">No picker — auto-assign on release</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Customer PO (optional)</label>
+            <input id="customerPo" type="text" placeholder="e.g. 23667 ELDORET">
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Line items -->
+      <div class="card">
+        <div class="card-title">Order Lines</div>
+
+        <!-- Add line inputs -->
+        <div class="add-line-row">
+          <div class="field" style="flex:2;min-width:180px">
+            <label>Search SKU / Product</label>
+            <div class="sku-wrap">
+              <input id="skuSearch" type="text" placeholder="Type SKU or product name…" autocomplete="off">
+              <div class="sku-dropdown" id="skuDropdown"></div>
+            </div>
+          </div>
+          <div class="field" style="flex:0 0 80px">
+            <label>Qty</label>
+            <input id="lineQty" type="number" min="1" placeholder="0">
+          </div>
+          <div class="field" style="flex:0 0 70px">
+            <label>Unit</label>
+            <input id="lineUnit" type="text" placeholder="Auto" maxlength="6" style="text-transform:uppercase;background:rgba(245,158,11,0.07);color:var(--gold);cursor:not-allowed" readonly>
+          </div>
+          <div class="field" style="flex:0 0 70px">
+            <label>Plant</label>
+            <input id="linePlant" type="text" placeholder="1100" maxlength="6" value="1100">
+          </div>
+          <div style="padding-bottom:14px">
+            <button class="btn btn-outline" onclick="addLine()" id="btnAddLine">+ Add</button>
+          </div>
+        </div>
+
+        <!-- Hidden selected SKU fields -->
+        <input type="hidden" id="selectedSku">
+        <input type="hidden" id="selectedSkuName">
+
+        <!-- Lines table -->
+        <div class="lines-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:36px">#</th>
+                <th style="width:90px">SKU</th>
+                <th>Product</th>
+                <th style="width:58px">Qty</th>
+                <th style="width:52px">Unit</th>
+                <th style="width:52px">Plant</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="linesBody">
+              <tr id="emptyRow">
+                <td colspan="7" style="color:#475569;padding:20px;text-align:center;font-size:12px">
+                  No lines added yet. Search for a SKU above.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary" id="summaryRow" style="display:none">
+          <span class="pill">Lines: <span id="sumLines">0</span></span>
+          <span class="pill">Total units: <span id="sumUnits">0</span></span>
+        </div>
+
+        <!-- Submit -->
+        <button class="btn btn-gold btn-lg" id="btnSubmit" onclick="submitOrder()" disabled>
+          ✓ Create Order
+        </button>
+        <div id="status" class="status"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+  (function(){
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var sb = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY)
+      ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
+      : null;
+
+    var statusEl = document.getElementById('status');
+    var btnSubmit = document.getElementById('btnSubmit');
+    var lines = [];
+    var allSkus = [];
+    var selectedSku = null;
+
+    // ── Splash ───────────────────────────────────────────────────
+    var splashRef = 0;
+    function showSplash(){splashRef++;var e=document.getElementById('splash');if(e){e.style.display='flex';e.classList.remove('fade-out');e.setAttribute('aria-hidden','false');}}
+    function hideSplash(){splashRef=Math.max(0,splashRef-1);if(splashRef>0)return;var e=document.getElementById('splash');if(e){e.classList.add('fade-out');e.setAttribute('aria-hidden','true');setTimeout(function(){e.style.display='none';},250);}}
+
+    function setStatus(msg, type){
+      statusEl.textContent = msg || '';
+      statusEl.className = 'status' + (type ? ' ' + type : '');
+    }
+    function escHtml(s){if(s==null)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+
+    // ── Load SKUs ────────────────────────────────────────────────
+    async function loadSkus(){
+      if(!sb) return;
+      try{
+        var {data, error} = await sb.from('skus')
+          .select('sku, product_name, variant, subdivision, uom, home_zone')
+          .eq('is_active', true)
+          .order('product_name');
+        if(error) throw error;
+        allSkus = data || [];
+      } catch(e){
+        setStatus('Failed to load SKUs: ' + e.message, 'error');
+      }
+    }
+
+    // ── SKU search ───────────────────────────────────────────────
+    var searchTimeout;
+    document.getElementById('skuSearch').addEventListener('input', function(){
+      clearTimeout(searchTimeout);
+      var val = this.value.trim().toLowerCase();
+      selectedSku = null;
+      document.getElementById('selectedSku').value = '';
+      document.getElementById('selectedSkuName').value = '';
+      if(val.length < 2){ closeDropdown(); return; }
+      searchTimeout = setTimeout(function(){ showDropdown(val); }, 150);
+    });
+
+    document.getElementById('skuSearch').addEventListener('keydown', function(e){
+      if(e.key === 'Escape') closeDropdown();
+      if(e.key === 'Enter'){ e.preventDefault(); addLine(); }
+    });
+
+    document.addEventListener('click', function(e){
+      if(!e.target.closest('.sku-wrap')) closeDropdown();
+    });
+
+    function showDropdown(query){
+      var results = allSkus.filter(function(s){
+        return s.sku.toLowerCase().includes(query) ||
+               s.product_name.toLowerCase().includes(query) ||
+               (s.variant && s.variant.toLowerCase().includes(query));
+      }).slice(0, 30);
+
+      var dd = document.getElementById('skuDropdown');
+      if(!results.length){ dd.innerHTML = '<div class="sku-option"><span class="sku-name" style="color:#64748b">No SKUs found</span></div>'; dd.classList.add('open'); return; }
+
+      dd.innerHTML = results.map(function(s){
+        var label = s.product_name + (s.variant ? ' — ' + s.variant : '');
+        return '<div class="sku-option" data-sku="'+escHtml(s.sku)+'" data-name="'+escHtml(label)+'" data-uom="'+escHtml(s.uom||'CAR')+'" onclick="selectSku(this)">' +
+          '<span class="sku-code">'+escHtml(s.sku)+'</span>' +
+          '<span class="sku-name">'+escHtml(label)+'</span>' +
+          '<span class="sku-sub">'+escHtml(s.subdivision||'')+(s.home_zone?' · Zone: '+s.home_zone:'')+'</span>' +
+        '</div>';
+      }).join('');
+      dd.classList.add('open');
+    }
+
+    function closeDropdown(){
+      document.getElementById('skuDropdown').classList.remove('open');
+    }
+
+    window.selectSku = function(el){
+      selectedSku = { sku: el.dataset.sku, name: el.dataset.name, uom: el.dataset.uom };
+      document.getElementById('skuSearch').value = el.dataset.sku + ' — ' + el.dataset.name;
+      document.getElementById('selectedSku').value = el.dataset.sku;
+      document.getElementById('selectedSkuName').value = el.dataset.name;
+      // Always use UOM from SKU record — never allow manual override
+      document.getElementById('lineUnit').value = el.dataset.uom || 'KAR';
+      document.getElementById('linePlant').value = document.getElementById('linePlant').value || '1100';
+      closeDropdown();
+      document.getElementById('lineQty').focus();
+    };
+
+    // ── Add line ─────────────────────────────────────────────────
+    window.addLine = function(){
+      if(!selectedSku || !selectedSku.sku){ setStatus('Please select a SKU first.', 'error'); return; }
+      var qty = parseInt(document.getElementById('lineQty').value, 10);
+      if(!qty || qty < 1){ setStatus('Please enter a valid quantity.', 'error'); return; }
+      var unit = (document.getElementById('lineUnit').value || 'CAR').toUpperCase();
+      var plant = document.getElementById('linePlant').value || '1100';
+
+      // Check for duplicate
+      var dup = lines.find(function(l){ return l.item_code === selectedSku.sku; });
+      if(dup){ setStatus('SKU ' + selectedSku.sku + ' is already in the order. Remove it first to change qty.', 'error'); return; }
+
+      lines.push({
+        line_no: lines.length + 1,
+        item_code: selectedSku.sku,
+        item_description: selectedSku.name,
+        quantity: qty,
+        unit: unit,
+        plant: plant
+      });
+
+      // Reset inputs
+      document.getElementById('skuSearch').value = '';
+      document.getElementById('selectedSku').value = '';
+      document.getElementById('selectedSkuName').value = '';
+      document.getElementById('lineQty').value = '';
+      document.getElementById('lineUnit').value = '';
+      selectedSku = null;
+      setStatus('');
+
+      renderLines();
+      checkSubmitReady();
+      document.getElementById('skuSearch').focus();
+    };
+
+    // ── Remove line ───────────────────────────────────────────────
+    window.removeLine = function(idx){
+      lines.splice(idx, 1);
+      lines.forEach(function(l, i){ l.line_no = i + 1; });
+      renderLines();
+      checkSubmitReady();
+    };
+
+    // ── Render lines table ────────────────────────────────────────
+    function renderLines(){
+      var tb = document.getElementById('linesBody');
+      var sumRow = document.getElementById('summaryRow');
+
+      if(!lines.length){
+        tb.innerHTML = '<tr id="emptyRow"><td colspan="7" style="color:#475569;padding:20px;text-align:center;font-size:12px">No lines added yet. Search for a SKU above.</td></tr>';
+        sumRow.style.display = 'none';
+        return;
+      }
+
+      tb.innerHTML = lines.map(function(l, i){
+        return '<tr>' +
+          '<td style="color:var(--muted)">'+l.line_no+'</td>' +
+          '<td style="color:var(--gold);font-weight:700">'+escHtml(l.item_code)+'</td>' +
+          '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+escHtml(l.item_description)+'">'+escHtml(l.item_description)+'</td>' +
+          '<td style="font-weight:700">'+l.quantity+'</td>' +
+          '<td>'+escHtml(l.unit)+'</td>' +
+          '<td>'+escHtml(l.plant)+'</td>' +
+          '<td><button class="btn btn-danger" onclick="removeLine('+i+')">✕</button></td>' +
+        '</tr>';
+      }).join('');
+
+      var totalUnits = lines.reduce(function(s, l){ return s + l.quantity; }, 0);
+      document.getElementById('sumLines').textContent = lines.length;
+      document.getElementById('sumUnits').textContent = totalUnits;
+      sumRow.style.display = 'flex';
+    }
+
+    // ── Validation ────────────────────────────────────────────────
+    function checkSubmitReady(){
+      var orderNo = document.getElementById('orderNo').value.trim();
+      btnSubmit.disabled = !(orderNo && lines.length > 0);
+    }
+
+    ['orderNo','pickerSelect','customerName'].forEach(function(id){
+      document.getElementById(id).addEventListener('input', checkSubmitReady);
+      document.getElementById(id).addEventListener('change', checkSubmitReady);
+    });
+
+    // ── Load pickers ──────────────────────────────────────────────
+    async function loadPickers(){
+      if(!sb){ document.getElementById('pickerSelect').innerHTML = '<option value="">Supabase not configured</option>'; return; }
+      try{
+        var {data, error} = await sb.from('authorized_users')
+          .select('user_id, name')
+          .eq('role', 'Picker')
+          .order('name');
+        if(error) throw error;
+        var sel = document.getElementById('pickerSelect');
+        if(!data || !data.length){ sel.innerHTML = '<option value="">No pickers found</option>'; return; }
+        sel.innerHTML = '<option value="">No picker — auto-assign on release</option>' +
+          data.map(function(u){
+            return '<option value="'+escHtml(u.user_id)+'" data-name="'+escHtml(u.name)+'">'+escHtml(u.name)+' ('+escHtml(u.user_id)+')</option>';
+          }).join('');
+      } catch(e){
+        document.getElementById('pickerSelect').innerHTML = '<option value="">Failed to load pickers</option>';
+      }
+    }
+
+    // ── Submit order ──────────────────────────────────────────────
+    window.submitOrder = async function(){
+      var orderNo      = document.getElementById('orderNo').value.trim();
+      var orderType    = document.getElementById('orderType').value;
+      var customerName = document.getElementById('customerName').value.trim();
+      var customerCode = document.getElementById('customerCode').value.trim();
+      var transporter  = document.getElementById('transporter').value.trim();
+      var orderDate    = document.getElementById('orderDate').value || null;
+      var deliveryDate = document.getElementById('deliveryDate').value || null;
+      var customerPo   = document.getElementById('customerPo').value.trim();
+      var pickerSel    = document.getElementById('pickerSelect');
+      var pickerUserId = pickerSel.value;
+      var pickerName   = pickerSel.selectedOptions && pickerSel.selectedOptions[0]
+        ? (pickerSel.selectedOptions[0].getAttribute('data-name') || pickerSel.selectedOptions[0].textContent) : '';
+
+      if(!orderNo)      { setStatus('Please enter the Sales Order No.', 'error'); return; }
+      if(!lines.length) { setStatus('Please add at least one line item.', 'error'); return; }
+
+      btnSubmit.disabled = true;
+      showSplash();
+
+      try{
+        var totalUnits = lines.reduce(function(s,l){ return s + l.quantity; }, 0);
+
+        var orderRow = {
+          external_order_no:        orderNo,
+          order_type:               orderType,
+          status:                   'AWAITING_RELEASE',
+          assigned_picker_user_id:  pickerUserId || null,
+          assigned_picker_name:     pickerName || null,
+          customer_name:            customerName || null,
+          customer_code:            customerCode || null,
+          customer_no:              customerPo   || null,
+          order_date:               orderDate,
+          delivery_date:            deliveryDate,
+          transporter:              transporter  || null,
+          total_lines:              lines.length,
+          total_units:              totalUnits,
+          pages_total:              1
+        };
+
+        setStatus('Saving order…', '');
+        var ins = await sb.from('orders').insert(orderRow).select('id').single();
+        if(ins.error) throw ins.error;
+        var orderId = ins.data.id;
+
+        setStatus('Saving line items…', '');
+        var linesRows = lines.map(function(l){
+          return {
+            order_id:         orderId,
+            line_no:          l.line_no,
+            item_code:        l.item_code,
+            item_description: l.item_description || null,
+            quantity:         l.quantity,
+            unit:             l.unit  || null,
+            plant:            l.plant || null,
+            status:           'OPEN'
+          };
+        });
+        var insLines = await sb.from('order_lines').insert(linesRows);
+        if(insLines.error) throw insLines.error;
+
+        setStatus('✅ Order created! Release the order to auto-assign picker and print cover sheet.', 'success');
+
+        // Reset form
+        setTimeout(function(){
+          document.getElementById('orderNo').value = '';
+          document.getElementById('customerName').value = '';
+          document.getElementById('customerCode').value = '';
+          document.getElementById('transporter').value = '';
+          document.getElementById('orderDate').value = '';
+          document.getElementById('deliveryDate').value = '';
+          document.getElementById('customerPo').value = '';
+          document.getElementById('pickerSelect').value = '';
+          lines = [];
+          renderLines();
+          checkSubmitReady();
+          setStatus('');
+        }, 2000);
+
+      } catch(e){
+        setStatus('❌ ' + (e.message || 'Failed to save order'), 'error');
+      } finally {
+        hideSplash();
+        checkSubmitReady();
+      }
+    };
+
+    // ── Init ──────────────────────────────────────────────────────
+    hideSplash();
+    // Set today's date as default order date
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('orderDate').value = today;
+
+    Promise.all([loadPickers(), loadSkus()]).then(function(){
+      checkSubmitReady();
+    });
+
+  })();
+  </script>
+</body>
+</html>

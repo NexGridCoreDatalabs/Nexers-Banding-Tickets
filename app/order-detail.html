@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <title>RetiFlux™ · Order Detail</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link rel="stylesheet" href="../css/retiflux-responsive.css">
+  <script src="../js/retiflux-performance.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --gold:#f0c040;--gold2:#f59e0b;
+      --bg:#0f172a;--card:rgba(15,23,42,0.97);
+      --font:'Cascadia Mono','Cascadia Code',Consolas,monospace;
+      --muted:#94a3b8;--border:rgba(245,158,11,0.3);
+      --green:#86efac;--red:#fca5a5;--blue:#93c5fd;
+    }
+    html{background:var(--bg)}
+    body{font-family:var(--font);background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);min-height:100vh;color:#e2e8f0;padding:20px 16px 80px}
+    .container{max-width:none;margin:0;width:100%;padding-left:16px;padding-right:16px}
+    @media(max-width:480px){body{padding:16px 12px 72px}.topbar{flex-direction:column;align-items:stretch}.title{font-size:18px}}
+    @media(min-width:768px){.container{max-width:none;padding-left:24px;padding-right:24px}}
+    @media(min-width:1200px){.container{max-width:none;padding-left:32px;padding-right:32px}}
+
+    /* Topbar */
+    .topbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:16px}
+    .title{font-size:20px;font-weight:900;color:#fff}
+    .sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .back{display:inline-flex;align-items:center;white-space:nowrap;padding:8px 14px;border:2px solid rgba(245,158,11,0.5);border-radius:10px;color:var(--gold);text-decoration:none;font-weight:900;font-size:13px}
+    .back:hover{background:rgba(245,158,11,0.15)}
+
+    /* Layout */
+    .layout{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+    .layout > div:first-child{
+      position:sticky;
+      top:12px;
+      align-self:start;
+      max-height:calc(100vh - 24px);
+      overflow:auto;
+      padding-right:2px;
+    }
+    @media(max-width:900px){
+      .layout{grid-template-columns:1fr}
+      .layout > div:first-child{position:static;max-height:none;overflow:visible;padding-right:0}
+    }
+
+    /* Cards */
+    .card{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:18px;margin-bottom:16px}
+    .card:last-child{margin-bottom:0}
+    .card-title{font-size:11px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;font-weight:800}
+
+    /* KV pairs */
+    .kv-grid{display:flex;flex-direction:column;gap:10px}
+    .kv{display:flex;flex-direction:column;gap:3px}
+    .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+    .v{font-size:13px;font-weight:700;color:#fff}
+
+    /* Status badge */
+    .status-badge{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 14px;border-radius:999px;
+      font-size:12px;font-weight:800;letter-spacing:0.5px;
+      margin-bottom:14px;
+    }
+    .status-AWAITING_RELEASE{background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);color:#fbbf24}
+    .status-AWAITING_SM_RELEASE{background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.5);color:#fbbf24}
+    .status-RELEASED{background:rgba(147,197,253,0.15);border:1px solid rgba(147,197,253,0.4);color:var(--blue)}
+    .status-IN_PROGRESS{background:rgba(134,239,172,0.15);border:1px solid rgba(134,239,172,0.4);color:var(--green)}
+    .status-COMPLETED{background:rgba(134,239,172,0.2);border:1px solid rgba(134,239,172,0.5);color:var(--green)}
+    .status-PICKING_HALTED{background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.5);color:#f59e0b}
+    .status-CANCELLED{background:rgba(252,165,165,0.15);border:1px solid rgba(252,165,165,0.4);color:var(--red)}
+
+    /* Action buttons */
+    .btn{padding:10px 16px;border-radius:10px;border:none;cursor:pointer;font-family:var(--font);font-weight:800;font-size:12px;transition:opacity .15s;display:inline-flex;align-items:center;gap:6px}
+    .btn:disabled{opacity:0.4;cursor:not-allowed}
+    .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#0f172a;width:100%;justify-content:center;padding:12px}
+    .btn-blue{background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.45);color:#93c5fd;width:100%;justify-content:center;padding:12px}
+    .btn-green{background:rgba(134,239,172,0.15);border:1px solid rgba(134,239,172,0.4);color:var(--green);width:100%;justify-content:center;padding:12px}
+    .btn-red{background:rgba(252,165,165,0.1);border:1px solid rgba(252,165,165,0.3);color:var(--red);width:100%;justify-content:center;padding:12px}
+    .btn-sm{padding:5px 10px;font-size:11px;border-radius:7px}
+    .btn-pick{background:rgba(134,239,172,0.12);border:1px solid rgba(134,239,172,0.3);color:var(--green)}
+    .btn-short{background:rgba(252,165,165,0.1);border:1px solid rgba(252,165,165,0.25);color:var(--red)}
+    .btn-reset{background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--muted)}
+
+    /* Lines table */
+    .table-wrap{overflow:auto;border:1px solid rgba(148,163,184,0.2);border-radius:12px;max-height:68vh}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    thead th{position:sticky;top:0;z-index:2;background:rgba(15,23,42,0.98);color:var(--gold);text-align:left;padding:10px;border-bottom:1px solid rgba(245,158,11,0.2);font-size:10px;letter-spacing:1px;text-transform:uppercase;white-space:nowrap}
+    tbody td{padding:9px 10px;border-bottom:1px solid rgba(148,163,184,0.1);vertical-align:middle}
+    tbody tr:last-child td{border-bottom:none}
+    tbody tr.picked{opacity:0.55}
+    tbody tr.picked td:first-child{text-decoration:line-through}
+    /* SHORT ≠ picked: still needs zone stock / picker may reopen */
+    tbody tr.line-row-short{opacity:1;background:rgba(245,158,11,0.06);border-left:4px solid rgba(245,158,11,0.55)}
+    tbody tr.line-row-short td:first-child{text-decoration:none}
+    .workflow-hint-banner{
+      font-size:12px;line-height:1.5;color:#fde68a;padding:12px 14px;margin-bottom:12px;border-radius:12px;
+      background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35)
+    }
+    .workflow-hint-banner strong{color:var(--gold)}
+
+    /* DT/MT fulfillment split (allocator) */
+    .dtmt-card{font-size:12px;line-height:1.5;color:#e2e8f0}
+    .dtmt-card .dtmt-row{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:8px}
+    .dtmt-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;font-size:11px;font-weight:800;border:1px solid rgba(148,163,184,0.25);background:rgba(15,23,42,0.5)}
+    .dtmt-pill .tag{font-size:9px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);font-weight:800}
+    .dtmt-pill.sm{border-color:rgba(147,197,253,0.35);color:var(--blue)}
+    .dtmt-pill.dt{border-color:rgba(252,165,165,0.35);color:#fca5a5}
+    .dtmt-pill.mt{border-color:rgba(134,239,172,0.35);color:var(--green)}
+    .dtmt-note{font-size:10px;color:var(--muted);margin-top:10px;line-height:1.45}
+    .dtmt-line{font-size:10px;color:var(--muted);white-space:nowrap}
+    .dtmt-line strong{color:#e2e8f0}
+
+    /* Line status pill */
+    .line-pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
+    .line-OPEN{background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--muted)}
+    .line-PICKED{background:rgba(134,239,172,0.15);border:1px solid rgba(134,239,172,0.35);color:var(--green)}
+    .line-SHORT{background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24}
+    .line-PICKER_REPORTED_SHORT{background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#f59e0b}
+    tbody tr.reported-row{background:rgba(245,158,11,0.08)!important;border-left:4px solid #f59e0b;animation:amberPulse 2s ease-in-out infinite}
+    @keyframes amberPulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(245,158,11,0)}50%{box-shadow:inset 0 0 20px 0 rgba(245,158,11,0.08)}}
+
+    /* Progress bar */
+    .progress-wrap{margin-bottom:14px}
+    .progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:5px}
+    .progress-bar{height:6px;background:rgba(148,163,184,0.2);border-radius:999px;overflow:hidden}
+    .progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--green));border-radius:999px;transition:width .4s}
+
+    /* Notification */
+    .notif{padding:10px 14px;border-radius:10px;font-size:12px;margin-bottom:12px;display:none}
+    .notif.show{display:block}
+    .notif.success{background:rgba(134,239,172,0.1);border:1px solid rgba(134,239,172,0.3);color:var(--green)}
+    .notif.error{background:rgba(252,165,165,0.1);border:1px solid rgba(252,165,165,0.3);color:var(--red)}
+
+    /* Spinner */
+    .spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(245,158,11,0.3);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Empty / loading */
+    .empty{color:var(--muted);padding:24px;text-align:center;font-size:12px}
+
+    /* ══════════════════════════════════════════════════════════════
+       LIVE POLLING ENHANCEMENTS
+       ══════════════════════════════════════════════════════════════ */
+    .live-indicator{display:inline-flex;align-items:center;gap:6px;font-size:10px;color:var(--green);font-weight:800;letter-spacing:0.5px}
+    .live-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+    @keyframes flash-green{0%{background:rgba(134,239,172,0.3)}100%{background:transparent}}
+    @keyframes flash-red{0%{background:rgba(252,165,165,0.3)}100%{background:transparent}}
+    tbody tr.just-picked{animation:flash-green 0.8s ease-out}
+    tbody tr.just-short{animation:flash-red 0.8s ease-out}
+
+    .toast{position:fixed;top:24px;right:24px;background:var(--card);border:2px solid var(--green);border-radius:12px;padding:16px 20px;box-shadow:0 8px 32px rgba(0,0,0,0.4);z-index:9999;display:none;min-width:300px}
+    .toast.show{display:block;animation:slideIn 0.3s ease-out}
+    .toast.completed{border-color:var(--gold);background:linear-gradient(135deg,rgba(240,192,64,0.1),rgba(245,158,11,0.1))}
+    .toast-title{font-size:14px;font-weight:900;color:#fff;margin-bottom:4px}
+    .toast-msg{font-size:12px;color:var(--muted)}
+    @keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+    /* Branded modal (short reason) */
+    .modal-backdrop{
+      position:fixed;inset:0;
+      background:
+        radial-gradient(70% 60% at 50% 20%, rgba(245,158,11,0.16), rgba(245,158,11,0) 65%),
+        rgba(2,6,23,0.72);
+      backdrop-filter:blur(6px);
+      z-index:10000;display:none;align-items:center;justify-content:center;
+      padding:20px;opacity:0;transition:opacity .24s ease;
+    }
+    .modal-backdrop.show{display:flex;opacity:1}
+    .modal-card{
+      position:relative;overflow:hidden;
+      background:linear-gradient(165deg,rgba(30,41,59,0.98) 0%,rgba(15,23,42,0.99) 100%);
+      border:1px solid rgba(245,158,11,0.45);
+      border-radius:18px;padding:24px;max-width:420px;width:100%;
+      box-shadow:0 20px 60px rgba(2,6,23,0.6), 0 0 0 1px rgba(148,163,184,0.06) inset;
+      transform:translateY(10px) scale(0.97);
+      transition:transform .24s ease, box-shadow .24s ease;
+    }
+    .modal-card::before{
+      content:"";
+      position:absolute;left:-40px;top:-56px;width:200px;height:140px;pointer-events:none;
+      background:radial-gradient(circle, rgba(245,158,11,0.22) 0%, rgba(245,158,11,0) 72%);
+    }
+    .modal-backdrop.show .modal-card{
+      transform:translateY(0) scale(1);
+      box-shadow:0 26px 70px rgba(2,6,23,0.68), 0 0 0 1px rgba(245,158,11,0.1) inset;
+    }
+    .modal-title{
+      font-size:13px;font-weight:900;color:var(--gold);text-transform:uppercase;
+      letter-spacing:1.3px;margin-bottom:8px
+    }
+    .modal-sub{font-size:12px;color:#cbd5e1;margin-bottom:16px;line-height:1.55}
+    .modal-field label{
+      display:block;font-size:10px;color:#f8d284;font-weight:800;letter-spacing:1px;
+      text-transform:uppercase;margin-bottom:8px
+    }
+    .modal-field textarea{
+      width:100%;min-height:100px;padding:13px 14px;border-radius:12px;
+      border:1px solid rgba(245,158,11,0.32);
+      background:linear-gradient(180deg,rgba(15,23,42,0.88),rgba(15,23,42,0.74));
+      color:#e2e8f0;font-family:var(--font);font-size:14px;resize:vertical;
+      transition:border-color .15s, box-shadow .15s;
+    }
+    .modal-field textarea:focus{
+      outline:none;border-color:#fbbf24;
+      box-shadow:0 0 0 3px rgba(251,191,36,0.18);
+    }
+    .modal-field textarea::placeholder{color:#94a3b8;opacity:0.85}
+    .modal-actions{display:flex;gap:12px;margin-top:20px}
+    .modal-actions .btn{flex:1}
+    .modal-actions .btn-secondary{
+      background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.34);color:#cbd5e1
+    }
+    .modal-actions .btn-secondary:hover{background:rgba(148,163,184,0.22)}
+    @media(max-width:520px){
+      .modal-backdrop{padding:14px}
+      .modal-card{padding:18px;border-radius:16px}
+      .modal-actions{flex-direction:column}
+      .modal-actions .btn{width:100%}
+    }
+
+    /* Branded confirm (release guard, cancel, etc.) */
+    .modal-card--confirm{max-width:440px}
+    .modal-body-text{font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:12px;white-space:pre-line}
+    .modal-callout{
+      font-size:11px;color:#fde68a;line-height:1.45;padding:12px 14px;border-radius:12px;
+      background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);margin-bottom:16px
+    }
+    .modal-callout strong{color:var(--gold);font-weight:800}
+  </style>
+</head>
+<body>
+  <div id="splash" class="retiflux-splash" aria-hidden="false">
+    <div class="splash-icon"><div class="splash-glow"></div><img src="../favicon.png" alt="RetiFlux" width="96" height="96" loading="eager"></div>
+    <div class="splash-title">RetiFlux™</div>
+    <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+  </div>
+  <div class="container">
+
+    <!-- Toast notification for live updates -->
+    <div id="toast" class="toast">
+      <div class="toast-title" id="toastTitle"></div>
+      <div class="toast-msg" id="toastMsg"></div>
+    </div>
+
+    <div class="topbar">
+      <div>
+        <div class="title" id="pageTitle">Order Detail</div>
+        <div class="sub" id="pageSub">Loading…</div>
+      </div>
+      <a class="back" href="../index.html" target="_top">← Home</a>
+    </div>
+
+    <div id="mainContent">
+      <div class="card"><div class="empty"><span class="spinner"></span> Loading order…</div></div>
+    </div>
+
+    <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+  </div>
+
+  <!-- Short reason modal -->
+  <div id="shortReasonModal" class="modal-backdrop" role="dialog" aria-labelledby="shortModalTitle" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-title" id="shortModalTitle">Mark as short</div>
+      <div class="modal-sub">You must provide a reason when marking a line short. This helps track stock issues.</div>
+      <div class="modal-field">
+        <label for="shortReasonInput">Reason (required)</label>
+        <textarea id="shortReasonInput" placeholder="e.g. No stock in SM, damaged cartons, wrong location…" maxlength="500"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="shortModalCancel">Cancel</button>
+        <button type="button" class="btn btn-red" id="shortModalSubmit">Mark short</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RetiFlux confirm (replaces browser confirm) -->
+  <div id="rfConfirmModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="rfConfirmTitle">
+    <div class="modal-card modal-card--confirm">
+      <div class="modal-title" id="rfConfirmTitle">Confirm</div>
+      <div class="modal-body-text" id="rfConfirmBody"></div>
+      <div class="modal-callout" id="rfConfirmCallout" style="display:none;"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="rfConfirmCancel">Cancel</button>
+        <button type="button" class="btn btn-gold" id="rfConfirmOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="../js/retiflux-notifications.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+  (function(){
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var sb = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY)
+      ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
+      : null;
+
+    var params = new URLSearchParams(window.location.search);
+    var orderId = params.get('order') || '';
+    var order = null;
+    var lines = [];
+    var orderPallets = [];
+
+    // ══════════════════════════════════════════════════════════════
+    // POLLING STATE
+    // ══════════════════════════════════════════════════════════════
+    var pollIntervals = { lines: null, header: null, list: null };
+    var previousLineStates = new Map();
+    var notifiedCompletedOrders = new Set();
+
+    function isUuid(s){ return s && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(s).trim()); }
+    async function ensureOrderUuid(val){
+      if(!val || !sb) return null;
+      if(isUuid(val)) return val;
+      var {data:o} = await sb.from('orders').select('id').eq('external_order_no', val).maybeSingle();
+      if(o && o.id) return o.id;
+      var {data:ops} = await sb.from('order_pallets').select('order_id').eq('pallet_id', val).limit(1);
+      return (ops && ops[0] && ops[0].order_id) ? ops[0].order_id : null;
+    }
+    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+    function fmtDate(s){ if(!s)return'—'; try{ return new Date(s).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }catch(e){return s;} }
+    function fmtStatus(s){ return (s||'—').replace(/_/g,' '); }
+
+    function statusClass(s){ return 'status-'+(s||'AWAITING_RELEASE'); }
+
+    /** Channel label on order header (commercial) vs fulfillment split (physical) */
+    function fmtOrderChannel(ot){
+      var t = String(ot||'').toUpperCase();
+      if(t === 'DT') return 'DT — Direct Trade';
+      if(t === 'MT') return 'MT — Modern Trade';
+      return ot || '—';
+    }
+
+    /**
+     * Physical fulfillment split from allocator: SM_PICK reservations + DT_MOVE tasks; MT = line qty − SM − DT.
+     */
+    function applyFulfillmentSplitToLines(linesArr, resRows, routeTasks){
+      var smByLine = {};
+      (resRows || []).forEach(function(r){
+        if(!r || !r.order_line_id || r.reservation_type !== 'SM_PICK') return;
+        var q = Number(r.quantity_reserved) || 0;
+        smByLine[r.order_line_id] = (smByLine[r.order_line_id] || 0) + q;
+      });
+      var dtByLine = {};
+      (routeTasks || []).forEach(function(t){
+        if(!t || !t.order_line_id || t.task_type !== 'DT_MOVE' || (t.status || '').toUpperCase() === 'CANCELLED') return;
+        var q = Number(t.quantity_needed) || 0;
+        dtByLine[t.order_line_id] = (dtByLine[t.order_line_id] || 0) + q;
+      });
+      var totals = { sm: 0, dt: 0, mt: 0, lineQty: 0, hasData: false };
+      var hasOp = (routeTasks || []).some(function(t){
+        return t && t.task_type === 'ORDER_PICK' && t.order_line_id && (t.status || '').toUpperCase() !== 'CANCELLED';
+      });
+      (linesArr || []).forEach(function(l){
+        var sm = smByLine[l.id] || 0;
+        var dt = dtByLine[l.id] || 0;
+        var qty = Number(l.quantity) || 0;
+        var mt = Math.max(0, qty - sm - dt);
+        l.fulfill_sm_units = sm;
+        l.fulfill_dt_units = dt;
+        l.fulfill_mt_units = mt;
+        totals.sm += sm;
+        totals.dt += dt;
+        totals.mt += mt;
+        totals.lineQty += qty;
+      });
+      totals.hasData = (resRows || []).some(function(r){ return r && r.reservation_type === 'SM_PICK'; }) ||
+        (routeTasks || []).some(function(t){ return t && (t.task_type === 'DT_MOVE' || t.task_type === 'ORDER_PICK') && (t.status || '').toUpperCase() !== 'CANCELLED'; });
+      totals.hasOrderPick = hasOp;
+      return totals;
+    }
+
+    async function attachFulfillmentSplit(linesArr, oid){
+      if(!sb || !oid || !linesArr || !linesArr.length){
+        (linesArr || []).forEach(function(l){
+          l.fulfill_sm_units = 0; l.fulfill_dt_units = 0; l.fulfill_mt_units = 0;
+        });
+        return { sm: 0, dt: 0, mt: 0, lineQty: 0, hasData: false, hasOrderPick: false };
+      }
+      try{
+        var resQ = sb.from('pallet_reservations')
+          .select('order_line_id, quantity_reserved, reservation_type')
+          .eq('order_id', oid)
+          .is('released_at', null);
+        var taskQ = sb.from('replenishment_tasks')
+          .select('order_line_id, task_type, quantity_needed, status')
+          .eq('order_id', oid)
+          .in('task_type', ['DT_MOVE', 'ORDER_PICK']);
+        var [{ data: resRows }, { data: routeTasks }] = await Promise.all([resQ, taskQ]);
+        return applyFulfillmentSplitToLines(linesArr, resRows || [], routeTasks || []);
+      } catch(e){
+        (linesArr || []).forEach(function(l){
+          l.fulfill_sm_units = 0; l.fulfill_dt_units = 0; l.fulfill_mt_units = 0;
+        });
+        return { sm: 0, dt: 0, mt: 0, lineQty: 0, hasData: false, hasOrderPick: false };
+      }
+    }
+
+    function renderDtMtFulfillCard(orderObj, linesArr, totals){
+      var el = document.getElementById('dtMtFulfillCard');
+      if(!el) return;
+      var ch = fmtOrderChannel(orderObj && orderObj.order_type);
+      var inner = '<div class="card-title">DT / MT breakdown</div>' +
+        '<div class="dtmt-card">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:6px"><strong style="color:#fde68a">Order channel (commercial):</strong> ' + esc(ch) + '</div>' +
+        '<div style="font-size:11px;color:var(--muted)"><strong style="color:#fde68a">Physical fulfillment (allocator):</strong></div>';
+      if(!totals || !totals.hasData){
+        inner += '<p class="dtmt-note" style="margin-top:8px">No allocation snapshot yet. Run <strong>check order availability</strong> / release — then you’ll see units split across <strong>SuperMarket pick</strong>, <strong>dispatch full pallets (DT move)</strong>, and <strong>zone → SM (MT pick path)</strong>.</p>';
+      } else {
+        inner += '<div class="dtmt-row">' +
+          '<span class="dtmt-pill sm"><span class="tag">SM pick balance</span> ' + esc(String(Math.round(totals.sm * 100) / 100)) + ' u</span>' +
+          '<span class="dtmt-pill dt"><span class="tag">DT move</span> ' + esc(String(Math.round(totals.dt * 100) / 100)) + ' u</span>' +
+          '<span class="dtmt-pill mt"><span class="tag">MT path</span> ' + esc(String(Math.round(totals.mt * 100) / 100)) + ' u</span>' +
+          '</div>' +
+          '<p class="dtmt-note"><strong>SM pick balance</strong> = total <strong>units</strong> pickers must take in the SuperMarket pick phase for this order (from reservations — often a <strong>partial</strong> off a pallet, e.g. 15 units, not the whole pallet). <strong>DT</strong> = units on full pallets to dispatch. <strong>MT path</strong> = units that will need SM pick after zone replenishment. Line totals: <strong>' + esc(String(Math.round(totals.lineQty * 100) / 100)) + ' u</strong>.</p>';
+      }
+      inner += '</div>';
+      el.innerHTML = inner;
+    }
+
+    /** Human-readable SM/DT/MT unit balances (SM = exact reserved pick qty, often partial on a pallet). */
+    function fmtUnitCount(n, unit){
+      var u = (unit && String(unit).trim()) ? String(unit).trim() : 'units';
+      var x = Math.round((Number(n) || 0) * 100) / 100;
+      return esc(String(x)) + ' ' + esc(u);
+    }
+    function smPickBalancesNarrativeHTML(l){
+      var sm = Number(l.fulfill_sm_units) || 0;
+      var dt = Number(l.fulfill_dt_units) || 0;
+      var mt = Number(l.fulfill_mt_units) || 0;
+      var q = Number(l.quantity) || 0;
+      var pq = Number(l.picked_quantity) || 0;
+      var rem = Math.max(0, q - pq);
+      var u = (l.unit && String(l.unit).trim()) ? l.unit : 'units';
+      var bits = [];
+      if (sm > 0){
+        bits.push('<div><span style="color:#93c5fd;font-weight:800">' + fmtUnitCount(sm, u) + '</span> <span style="color:#e2e8f0">to pick from SuperMarket</span> <span style="color:var(--muted);font-size:9px">(order needs this many from SM stock — can be less than a full pallet)</span></div>');
+      }
+      if (dt > 0){
+        bits.push('<div><span style="color:#fca5a5;font-weight:800">' + fmtUnitCount(dt, u) + '</span> <span style="color:#e2e8f0">via dispatch / full pallets — not an SM pick</span></div>');
+      }
+      if (mt > 0){
+        bits.push('<div><span style="color:#86efac;font-weight:800">' + fmtUnitCount(mt, u) + '</span> <span style="color:#e2e8f0">from SuperMarket after zone moves stock in</span> <span style="color:var(--muted);font-size:9px">(MT path)</span></div>');
+      }
+      if (!bits.length && q > 0){
+        bits.push('<div style="color:var(--muted)">No allocator split yet — run availability / release.</div>');
+      }
+      var narr = '<div style="font-size:10px;line-height:1.45;margin-top:6px">' + bits.join('') + '</div>';
+      if (q > 0){
+        narr += '<div style="margin-top:6px;font-size:9px;color:var(--muted)">Line progress: <strong style="color:#e2e8f0">' + fmtUnitCount(pq, u) + '</strong> picked · <strong style="color:#fbbf24">' + fmtUnitCount(rem, u) + '</strong> left of <strong style="color:#e2e8f0">' + fmtUnitCount(q, u) + '</strong></div>';
+      }
+      return narr;
+    }
+
+    // Enrich order lines with description, unit, plant, recommended_pallet from skus + pallets
+    async function enrichLinesWithSkus(linesToEnrich){
+      if(!linesToEnrich || !linesToEnrich.length || !sb) return linesToEnrich;
+      var codes = [...new Set(linesToEnrich.map(function(l){ return l.item_code; }).filter(Boolean))];
+      if(!codes.length) return linesToEnrich;
+      var {data:skusData} = await sb.from('skus').select('sku, product_name, uom, subdivision, home_zone').in('sku', codes);
+      var skuMap = {};
+      (skusData || []).forEach(function(s){ skuMap[s.sku] = s; });
+      var enriched = linesToEnrich.map(function(l){
+        var s = skuMap[l.item_code];
+        return Object.assign({}, l, {
+          item_description: l.item_description || (s && s.product_name) || '',
+          unit: l.unit || (s && s.uom) || '',
+          plant: l.plant || (s && s.subdivision) || '',
+          home_zone: (s && s.home_zone) || l.plant || ''
+        });
+      });
+      var zones = ['SuperMarket Area'];
+      enriched.forEach(function(l){ if(l.home_zone && zones.indexOf(l.home_zone)<0) zones.push(l.home_zone); });
+      var {data:pallets} = await sb.from('pallets')
+        .select('pallet_id, sku, current_zone, created_at, in_transit_to_zone')
+        .in('current_zone', zones)
+        .in('sku', codes);
+      pallets = (pallets || []).filter(function(p){ return !p.in_transit_to_zone || String(p.in_transit_to_zone).trim()===''; });
+      function getFifo(arr, zone, sku){
+        var m = arr.filter(function(p){ return p.current_zone===zone && p.sku===sku; });
+        m.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+        return m[0] || null;
+      }
+      function normSkuDet(s){ return String(s==null?'':s).trim(); }
+      var oid = enriched[0] && enriched[0].order_id;
+      var pullTasks = [];
+      var resByLine = {};
+      if(oid){
+        try{
+          var {data:rt} = await sb.from('replenishment_tasks')
+            .select('task_id, sku, quantity_needed, from_zone, to_zone, task_type, status, reserved_pallet_id')
+            .eq('order_id', oid)
+            .in('status', ['PENDING', 'IN_PROGRESS'])
+            .in('task_type', ['ORDER_PICK', 'DT_MOVE']);
+          pullTasks = rt || [];
+        } catch(_){ pullTasks = []; }
+        try{
+          var {data:pr} = await sb.from('pallet_reservations')
+            .select('order_line_id, pallet_id, reservation_type')
+            .eq('order_id', oid)
+            .is('released_at', null);
+          (pr || []).forEach(function(r){ if(r && r.order_line_id) resByLine[r.order_line_id] = r; });
+        } catch(_){ resByLine = {}; }
+      }
+      return enriched.map(function(l){
+        var sm = getFifo(pallets, 'SuperMarket Area', l.item_code);
+        var skuT = pullTasks.filter(function(t){ return normSkuDet(t.sku) === normSkuDet(l.item_code); });
+        var tOrder = skuT.find(function(t){ return t.task_type === 'ORDER_PICK'; });
+        var tDt = skuT.find(function(t){ return t.task_type === 'DT_MOVE'; });
+        var res = resByLine[l.id];
+        var rec = null;
+        if(sm) rec = sm.pallet_id;
+        else if(res && res.reservation_type === 'SM_PICK' && res.pallet_id){
+          var rp = (pallets || []).find(function(p){ return p.pallet_id === res.pallet_id && p.current_zone === 'SuperMarket Area'; });
+          if(rp) rec = res.pallet_id;
+        } else if(tOrder && tOrder.reserved_pallet_id){
+          var rid = String(tOrder.reserved_pallet_id).trim();
+          if(rid){
+            var tp = (pallets || []).find(function(p){ return p.pallet_id === rid && p.current_zone === 'SuperMarket Area'; });
+            if(tp) rec = rid;
+          }
+        }
+        var pickFace = 'SuperMarket Area';
+        var pickNote = 'Picker takes this in the SuperMarket pick phase — not the SKU home zone.';
+        if(tDt && !tOrder && !sm && !rec){
+          pickFace = 'Dispatch / full pallet';
+          pickNote = 'Zone clerk route to dispatch — picker does not use SuperMarket pick phase for this line unless reopened.';
+        }
+        return Object.assign({}, l, {
+          recommended_pallet: rec,
+          pick_face_zone: pickFace,
+          pick_face_note: pickNote
+        });
+      });
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // TOAST NOTIFICATIONS
+    // ══════════════════════════════════════════════════════════════
+    function showToast(title, msg, type){
+      var toast = document.getElementById('toast');
+      if(!toast) return;
+      var prettyMsg = (window.RetiFluxNotifs && window.RetiFluxNotifs.humanizeUiMessage)
+        ? window.RetiFluxNotifs.humanizeUiMessage(msg, type)
+        : msg;
+      document.getElementById('toastTitle').textContent = title;
+      document.getElementById('toastMsg').textContent = prettyMsg;
+      toast.className = 'toast show' + (type ? ' ' + type : '');
+      setTimeout(function(){ toast.className = 'toast'; }, 4500);
+    }
+
+    function showBrowserNotification(title, body){
+      if(!('Notification' in window)) return;
+      if(Notification.permission === 'granted'){
+        new Notification(title, { body: body, icon: '../favicon.png', tag: 'order-completed' });
+      } else if(Notification.permission !== 'denied'){
+        Notification.requestPermission().then(function(perm){
+          if(perm === 'granted') new Notification(title, { body: body, icon: '../favicon.png' });
+        });
+      }
+    }
+
+    // ── Notification ─────────────────────────────────────────────
+    function notify(msg, type){
+      var pretty = (window.RetiFluxNotifs && window.RetiFluxNotifs.humanizeUiMessage)
+        ? window.RetiFluxNotifs.humanizeUiMessage(msg, type)
+        : msg;
+      var n = document.getElementById('notif');
+      if(!n){
+        // In orders-list view there is no inline notif box; fall back to toast.
+        showToast(type === 'error' ? 'Action failed' : 'Update', pretty, type || 'success');
+        return;
+      }
+      n.textContent = pretty;
+      n.className = 'notif show ' + (type||'success');
+      clearTimeout(n._t);
+      n._t = setTimeout(function(){ n.className = 'notif'; }, 3500);
+    }
+
+    // ── Progress ─────────────────────────────────────────────────
+    function updateProgress(){
+      var total = lines.length;
+      var done = lines.filter(function(l){ return l.status==='PICKED'||l.status==='SHORT'; }).length; // PICKER_REPORTED_SHORT needs supervisor
+      var pct = total ? Math.round(done/total*100) : 0;
+      var el = document.getElementById('progressFill');
+      var lbl = document.getElementById('progressLabel');
+      if(el) el.style.width = pct + '%';
+      if(lbl) lbl.textContent = done + ' / ' + total + ' lines (' + pct + '%)';
+    }
+
+    // ── Render lines table ────────────────────────────────────────
+    function renderLines(){
+      var tb = document.getElementById('linesBody');
+      if(!tb) return;
+      var isReleased = order && (order.status === 'RELEASED' || order.status === 'IN_PROGRESS' || order.status === 'COMPLETED');
+      var banner = document.getElementById('orderLinesWorkflowBanner');
+      if(banner){
+        var hasShort = lines.some(function(l){ return l.status === 'SHORT'; });
+        var relPick = order && (order.status === 'RELEASED' || order.status === 'IN_PROGRESS');
+        if(relPick && hasShort){
+          banner.style.display = 'block';
+          banner.innerHTML =
+            '<strong>Short lines are not “picked.”</strong> They usually mean stock was not yet in the <strong>SuperMarket pick phase</strong> (clerks may still be moving it from a product zone). ' +
+            '<strong>Picker:</strong> when enough stock is available in SuperMarket again, the line can reopen automatically for picking (manual <strong>↩ Undo</strong> remains as fallback). ' +
+            '<strong>Here:</strong> use <strong>↩ Reopen for picker</strong> to set a line OPEN if you want it active before the picker acts. ' +
+            '<strong>Pick from</strong> column below shows the pick phase / route (SM vs dispatch), not the SKU’s home zone. ' +
+            '<strong>Zone clerks:</strong> complete <strong>order-pull</strong> tasks so pallets reach SuperMarket for the picker.';
+        } else {
+          banner.style.display = 'none';
+          banner.innerHTML = '';
+        }
+      }
+
+      if(!lines.length){
+        tb.innerHTML = '<tr><td colspan="10" class="empty">No line items found.</td></tr>';
+        return;
+      }
+
+      tb.innerHTML = lines.map(function(l, i){
+        var isPicked = l.status === 'PICKED';
+        var isShort  = l.status === 'SHORT';
+        var isReported = l.status === 'PICKER_REPORTED_SHORT';
+        var isDone   = isPicked || isShort;
+        var rowClass = isPicked ? 'picked' : (isShort ? 'line-row-short' : (isReported ? 'reported-row' : ''));
+        
+        // Track state changes for animations
+        var prevState = previousLineStates.get(l.id);
+        if(prevState && prevState !== l.status){
+          if(l.status === 'PICKED') rowClass += ' just-picked';
+          else if(l.status === 'SHORT') rowClass += ' just-short';
+        }
+        previousLineStates.set(l.id, l.status);
+        
+        var actions;
+        if(!isReleased) actions = '<span style="font-size:10px;color:#475569">Awaiting release</span>';
+        else if(isReported)
+          actions = '<button class="btn btn-sm btn-short" onclick="supervisorConfirmShort('+i+')">Confirm short</button> ' +
+            '<button class="btn btn-sm btn-reset" onclick="supervisorClearReport('+i+')">Clear</button>';
+        else if(!isDone)
+          actions = '<button class="btn btn-sm btn-pick" onclick="markLine('+i+',\'PICKED\')">✓ Picked</button> ' +
+            '<button class="btn btn-sm btn-short" onclick="markLine('+i+',\'SHORT\')">✕ Short</button>';
+        else if(isShort)
+          actions = '<button class="btn btn-sm btn-reset" onclick="markLine('+i+',\'OPEN\')" title="Use when stock arrived after replenishment — picker can then pick this line">↩ Reopen for picker</button>';
+        else
+          actions = '<button class="btn btn-sm btn-reset" onclick="markLine('+i+',\'OPEN\')">↩ Reset</button>';
+
+        return '<tr class="'+rowClass+'" data-line-id="'+l.id+'">' +
+          '<td style="color:var(--muted)">'+esc(l.line_no)+'</td>'+
+          '<td style="font-weight:800;color:#fff">'+esc(l.item_code)+'</td>'+
+          '<td>'+esc(l.item_description||'')+'</td>'+
+          '<td style="font-weight:800">'+esc(l.quantity)+'</td>'+
+          '<td class="dtmt-line" style="vertical-align:top;max-width:200px" title="Unit balances from allocator">'+
+            smPickBalancesNarrativeHTML(l)+
+          '</td>'+
+          '<td>'+esc(l.unit||'')+'</td>'+
+          '<td>'+esc(l.plant||'')+'</td>'+
+          '<td style="vertical-align:top;max-width:200px">'+
+            '<div style="font-weight:800;color:#e2e8f0">'+esc(l.pick_face_zone||'SuperMarket Area')+'</div>'+
+            '<div style="font-size:9px;color:var(--muted);margin-top:3px;line-height:1.35">'+esc(l.pick_face_note||'')+'</div>'+
+            (Number(l.fulfill_sm_units) > 0
+              ? '<div style="font-size:10px;color:#93c5fd;margin-top:5px;font-weight:800">SM pick: <strong>'+fmtUnitCount(l.fulfill_sm_units, l.unit)+'</strong> in pick phase</div>'
+              : '')+
+            (l.recommended_pallet
+              ? '<div style="font-size:10px;color:var(--gold);margin-top:5px;font-weight:700">Source pallet: '+esc(l.recommended_pallet)+'</div>'
+              : '<div style="font-size:9px;color:var(--muted);margin-top:5px">No SM pallet visible yet — check order-pull tasks</div>')+
+            (l.home_zone ? '<div style="font-size:9px;color:var(--muted);margin-top:4px">SKU home: '+esc(l.home_zone)+'</div>' : '')+
+          '</td>'+
+          '<td><span class="line-pill line-'+esc(l.status||'OPEN')+'">'+esc(l.status==='PICKED'?'✓ Picked':l.status==='SHORT'?'✕ Short (await stock)':l.status==='PICKER_REPORTED_SHORT'?'⚠ Reported':'Open')+'</span>'+(l.short_reason?' <span style="font-size:10px;color:var(--muted)" title="'+esc(l.short_reason)+'">— '+esc(l.short_reason)+'</span>':'')+'</td>'+
+          '<td style="text-align:right">'+actions+'</td>'+
+        '</tr>';
+      }).join('');
+      updateProgress();
+    }
+
+    // ── Short reason modal ────────────────────────────────────────
+    var pendingShortIdx = null;
+    function showShortReasonModal(idx){
+      pendingShortIdx = idx;
+      var inp = document.getElementById('shortReasonInput');
+      var modal = document.getElementById('shortReasonModal');
+      if(inp) inp.value = '';
+      modal.classList.add('show');
+      if(inp){ inp.focus(); inp.select(); }
+    }
+    function hideShortReasonModal(){
+      document.getElementById('shortReasonModal').classList.remove('show');
+      pendingShortIdx = null;
+    }
+    function doMarkShortWithReason(){
+      var idx = pendingShortIdx;
+      if(idx == null) return;
+      var inp = document.getElementById('shortReasonInput');
+      var reason = inp && inp.value ? String(inp.value).trim() : '';
+      if(!reason){
+        notify('Please enter a reason.', 'error');
+        return;
+      }
+      hideShortReasonModal();
+      applyMarkLine(idx, 'SHORT', reason);
+    }
+    document.getElementById('shortModalCancel').onclick = hideShortReasonModal;
+    document.getElementById('shortModalSubmit').onclick = doMarkShortWithReason;
+    document.getElementById('shortReasonModal').addEventListener('click', function(e){ if(e.target === this) hideShortReasonModal(); });
+    document.getElementById('shortReasonInput').addEventListener('keydown', function(e){
+      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); doMarkShortWithReason(); }
+      if(e.key === 'Escape'){ e.preventDefault(); hideShortReasonModal(); }
+    });
+
+    // ── Branded confirm modal (same shell as short modal) ─────────
+    var rfConfirmResolve = null;
+    function closeRfConfirm(val){
+      var m = document.getElementById('rfConfirmModal');
+      if(m) m.classList.remove('show');
+      var fn = rfConfirmResolve;
+      rfConfirmResolve = null;
+      if(fn) fn(!!val);
+    }
+    /** opts: { title, body, callout?, cancelText, okText, okDanger? } → Promise<boolean> */
+    function showRfConfirm(opts){
+      opts = opts || {};
+      return new Promise(function(resolve){
+        rfConfirmResolve = resolve;
+        document.getElementById('rfConfirmTitle').textContent = opts.title || 'Confirm';
+        document.getElementById('rfConfirmBody').textContent = opts.body || '';
+        var co = document.getElementById('rfConfirmCallout');
+        if(co){
+          if(opts.callout){
+            co.style.display = 'block';
+            co.innerHTML = opts.callout;
+          } else {
+            co.style.display = 'none';
+            co.textContent = '';
+          }
+        }
+        document.getElementById('rfConfirmCancel').textContent = opts.cancelText || 'Cancel';
+        var okBtn = document.getElementById('rfConfirmOk');
+        okBtn.textContent = opts.okText || 'OK';
+        okBtn.className = 'btn ' + (opts.okDanger ? 'btn-red' : 'btn-gold');
+        document.getElementById('rfConfirmModal').classList.add('show');
+      });
+    }
+    (function initRfConfirm(){
+      var bd = document.getElementById('rfConfirmModal');
+      document.getElementById('rfConfirmCancel').onclick = function(){ closeRfConfirm(false); };
+      document.getElementById('rfConfirmOk').onclick = function(){ closeRfConfirm(true); };
+      if(bd) bd.addEventListener('click', function(e){ if(e.target === bd) closeRfConfirm(false); });
+    })();
+
+    document.addEventListener('keydown', function(e){
+      if(e.key !== 'Escape') return;
+      var rf = document.getElementById('rfConfirmModal');
+      if(rf && rf.classList.contains('show')){ e.preventDefault(); closeRfConfirm(false); return; }
+      if(document.getElementById('shortReasonModal').classList.contains('show')){ e.preventDefault(); hideShortReasonModal(); }
+    });
+
+    // ── Supervisor actions for picker-reported shorts ──────────────
+    window.supervisorConfirmShort = function(idx){
+      var line = lines[idx];
+      if(!line || line.status !== 'PICKER_REPORTED_SHORT') return;
+      var payload = { status: 'SHORT' }; // Keep short_reason from picker
+      sb.from('order_lines').update(payload).eq('id', line.id).then(async function(r){
+        if(r.error){ notify('Failed: ' + r.error.message, 'error'); return; }
+        lines[idx].status = 'SHORT';
+        renderLines();
+        var allDone = lines.every(function(l){ return l.status==='PICKED'||l.status==='SHORT'; });
+        // IMPORTANT: Do not auto-set orders.status='COMPLETED' from supervisor actions.
+        // Picking completion (AWAITING_SM_RELEASE) must be submitted by the picker UI,
+        // and COMPLETED must be finalized by the zone clerk release flow.
+        if(allDone) notify('All lines resolved — submit for SM release in picker UI.', 'success');
+        notify('Short confirmed', 'success');
+      }).catch(function(e){ notify('Failed: ' + e.message, 'error'); });
+    };
+    window.supervisorClearReport = function(idx){
+      var line = lines[idx];
+      if(!line || line.status !== 'PICKER_REPORTED_SHORT') return;
+      var payload = { status: 'OPEN', short_reason: null, picker_reported_by: null, picker_reported_at: null };
+      sb.from('order_lines').update(payload).eq('id', line.id).then(function(r){
+        if(r.error){ notify('Failed: ' + r.error.message, 'error'); return; }
+        lines[idx].status = 'OPEN';
+        lines[idx].short_reason = null;
+        lines[idx].picker_reported_by = null;
+        lines[idx].picker_reported_at = null;
+        renderLines();
+        notify('Report cleared — line back to Open', 'success');
+      }).catch(function(e){ notify('Failed: ' + e.message, 'error'); });
+    };
+
+    // ── Mark a line ───────────────────────────────────────────────
+    function applyMarkLine(idx, newStatus, shortReason){
+      var line = lines[idx];
+      if(!line) return;
+      var payload = {status: newStatus};
+      if(newStatus === 'SHORT') payload.short_reason = shortReason || null;
+      else if(newStatus === 'OPEN'){ payload.short_reason = null; payload.picker_reported_by = null; payload.picker_reported_at = null; }
+      sb.from('order_lines').update(payload).eq('id', line.id).then(async function(r){
+        if(r.error){ notify('Failed: ' + r.error.message, 'error'); return; }
+        lines[idx].status = newStatus;
+        if(newStatus === 'SHORT') lines[idx].short_reason = payload.short_reason;
+        else if(newStatus === 'OPEN') lines[idx].short_reason = null;
+        renderLines();
+        var allDone = lines.every(function(l){ return l.status==='PICKED'||l.status==='SHORT'; });
+        if(allDone && order.status === 'IN_PROGRESS'){
+          // Do not auto-complete; just inform. Picker submits for SM release.
+          notify('All lines resolved — submit for SM release in picker UI.', 'success');
+        } else if(newStatus !== 'OPEN' && order.status === 'RELEASED'){
+          await updateOrderStatus('IN_PROGRESS');
+        }
+        notify('Line updated to ' + newStatus, 'success');
+      }).catch(function(e){ notify('Failed: ' + e.message, 'error'); });
+    }
+    window.markLine = async function(idx, newStatus){
+      var line = lines[idx];
+      if(!line) return;
+      if(newStatus === 'SHORT'){
+        showShortReasonModal(idx);
+        return;
+      }
+      applyMarkLine(idx, newStatus);
+    };
+
+    // ── Update order status ───────────────────────────────────────
+    async function updateOrderStatus(newStatus){
+      if(!order || !order.id) return;
+      try{
+        if(newStatus === 'COMPLETED'){
+          // Guardrail: never mark order complete while picker work is still OPEN.
+          var badLines = (Array.isArray(lines) ? lines : []).filter(function(l){
+            return !(l && (l.status === 'PICKED' || l.status === 'SHORT'));
+          });
+          // PICKER_REPORTED_SHORT is considered non-terminal, so it is blocked by the guard above.
+          if(badLines.length){
+            notify('Cannot complete order: still ' + badLines.length + ' line(s) not PICKED/SHORT.', 'error');
+            return;
+          }
+          // Server-side guard (if available): prevents race conditions where UI is slightly behind.
+          try{
+            var {data:guardData, error:guardErr} = await sb.rpc('assert_order_can_complete', { p_order_id: order.id });
+            if(guardErr || (guardData && guardData.success === false)){
+              throw new Error(guardErr ? guardErr.message : (guardData && guardData.error) ? guardData.error : 'Completion guard failed');
+            }
+          } catch(guard){
+            notify('Cannot complete order: ' + (guard && guard.message ? guard.message : guard), 'error');
+            return;
+          }
+        }
+        var {error} = await sb.from('orders')
+          .update({status: newStatus})
+          .eq('id', order.id);
+        if(error) throw error;
+        order.status = newStatus;
+        if (newStatus === 'COMPLETED' || newStatus === 'CANCELLED') {
+          try { await sb.rpc('release_pallet_reservations', { p_order_id: order.id }); } catch (_) {}
+        }
+        var badge = document.getElementById('statusBadge');
+        if(badge){ badge.textContent = fmtStatus(newStatus); badge.className = 'status-badge ' + statusClass(newStatus); }
+        updateActionButtons();
+        notify('Order status updated to ' + fmtStatus(newStatus), 'success');
+      } catch(e){
+        notify('Status update failed: ' + e.message, 'error');
+      }
+    }
+
+    // ── Action buttons ────────────────────────────────────────────
+    function getPickingProgressPct(){
+      var total = lines.length || order.total_lines || 0;
+      if(!total) return 0;
+      var done = lines.filter(function(l){ return l.status==='PICKED'||l.status==='SHORT'; }).length;
+      return Math.round(done/total*100);
+    }
+    function canPushToDispatch(){
+      if(!order || order.status==='CANCELLED') return false;
+      if(order.pushed_to_dispatch_at) return false;
+      if(orderPallets.length && orderPallets.some(function(op){ return op.status==='in_progress'; })) return false;
+      // Push to Dispatch must only happen after the picker has submitted for SM release
+      // (status = AWAITING_SM_RELEASE) OR after the order is already completed.
+      // In this system the zone-clerk release flow is the single source of truth
+      // for dispatch pushing + completion. Disable pushing from this UI unless
+      // the order is already COMPLETED (to avoid conflicts).
+      if(order.status==='COMPLETED') return true;
+      return false;
+    }
+    function updateActionButtons(){
+      var s = order ? order.status : '';
+      var btnRelease  = document.getElementById('btnRelease');
+      var btnComplete = document.getElementById('btnComplete');
+      var btnPush     = document.getElementById('btnPushDispatch');
+      var btnCancel   = document.getElementById('btnCancel');
+      if(btnRelease)  btnRelease.disabled  = (s !== 'AWAITING_RELEASE');
+      if(btnComplete) btnComplete.disabled = (s !== 'IN_PROGRESS');
+      if(btnPush){
+        btnPush.disabled = !canPushToDispatch();
+        btnPush.textContent = order && order.pushed_to_dispatch_at ? '✓ Pushed to Dispatch' : '🚚 Push to Dispatch';
+      }
+      if(btnCancel)   btnCancel.disabled   = (s === 'COMPLETED' || s === 'CANCELLED');
+    }
+
+    async function getNextPicker(){
+      var {data:pickers} = await sb.from('authorized_users').select('user_id, name').eq('role','Picker').order('name');
+      if(!pickers || !pickers.length) return null;
+      var {data:counts} = await sb.from('orders')
+        .select('assigned_picker_user_id')
+        .in('status', ['RELEASED','IN_PROGRESS']);
+      var pickerLoad = {};
+      pickers.forEach(function(p){ pickerLoad[p.user_id] = 0; });
+      (counts||[]).forEach(function(o){
+        if(o.assigned_picker_user_id) pickerLoad[o.assigned_picker_user_id] = (pickerLoad[o.assigned_picker_user_id]||0) + 1;
+      });
+      var min = Infinity, chosen = null;
+      pickers.forEach(function(p){
+        var load = pickerLoad[p.user_id]||0;
+        if(load < min){ min = load; chosen = p; }
+      });
+      return chosen;
+    }
+
+    window.releaseOrder   = async function(){
+      if(!sb || !order) return;
+      var raw = (order && order.id) ? order.id : orderId;
+      var ordUuid = isUuid(raw) ? raw : await ensureOrderUuid(raw);
+      if(!ordUuid){
+        notify('Could not resolve order. Use the order list (click an order) or ensure the link has a valid order ID.', 'error');
+        return;
+      }
+      try{
+        var picker = await getNextPicker();
+        var updatePayload = { status: 'RELEASED' };
+        if(picker){
+          updatePayload.assigned_picker_user_id = picker.user_id;
+          updatePayload.assigned_picker_name = picker.name;
+        }
+        var {error:upErr} = await sb.from('orders').update(updatePayload).eq('id', ordUuid);
+        if(upErr) throw upErr;
+        order.status = 'RELEASED';
+        if(picker){ order.assigned_picker_user_id = picker.user_id; order.assigned_picker_name = picker.name; }
+        var badge = document.getElementById('statusBadge');
+        if(badge){ badge.textContent = fmtStatus('RELEASED'); badge.className = 'status-badge ' + statusClass('RELEASED'); }
+        var pageSub = document.getElementById('pageSub');
+        if(pageSub) pageSub.textContent = 'Customer: ' + (order.customer_name || '—') + ' · Picker: ' + (order.assigned_picker_name || '—');
+        var vPicker = document.querySelector('#kvPicker .v');
+        if(vPicker && picker) vPicker.textContent = picker.name;
+        updateActionButtons();
+        notify('Order released to picker. Run Allocation Wave to generate fulfillment tasks and splits.' + (picker ? ' Assigned: ' + picker.name + '.' : ''), 'success');
+        var {data:newLines} = await sb.from('order_lines').select('*').eq('order_id', ordUuid).order('line_no');
+        if(newLines && newLines.length){
+          lines = await enrichLinesWithSkus(newLines);
+          order.fulfillTotals = await attachFulfillmentSplit(lines, ordUuid);
+        }
+        renderLines();
+        renderDtMtFulfillCard(order, lines, order.fulfillTotals);
+        var coverUrl = (window.location.pathname || '').indexOf('/app/') !== -1
+          ? '/app/order-cover-sheet?order=' + encodeURIComponent(ordUuid) + '&t=' + Date.now()
+          : 'order-cover-sheet.html?order=' + encodeURIComponent(ordUuid) + '&t=' + Date.now();
+        window.open(coverUrl, 'RetiFluxCover_' + Date.now(), 'width=920,height=760,scrollbars=yes');
+      } catch(err){
+        notify('Release failed: ' + (err.message||err), 'error');
+      }
+    };
+    window.runAllocationWave = async function(){
+      if(!sb || !order || !order.id) return;
+      try{
+        var identifier = String(order.id || order.external_order_no || '');
+        var { data, error } = await sb.rpc('run_allocation_wave', { p_order_id: identifier });
+        if(error) throw error;
+        var summary = data || {};
+        var tasks = Number(summary.tasks_created || 0) || 0;
+        var canRelease = summary.can_release !== false;
+        var msg = summary.message ? String(summary.message) : 'Allocation wave completed.';
+        notify(msg + ' Tasks created: ' + tasks + (canRelease ? '' : ' Some lines are still short.'), canRelease ? 'success' : 'warn');
+        var {data:newLines} = await sb.from('order_lines').select('*').eq('order_id', order.id).order('line_no');
+        if(newLines && newLines.length){
+          lines = await enrichLinesWithSkus(newLines);
+          order.fulfillTotals = await attachFulfillmentSplit(lines, order.id);
+        }
+        renderLines();
+        renderDtMtFulfillCard(order, lines, order.fulfillTotals);
+      } catch(err){
+        notify('Allocation wave failed: ' + (err.message || err), 'error');
+      }
+    };
+    window.runAllocationWaveForList = async function(){
+      if(!sb) return;
+      var btn = document.getElementById('btnRunWaveList');
+      try{
+        if(btn) btn.disabled = true;
+        var { data, error } = await sb.rpc('run_allocation_wave', { p_order_id: null, p_limit: 100 });
+        if(error) throw error;
+        var summary = data || {};
+        var processed = Number(summary.orders_processed || 0) || 0;
+        var tasks = Number(summary.tasks_created || 0) || 0;
+        var shortOrders = Number(summary.orders_with_shortage || 0) || 0;
+        var readyToRelease = Number(summary.orders_ready_to_release);
+        if(Number.isNaN(readyToRelease)){
+          readyToRelease = Math.max(0, processed - shortOrders);
+        }
+        notify('Allocation wave complete. Ready to release: ' + readyToRelease + ' order(s) of ' + processed + ' processed. Tasks created: ' + tasks + '.', shortOrders > 0 ? 'warn' : 'success');
+        await loadOrdersList();
+      } catch(err){
+        notify('Allocation wave failed: ' + (err.message || err), 'error');
+      } finally {
+        if(btn) btn.disabled = false;
+      }
+    };
+    window.completeOrder  = function(){ updateOrderStatus('COMPLETED'); };
+    window.cancelOrder    = async function(){
+      var ok = await showRfConfirm({
+        title: 'Cancel this order',
+        body: 'The order will be marked cancelled. This action is intended to be permanent for this workflow.',
+        cancelText: 'Keep order',
+        okText: 'Cancel order',
+        okDanger: true
+      });
+      if(ok) updateOrderStatus('CANCELLED');
+    };
+    window.pushToDispatch = async function(){
+      if(!sb || !order || !order.id || !canPushToDispatch()) return;
+      try{
+        var pushedBy = (typeof window.currentUser !== 'undefined' && window.currentUser && window.currentUser.user_id) ? window.currentUser.user_id : 'Order Detail';
+        var {data, error} = await sb.rpc('push_order_to_dispatch', { p_order_id: order.id, p_moved_by: pushedBy });
+        if(error) throw error;
+        if(data && data.success === false) throw new Error(data.error || 'Push failed');
+        var n = (data && data.pallets_moved) || 0;
+        // Only mark the order as "pushed" if the RPC actually moved pallets.
+        // Otherwise we would block future pushes before the zone clerk releases pallets.
+        if(n > 0){
+          order.pushed_to_dispatch_at = new Date().toISOString();
+          order.pushed_to_dispatch_by = pushedBy;
+        }
+        updateActionButtons();
+        loadOrderInTransit();
+        notify(n > 0 ? 'Order pushed: ' + n + ' pallet(s) in transit to Dispatch' : 'Order marked for dispatch (no pallets in SM)', 'success');
+      } catch(e){
+        notify('Failed: ' + (e.message||e), 'error');
+      }
+    };
+
+    // ── Render full page ──────────────────────────────────────────
+    function renderPage(){
+      document.getElementById('pageTitle').textContent = 'Order · ' + (order.external_order_no || orderId);
+      document.getElementById('pageSub').textContent   = 'Customer: ' + (order.customer_name || '—') + ' · Picker: ' + (order.assigned_picker_name || '—');
+      document.title = 'Order ' + (order.external_order_no || orderId) + ' · RetiFlux™';
+
+      document.getElementById('mainContent').innerHTML =
+        '<div class="layout">' +
+
+          // LEFT sidebar
+          '<div>' +
+            '<div class="card">' +
+              '<div class="card-title">Order info <span class="live-indicator"><span class="live-dot"></span> LIVE</span></div>' +
+              '<div id="statusBadge" class="status-badge '+statusClass(order.status)+'">'+fmtStatus(order.status)+'</div>'+
+              '<div class="kv-grid">' +
+                kv('Sales order no', order.external_order_no) +
+                kv('Order type',     fmtOrderChannel(order.order_type)) +
+                kv('Customer',       order.customer_name) +
+                kv('Customer code',  order.customer_code) +
+                kv('Transporter',    order.transporter) +
+                kv('Order date',     fmtDate(order.order_date)) +
+                kv('Delivery date',  fmtDate(order.delivery_date)) +
+                '<div class="kv" id="kvPicker"><div class="k">Assigned picker</div><div class="v">'+esc(order.assigned_picker_name || order.assigned_picker_user_id || '—')+'</div></div>' +
+                kv('Total lines',    String(order.total_lines || lines.length)) +
+                kv('Total units',    String(order.total_units || 0)) +
+              '</div>' +
+            '</div>' +
+
+            '<div class="card" id="dtMtFulfillCard"></div>' +
+
+            '<div class="card" id="orderPalletsCard">' +
+              '<div class="card-title">Order pallets & locations</div>' +
+              '<div id="orderPalletsList" style="font-size:12px;color:var(--muted)">Loading…</div>' +
+            '</div>' +
+
+            '<div class="card" id="orderInTransitCard" style="display:none">' +
+              '<div class="card-title">Pallets in transit</div>' +
+              '<div id="orderInTransitList" style="font-size:12px;color:var(--muted)"></div>' +
+            '</div>' +
+
+            '<div class="card">' +
+              '<div class="card-title">Actions</div>' +
+              '<div id="notif" class="notif"></div>'+
+              '<div style="display:flex;flex-direction:column;gap:8px">' +
+                '<button id="btnRelease"  class="btn btn-gold"  onclick="releaseOrder()">▶ Release for Picking</button>' +
+                '<button id="btnComplete" class="btn btn-green" onclick="completeOrder()">✓ Mark Completed</button>' +
+                '<button id="btnPushDispatch" class="btn btn-green" onclick="pushToDispatch()" title="Disabled here to avoid conflicts; zone clerk performs push on release">🚚 Push to Dispatch</button>' +
+                '<button id="btnCancel"   class="btn btn-red"   onclick="cancelOrder()">✕ Cancel Order</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          // RIGHT — lines
+          '<div>' +
+            '<div class="card">' +
+              '<div class="card-title">Order lines'+(lines.some(function(l){return l.status==='PICKER_REPORTED_SHORT';})?' <span style="color:#f59e0b;font-size:10px">⚠ Picker reports awaiting review</span>':'')+'</div>' +
+              '<div class="progress-wrap">' +
+                '<div class="progress-label"><span>Picking progress</span><span id="progressLabel">—</span></div>'+
+                '<div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>'+
+              '</div>'+
+              '<div id="orderLinesWorkflowBanner" class="workflow-hint-banner" style="display:none" role="status"></div>'+
+              '<div class="table-wrap">' +
+                '<table>' +
+                  '<thead><tr>' +
+                    '<th style="width:36px">#</th>' +
+                    '<th style="width:100px">Item code</th>' +
+                    '<th>Description</th>' +
+                    '<th style="width:60px">Qty</th>' +
+                    '<th style="width:118px">Balances (units)</th>' +
+                    '<th style="width:50px">Unit</th>' +
+                    '<th style="width:50px">Plant</th>' +
+                    '<th style="width:100px">Pick from</th>' +
+                    '<th style="width:70px">Status</th>' +
+                    '<th style="width:160px">Action</th>' +
+                  '</tr></thead>' +
+                  '<tbody id="linesBody"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>' +
+                '</table>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+        '</div>';
+
+      renderLines();
+      renderDtMtFulfillCard(order, lines, order.fulfillTotals);
+      updateActionButtons();
+
+      if(order && order.status === 'PICKING_HALTED' && order.picking_halted_reason){
+        notify('⏸ Picking halted: ' + order.picking_halted_reason, 'error');
+      }
+    }
+
+    function kv(label, value){
+      return '<div class="kv"><div class="k">'+esc(label)+'</div><div class="v">'+esc(value||'—')+'</div></div>';
+    }
+
+    function hideSplash(){
+      var s = document.getElementById('splash');
+      if(s){ s.classList.add('fade-out'); s.setAttribute('aria-hidden','true'); setTimeout(function(){ s.style.display='none'; }, 280); }
+    }
+
+    // ── Load data ─────────────────────────────────────────────────
+    async function load(){
+      if(!sb) throw new Error('Supabase not configured — check config.js');
+
+      // No order ID — show recent orders list instead
+      if(!orderId){ 
+        await loadOrdersList(); 
+        startOrdersListPolling(); // Start live polling for list view
+        hideSplash();
+        return; 
+      }
+
+      // Resolve by external_order_no or pallet_id if param is not a UUID
+      if(!isUuid(orderId)){
+        var resolved = false;
+        var {data:oByExt} = await sb.from('orders').select('id').eq('external_order_no', orderId).maybeSingle();
+        if(oByExt){ orderId = oByExt.id; resolved = true; }
+        if(!resolved){
+          var {data:ops} = await sb.from('order_pallets').select('order_id').eq('pallet_id', orderId).limit(1);
+          if(ops && ops[0] && ops[0].order_id){ orderId = ops[0].order_id; resolved = true; }
+        }
+        if(resolved && window.history && window.history.replaceState) window.history.replaceState(null,'','?order='+encodeURIComponent(orderId));
+        else if(!resolved) throw new Error('Order not found. Use order ID (UUID), external order number (e.g. SO-SIM-00007), or pallet ID. Got: ' + orderId);
+      }
+
+      var {data:o, error:e1} = await sb.from('orders').select('*').eq('id', orderId).single();
+      if(e1) throw new Error('Order query failed: ' + e1.message);
+      if(!o) throw new Error('Order not found: ' + orderId);
+      order = o;
+
+      // If order is already completed when page loads, add to tracking to prevent notification
+      if(o.status === 'COMPLETED'){
+        notifiedCompletedOrders.add(o.id);
+      }
+
+      var {data:l, error:e2} = await sb.from('order_lines').select('*').eq('order_id', orderId).order('line_no');
+      if(e2) throw new Error('Lines query failed: ' + e2.message);
+      lines = await enrichLinesWithSkus(l || []);
+      order.fulfillTotals = await attachFulfillmentSplit(lines, orderId);
+
+      renderPage();
+      loadOrderPallets();
+      loadOrderInTransit();
+      startOrderDetailPolling(); // Start live polling for detail view
+      hideSplash();
+    }
+
+    async function loadOrderPallets(){
+      var el = document.getElementById('orderPalletsList');
+      if(!el || !sb || !orderId) return;
+      try{
+        var {data, error} = await sb.from('order_pallets').select('*').eq('order_id', orderId).order('sequence');
+        if(error){ el.textContent = '—'; return; }
+        orderPallets = data || [];
+        if(!orderPallets.length){ el.innerHTML = '<span style="color:var(--muted)">No order pallets yet</span>'; return; }
+        var palletIds = orderPallets.map(function(op){ return op.pallet_id; });
+        var palletLocs = {};
+        var {data: pals} = await sb.from('pallets').select('pallet_id, current_zone, in_transit_to_zone').in('pallet_id', palletIds);
+        (pals || []).forEach(function(p){ palletLocs[p.pallet_id] = p; });
+        var base = (window.location.pathname||'').indexOf('/app/')!==-1 ? '/app/' : '';
+        el.innerHTML = '<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:4px 0;color:var(--gold);font-weight:700">Pallet</th><th style="text-align:left;padding:4px 0;color:var(--gold);font-weight:700">Status</th><th style="text-align:left;padding:4px 0;color:var(--gold);font-weight:700">Location</th></tr></thead><tbody>' +
+        orderPallets.map(function(op){
+          var loc = palletLocs[op.pallet_id];
+          var locStr = loc ? (loc.in_transit_to_zone ? 'In transit → ' + (loc.in_transit_to_zone || '') : (loc.current_zone || '—')) : '—';
+          var ordUuid = order && order.id ? order.id : orderId;
+          var q = 'pallet=' + encodeURIComponent(op.pallet_id) + '&order=' + encodeURIComponent(ordUuid);
+          var url = base + 'pallet-cover-sheet.html?' + q + '#' + q;
+          return '<tr><td style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.15)"><a href="#" data-pallet="'+esc(op.pallet_id)+'" data-order="'+esc(ordUuid)+'" data-url="'+esc(url)+'" class="pallet-cover-link" style="color:var(--gold);font-weight:700;text-decoration:none">📦 '+esc(op.pallet_id)+'</a></td><td style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.15);color:var(--muted)">'+esc(op.status)+'</td><td style="padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.15);color:#e2e8f0">'+esc(locStr)+'</td></tr>';
+        }).join('') + '</tbody></table>';
+        el.querySelectorAll('.pallet-cover-link').forEach(function(a){
+          a.onclick = function(e){
+            e.preventDefault();
+            var pallet = a.dataset.pallet, ord = a.dataset.order, url = a.dataset.url;
+            if (pallet && ord) {
+              try {
+                localStorage.setItem('palletCover_pallet', pallet);
+                localStorage.setItem('palletCover_order', ord);
+                localStorage.setItem('palletCover_ts', String(Date.now()));
+              } catch (_) {}
+            }
+            if (url) window.open(url, 'PalletCover_'+pallet, 'width=920,height=760,scrollbars=yes');
+          };
+        });
+        updateActionButtons();
+      } catch(e){ el.textContent = '—'; }
+    }
+
+    async function loadOrderInTransit(){
+      var card = document.getElementById('orderInTransitCard');
+      var list = document.getElementById('orderInTransitList');
+      if(!card || !list || !sb || !orderId) return;
+      try{
+        var orderRef = order.external_order_no || ('ORD-' + orderId);
+        var {data, error} = await sb.from('zone_movements')
+          .select('pallet_id, from_zone, to_zone, created_at, forklifts(forklift_code, name)')
+          .eq('order_reference', orderRef)
+          .eq('movement_status', 'In Transit');
+        if(error){ card.style.display = 'none'; return; }
+        if(!data || !data.length){ card.style.display = 'none'; return; }
+        card.style.display = 'block';
+        list.innerHTML = data.map(function(m){
+          var f = m.forklifts;
+          var fl = (f && (f.forklift_code || f.name)) ? ' · FL: ' + (f.forklift_code || f.name) : '';
+          return '<div style="margin-bottom:6px"><span style="font-weight:700;color:var(--gold)">' + esc(m.pallet_id) + '</span> ' + esc(m.from_zone) + ' → ' + esc(m.to_zone) + '<span style="color:#94a3b8;font-size:11px">' + esc(fl) + '</span></div>';
+        }).join('');
+      } catch(e){ card.style.display = 'none'; }
+    }
+
+    // ── Recent orders list (shown when no ID in URL) ──────────────
+    async function loadOrdersList(){
+      document.getElementById('pageTitle').textContent = 'Orders';
+      document.getElementById('pageSub').textContent = 'All orders — click any to open';
+
+      var {data:orders, error} = await sb
+        .from('orders')
+        .select('id, external_order_no, customer_name, order_type, status, assigned_picker_name, order_date, delivery_date, total_lines, picked_lines_count, short_lines_count')
+        .order('created_at', {ascending: true})
+        .limit(50);
+
+      if(error) throw new Error('Orders query failed: ' + error.message);
+      orders = orders || [];
+
+      // Initialize tracking with already-completed orders to prevent notifications on page load
+      orders.forEach(function(o){
+        if(o.status === 'COMPLETED'){
+          notifiedCompletedOrders.add(o.id);
+        }
+      });
+
+      renderOrdersList(orders);
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // POLLING FUNCTIONS
+    // ══════════════════════════════════════════════════════════════
+    async function pollOrderLines(){
+      if(!orderId || !sb) return;
+      try{
+        var {data:newLines, error} = await sb
+          .from('order_lines')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('line_no');
+        
+        if(error) throw error;
+        if(!newLines) return;
+
+        // Detect changes
+        var changed = false;
+        if(lines.length !== newLines.length){
+          changed = true;
+        } else {
+          for(var i=0; i<newLines.length; i++){
+            if(!lines[i] || lines[i].status !== newLines[i].status || lines[i].updated_at !== newLines[i].updated_at){
+              changed = true;
+              break;
+            }
+          }
+        }
+
+        if(changed){
+          lines = await enrichLinesWithSkus(newLines);
+        }
+        order.fulfillTotals = await attachFulfillmentSplit(lines, orderId);
+        if(changed) renderLines();
+        renderDtMtFulfillCard(order, lines, order.fulfillTotals);
+        loadOrderPallets();
+        loadOrderInTransit();
+      } catch(e){
+        console.error('Poll lines error:', e);
+      }
+    }
+
+    async function pollOrderHeader(){
+      if(!orderId || !sb) return;
+      try{
+        var {data:o, error} = await sb.from('orders').select('*').eq('id', orderId).single();
+        if(error) throw error;
+        if(!o) return;
+
+        var statusChanged = order && order.status !== o.status;
+        order = o;
+
+        if(statusChanged){
+          var badge = document.getElementById('statusBadge');
+          if(badge){
+            badge.className = 'status-badge ' + statusClass(o.status);
+            badge.textContent = fmtStatus(o.status);
+          }
+          updateActionButtons();
+          
+          // Only show toast if we haven't notified about this order yet
+          if(o.status === 'COMPLETED' && !notifiedCompletedOrders.has(o.id)){
+            notifiedCompletedOrders.add(o.id);
+            showToast('🎉 Order Completed!', 'Order ' + (o.external_order_no||'') + ' is ready for dispatch', 'completed');
+          }
+
+          if(o.status === 'PICKING_HALTED'){
+            notify('⏸ Picking halted: ' + (o.picking_halted_reason || '—'), 'error');
+          }
+        }
+      } catch(e){
+        console.error('Poll header error:', e);
+      }
+    }
+
+    async function pollOrdersList(){
+      if(!sb) return;
+      try{
+        var {data:orders, error} = await sb
+          .from('orders')
+          .select('id, external_order_no, customer_name, order_type, status, assigned_picker_name, order_date, delivery_date, total_lines, picked_lines_count, short_lines_count')
+          .order('created_at', {ascending: true})
+          .limit(50);
+
+        if(error) throw error;
+        if(!orders) return;
+
+        // Check for newly completed orders
+        orders.forEach(function(o){
+          if(o.status === 'COMPLETED' && !notifiedCompletedOrders.has(o.id)){
+            notifiedCompletedOrders.add(o.id);
+            showToast('🎉 Order Completed!', 'Order ' + (o.external_order_no||o.id) + ' picked by ' + (o.assigned_picker_name||'Unknown'), 'completed');
+            showBrowserNotification('RetiFlux™ · Order Completed', 'Order ' + (o.external_order_no||o.id) + ' picked by ' + (o.assigned_picker_name||'Unknown'));
+          }
+        });
+
+        renderOrdersList(orders);
+      } catch(e){
+        console.error('Poll orders list error:', e);
+      }
+    }
+
+    function renderOrdersList(orders){
+      if(!orders.length){
+        document.getElementById('mainContent').innerHTML =
+          '<div class="card"><div class="empty">No orders found. Create one from the Order Intake page.</div></div>';
+        return;
+      }
+
+      var rows = orders.map(function(o){
+        var statusCls = 'status-'+(o.status||'AWAITING_RELEASE');
+        var url = '?order=' + encodeURIComponent(o.id);
+        var progress = o.total_lines > 0 
+          ? Math.round(((o.picked_lines_count||0) + (o.short_lines_count||0)) / o.total_lines * 100) 
+          : 0;
+        
+        return '<tr>' +
+          '<td style="font-weight:800;color:#fff">'+esc(o.external_order_no||'—')+'</td>'+
+          '<td>'+esc(o.customer_name||'—')+'</td>'+
+          '<td><span class="status-badge '+statusCls+'" style="font-size:10px;padding:3px 8px;margin:0">'+esc(fmtStatus(o.status))+'</span></td>'+
+          '<td>'+esc(o.order_type||'—')+'</td>'+
+          '<td>'+esc(o.assigned_picker_name||'—')+'</td>'+
+          '<td>'+esc(fmtDate(o.order_date))+'</td>'+
+          '<td>'+esc(fmtDate(o.delivery_date))+'</td>'+
+          '<td style="text-align:center">' +
+            '<div style="font-size:11px;font-weight:700;color:var(--gold)">'+progress+'%</div>' +
+            '<div style="font-size:10px;color:var(--muted)">'+((o.picked_lines_count||0)+(o.short_lines_count||0))+' / '+(o.total_lines||0)+'</div>' +
+          '</td>'+
+          '<td style="text-align:center"><a href="'+url+'" style="padding:5px 12px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);border-radius:6px;color:#f0c040;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap">→ Open</a></td>'+
+        '</tr>';
+      }).join('');
+
+      document.getElementById('mainContent').innerHTML =
+        '<div class="card">'+
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'+
+            '<div class="card-title" style="margin:0">Recent orders <span class="live-indicator"><span class="live-dot"></span> LIVE</span></div>'+
+            '<button id="btnRunWaveList" class="btn btn-blue" style="width:auto;padding:8px 12px" onclick="runAllocationWaveForList()">⚙ Run Allocation Wave</button>'+
+          '</div>'+
+          '<div style="overflow-x:auto;border:1px solid rgba(148,163,184,0.2);border-radius:12px">'+
+            '<table>'+
+              '<thead><tr>'+
+                '<th>Order no</th><th>Customer</th><th>Status</th><th>Type</th>'+
+                '<th>Picker</th><th>Order date</th><th>Delivery</th><th style="text-align:center">Progress</th><th></th>'+
+              '</tr></thead>'+
+              '<tbody>'+rows+'</tbody>'+
+            '</table>'+
+          '</div>'+
+        '</div>';
+    }
+
+    function stopAllPolling(){
+      if(pollIntervals.lines) clearInterval(pollIntervals.lines);
+      if(pollIntervals.header) clearInterval(pollIntervals.header);
+      if(pollIntervals.list) clearInterval(pollIntervals.list);
+      pollIntervals = { lines: null, header: null, list: null };
+    }
+
+    function startOrderDetailPolling(){
+      stopAllPolling();
+      pollIntervals.lines = setInterval(pollOrderLines, 2000);   // Poll lines every 2 seconds
+      pollIntervals.header = setInterval(pollOrderHeader, 5000); // Poll header every 5 seconds
+    }
+
+    function startOrdersListPolling(){
+      stopAllPolling();
+      pollIntervals.list = setInterval(pollOrdersList, 3000);    // Poll list every 3 seconds
+    }
+
+    // Pause polling when tab hidden, resume when visible
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden){
+        stopAllPolling();
+      } else {
+        if(orderId){
+          pollOrderLines();   // Immediate poll to catch up
+          pollOrderHeader();
+          startOrderDetailPolling();
+        } else {
+          pollOrdersList();
+          startOrdersListPolling();
+        }
+      }
+    });
+
+    // Request notification permission
+    if('Notification' in window && Notification.permission === 'default'){
+      Notification.requestPermission();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // INITIAL LOAD & START POLLING
+    // ══════════════════════════════════════════════════════════════
+    load().catch(function(e){
+      hideSplash();
+      document.getElementById('mainContent').innerHTML =
+        '<div class="card"><div class="empty" style="color:var(--red)">❌ ' + esc(e.message||'Failed to load') + '</div></div>';
+      console.error('Order detail error:', e);
+    });
+
+  })();
+  </script>
+</body>
+</html>

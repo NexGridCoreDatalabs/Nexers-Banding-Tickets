@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Label Prototype — RetiFlux™</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1a2e;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    padding: 40px 20px 60px;
+    color: #fff;
+  }
+
+  h1 {
+    text-align: center;
+    color: #fbbf24;
+    font-size: 22px;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+  .subtitle {
+    text-align: center;
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    margin-bottom: 50px;
+  }
+
+  .labels-row {
+    display: flex;
+    gap: 60px;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .label-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .label-title  { color: #fbbf24; font-size: 15px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .label-dims   { color: rgba(255,255,255,0.4); font-size: 12px; }
+
+  /* ── LABEL BASE ── */
+  .label {
+    background: #fff;
+    color: #000;
+    border: 2px solid #999;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  }
+
+  .label-4x6 { width: 320px; height: 480px; padding: 11px 12px; display: flex; flex-direction: column; }
+  .label-4x4 { width: 320px; height: 320px; padding: 10px 11px; display: flex; flex-direction: column; }
+
+  /* ── HEADER ── */
+  .label-header {
+    background: #111;
+    color: #fff;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .label-4x6 .label-header { font-size: 9.5px; padding: 5px 8px; margin-bottom: 9px; }
+  .label-4x4 .label-header { font-size: 8.5px;  padding: 4px 7px; margin-bottom: 7px; }
+
+  /* The subdivision pill */
+  .subdiv-pill {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 2px;
+    padding: 2px 5px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── BODY ── */
+  .label-body { flex: 1; display: flex; flex-direction: column; }
+
+  /* ── TOP: QR left | identifiers right ── */
+  .top-section { display: flex; gap: 9px; align-items: stretch; }
+  .label-4x6 .top-section { margin-bottom: 9px; }
+  .label-4x4 .top-section { margin-bottom: 7px; }
+
+  .qr-block {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .qr-block img {
+    display: block;
+    border: 1px solid #ddd;
+    border-radius: 2px;
+  }
+  .label-4x6 .qr-block img { width: 108px; height: 108px; }
+  .label-4x4 .qr-block img { width: 86px;  height: 86px;  }
+
+  .scan-hint {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-weight: 700;
+    color: #222;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    line-height: 1.3;
+    border: 1px solid #bbb;
+    border-radius: 2px;
+    background: #f5f5f5;
+    width: 100%;
+    padding: 2px 3px;
+  }
+  .label-4x6 .scan-hint { font-size: 7px; }
+  .label-4x4 .scan-hint { font-size: 6px; }
+
+  .id-block {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .serial-big {
+    font-family: 'Courier New', monospace;
+    font-weight: 900;
+    color: #000;
+    line-height: 1.1;
+    word-break: break-all;
+  }
+  .label-4x6 .serial-big { font-size: 14px; }
+  .label-4x4 .serial-big { font-size: 11.5px; }
+
+  .sku-line {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-weight: 700;
+    color: #000;
+  }
+  .label-4x6 .sku-line { font-size: 12px; }
+  .label-4x4 .sku-line { font-size: 10.5px; }
+
+  .product-desc {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-weight: 500;
+    color: #444;
+    font-style: italic;
+  }
+  .label-4x6 .product-desc { font-size: 9px; }
+  .label-4x4 .product-desc { font-size: 8px; }
+
+  .qty-badge {
+    display: inline-block;
+    background: #111;
+    color: #fff;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-weight: 800;
+    border-radius: 3px;
+    width: fit-content;
+    letter-spacing: 0.5px;
+  }
+  .label-4x6 .qty-badge { font-size: 17px; padding: 3px 9px; }
+  .label-4x4 .qty-badge { font-size: 13px; padding: 2px 7px; }
+
+  .pallet-meta {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #555;
+  }
+  .label-4x6 .pallet-meta { font-size: 8.5px; }
+  .label-4x4 .pallet-meta { font-size: 7.5px; }
+
+  /* ── DIVIDERS ── */
+  .divider       { border: none; border-top: 1.5px solid #111; margin: 6px 0; }
+  .divider-light { border: none; border-top: 1px dashed #bbb;   margin: 4px 0; }
+
+  /* ── BATCH BAND ── */
+  .prod-band {
+    background: #f2f2f2;
+    border: 1px solid #ccc;
+    border-left: 3px solid #111;
+    border-radius: 2px;
+    padding: 5px 7px;
+    margin-bottom: 7px;
+  }
+  .label-4x4 .prod-band { margin-bottom: 5px; padding: 4px 6px; }
+
+  .prod-band-title {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: #333;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .label-4x6 .prod-band-title { font-size: 7.5px; }
+  .label-4x4 .prod-band-title { font-size: 7px; }
+
+  .prod-band-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+  }
+
+  /* ── FIELD GRID ── */
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 6px; }
+  .field-item { display: flex; flex-direction: column; }
+  .field-item.full-width { grid-column: 1 / -1; }
+
+  .field-lbl {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .field-val {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    color: #000;
+    word-break: break-all;
+  }
+  .label-4x6 .field-lbl { font-size: 7.5px; }
+  .label-4x6 .field-val { font-size: 10.5px; }
+  .label-4x4 .field-lbl { font-size: 7px; }
+  .label-4x4 .field-val { font-size: 9.5px; }
+
+  .expiry-highlight .field-val { color: #c00; font-weight: 900; }
+
+  /* ── NOTES BOX ── */
+  .note-box {
+    border: 1px dashed #aaa;
+    border-radius: 2px;
+    padding: 4px 6px;
+    margin-top: 5px;
+    min-height: 26px;
+    flex-shrink: 0;
+  }
+  .note-box .note-lbl {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 7px;
+  }
+
+  /* ── FOOTER ── */
+  .label-footer {
+    margin-top: auto;
+    border-top: 1px solid #ccc;
+    padding-top: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+  .label-4x6 .label-footer { font-size: 7.5px; }
+  .label-4x4 .label-footer { font-size: 7px; }
+  .label-footer .brand    { font-weight: 700; color: #555; }
+  .label-footer .timestamp { color: #888; }
+
+  /* ── PAGE ANNOTATIONS ── */
+  .annotation {
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    max-width: 320px;
+    line-height: 1.7;
+    text-align: center;
+  }
+  .annotation span { color: #fbbf24; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1>RetiFlux™ — Pallet Label Prototypes</h1>
+<p class="subtitle">FMCG Finished Goods · Each label shows the product's own subdivision · QR → live view mode</p>
+
+<div class="labels-row">
+
+  <!-- ════════════════════════════════ 4 × 6 ════════════════════════════════ -->
+  <div class="label-wrapper">
+    <div class="label-title">4″ × 6″ — Full Pallet Label</div>
+    <div class="label-dims">101 mm × 152 mm &nbsp;|&nbsp; Product example: Detergents subdivision</div>
+
+    <div class="label label-4x6">
+
+      <div class="label-header">
+        <span>FMCG Finished Goods &mdash; Pallet Label</span>
+        <span class="subdiv-pill">Detergents</span>
+      </div>
+
+      <div class="label-body">
+
+        <div class="top-section">
+          <div class="qr-block">
+            <!-- QR encodes the view-mode URL for this pallet serial -->
+            <img
+              src="https://api.qrserver.com/v1/create-qr-code/?size=108x108&margin=4&data=https%3A%2F%2Fyourapp.com%2F%3Fmode%3Dview%26serial%3DNXR-BL-000247%26color%3Dblue"
+              alt="QR Code" width="108" height="108">
+            <div class="scan-hint">▷ SCAN FOR<br>FULL DETAILS</div>
+          </div>
+          <div class="id-block">
+            <div class="serial-big">NXR-BL-000247</div>
+            <div class="sku-line">DET-1KG-LMN-24</div>
+            <div class="product-desc">Lemon Fresh Detergent · 1kg · 24pk</div>
+            <hr class="divider-light">
+            <div class="qty-badge">78 kar</div>
+            <div class="pallet-meta" style="margin-top:3px;">Pallet: 78 · Layers: 6 · 13/layer</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="prod-band">
+          <div class="prod-band-title">▸ Batch &amp; Production Info</div>
+          <div class="prod-band-grid">
+            <div class="field-item">
+              <span class="field-lbl">Batch / Lot No.</span>
+              <span class="field-val">BT-0219-026</span>
+            </div>
+            <div class="field-item">
+              <span class="field-lbl">Manuf. Date</span>
+              <span class="field-val">19 Feb 2026</span>
+            </div>
+            <div class="field-item expiry-highlight">
+              <span class="field-lbl">Expiry Date</span>
+              <span class="field-val">19 Feb 2027</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field-item">
+            <span class="field-lbl">Subdivision</span>
+            <span class="field-val">Detergents</span>
+          </div>
+          <div class="field-item">
+            <span class="field-lbl">Variant / Size</span>
+            <span class="field-val">1KG · Lemon</span>
+          </div>
+          <div class="field-item">
+            <span class="field-lbl">Banding Type</span>
+            <span class="field-val">Online</span>
+          </div>
+          <div class="field-item">
+            <span class="field-lbl">Shelf Life</span>
+            <span class="field-val">365 days</span>
+          </div>
+          <div class="field-item">
+            <span class="field-lbl">Line / Shift</span>
+            <span class="field-val">Line 3 · AM</span>
+          </div>
+          <div class="field-item">
+            <span class="field-lbl">UoM</span>
+            <span class="field-val">Cartons (kar)</span>
+          </div>
+          <div class="field-item full-width">
+            <span class="field-lbl">Recorded By / At</span>
+            <span class="field-val">J. Moyo &nbsp;·&nbsp; 19 Feb 2026 &nbsp;08:42</span>
+          </div>
+        </div>
+
+        <hr class="divider-light" style="margin-top:6px;">
+
+        <div class="note-box">
+          <span class="note-lbl">Notes / Override Reason (if pallet left line not full)</span>
+        </div>
+
+        <div class="label-footer">
+          <span class="brand">RetiFlux™ · NexGridCore DataLabs</span>
+          <span class="timestamp">Printed: 19/02/2026 08:42</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="annotation">
+      Subdivision pill in the header <span>changes per product</span> — Detergents here,<br>
+      would read "Oils &amp; Fats" or "Soaps" for those products.<br>
+      <span>QR → live view mode</span> with full history &amp; zone. Expiry always in <span style="color:#f87171;">red</span>.
+    </div>
+  </div>
+
+
+  <!-- ════════════════════════════════ 4 × 4 ════════════════════════════════ -->
+  <div class="label-wrapper">
+    <div class="label-title">4″ × 4″ — Compact Tag</div>
+    <div class="label-dims">101 mm × 101 mm &nbsp;|&nbsp; Product example: Oils &amp; Fats subdivision</div>
+
+    <div class="label label-4x4">
+
+      <div class="label-header">
+        <span>FMCG Finished Goods</span>
+        <span class="subdiv-pill">Oils &amp; Fats</span>
+      </div>
+
+      <div class="label-body">
+
+        <div class="top-section">
+          <div class="qr-block">
+            <img
+              src="https://api.qrserver.com/v1/create-qr-code/?size=86x86&margin=3&data=https%3A%2F%2Fyourapp.com%2F%3Fmode%3Dview%26serial%3DNXR-RD-000091%26color%3Dred"
+              alt="QR Code" width="86" height="86">
+            <div class="scan-hint">▷ SCAN FOR DETAILS</div>
+          </div>
+          <div class="id-block">
+            <div class="serial-big">NXR-RD-000091</div>
+            <div class="sku-line">OIL-2L-SUN-12</div>
+            <div class="product-desc">Sunflower Oil · 2L · 12pk</div>
+            <hr class="divider-light">
+            <div class="qty-badge">105 kar</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="prod-band">
+          <div class="prod-band-title">▸ Batch &amp; Production</div>
+          <div class="prod-band-grid">
+            <div class="field-item">
+              <span class="field-lbl">Batch / Lot</span>
+              <span class="field-val">BT-0219-091</span>
+            </div>
+            <div class="field-item">
+              <span class="field-lbl">Manuf.</span>
+              <span class="field-val">19 Feb 26</span>
+            </div>
+            <div class="field-item expiry-highlight">
+              <span class="field-lbl">Expiry</span>
+              <span class="field-val">19 Aug 27</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field-item">
+            <span class="field-lbl">Subdivision</span>
+            <span class="field-val">Oils &amp; Fats</span>
+          </div>
+          <div class="field-item">
+            <span class="field-lbl">Banding</span>
+            <span class="field-val">Offline</span>
+          </div>
+          <div class="field-item full-width">
+            <span class="field-lbl">By / At</span>
+            <span class="field-val">A. Dube · 19/02/2026 07:15</span>
+          </div>
+        </div>
+
+        <div class="label-footer" style="margin-top: auto; padding-top: 5px;">
+          <span class="brand">RetiFlux™</span>
+          <span class="timestamp">19/02/2026 07:15</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="annotation">
+      Different product, different subdivision — <span>Oils &amp; Fats</span> in the pill.<br>
+      A Soaps product would show <span>Soaps</span>. Always specific, never a list.<br>
+      No notes box — size constraint. Use 4×6 for full PRT.
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

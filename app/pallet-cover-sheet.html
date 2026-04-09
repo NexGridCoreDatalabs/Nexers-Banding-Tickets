@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ffffff">
+  <title>RetiFlux™ · Pallet Cover Sheet</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{--ink:#111827;--muted:#475569;--gold:#b45309;--line:#cbd5e1;--mono:'Cascadia Mono','Cascadia Code',Consolas,monospace}
+    body{background:#f1f5f9;color:var(--ink);font-family:var(--mono);padding:18px}
+    .sheet{width:210mm;min-height:297mm;margin:0 auto;background:#fff;border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,0.12);padding:14mm 14mm 12mm;display:flex;flex-direction:column;gap:8mm}
+    .hdr{display:flex;justify-content:space-between;gap:14mm;border-bottom:2px solid var(--ink);padding-bottom:6mm}
+    .brand .name{font-size:20px;font-weight:900;letter-spacing:0.5px}
+    .brand .sub{font-size:10px;color:var(--muted);line-height:1.5;margin-top:2mm}
+    .badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:4mm}
+    .badge{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);padding:4px 9px;border-radius:999px;font-size:10px;color:var(--muted)}
+    .badge strong{color:var(--ink)}
+    .qrWrap{width:46mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3mm}
+    .qrBox{width:46mm;height:46mm;border:2px solid var(--ink);display:flex;align-items:center;justify-content:center;overflow:hidden}
+    .qrHint{font-size:9px;color:var(--muted);text-align:center;line-height:1.4;word-break:break-all}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:5mm 10mm}
+    .kv{display:flex;flex-direction:column;gap:1mm}
+    .k{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:800}
+    .v{font-size:13px;font-weight:900}
+    .v.sm{font-size:11px;font-weight:800}
+    .tableWrap{border:1px solid var(--line);border-radius:6px;overflow:hidden;flex:1}
+    table{width:100%;border-collapse:collapse;font-size:11px}
+    thead th{text-align:left;background:#f8fafc;padding:8px 10px;border-bottom:1px solid var(--line);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+    tbody td{padding:7px 10px;border-bottom:1px solid #e2e8f0;vertical-align:top}
+    tbody tr:last-child td{border-bottom:none}
+    tbody tr:nth-child(even){background:#f8fafc}
+    .footer{margin-top:auto;padding-top:5mm;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-end;gap:8mm;color:var(--muted);font-size:9px;line-height:1.5}
+    .footer strong{color:var(--ink)}
+    .actions{display:flex;justify-content:center;gap:10px;margin:16px auto 0;max-width:210mm}
+    .btn{padding:10px 18px;border-radius:10px;border:1px solid #94a3b8;background:#fff;cursor:pointer;font-family:var(--mono);font-weight:900;font-size:13px}
+    .btn:hover{background:#f8fafc}
+    .btn-gold{background:#b45309;color:#fff;border-color:#b45309}
+    .btn-gold:hover{background:#92400e}
+    .loading{color:var(--muted);text-align:center;padding:20px;font-size:12px}
+    .err{color:#dc2626;text-align:center;padding:20px;font-size:12px}
+    @media print{@page{size:A4;margin:0}body{background:#fff;padding:0}.sheet{box-shadow:none;border:none;width:210mm;min-height:297mm}.actions{display:none}}
+  </style>
+</head>
+<body>
+  <div class="sheet" id="sheet">
+    <div class="hdr">
+      <div class="brand">
+        <div class="name">RetiFlux™ · Pallet Cover Sheet</div>
+        <div class="sub">Staple this sheet on the order pallet. Scan QR to open the order.</div>
+        <div class="badges">
+          <span class="badge">Pallet: <strong id="bPallet">—</strong></span>
+          <span class="badge">Order: <strong id="bOrder">—</strong></span>
+          <span class="badge">Status: <strong id="bStatus">—</strong></span>
+        </div>
+      </div>
+      <div class="qrWrap">
+        <div class="qrBox" id="qrBox"><span style="font-size:10px;color:#94a3b8">Generating…</span></div>
+        <div class="qrHint" id="qrHint">Scan to open order</div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="kv"><div class="k">Pallet ID</div><div class="v" id="vPallet">—</div></div>
+      <div class="kv"><div class="k">Order no</div><div class="v" id="vOrderNo">—</div></div>
+      <div class="kv"><div class="k">Customer</div><div class="v sm" id="vCustomer">—</div></div>
+      <div class="kv"><div class="k">Sequence</div><div class="v sm" id="vSeq">—</div></div>
+      <div class="kv"><div class="k">Printed at</div><div class="v sm" id="vPrintedAt">—</div></div>
+    </div>
+    <div class="tableWrap">
+      <table>
+        <thead><tr><th>SKU</th><th>Qty</th><th>Source pallet</th></tr></thead>
+        <tbody id="contentsBody"><tr><td colspan="3" class="loading">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="footer">
+      <div><div><strong>RetiFlux™</strong> · Powered by <strong>NexGridCore DataLabs</strong></div></div>
+      <div style="text-align:right"><div>Pallet: <strong id="vPalletId">—</strong></div></div>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-gold" onclick="window.print()">🖨 Print (A4)</button>
+    <button class="btn" onclick="window.close()">Close</button>
+  </div>
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+  (function(){
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var sb = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
+    var params = new URLSearchParams(window.location.search);
+    var hashStr = window.location.hash ? window.location.hash.slice(1) : '';
+    var hashParams = hashStr ? new URLSearchParams(hashStr) : null;
+    var palletId = (params.get('pallet') || params.get('pallet_id') || (hashParams && hashParams.get('pallet')) || (hashParams && hashParams.get('pallet_id')) || '').trim();
+    var orderId = (params.get('order') || (hashParams && hashParams.get('order')) || '').trim();
+    if (!palletId || !orderId) {
+      try {
+        var stored = localStorage.getItem('palletCover_pallet');
+        var storedOrder = localStorage.getItem('palletCover_order');
+        if (stored) palletId = palletId || stored;
+        if (storedOrder) orderId = orderId || storedOrder;
+      } catch (_) {}
+    }
+
+    function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+    function setText(id, v){ var e=document.getElementById(id); if(e) e.textContent = (v==null||v==='')?'—':String(v); }
+
+    async function load(){
+      if(!sb) throw new Error('Supabase not configured');
+      if(!palletId) throw new Error('No pallet ID in URL (?pallet=SM-ORD-00001)');
+
+      document.getElementById('vPrintedAt').textContent = new Date().toLocaleString();
+      setText('vPalletId', palletId);
+      setText('bPallet', palletId);
+
+      var {data:pallet} = await sb.from('pallets').select('*').eq('pallet_id', palletId).single();
+      if(!pallet) throw new Error('Pallet not found: ' + palletId);
+
+      var order = null;
+      var op = null;
+      try{
+        var {data:ops} = await sb.from('order_pallets').select('*').eq('pallet_id', palletId);
+        if(ops && ops.length){ op = ops[0]; orderId = op.order_id; }
+      } catch(_){}
+      if(orderId && /^[A-Z]{2}-[\d-]+$/i.test(String(orderId).trim())){ orderId = ''; }
+      if(orderId){ var {data:o} = await sb.from('orders').select('*').eq('id', orderId).single(); order = o; }
+
+      setText('vPallet', palletId);
+      setText('vOrderNo', order ? order.external_order_no : '—');
+      setText('vCustomer', order ? order.customer_name : '—');
+      setText('vSeq', op ? op.sequence : '—');
+      setText('bOrder', order ? order.external_order_no : '—');
+      setText('bStatus', op ? op.status : (pallet.status || '—'));
+
+      var contents = [];
+      if(sb.from('pallet_contents').select){
+        var {data:pc} = await sb.from('pallet_contents').select('*').eq('pallet_id', palletId);
+        contents = pc || [];
+      }
+      var tb = document.getElementById('contentsBody');
+      if(!contents.length) tb.innerHTML = '<tr><td colspan="3" style="color:var(--muted)">No contents (empty pallet)</td></tr>';
+      else tb.innerHTML = contents.map(function(c){ return '<tr><td style="font-weight:800">'+esc(c.sku)+'</td><td>'+esc(c.quantity)+'</td><td>'+esc(c.source_pallet_id||'—')+'</td></tr>'; }).join('');
+
+      var target = orderId ? (window.location.origin + '/app/order-detail?order=' + encodeURIComponent(orderId)) : (window.location.origin + '/app/');
+      document.getElementById('qrHint').textContent = orderId ? 'Scan to open order' : 'Scan for home';
+      var box = document.getElementById('qrBox');
+      box.innerHTML = '';
+      if(typeof QRCode !== 'undefined'){ try{ new QRCode(box, {text:target, width:172, height:172}); } catch(e){ box.innerHTML = '<span style="font-size:9px;color:#dc2626">QR failed</span>'; } }
+
+      document.title = 'Pallet ' + palletId + ' · RetiFlux™';
+    }
+    load().catch(function(e){
+      document.getElementById('contentsBody').innerHTML = '<tr><td colspan="3" class="err">❌ '+esc(e.message)+'</td></tr>';
+      console.error(e);
+    });
+  })();
+  </script>
+</body>
+</html>

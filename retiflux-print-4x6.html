@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RetiFlux™ · Print Label</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:      #000000;
+    --ink-mid:  #1a1a1a;
+    --ink-soft: #2e2e2e;
+    --ink-lt:   #444444;
+    --bg:       #ffffff;
+    --bg-band:  #ebebeb;
+    --bg-dark:  #111111;
+    --red:      #bb0000;
+    --cond: 'Barlow Condensed', Arial Narrow, sans-serif;
+    --mono: 'Consolas', 'IBM Plex Mono', monospace;
+    --body: 'Barlow', sans-serif;
+  }
+
+  /* ── SCREEN WRAPPER ── */
+  body {
+    background: #d0d0d0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 16px 56px;
+    font-family: var(--body);
+    min-height: 100vh;
+  }
+
+  .screen-bar {
+    width: 4in;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .screen-bar-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #333;
+  }
+  .print-btn {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .print-btn:hover { background: #333; }
+
+  /* ── LABEL SHELL: exactly 4in × 6in ── */
+  .label {
+    width: 4in;
+    height: 6in;
+    background: var(--bg);
+    border: 1.5px solid #888;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 6px 28px rgba(0,0,0,0.22);
+  }
+
+  /* ══════════════════════════════
+     HEADER
+  ══════════════════════════════ */
+  .hdr {
+    background: var(--bg-dark);
+    padding: 5pt 8pt 4pt;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .hdr-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .hdr-retiflux {
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #f0c040;
+  }
+  .hdr-retiflux sup { font-size: 5pt; vertical-align: super; }
+  .hdr-doctype {
+    font-family: var(--mono);
+    font-size: 6pt;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #cccccc;
+  }
+
+  .hdr-row2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .hdr-manufacturer {
+    font-family: var(--mono);
+    font-size: 17pt;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: #ffffff;
+    line-height: 1;
+  }
+  .subdiv-pill {
+    font-family: var(--mono);
+    font-size: 6.5pt;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 2pt 6pt;
+    border-radius: 2px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    border: 1.5px solid #888888;
+    background: #333333;
+    color: #ffffff;
+  }
+
+  .hdr-row3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #444444;
+    padding-top: 2pt;
+  }
+  .hdr-row3-left {
+    font-family: var(--mono);
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #cccccc;
+  }
+  .hdr-serial {
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.8px;
+  }
+
+  /* ══════════════════════════════
+     BODY
+  ══════════════════════════════ */
+  .label-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 5pt 7pt 5pt;
+    overflow: hidden;
+  }
+
+  .label-body-inner {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    justify-content: space-between;
+  }
+
+  .hero {
+    display: flex;
+    gap: 8pt;
+    align-items: flex-end;
+    margin-bottom: 5pt;
+    flex-shrink: 0;
+  }
+  .qr-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .qr-frame {
+    border: 1.5px solid #999;
+    border-radius: 2px;
+    padding: 2pt;
+    background: #fff;
+  }
+  .qr-frame img,
+  .qr-frame canvas { display: block; width: 1.55in; height: 1.55in; }
+  .qr-frame #qrContainer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.55in;
+    height: 1.55in;
+    min-width: 1.55in;
+    min-height: 1.55in;
+  }
+
+  .product-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5pt;
+  }
+  .prd-name {
+    font-family: var(--mono);
+    font-weight: 900;
+    font-size: 17pt;
+    color: var(--ink);
+    line-height: 0.95;
+    text-transform: uppercase;
+  }
+  .prd-variant {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 9.5pt;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-top: 1pt;
+  }
+  .prd-sku {
+    font-family: var(--mono);
+    font-size: 7pt;
+    font-weight: 600;
+    color: var(--ink-lt);
+  }
+  .divider-light { border: none; border-top: 1px dashed #ccc; margin: 3pt 0; }
+
+  .qty-block { display: flex; align-items: baseline; gap: 5pt; margin-top: 2pt; }
+  .qty-num {
+    font-family: var(--mono);
+    font-weight: 900;
+    font-size: 26pt;
+    color: #fff;
+    background: var(--ink);
+    border-radius: 2px;
+    line-height: 1;
+    padding: 1pt 9pt 2pt;
+  }
+  .qty-uom {
+    font-family: var(--mono);
+    font-weight: 800;
+    font-size: 12pt;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pallet-config {
+    font-family: var(--mono);
+    font-size: 7pt;
+    color: var(--ink-lt);
+    margin-top: 1pt;
+  }
+
+  .rule { border: none; border-top: 1.5px solid var(--ink); margin: 3pt 0; flex-shrink: 0; }
+
+  .batch-band {
+    background: var(--bg-band);
+    border-left: 3.5pt solid var(--ink);
+    border-radius: 0 2px 2px 0;
+    padding: 3pt 6pt;
+    margin-bottom: 3pt;
+    flex-shrink: 0;
+  }
+  .band-lbl {
+    font-family: var(--mono);
+    font-size: 5.5pt;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--ink-lt);
+    margin-bottom: 3.5pt;
+  }
+  .batch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 6pt; }
+
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5pt 6pt; flex-shrink: 0; }
+  .field { display: flex; flex-direction: column; }
+  .field.full { grid-column: 1 / -1; }
+  .fl {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 6pt;
+    color: var(--ink-lt);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .fv {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 8.5pt;
+    color: var(--ink);
+    line-height: 1.15;
+  }
+  .expiry .fv { color: var(--red); font-weight: 700; }
+
+  .handling {
+    display: flex;
+    flex-direction: column;
+    margin-top: 4pt;
+    border: 1px solid #d0d0d0;
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .handling-lbl {
+    font-family: var(--mono);
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: #ffffff;
+    background: var(--ink);
+    padding: 3pt 6pt;
+    width: 100%;
+  }
+  .h-items {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    background: #fafafa;
+  }
+  .h-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2pt;
+    padding: 4pt 2pt;
+    border-right: 1px solid #e0e0e0;
+    text-align: center;
+  }
+  .h-item:last-child { border-right: none; }
+  .h-icon { font-size: 13pt; line-height: 1; }
+  .h-label {
+    font-family: var(--mono);
+    font-size: 5.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    letter-spacing: 0.3px;
+    line-height: 1.25;
+  }
+
+  .notes-box {
+    border: 1px dashed #bbb;
+    border-radius: 2px;
+    padding: 3pt 5pt;
+    min-height: 12pt;
+    margin-top: 3pt;
+    flex-shrink: 0;
+  }
+  .notes-box .fl { font-size: 6pt; color: #bbb; }
+
+  .disclaimer {
+    display: flex;
+    gap: 5pt;
+    align-items: flex-start;
+    background: #f5f5f5;
+    border: 1px solid #dddddd;
+    border-left: 3pt solid #999999;
+    border-radius: 0 2px 2px 0;
+    padding: 3pt 6pt;
+    margin-top: 3pt;
+    flex-shrink: 0;
+  }
+  .disclaimer-icon { font-size: 7pt; color: #222; flex-shrink: 0; margin-top: 1pt; }
+  .disclaimer-text {
+    font-family: var(--mono);
+    font-size: 7pt;
+    font-style: italic;
+    color: #111111;
+    line-height: 1.5;
+  }
+  #notesVal {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .label-footer {
+    flex-shrink: 0;
+    margin-top: auto;
+    border-top: 1px solid #cccccc;
+    padding: 3pt 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .footer-brand { display: flex; align-items: baseline; gap: 3pt; }
+  .footer-retiflux {
+    font-family: var(--mono);
+    font-size: 6.5pt;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .footer-retiflux sup { font-size: 5pt; vertical-align: super; }
+  .footer-powered {
+    font-family: var(--mono);
+    font-size: 6pt;
+    color: #444444;
+    font-style: italic;
+  }
+  .footer-ts {
+    font-family: var(--mono);
+    font-size: 6pt;
+    color: #444444;
+  }
+
+  @media print {
+    @page { size: 4in 6in; margin: 0; }
+    body { background: #fff; padding: 0; display: block; }
+    .screen-bar { display: none; }
+    .label {
+      width: 4in;
+      height: 6in;
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="screen-bar">
+  <span class="screen-bar-title">RetiFlux™ · 4″ × 6″ Print Preview</span>
+  <button class="print-btn" onclick="window.print()">🖨 &nbsp;Print Label</button>
+</div>
+
+<div class="label">
+  <div class="hdr">
+    <div class="hdr-row1">
+      <span class="hdr-retiflux">RetiFlux<sup>™</sup></span>
+      <span class="hdr-doctype">Internal Pallet Ticket</span>
+    </div>
+    <div class="hdr-row2">
+      <span class="hdr-manufacturer">BIDCO Africa</span>
+      <span class="subdiv-pill" id="subdivPill">—</span>
+    </div>
+    <div class="hdr-row3">
+      <span class="hdr-row3-left">Finished Goods · Warehouse Use Only</span>
+      <span class="hdr-serial" id="hdrSerial">—</span>
+    </div>
+  </div>
+
+  <div class="label-body">
+    <div class="label-body-inner">
+
+    <div class="hero">
+      <div class="qr-col">
+        <div class="qr-frame">
+          <div id="qrContainer"></div>
+        </div>
+      </div>
+      <div class="product-col">
+        <div class="prd-name" id="prdName">—</div>
+        <div class="prd-variant" id="prdVariant">—</div>
+        <div class="prd-sku" id="prdSku">—</div>
+        <hr class="divider-light">
+        <div class="qty-block">
+          <div class="qty-num" id="qtyNum">—</div>
+          <div class="qty-uom" id="qtyUom">—</div>
+        </div>
+        <div class="pallet-config" id="palletConfig">—</div>
+      </div>
+    </div>
+
+    <hr class="rule">
+
+    <div class="batch-band">
+      <div class="band-lbl">Batch &amp; Production</div>
+      <div class="batch-grid">
+        <div class="field">
+          <span class="fl">Batch / Lot</span>
+          <span class="fv" id="batchLot">—</span>
+        </div>
+        <div class="field">
+          <span class="fl">Mfg. Date</span>
+          <span class="fv" id="mfgDate">—</span>
+        </div>
+        <div class="field expiry">
+          <span class="fl">Expiry Date</span>
+          <span class="fv" id="expiryDate">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-grid">
+      <div class="field">
+        <span class="fl">Production Line</span>
+        <span class="fv" id="lineVal">—</span>
+      </div>
+      <div class="field">
+        <span class="fl">Shift</span>
+        <span class="fv" id="shiftVal">—</span>
+      </div>
+      <div class="field full">
+        <span class="fl">Shelf Life</span>
+        <span class="fv" id="shelfLife">—</span>
+      </div>
+      <div class="field full">
+        <span class="fl">Recorded By · Date / Time</span>
+        <span class="fv" id="recordedBy">—</span>
+      </div>
+    </div>
+
+    <div class="handling">
+      <div class="handling-lbl">Handling Instructions</div>
+      <div class="h-items">
+        <div class="h-item"><div class="h-icon">🏠</div><div class="h-label">Cool &amp;<br>Dry Place</div></div>
+        <div class="h-item"><div class="h-icon">🚫☀️</div><div class="h-label">Avoid<br>Direct Sun</div></div>
+        <div class="h-item"><div class="h-icon">⬆️</div><div class="h-label">This Side<br>Up</div></div>
+        <div class="h-item"><div class="h-icon">📦</div><div class="h-label">Max Stack<br><span id="maxStackVal">—</span> Layers</div></div>
+      </div>
+    </div>
+
+    <div class="notes-box">
+      <span class="fl">Notes / Override Reason</span>
+      <span class="fv" id="notesVal" style="display:block;margin-top:2pt;"></span>
+    </div>
+
+    <div class="disclaimer">
+      <div class="disclaimer-icon">⬥</div>
+      <div class="disclaimer-text">
+        All zone assignments, movements, QC sign-offs, and dispatch authorisations are
+        captured digitally via QR scan in RetiFlux™. Scan above to view the full live record.
+      </div>
+    </div>
+
+    </div>
+
+    <div class="label-footer">
+      <div class="footer-brand">
+        <span class="footer-retiflux">RetiFlux<sup>™</sup></span>
+        <span class="footer-powered">powered by NexGridCore DataLabs</span>
+      </div>
+      <span class="footer-ts" id="footerTs">—</span>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function() {
+  var serial = '', productName = '', variant = '', sku = '', qty = '', uom = '';
+  var palletConfig = '', subdivision = '', batchLot = '', mfgDateRaw = '', expiryDateRaw = '';
+  var line = '', shift = '', shelfLife = '', notes = '', time = '', recordedBy = '', recordedAt = '';
+  var maxStack = '';
+
+  function applyData(d) {
+    serial = d.serial || '';
+    productName = d.productName || '';
+    variant = d.variant || '';
+    sku = d.sku || '';
+    qty = d.qty || '';
+    uom = d.uom || '';
+    palletConfig = d.palletConfig || '';
+    subdivision = d.subdivision || '';
+    batchLot = d.batchLot || '';
+    mfgDateRaw = d.mfgDate || '';
+    expiryDateRaw = d.expiryDate || '';
+    line = d.line || '';
+    shift = d.shift || '';
+    shelfLife = d.shelfLife || '';
+    maxStack = d.maxStack || '';
+    notes = d.notes || '';
+    time = d.time || '';
+    recordedBy = d.recordedBy || '';
+  }
+
+  // 1. Primary: URL hash (base64 JSON) — travels with window, works regardless of sessionStorage
+  var hash = (window.location.hash || '').slice(1);
+  if (hash) {
+    try {
+      var d = JSON.parse(decodeURIComponent(escape(atob(hash))));
+      if (d && d.serial) applyData(d);
+    } catch (e) { /* ignore */ }
+  }
+
+  // 2. Fallback: sessionStorage
+  if (!serial) {
+    try {
+      var stored = sessionStorage.getItem('prt_print_data');
+      if (stored) {
+        var d = JSON.parse(stored);
+        if (d && d.serial) applyData(d);
+        sessionStorage.removeItem('prt_print_data');
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // 3. Fallback: URL params (for direct links / testing)
+  if (!serial) {
+    function getParam(name) {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        return params.get(name) || '';
+      } catch (e) {
+        var m = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+      }
+    }
+    applyData({
+      serial: getParam('serial'),
+      productName: getParam('productName'),
+      variant: getParam('variant'),
+      sku: getParam('sku'),
+      qty: getParam('qty'),
+      uom: getParam('uom'),
+      palletConfig: getParam('palletConfig'),
+      subdivision: getParam('subdivision'),
+      batchLot: getParam('batchLot'),
+      mfgDate: getParam('mfgDate'),
+      expiryDate: getParam('expiryDate'),
+      line: getParam('line'),
+      shift: getParam('shift'),
+      shelfLife: getParam('shelfLife'),
+      notes: getParam('notes'),
+      time: getParam('time'),
+      recordedBy: getParam('recordedBy')
+    });
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso + 'T12:00:00');
+    if (isNaN(d.getTime())) return iso;
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+  }
+  function fmtTs(iso, t) {
+    if (!iso && !t) return '—';
+    if (!iso) return (t || '—');
+    var parts = String(iso).split('-');
+    if (parts.length !== 3) return iso + (t ? ' ' + t : '');
+    return (parts[2] + '/' + parts[1] + '/' + parts[0] + (t ? ' ' + t : '')).trim();
+  }
+
+  document.getElementById('hdrSerial').textContent = serial || '—';
+  document.getElementById('subdivPill').textContent = subdivision || '—';
+  var pn = (productName || '—').trim();
+  var firstSpace = pn.indexOf(' ');
+  document.getElementById('prdName').innerHTML = (firstSpace > 0 ? pn.slice(0, firstSpace) + '<br>' + pn.slice(firstSpace + 1) : pn) || '—';
+  document.getElementById('prdVariant').textContent = variant || '—';
+  document.getElementById('prdSku').textContent = sku || '—';
+  document.getElementById('qtyNum').textContent = qty || '—';
+  document.getElementById('qtyUom').textContent = uom || '—';
+  document.getElementById('palletConfig').textContent = palletConfig || '—';
+  document.getElementById('batchLot').textContent = batchLot || '—';
+  document.getElementById('mfgDate').textContent = fmtDate(mfgDateRaw);
+  document.getElementById('expiryDate').textContent = fmtDate(expiryDateRaw);
+  if (!shelfLife && mfgDateRaw && expiryDateRaw) {
+    var m = new Date(mfgDateRaw + 'T12:00:00').getTime();
+    var e = new Date(expiryDateRaw + 'T12:00:00').getTime();
+    var days = Math.round((e - m) / (1000 * 60 * 60 * 24));
+    shelfLife = days >= 365 ? Math.round(days / 30) + ' months from mfg date' : days + ' days from mfg date';
+  } else if (shelfLife && shelfLife.indexOf('from mfg') === -1 && (shelfLife.indexOf('days') !== -1 || shelfLife.indexOf('months') !== -1)) {
+    shelfLife = shelfLife + ' from mfg date';
+  }
+  // Shift: auto-derive from creation time — 7am–7pm = Day Shift (DS), 7pm–7am = Night Shift (NS)
+  if (time) {
+    var hour = parseInt(String(time).split(':')[0], 10);
+    if (!isNaN(hour)) shift = (hour >= 7 && hour < 19) ? 'Day Shift (DS)' : 'Night Shift (NS)';
+  }
+  document.getElementById('lineVal').textContent = line || '—';
+  document.getElementById('shiftVal').textContent = shift || '—';
+  document.getElementById('maxStackVal').textContent = maxStack || '—';
+  document.getElementById('shelfLife').textContent = shelfLife || '—';
+  var recordedText = [recordedBy, (mfgDateRaw || time) ? fmtTs(mfgDateRaw, time) : ''].filter(Boolean).join(' · ');
+  document.getElementById('recordedBy').textContent = recordedText || '—';
+  document.getElementById('notesVal').textContent = notes || '—';
+  document.getElementById('footerTs').textContent = (mfgDateRaw || time) ? fmtTs(mfgDateRaw, time) : '—';
+
+  var base = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
+  var viewUrl = base + 'app/ticket-view.html?serial=' + encodeURIComponent(serial) + '&geofence=bypass&t=BIDCO_BYPASS';
+  var qrContainer = document.getElementById('qrContainer');
+  qrContainer.innerHTML = '';
+  if (serial && typeof QRCode !== 'undefined') {
+    try {
+      new QRCode(qrContainer, { text: viewUrl, width: 200, height: 200 });
+    } catch (e) {
+      var img = document.createElement('img');
+      img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=' + encodeURIComponent(viewUrl);
+      img.alt = 'QR · ' + serial;
+      img.style.width = img.style.height = '1.55in';
+      qrContainer.appendChild(img);
+    }
+  }
+
+  document.title = 'RetiFlux™ · Print Label · ' + (serial || 'PRT');
+  if (window.location.search && serial) {
+    setTimeout(function() { window.print(); }, 500);
+  }
+})();
+</script>
+</body>
+</html>

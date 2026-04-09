@@ -7,10 +7,12 @@
     <title>RetiFlux™ - Universal Warehouse Management System</title>
     <link rel="icon" href="favicon.png" type="image/png">
     <link rel="preload" href="favicon.png" as="image">
+    <script src="js/retiflux-performance.js"></script>
+    <script src="js/retiflux-screenshot-guard.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html { scroll-behavior: smooth; }
+        html { scroll-behavior: smooth; background: #0f172a; }
         *:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; border-radius: 4px; }
         *:focus:not(:focus-visible) { outline: none; }
 
@@ -33,6 +35,9 @@
             margin: 0 auto;
             padding: 52px 28px 72px;
         }
+        @media (max-width: 480px) { .container { padding: 28px 14px 56px; } }
+        @media (min-width: 768px) { .container { max-width: 720px; padding: 56px 32px 80px; } }
+        @media (min-width: 1200px) { .container { max-width: 800px; padding: 64px 40px 96px; } }
 
         /* ── Hero ── */
         .hero { text-align: center; margin-bottom: 40px; }
@@ -105,6 +110,26 @@
         .lang-pill.switching {
             opacity: 0;
             transform: scale(0.85);
+        }
+        .tw-pause-btn {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 6px 12px;
+            background: rgba(71,85,105,0.2);
+            border: 1px solid rgba(251,191,36,0.4);
+            border-radius: 8px;
+            color: #fbbf24;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .tw-pause-btn:hover {
+            background: rgba(251,191,36,0.15);
+            border-color: rgba(251,191,36,0.6);
+        }
+        .tw-pause-btn.paused {
+            background: rgba(251,191,36,0.2);
+            color: #0f172a;
         }
         .typewriter-body {
             flex: 1;
@@ -204,6 +229,9 @@
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 12px;
         }
+        @media (max-width: 480px) { .quick-actions-grid { grid-template-columns: 1fr; gap: 10px; } }
+        @media (min-width: 768px) { .quick-actions-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
+        @media (min-width: 1200px) { .quick-actions-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; } }
 
         /* ── Base card styles ── */
         .qa-card {
@@ -355,8 +383,28 @@
         .page-footer .footer-brand { color: #fbbf24; font-weight: 700; }
         .page-footer .footer-lab   { color: #818cf8; font-weight: 700; }
     </style>
+    <link rel="stylesheet" href="css/retiflux-splash.css">
+    <script>
+    (function() {
+      try {
+        var q = new URLSearchParams(window.location.search);
+        if (q.get('hub') === '1') return;
+        if (q.get('noredirect') === '1') return;
+        window.location.replace('app/traffic-center.html?simple=1&public=1');
+      } catch (e) {}
+    })();
+    </script>
 </head>
 <body>
+    <div id="indexSplash" class="retiflux-splash" aria-hidden="false">
+        <div class="splash-icon">
+            <div class="splash-glow"></div>
+            <img src="favicon.png" alt="RetiFlux" width="96" height="96" loading="eager">
+        </div>
+        <div class="splash-title">RetiFlux™</div>
+        <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+        <div class="splash-dots"><span></span><span></span><span></span></div>
+    </div>
     <div class="container">
 
         <div class="hero">
@@ -372,7 +420,10 @@
         <section class="about-section">
             <div class="about-header">
                 <h2>About RetiFlux™</h2>
-                <span class="lang-pill" id="langPill">🇬🇧 EN</span>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button type="button" id="twPauseBtn" class="tw-pause-btn" title="Pause / Resume" aria-label="Pause or resume text">⏸ Pause</button>
+                    <span class="lang-pill" id="langPill">🇬🇧 EN</span>
+                </div>
             </div>
             <div class="typewriter-body">
                 <span class="typewriter-text" id="twText"></span><span class="typewriter-cursor" id="twCursor"></span>
@@ -381,9 +432,9 @@
         </section>
 
         <div class="primary-cta">
-            <a href="bandingtickets.html" class="btn-primary">
-                <span class="btn-icon">🎫</span>
-                Open Ticketing Center
+            <a href="app/traffic-center.html" class="btn-primary" id="ctaTrafficCenter">
+                <span class="btn-icon">🚦</span>
+                Warehouse Traffic Center
             </a>
         </div>
 
@@ -393,19 +444,59 @@
         </div>
         <div class="quick-actions-grid">
 
-            <a href="bandingtickets.html?mode=fill" class="qa-card">
+            <a href="app/prt-create-form.html" class="qa-card">
                 <div class="qa-icon">✏️</div>
                 <div class="qa-text">
-                    <strong>Edit Ticket</strong>
-                    <span>Enter serial &amp; update ticket data</span>
+                    <strong>Create Ticket</strong>
+                    <span>Create PRT &amp; save to PostgreSQL</span>
                 </div>
             </a>
 
-            <a href="bandingtickets.html?mode=bincards" class="qa-card">
+            <a href="app/order-intake.html" class="qa-card">
+                <div class="qa-icon">🧾</div>
+                <div class="qa-text">
+                    <strong>Order Intake</strong>
+                    <span>Scan PDF → OCR → assign picker → print cover sheet</span>
+                </div>
+            </a>
+
+            <a href="app/order-detail.html" class="qa-card">
+                <div class="qa-icon">📦</div>
+                <div class="qa-text">
+                    <strong>Orders</strong>
+                    <span>View all orders, release for picking, track progress</span>
+                </div>
+            </a>
+
+            <a href="app/pickers.html" class="qa-card">
+                <div class="qa-icon">🧤</div>
+                <div class="qa-text">
+                    <strong>Picker Portal</strong>
+                    <span>Sign in and start picking your orders</span>
+                </div>
+            </a>
+
+            <a href="app/picker-reports.html" class="qa-card">
+                <div class="qa-icon">⚠️</div>
+                <div class="qa-text">
+                    <strong>Picker Reports</strong>
+                    <span>Review picker-reported shorts — confirm or clear</span>
+                </div>
+            </a>
+
+            <a href="app/bincards.html" class="qa-card">
                 <div class="qa-icon">📋</div>
                 <div class="qa-text">
                     <strong>Bin Cards</strong>
                     <span>Shift stock reconciliation &amp; confirm</span>
+                </div>
+            </a>
+
+            <a href="app/stocks-monitor.html" class="qa-card">
+                <div class="qa-icon">📦</div>
+                <div class="qa-text">
+                    <strong>Stocks Monitor</strong>
+                    <span>Live total warehouse stock per SKU</span>
                 </div>
             </a>
 
@@ -419,21 +510,29 @@
                     <span class="qa-caret">▾</span>
                 </div>
                 <div class="qa-sub-menu" role="menu">
-                    <a href="bandingtickets.html?mode=movement&tab=monitor" class="qa-sub-item" role="menuitem">
+                    <a href="app/zone-clerk.html" class="qa-sub-item" role="menuitem">
+                        <div class="sub-icon">📍</div>
+                        <div class="sub-text">
+                            Zone Clerk Portal
+                            <small>Sign in → your zone only (Monitor, Receiving, Replenishment)</small>
+                        </div>
+                        <span class="qa-sub-badge">Zone Clerk</span>
+                    </a>
+                    <a href="app/movement.html?tab=monitor" class="qa-sub-item" role="menuitem">
                         <div class="sub-icon">📊</div>
                         <div class="sub-text">
-                            Zone Monitor
-                            <small>View pallets, FIFO status &amp; initiate moves</small>
+                            Zone Monitor (Superuser)
+                            <small>All zones, FIFO status &amp; initiate moves</small>
                         </div>
-                        <span class="qa-sub-badge">Login required</span>
+                        <span class="qa-sub-badge">Superuser</span>
                     </a>
-                    <a href="bandingtickets.html?mode=movement&tab=receiving" class="qa-sub-item" role="menuitem">
+                    <a href="app/movement.html?tab=receiving" class="qa-sub-item" role="menuitem">
                         <div class="sub-icon">📥</div>
                         <div class="sub-text">
-                            Zone Receiving
-                            <small>Receive inbounds &amp; confirm outbounds</small>
+                            Zone Receiving (Superuser)
+                            <small>All zones — receive inbounds &amp; confirm outbounds</small>
                         </div>
-                        <span class="qa-sub-badge">Login required</span>
+                        <span class="qa-sub-badge">Superuser</span>
                     </a>
                 </div>
             </div>
@@ -445,12 +544,28 @@
 
     <script>
     (function() {
+        // ── Splash: 1–2s on load only. Destination pages show their own splash (no double splash on nav). ──
+        (function runIndexSplash() {
+            var splash = document.getElementById('indexSplash');
+            var minMs = 1000;
+            var maxMs = 2000;
+            var minDelay = new Promise(function(r) { setTimeout(r, minMs); });
+            var maxDelay = new Promise(function(r) { setTimeout(r, maxMs); });
+            Promise.race([minDelay, maxDelay]).then(function() {
+                splash.classList.add('fade-out');
+                setTimeout(function() {
+                    splash.style.display = 'none';
+                    splash.setAttribute('aria-hidden', 'true');
+                }, 280);
+            });
+        })();
+
         // ── Geofence bypass: if bypass params in URL, append them to all bandingtickets links so navigation preserves bypass ──
         (function() {
             var p = new URLSearchParams(window.location.search);
             if (p.get('geofence') !== 'bypass' || p.get('t') !== 'BIDCO_BYPASS') return;
             var bypass = 'geofence=bypass&t=BIDCO_BYPASS';
-            document.querySelectorAll('a[href*="bandingtickets.html"]').forEach(function(a) {
+            document.querySelectorAll('a[href*="bandingtickets.html"], a[href*="app/"]').forEach(function(a) {
                 var h = a.getAttribute('href') || '';
                 if (h.indexOf('geofence=bypass') >= 0) return;
                 var sep = h.indexOf('?') >= 0 ? '&' : '?';
@@ -466,7 +581,8 @@
                 sw: h < 12 ? 'Habari za asubuhi! 👋' : h < 17 ? 'Habari za mchana! 👋' : 'Habari za jioni! 👋',
                 fr: h < 12 ? 'Bonjour ! 👋' : h < 17 ? 'Bon après-midi ! 👋' : 'Bonsoir ! 👋',
                 es: h < 12 ? '¡Buenos días! 👋' : h < 17 ? '¡Buenas tardes! 👋' : '¡Buenas noches! 👋',
-                pt: h < 12 ? 'Bom dia! 👋' : h < 17 ? 'Boa tarde! 👋' : 'Boa noite! 👋'
+                pt: h < 12 ? 'Bom dia! 👋' : h < 17 ? 'Boa tarde! 👋' : 'Boa noite! 👋',
+                hi: h < 12 ? 'सुप्रभात! 👋' : h < 17 ? 'शुभ दोपहर! 👋' : 'शुभ संध्या! 👋'
             };
         })();
 
@@ -476,7 +592,8 @@
             { key: 'sw', pill: '🇰🇪 SW' },
             { key: 'fr', pill: '🇫🇷 FR' },
             { key: 'es', pill: '🇪🇸 ES' },
-            { key: 'pt', pill: '🇧🇷 PT' }
+            { key: 'pt', pill: '🇧🇷 PT' },
+            { key: 'hi', pill: '🇮🇳 HI' }
         ];
 
         const topics = [
@@ -510,6 +627,12 @@
                     'Sou RetiFlux™ — a memória do teu armazém.',
                     'O meu nome combina duas palavras latinas: Reti (rede) e Flux (fluxo).',
                     'Pensa em mim como o fio invisível que liga tudo.'
+                ],
+                hi: [
+                    window._rfGreeting.hi,
+                    'मैं RetiFlux™ हूँ — आपके गोदाम की स्मृति।',
+                    'मेरा नाम दो लैटिन शब्दों को मिलाता है: Reti (नेटवर्क) और Flux (प्रवाह)।',
+                    'मुझे उस अदृश्य धागे के रूप में सोचें जो सब कुछ जोड़ता है।'
                 ]
             },
             {
@@ -542,6 +665,12 @@
                     'Crio um Run Ticket — um pequeno cartão que conta toda a história desse lote.',
                     'Número de série, cor, código QR — tudo num só lugar.',
                     'Basta apontar a câmara de um telemóvel. É só isso.'
+                ],
+                hi: [
+                    'हर बार जब माल पैक और लपेटा जाता है, मैं वहाँ हूँ।',
+                    'मैं Run Ticket बनाता हूँ — एक छोटा कार्ड जो उस बैच की पूरी कहानी बताता है।',
+                    'सीरियल नंबर, रंग, QR कोड — सब एक जगह।',
+                    'बस फोन कैमरा इंगित करें। बस इतना ही।'
                 ]
             },
             {
@@ -574,6 +703,12 @@
                     'Garanto que o stock mais antigo sai primeiro — para que nada expire em silêncio.',
                     'E se alguém quiser mudar essa ordem? Terá de explicar porquê.',
                     'Acho que a honestidade é boa para os negócios. 😊'
+                ],
+                hi: [
+                    'मैं हर भंडारण क्षेत्र पर नज़र रखता हूँ, हर समय।',
+                    'मैं सुनिश्चित करता हूँ कि पुराना स्टॉक नए से पहले निकले — ताकि कुछ भी चुपचाप एक्सपायर न हो।',
+                    'और अगर किसी को उस क्रम को बदलना हो? उन्हें कारण बताना होगा।',
+                    'मुझे लगता है ईमानदारी व्यापार के लिए अच्छी है। 😊'
                 ]
             },
             {
@@ -606,6 +741,12 @@
                     'Quem o moveu, quando o moveu e para onde foi.',
                     'Nada se perde, e nada muda em silêncio sem deixar rasto.',
                     'O registo está sempre lá — honesto e completo.'
+                ],
+                hi: [
+                    'मुझे हर आइटम के साथ होने वाली हर चीज़ याद है।',
+                    'किसने स्थानांतरित किया, कब और कहाँ गया।',
+                    'कुछ खोता नहीं, और कुछ भी बिना निशान के चुपचाप नहीं बदलता।',
+                    'रिकॉर्ड हमेशा वहाँ है — ईमानदार और पूर्ण।'
                 ]
             },
             {
@@ -638,6 +779,12 @@
                     'Verifico quem és e de onde estás a aceder antes de te deixar passar.',
                     'Cada ação está ligada a uma pessoa real. Cada sessão deixa uma marca.',
                     'Retis Fluxit, Data Vincit — A Rede Flui, os Dados Vencem. 🏆'
+                ],
+                hi: [
+                    'हर कोई अंदर आकर बदलाव नहीं कर सकता — और यह जानबूझकर है।',
+                    'मैं जाँचता हूँ कि आप कौन हैं और कहाँ से एक्सेस कर रहे हैं, पहले आपको जाने देने से पहले।',
+                    'हर क्रिया एक वास्तविक व्यक्ति से जुड़ी है। हर सत्र एक निशान छोड़ता है।',
+                    'Retis Fluxit, Data Vincit — नेटवर्क बहता है, डेटा जीतता है। 🏆'
                 ]
             }
         ];
@@ -648,7 +795,7 @@
         const pillEl  = document.getElementById('langPill');
         const dotsEl  = document.getElementById('langDots');
 
-        // Build 5 language dots
+        // Build language dots
         LANG_META.forEach((_, i) => {
             const d = document.createElement('div');
             d.className = 'lang-dot' + (i === 0 ? ' active' : '');
@@ -662,6 +809,26 @@
         let running  = true;
 
         const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        function waitWhilePaused() {
+            return new Promise(resolve => {
+                function check() {
+                    if (running) resolve();
+                    else setTimeout(check, 100);
+                }
+                check();
+            });
+        }
+
+        const pauseBtn = document.getElementById('twPauseBtn');
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', function() {
+                running = !running;
+                pauseBtn.textContent = running ? '⏸ Pause' : '▶ Resume';
+                pauseBtn.classList.toggle('paused', !running);
+                pauseBtn.setAttribute('aria-label', running ? 'Pause text' : 'Resume text');
+            });
+        }
 
         function setDot(i) {
             dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
@@ -682,33 +849,35 @@
                 await setLangPill(meta.pill);
                 setDot(langIdx);
 
-                // Type each line progressively
+                // Type each line progressively (slower for readability)
                 let built = '';
                 for (let li = 0; li < lines.length; li++) {
                     const line = lines[li];
                     const prefix = built ? built + '\n' : '';
-                    const speed = li === 0 ? 34 : 28;
+                    const speed = li === 0 ? 55 : 48;
                     for (let ci = 0; ci <= line.length; ci++) {
+                        await waitWhilePaused();
                         if (!running) return;
                         textEl.textContent = prefix + line.slice(0, ci);
                         await sleep(speed);
                     }
                     built = prefix + line;
-                    if (li < lines.length - 1) await sleep(320);
+                    if (li < lines.length - 1) await sleep(500);
                 }
 
-                // Hold
-                await sleep(2600);
+                // Hold (longer so user can read)
+                await sleep(4500);
 
-                // Erase fast
+                // Erase
                 const full = textEl.textContent;
                 for (let i = full.length; i >= 0; i--) {
+                    await waitWhilePaused();
                     if (!running) return;
                     textEl.textContent = full.slice(0, i);
-                    await sleep(11);
+                    await sleep(18);
                 }
 
-                await sleep(350);
+                await sleep(400);
 
                 // Advance: cycle through topics, bump language every full topic round
                 topicIdx++;
@@ -720,6 +889,16 @@
         }
 
         setTimeout(runLoop, 500);
+    })();
+    </script>
+    <script>
+    (function() {
+      try {
+        if (new URLSearchParams(location.search).get('hub') === '1') {
+          var a = document.getElementById('ctaTrafficCenter');
+          if (a) a.setAttribute('href', 'app/traffic-center.html');
+        }
+      } catch (e) {}
     })();
     </script>
 </body>

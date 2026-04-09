@@ -11,9 +11,26 @@ SETUP_SECRETS.md
 *.key
 .env
 .env.local
+*credentials*.txt
+retiflux_credentials.txt
+appscript.txt
+authorized_users_rows.csv
 
-# Documentation (not in repo)
-*.md
+# Local-only assets (not for repo)
+Screenshot*.png
+salesorder*.pdf
+salesorder_page*.png
+
+# Dependencies
+node_modules/
+supabase-cli.tar.gz
+
+# Local / tooling
+.cursor/
+.vercel
+supabase/.temp/
+
+# Optional local docs (keep README.md tracked)
 docs/
 
 # OS and editor

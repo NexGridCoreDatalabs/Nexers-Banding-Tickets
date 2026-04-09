@@ -1,0 +1,10 @@
+# Smaller uploads; Vercel still runs npm install + build locally on their servers from package.json
+node_modules
+.git
+.cursor
+supabase/.temp
+supabase-cli.tar.gz
+*.pdf
+retiflux_credentials.txt
+authorized_users_rows.csv
+appscript.txt

@@ -19,13 +19,16 @@ jobs:
       
       - name: Create config.js from GitHub Secrets
         run: |
-          cat > config.js << EOF
+          cat > config.js << 'EOF'
           window.BANDFLOW_CONFIG = {
             GENERATOR_PASSWORD: '${{ secrets.GENERATOR_PASSWORD }}',
             GOOGLE_SHEET_ID: '${{ secrets.GOOGLE_SHEET_ID }}',
             GOOGLE_API_KEY: '${{ secrets.GOOGLE_API_KEY }}',
             GOOGLE_APPS_SCRIPT_URL: '${{ secrets.GOOGLE_APPS_SCRIPT_URL }}',
             SCAN_BASE_URL: '${{ secrets.SCAN_BASE_URL }}',
+            SUPABASE_URL: '${{ secrets.SUPABASE_URL }}',
+            SUPABASE_ANON_KEY: '${{ secrets.SUPABASE_ANON_KEY }}',
+            SCREENSHOT_GUARD: true,
             SECURITY: {
               MAX_LOGIN_ATTEMPTS: 5,
               LOCKOUT_DURATION: 900000,
@@ -38,16 +41,6 @@ jobs:
               RETRY_DELAY: 1000
             }
           };
-          
-          // Validate configuration
-          (function validateConfig() {
-            const config = window.BANDFLOW_CONFIG;
-            if (!config.GENERATOR_PASSWORD || !config.GOOGLE_SHEET_ID || !config.GOOGLE_APPS_SCRIPT_URL) {
-              console.error('❌ Configuration incomplete');
-            } else {
-              console.log('✅ Configuration loaded successfully');
-            }
-          })();
           EOF
       
       - name: Setup Pages

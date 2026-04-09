@@ -1,0 +1,2151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <meta name="theme-color" content="#0f172a">
+  <title>RetiFlux™ Warehouse Traffic Center</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-splash.css">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    html { background: #0f172a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gold: #f0c040;
+      --bg: #0f172a;
+      --card: rgba(15, 23, 42, 0.95);
+      --font-app: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+    }
+    body {
+      font-family: var(--font-app);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+      background: rgba(15, 23, 42, 0.9);
+    }
+    .header h1 { font-size: 18px; font-weight: 800; color: var(--gold); }
+    .back-home {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold);
+      text-decoration: none;
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+    .back-home:hover { background: rgba(245, 158, 11, 0.15); }
+    .content { padding: 20px; max-width: none; margin: 0; width: 100%; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .controls label { font-size: 11px; color: var(--gold); text-transform: uppercase; }
+    .controls select {
+      padding: 8px 12px;
+      font-family: var(--font-app);
+      font-size: 13px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      color: #e2e8f0;
+    }
+    .btn {
+      padding: 8px 16px;
+      font-family: var(--font-app);
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+    }
+    .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); }
+    .btn-secondary { background: rgba(148, 163, 184, 0.2); color: #e2e8f0; border: 2px solid rgba(148, 163, 184, 0.4); }
+    .btn-secondary:hover { background: rgba(148, 163, 184, 0.3); }
+    .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .avg-transit { font-size: 12px; color: #86efac; }
+    .map-container {
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      min-height: 400px;
+      overflow: auto;
+    }
+    #trafficMap { width: 100%; min-height: 520px; }
+    .zone-node {
+      cursor: pointer;
+      transition: filter 0.2s;
+    }
+    .zone-node:hover { filter: brightness(1.2); }
+    .zone-node text {
+      font-family: var(--font-app);
+      paint-order: stroke fill;
+      stroke: rgba(255, 255, 255, 0.9);
+      stroke-width: 2px;
+      stroke-linejoin: round;
+    }
+    .zone-node.selected { filter: brightness(1.3); stroke: var(--gold); stroke-width: 3; }
+    .drawer {
+      position: fixed;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: min(380px, 100vw);
+      background: rgba(15, 23, 42, 0.98);
+      border-left: 2px solid rgba(245, 158, 11, 0.4);
+      box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.25s ease-out;
+      overflow-y: auto;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .drawer-header h3 { font-size: 16px; color: var(--gold); }
+    .drawer-close { background: none; border: none; color: #94a3b8; font-size: 24px; cursor: pointer; padding: 0 8px; }
+    .drawer-close:hover { color: var(--gold); }
+    .drawer-body { padding: 16px; }
+    .pallet-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(30, 58, 95, 0.4);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .pallet-row.trail-hover, .drawer-movement-row.trail-hover { cursor: help; }
+    .pallet-row.trail-hover:hover, .drawer-movement-row.trail-hover:hover { background: rgba(245, 158, 11, 0.15); outline: 1px solid rgba(245, 158, 11, 0.4); }
+    #palletTrailPopover {
+      position: fixed;
+      z-index: 10001;
+      padding: 12px 14px;
+      background: rgba(15, 23, 42, 0.98);
+      border: 2px solid rgba(245, 158, 11, 0.6);
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: var(--font-app);
+      color: #e2e8f0;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+      max-width: 320px;
+      max-height: 360px;
+      overflow-y: auto;
+      display: none;
+    }
+    #palletTrailPopover.visible { display: block; }
+    #palletTrailPopover .trail-header { font-weight: 700; color: #fbbf24; margin-bottom: 8px; font-size: 13px; }
+    #palletTrailPopover .trail-meta { font-size: 11px; color: #94a3b8; margin-bottom: 10px; }
+    #palletTrailPopover .trail-events { display: flex; flex-direction: column; gap: 6px; }
+    #palletTrailPopover .trail-event { padding: 8px 10px; background: rgba(30, 58, 95, 0.5); border-radius: 6px; font-size: 11px; border-left: 3px solid rgba(245, 158, 11, 0.6); }
+    #palletTrailPopover .trail-event.created { border-left-color: #22c55e; }
+    #palletTrailPopover .trail-event .trail-label { font-weight: 600; color: #e2e8f0; }
+    #palletTrailPopover .trail-event .trail-detail { color: #94a3b8; font-size: 10px; margin-top: 2px; }
+    .drawer-section {
+      margin-bottom: 16px;
+    }
+    .drawer-section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gold);
+      user-select: none;
+    }
+    .drawer-section-title:hover { background: rgba(245, 158, 11, 0.25); }
+    .drawer-section-title::after { content: '▼'; font-size: 10px; opacity: 0.8; transition: transform 0.2s; }
+    .drawer-section-title.collapsed::after { transform: rotate(-90deg); }
+    .drawer-section-content {
+      padding: 8px 0 0 4px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .drawer-section-content.collapsed { display: none; }
+    .drawer-movement-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      background: rgba(30, 58, 95, 0.3);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 11px;
+      color: #e2e8f0;
+    }
+    .drawer-movement-row .route { color: #94a3b8; font-size: 10px; }
+    .drawer-movement-row .date { color: #64748b; font-size: 10px; }
+    .card {
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 16px; color: var(--gold); margin-bottom: 16px; }
+    .recent-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .recent-table th { padding: 10px 12px; text-align: left; background: rgba(245, 158, 11, 0.2); color: var(--gold); border-bottom: 2px solid rgba(245, 158, 11, 0.5); }
+    .recent-table td { padding: 10px 12px; border-bottom: 1px solid rgba(148, 163, 184, 0.2); color: #e2e8f0; }
+    .recent-table tr:nth-child(even) { background: rgba(15, 23, 42, 0.3); }
+    .recent-table .from-zone { color: #fca5a5; }
+    .recent-table .to-zone { color: #86efac; font-weight: 600; }
+    .empty { color: #64748b; padding: 24px; text-align: center; }
+    .error { color: #f87171; padding: 20px; text-align: center; }
+    .table-wrap { overflow-x: auto; }
+    .legend { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 12px; font-size: 11px; color: #94a3b8; align-items: flex-start; }
+    .legend-section { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(15,23,42,0.5); border-radius: 8px; border: 1px solid rgba(245,158,11,0.2); }
+    .legend-title { color: var(--gold); font-size: 11px; }
+    .legend-hint { font-size: 10px; opacity: 0.8; }
+    .legend span { display: flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .legend-line { width: 24px; height: 3px; background: rgba(245,158,11,0.6); border-radius: 2px; }
+    .path-base { stroke: rgba(94, 234, 212, 0.2); transition: stroke-width 0.2s, stroke-opacity 0.2s; }
+    .path-line { stroke: rgba(245, 158, 11, 0.7); transition: stroke-width 0.2s, stroke-opacity 0.2s; }
+    .path-group:hover .path-base { stroke-width: 20 !important; stroke-opacity: 0.5; }
+    .path-group:hover .path-line { stroke-width: 10 !important; stroke-opacity: 1; }
+    .transit-dot { cursor: pointer; }
+    .transit-dot .dot-pulse { animation: transitPulse 1.5s ease-in-out infinite; }
+    @keyframes transitPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
+    .transit-dot .fl-badge { font-size: 9px; font-weight: 800; fill: #fff; paint-order: stroke fill; stroke: #0f172a; stroke-width: 2px; text-anchor: middle; dominant-baseline: middle; font-family: var(--font-app); }
+    #transitTooltip {
+      position: fixed;
+      z-index: 10000;
+      pointer-events: none;
+      padding: 10px 14px;
+      background: rgba(15, 23, 42, 0.98);
+      border: 2px solid rgba(245, 158, 11, 0.6);
+      border-radius: 8px;
+      font-size: 12px;
+      font-family: var(--font-app);
+      color: #e2e8f0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      max-width: 220px;
+      display: none;
+    }
+    #transitTooltip.visible { display: block; }
+    #transitTooltip .tt-pallet { font-weight: 700; color: #fbbf24; margin-bottom: 4px; }
+    .traffic-toast {
+      position: fixed;
+      right: 20px;
+      bottom: 24px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      z-index: 100000;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      animation: toastSlideIn 0.25s ease-out;
+    }
+    .traffic-toast.success { background: #059669; color: #fff; }
+    .traffic-toast.error { background: #dc2626; color: #fff; }
+    @keyframes toastSlideIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+    #transitTooltip .tt-route { color: #94a3b8; font-size: 11px; }
+    #transitTooltip .tt-fl { color: #f0c040; font-size: 11px; margin-top: 2px; }
+    #transitTooltip .tt-elapsed { color: #86efac; font-size: 11px; margin-top: 4px; }
+    #transitTooltip .tt-state { font-size: 11px; margin-top: 2px; }
+
+    /* Forklift pill badge (diamond) */
+    .fl-pill { filter: drop-shadow(0 6px 14px rgba(0,0,0,0.35)); }
+    .fl-pill.pulse { animation: flPillPulse 1.7s ease-in-out infinite; }
+    .fl-pill .pill-shape { fill: #f0c040; stroke: rgba(255,255,255,0.85); stroke-width: 2px; }
+    .fl-pill .pill-dot { fill: #22c55e; stroke: rgba(15,23,42,0.95); stroke-width: 2px; }
+    .fl-pill .pill-text {
+      fill: #0f172a;
+      font-family: Cascadia Mono, Cascadia Code, Consolas, monospace;
+      font-weight: 900;
+      font-size: 10px;
+      dominant-baseline: middle;
+      text-anchor: middle;
+    }
+    .fl-pill .pill-shape.idle-shape {
+      stroke: rgba(14, 165, 233, 0.95); /* stand out for idle/unassigned */
+      stroke-width: 3px;
+    }
+    .fl-pill.fl-staging .pill-shape.staging-shape {
+      fill: #0e7490;
+      stroke: #67e8f9;
+      stroke-width: 3px;
+    }
+    @keyframes flPillPulse { 0%,100% { opacity: 0.92; } 50% { opacity: 0.55; } }
+    /* Kiosk / default “home” highway: intro + map + legend (?full=1 for dense ops view) */
+    body.simple-highway .controls { display: none !important; }
+    body.simple-highway #recentMovementsSection { display: none !important; }
+    body.simple-highway .header .back-home { display: none !important; }
+    body.simple-highway .map-container { margin-bottom: 0; }
+    .highway-intro {
+      display: none;
+      margin-bottom: 20px;
+      padding: 22px 24px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 2px solid rgba(245, 158, 11, 0.35);
+      border-radius: 14px;
+      max-width: 920px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    body.simple-highway .highway-intro { display: block; }
+    .highway-intro-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .highway-logo-wrap {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+    }
+    .highway-logo-ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: 14px;
+      border: 1.5px solid rgba(251, 191, 36, 0.4);
+      box-shadow: 0 0 14px rgba(251, 191, 36, 0.15);
+      animation: highwayLogoPulse 3s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes highwayLogoPulse {
+      0%, 100% { opacity: 0.55; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.04); }
+    }
+    .highway-intro-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      background: rgba(251, 191, 36, 0.08);
+      object-fit: contain;
+      display: block;
+      position: relative;
+      z-index: 1;
+    }
+    .highway-intro h2 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--gold);
+      margin: 0 0 4px 0;
+      letter-spacing: 0.5px;
+    }
+    .highway-intro .tagline {
+      font-size: 0.9rem;
+      color: #e2e8f0;
+      margin: 0 0 6px 0;
+      font-weight: 600;
+    }
+    .highway-intro .powered {
+      font-size: 0.72rem;
+      color: #64748b;
+      margin: 0;
+    }
+    .highway-intro .powered strong { color: #818cf8; font-weight: 600; }
+    .highway-map-hint {
+      font-size: 12px;
+      color: #64748b;
+      text-align: center;
+      margin: 0 0 18px 0;
+      line-height: 1.5;
+    }
+    .highway-cta-row {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      max-width: 920px;
+      margin: 0 auto 22px;
+    }
+    @media (max-width: 640px) {
+      .highway-cta-row { grid-template-columns: 1fr; }
+    }
+    body.simple-highway .highway-cta-row { display: grid; }
+    .highway-btn-cta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      min-height: 58px;
+      padding: 16px 22px;
+      border-radius: 12px;
+      font-family: var(--font-app);
+      cursor: pointer;
+      text-align: left;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      border: none;
+    }
+    .highway-btn-cta--primary {
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 60%, #fbbf24 100%);
+      color: #0f172a;
+      font-weight: 700;
+      box-shadow: 0 4px 20px rgba(251, 191, 36, 0.22);
+    }
+    .highway-btn-cta--primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(251, 191, 36, 0.38);
+    }
+    .highway-btn-cta--secondary {
+      background: rgba(15, 23, 42, 0.75);
+      color: #e2e8f0;
+      border: 2px solid rgba(251, 191, 36, 0.45);
+      font-weight: 700;
+    }
+    .highway-btn-cta--secondary:hover {
+      background: rgba(30, 58, 95, 0.55);
+      border-color: rgba(251, 191, 36, 0.65);
+      transform: translateY(-2px);
+    }
+    .hw-cta-icon { font-size: 1.35rem; flex-shrink: 0; line-height: 1; }
+    .hw-cta-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .hw-cta-text strong { font-size: 1rem; font-weight: 800; letter-spacing: 0.2px; }
+    .hw-cta-text small { font-size: 11px; font-weight: 600; opacity: 0.88; line-height: 1.35; color: inherit; }
+    .highway-btn-cta--secondary .hw-cta-text small { color: #94a3b8; }
+    .highway-tw-card {
+      display: none;
+      max-width: 920px;
+      margin: 0 auto 8px;
+      padding: 22px 24px 20px;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(251, 191, 36, 0.22);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+    }
+    body.simple-highway .highway-tw-card { display: block; }
+    /* ?public=1 (simple mode): operational wording stripped on the fanned-out SVG only (see renderMap + PUBLIC_HIGHWAY). Page chrome & legend below stay normal. */
+    body.public-highway .map-container { border-color: rgba(245, 158, 11, 0.28); }
+    body.public-highway .zone-node:hover { filter: none; }
+    .highway-tw-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .highway-tw-title {
+      font-size: 0.72rem;
+      color: #fbbf24;
+      font-weight: 800;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .highway-tw-tools { display: flex; align-items: center; gap: 12px; }
+    .hw-tw-pause-btn {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      background: rgba(71, 85, 105, 0.25);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      border-radius: 8px;
+      color: #fbbf24;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .hw-tw-pause-btn:hover { background: rgba(251, 191, 36, 0.12); }
+    .hw-tw-pause-btn.paused { background: rgba(251, 191, 36, 0.2); color: #0f172a; }
+    .hw-lang-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 68px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #475569;
+      background: rgba(71, 85, 105, 0.15);
+      border: 1px solid rgba(71, 85, 105, 0.25);
+      border-radius: 20px;
+      padding: 4px 10px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .hw-lang-pill.switching { opacity: 0; transform: scale(0.85); }
+    .hw-typewriter-body {
+      min-height: 100px;
+      position: relative;
+    }
+    .hw-typewriter-text {
+      color: #94a3b8;
+      font-size: 0.88rem;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      font-family: var(--font-app);
+    }
+    .hw-typewriter-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1.1em;
+      background: #fbbf24;
+      margin-left: 2px;
+      vertical-align: middle;
+      border-radius: 1px;
+      animation: hwTwBlink 1s step-end infinite;
+    }
+    @keyframes hwTwBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    .hw-lang-dots {
+      display: flex;
+      gap: 6px;
+      margin-top: 14px;
+      justify-content: flex-end;
+    }
+    .hw-lang-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(71, 85, 105, 0.35);
+      transition: all 0.3s ease;
+    }
+    .hw-lang-dot.active {
+      background: #fbbf24;
+      box-shadow: 0 0 6px rgba(251, 191, 36, 0.5);
+      transform: scale(1.25);
+    }
+    .highway-login-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200000;
+      background: rgba(15, 23, 42, 0.82);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .highway-login-modal.open { display: flex; }
+    .highway-login-panel {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.45);
+      border-radius: 14px;
+      padding: 24px 22px 20px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+    }
+    .highway-login-panel h3 {
+      font-size: 16px;
+      color: var(--gold);
+      margin-bottom: 6px;
+      font-weight: 800;
+    }
+    .highway-login-panel .sub {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+    .highway-login-panel label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+    .highway-login-panel input {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-family: var(--font-app);
+      font-size: 14px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #e2e8f0;
+    }
+    .highway-login-err { min-height: 20px; font-size: 12px; color: #f87171; margin-bottom: 8px; }
+    .highway-login-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .highway-login-actions button {
+      flex: 1;
+      min-width: 120px;
+      padding: 12px 16px;
+      font-family: var(--font-app);
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      border: none;
+    }
+    .highway-login-actions .btn-go {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+    }
+    .highway-login-actions .btn-cancel {
+      background: rgba(148, 163, 184, 0.2);
+      color: #e2e8f0;
+      border: 2px solid rgba(148, 163, 184, 0.35);
+    }
+    .highway-rc-wrap { display: none; }
+    .highway-rc-wrap.highway-rc-wrap--visible { display: block; }
+    .highway-rc-btns { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+    .highway-rc-btns .btn-go { width: 100%; }
+    .highway-rc-btns .btn-rc-zone {
+      width: 100%;
+      padding: 12px 16px;
+      font-family: var(--font-app);
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      background: rgba(30, 58, 95, 0.65);
+      color: #e2e8f0;
+      border: 2px solid rgba(245, 158, 11, 0.45);
+    }
+    .highway-rc-btns .btn-rc-zone:hover { background: rgba(245, 158, 11, 0.14); }
+    .highway-rc-back { margin-top: 14px; text-align: center; }
+    .highway-rc-back button {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 11px;
+      cursor: pointer;
+      text-decoration: underline;
+      font-family: var(--font-app);
+    }
+  </style>
+</head>
+<body>
+  <div id="splash" class="retiflux-splash" aria-hidden="false">
+    <div class="splash-icon">
+      <div class="splash-glow"></div>
+      <img src="../favicon.png" alt="RetiFlux" width="96" height="96" loading="eager">
+    </div>
+    <div class="splash-title">RetiFlux™</div>
+    <div class="splash-subtitle">Powered by NexGridCore DataLabs</div>
+    <div class="splash-dots"><span></span><span></span><span></span></div>
+  </div>
+  <div id="trafficToastContainer" style="position:fixed;right:20px;bottom:24px;z-index:100000;pointer-events:none;"></div>
+  <div id="app" style="display:none;">
+    <div class="header">
+      <h1>🚚 Warehouse Traffic Center</h1>
+      <a href="../index.html" class="back-home" target="_top">← Back to Home</a>
+    </div>
+    <div class="content">
+      <section class="highway-intro" aria-label="Warehouse landing">
+        <div class="highway-intro-top">
+          <div class="highway-logo-wrap">
+            <div class="highway-logo-ring" aria-hidden="true"></div>
+            <img class="highway-intro-logo" src="../favicon.png" width="52" height="52" alt="RetiFlux">
+          </div>
+          <div>
+            <h2>RetiFlux™</h2>
+            <p class="tagline">Universal Warehouse Management System</p>
+            <p class="powered">Powered by <strong>NexGridCore DataLabs</strong></p>
+          </div>
+        </div>
+        <p class="highway-map-hint">Live traffic map below — open to everyone. Sign in only when you need an app or the full menu.</p>
+        <div class="highway-cta-row">
+          <button type="button" class="highway-btn-cta highway-btn-cta--primary" id="btnHighwayCtaApp" aria-describedby="hwCtaAppDesc">
+            <span class="hw-cta-icon" aria-hidden="true">🔐</span>
+            <span class="hw-cta-text">
+              <strong>Sign in to your app</strong>
+              <small id="hwCtaAppDesc">Receiving, zone clerk, or picker — we send you to the right screen for your role.</small>
+            </span>
+          </button>
+          <button type="button" class="highway-btn-cta highway-btn-cta--secondary" id="btnHighwayCtaHub" aria-describedby="hwCtaHubDesc">
+            <span class="hw-cta-icon" aria-hidden="true">📋</span>
+            <span class="hw-cta-text">
+              <strong>Full app menu</strong>
+              <small id="hwCtaHubDesc">Superuser &amp; training tools — same sign-in; opens the dashboard hub after verification.</small>
+            </span>
+          </button>
+        </div>
+        <div class="highway-tw-card">
+          <div class="highway-tw-header">
+            <h3 class="highway-tw-title">About RetiFlux™</h3>
+            <div class="highway-tw-tools">
+              <button type="button" id="hwTwPause" class="hw-tw-pause-btn" title="Pause / Resume" aria-label="Pause or resume rotating text">⏸ Pause</button>
+              <span class="hw-lang-pill" id="hwLangPill">🇬🇧 EN</span>
+            </div>
+          </div>
+          <div class="hw-typewriter-body">
+            <span class="hw-typewriter-text" id="hwTwText"></span><span class="hw-typewriter-cursor" id="hwTwCursor" aria-hidden="true"></span>
+          </div>
+          <div class="hw-lang-dots" id="hwLangDots"></div>
+        </div>
+      </section>
+      <div class="controls">
+        <div>
+          <label>Highway (movement volume)</label>
+          <select id="highwayRange">
+            <option value="1">Last 1 hour</option>
+            <option value="4">Last 4 hours</option>
+            <option value="8">Last 8 hours</option>
+            <option value="24" selected>Last 24 hours</option>
+          </select>
+        </div>
+        <div>
+          <label>Avg transit scope</label>
+          <select id="avgTransitScope">
+            <option value="24">Last 24 hours</option>
+            <option value="72">Last 3 days</option>
+            <option value="168" selected>Last 7 days</option>
+          </select>
+        </div>
+        <span class="avg-transit" id="avgTransitLabel">Avg transit: —</span>
+        <button type="button" class="btn btn-primary" id="btnRefresh">🔄 Refresh</button>
+        <button type="button" class="btn btn-secondary" id="btnAutoRevert" title="Dispatch: auto-arrive after 8 min; others: revert after 15 min">↩ Run auto-revert</button>
+        <button type="button" class="btn btn-secondary" id="btnCheckReplenishment" title="Run SM and zone replenishment checks">📋 Check Replenishment</button>
+        <button type="button" class="btn btn-secondary" id="btnCheckConsistency" title="Verify pallets ↔ zone_movements are in sync">✓ Check consistency</button>
+      </div>
+      <div class="map-container">
+        <div id="transitTooltip"></div>
+        <div id="palletTrailPopover" role="tooltip"></div>
+        <svg id="trafficMap"></svg>
+        <div class="legend">
+          <div class="legend-section">
+            <strong class="legend-title">Zone traffic</strong> <span class="legend-hint">(pallets in zone)</span>
+            <span><span class="legend-dot" style="background:#3b82f6;"></span> Low</span>
+            <span><span class="legend-dot" style="background:#fbbf24;"></span> Medium</span>
+            <span><span class="legend-dot" style="background:#ef4444;"></span> High</span>
+          </div>
+          <div class="legend-section">
+            <strong class="legend-title">Path traffic</strong> <span class="legend-hint">(movement volume)</span>
+            <span><span class="legend-line"></span> Thicker = more movements</span>
+          </div>
+          <div class="legend-section">
+            <strong class="legend-title">Moving pallets</strong>
+            <span><span class="legend-dot" style="background:#22c55e;"></span> Ok</span>
+            <span><span class="legend-dot" style="background:#f97316;"></span> Warning</span>
+            <span><span class="legend-dot" style="background:#dc2626;"></span> Reverting</span>
+          </div>
+        </div>
+      </div>
+      <div id="drawer" class="drawer">
+        <div class="drawer-header">
+          <h3 id="drawerTitle">Zone</h3>
+          <button type="button" class="drawer-close" id="drawerClose">×</button>
+        </div>
+        <div class="drawer-body" id="drawerBody"></div>
+      </div>
+      <div class="card" id="recentMovementsSection">
+        <h2>⬥ Recent Movements</h2>
+        <div id="tableContainer" class="table-wrap" style="margin-top: 12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+
+  <div id="highwayLoginModal" class="highway-login-modal" aria-hidden="true" role="dialog" aria-labelledby="highwayLoginTitle">
+    <div class="highway-login-panel">
+      <h3 id="highwayLoginTitle" data-default-title="Sign in to RetiFlux™">Sign in to RetiFlux™</h3>
+      <p class="sub" id="hwLoginSub">Use your RetiFlux User ID and passcode.</p>
+      <div id="hwLoginFormBlock">
+        <label for="hwLoginUserId">User ID</label>
+        <input id="hwLoginUserId" type="text" autocomplete="username" autocapitalize="characters" placeholder="e.g. RFX-RCV-WK-001">
+        <label for="hwLoginPasscode">Passcode</label>
+        <input id="hwLoginPasscode" type="password" autocomplete="current-password" placeholder="••••••" maxlength="32">
+        <div class="highway-login-err" id="hwLoginErr"></div>
+        <div class="highway-login-actions">
+          <button type="button" class="btn-cancel" id="hwLoginCancel">Cancel</button>
+          <button type="button" class="btn-go" id="hwLoginSubmit">Continue</button>
+        </div>
+      </div>
+      <div id="hwRcChoiceWrap" class="highway-rc-wrap" aria-hidden="true">
+        <p class="sub" id="hwRcChoiceSub">Receiving clerks can create PRT tickets or use the zone portal for their area. Where are you opening?</p>
+        <div class="highway-rc-btns">
+          <button type="button" class="btn-go" id="hwRcBtnPrt">Create PRT tickets</button>
+          <button type="button" class="btn-rc-zone" id="hwRcBtnZone">My zone (monitor, movements &amp; receiving)</button>
+        </div>
+        <div class="highway-rc-back">
+          <button type="button" id="hwRcBack">Back to sign-in</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="../js/retiflux-screenshot-guard.js"></script>
+  <script src="../js/retiflux-auth-session.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script>
+  (function() {
+    var cfg = window.BANDFLOW_CONFIG || {};
+    var supabase = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
+    var TRANSIT_TIMEOUT_MIN = 15;
+    /** Kiosk-style landing (intro, logo ring, typewriter) is the default. Use ?full=1 or ?simple=0 for the dense ops view. */
+    var SIMPLE_HIGHWAY = (function() {
+      try {
+        var p = new URLSearchParams(window.location.search);
+        if (p.get('full') === '1' || p.get('simple') === '0') return false;
+        return true;
+      } catch (e) { return true; }
+    })();
+    /** Public *SVG* only (?public=1 while in simple mode): no zone labels, FL codes, or path/transit tooltips on the map. */
+    var PUBLIC_HIGHWAY = (function() {
+      try {
+        if (!SIMPLE_HIGHWAY) return false;
+        return new URLSearchParams(window.location.search).get('public') === '1';
+      } catch (e) { return false; }
+    })();
+    var highwayLoginIntent = 'app';
+    if (SIMPLE_HIGHWAY) {
+      document.body.classList.add('simple-highway');
+      if (PUBLIC_HIGHWAY) document.body.classList.add('public-highway');
+      var hh = document.querySelector('.header h1');
+      if (hh) {
+        hh.textContent = '🚦 Warehouse Highway';
+        document.title = 'RetiFlux™ · Warehouse Highway';
+      }
+    }
+
+    var zones = [];
+    var transitions = [];
+    var palletCounts = {};
+    var inTransitPallets = [];
+    var highwayCounts = {};
+    var recentMovements = [];
+    var avgTransitSec = null;
+    var forkliftPositions = [];
+    var layeredPositions = {};
+    var trailCache = {};
+    var trailHideTimeout = null;
+    var liveRefreshTimer = null;
+    var refreshInFlight = false;
+    var refreshQueued = false;
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      var div = document.createElement('div');
+      div.textContent = String(s);
+      return div.innerHTML;
+    }
+
+    function showToast(message, type, durationMs) {
+      type = type || 'success';
+      durationMs = durationMs || 5000;
+      var container = document.getElementById('trafficToastContainer');
+      if (!container) return;
+      var existing = container.querySelector('.traffic-toast');
+      if (existing) existing.remove();
+      var el = document.createElement('div');
+      el.className = 'traffic-toast ' + type;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(function() {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.25s ease-out';
+        setTimeout(function() { el.remove(); }, 280);
+      }, durationMs);
+    }
+
+    function hideSplash() {
+      var el = document.getElementById('splash');
+      if (el) { el.classList.add('fade-out'); el.setAttribute('aria-hidden', 'true'); setTimeout(function() { el.style.display = 'none'; }, 250); }
+      var appEl = document.getElementById('app');
+      if (appEl) appEl.style.display = '';
+      if (SIMPLE_HIGHWAY && !window.__retifluxHwTypewriterLoaded) {
+        window.__retifluxHwTypewriterLoaded = true;
+        var tw = document.createElement('script');
+        tw.src = '../js/retiflux-intro-typewriter.js';
+        tw.async = false;
+        document.body.appendChild(tw);
+      }
+    }
+
+    async function loadZones() {
+      if (!supabase) return [];
+      var { data, error } = await supabase.from('zone_config').select('zone_name, prefix').order('zone_name');
+      if (error) throw error;
+      zones = (data || []).map(function(r) { return { id: r.zone_name, name: r.zone_name, prefix: r.prefix }; });
+      return zones;
+    }
+
+    async function loadTransitions() {
+      if (!supabase) return [];
+      var { data, error } = await supabase.from('zone_transitions').select('from_zone, to_zone');
+      if (error) return [];
+      transitions = (data || []).map(function(r) { return { source: r.from_zone, target: r.to_zone }; });
+      return transitions;
+    }
+
+    async function loadPalletCounts() {
+      if (!supabase || !zones.length) return {};
+      var zoneNames = zones.map(function(z) { return z.name; });
+      var counts = {};
+      zoneNames.forEach(function(z) { counts[z] = 0; });
+      var { data, error } = await supabase.rpc('get_pallet_counts_by_zone');
+      if (!error && data && typeof data === 'object') {
+        zoneNames.forEach(function(z) { counts[z] = parseInt(data[z], 10) || 0; });
+      } else {
+        var res = await supabase.from('pallets').select('current_zone').in('current_zone', zoneNames).is('in_transit_to_zone', null).limit(10000);
+        if (!res.error && res.data) res.data.forEach(function(r) { if (r.current_zone && counts[r.current_zone] !== undefined) counts[r.current_zone]++; });
+      }
+      palletCounts = counts;
+      return counts;
+    }
+
+    async function loadInTransitPallets() {
+      if (!supabase) return [];
+      var { data, error } = await supabase.from('zone_movements')
+        .select('pallet_id, from_zone, to_zone, created_at, forklifts(forklift_code, name)')
+        .eq('movement_status', 'In Transit');
+      if (error) {
+        var fb = await supabase.from('pallets').select('pallet_id, current_zone, in_transit_to_zone, in_transit_initiated_at').not('in_transit_to_zone', 'is', null);
+        if (fb.error) { inTransitPallets = []; return []; }
+        inTransitPallets = (fb.data || []).map(function(r) {
+          return { pallet_id: r.pallet_id, from_zone: r.current_zone, to_zone: r.in_transit_to_zone, initiated_at: r.in_transit_initiated_at, forklift_code: null, forklift_name: null };
+        });
+        return inTransitPallets;
+      }
+      inTransitPallets = (data || []).map(function(r) {
+        var f = r.forklifts;
+        return {
+          pallet_id: r.pallet_id,
+          from_zone: r.from_zone,
+          to_zone: r.to_zone,
+          initiated_at: r.created_at,
+          forklift_code: f && f.forklift_code ? f.forklift_code : null,
+          forklift_name: f && f.name ? f.name : null
+        };
+      });
+      return inTransitPallets;
+    }
+
+    async function loadHighwayCounts(hours) {
+      if (!supabase) return {};
+      var since = new Date();
+      since.setHours(since.getHours() - (hours || 24));
+      var sinceStr = since.toISOString();
+      var { data, error } = await supabase.from('zone_movements').select('from_zone, to_zone').gte('created_at', sinceStr);
+      if (error) throw error;
+      var counts = {};
+      (data || []).forEach(function(r) {
+        var k = (r.from_zone || '') + '|' + (r.to_zone || '');
+        counts[k] = (counts[k] || 0) + 1;
+      });
+      highwayCounts = counts;
+      return counts;
+    }
+
+    async function loadForkliftPositions() {
+      if (!supabase) { forkliftPositions = []; return []; }
+      try {
+        var { data, error } = await supabase.rpc('get_forklift_positions');
+        if (error) { forkliftPositions = []; return []; }
+        forkliftPositions = data || [];
+        return forkliftPositions;
+      } catch (_) {
+        forkliftPositions = [];
+        return [];
+      }
+    }
+
+    async function loadAvgTransit(hours) {
+      if (!supabase) return null;
+      var since = new Date();
+      since.setHours(since.getHours() - (hours || 168));
+      var sinceStr = since.toISOString();
+      var { data, error } = await supabase.from('zone_movements').select('created_at, received_at').not('received_at', 'is', null).gte('created_at', sinceStr);
+      if (error) return null;
+      if (!data || data.length === 0) return null;
+      var total = 0, n = 0;
+      data.forEach(function(r) {
+        if (r.received_at && r.created_at) {
+          total += (new Date(r.received_at) - new Date(r.created_at)) / 1000;
+          n++;
+        }
+      });
+      avgTransitSec = n > 0 ? total / n : null;
+      return avgTransitSec;
+    }
+
+    async function loadRecentMovements(limit) {
+      if (!supabase) return [];
+      var { data, error } = await supabase.from('zone_movements')
+        .select('movement_id, pallet_id, from_zone, to_zone, moved_by, received_by, movement_status, created_at, order_reference, forklifts(forklift_code, name)')
+        .order('created_at', { ascending: false })
+        .limit(limit || 20);
+      if (error) {
+        var fb = await supabase.from('zone_movements').select('movement_id, pallet_id, from_zone, to_zone, moved_by, received_by, movement_status, created_at').order('created_at', { ascending: false }).limit(limit || 20);
+        if (fb.error) throw fb.error;
+        recentMovements = (fb.data || []).map(function(r) { r.forklifts = null; return r; });
+        return recentMovements;
+      }
+      recentMovements = data || [];
+      return recentMovements;
+    }
+
+    function getHeatColor(count, maxCount) {
+      if (maxCount <= 0) return '#3b82f6';
+      var p = maxCount > 0 ? count / maxCount : 0;
+      if (p < 0.33) return '#3b82f6';
+      if (p < 0.66) return '#fbbf24';
+      return '#ef4444';
+    }
+
+    function getTransitState(initiatedAt) {
+      if (!initiatedAt) return 'ok';
+      var elapsed = (Date.now() - new Date(initiatedAt).getTime()) / 60000;
+      if (elapsed >= TRANSIT_TIMEOUT_MIN) return 'reverting';
+      if (elapsed >= TRANSIT_TIMEOUT_MIN * 0.8) return 'warning';
+      return 'ok';
+    }
+
+    function getTransitColor(state) {
+      if (state === 'reverting') return '#dc2626';
+      if (state === 'warning') return '#f97316';
+      return '#22c55e';
+    }
+
+    var ZONE_W = 120, ZONE_H = 44, COL_GAP = 180, ROW_GAP = 100;
+
+    function getLayeredPositions(w, h) {
+      w = w || 1000;
+      h = h || 520;
+      var positions = {};
+      var col = function(x) { return 60 + x * (ZONE_W + COL_GAP); };
+      var row = function(y) { return 50 + y * (ZONE_H + ROW_GAP); };
+      function place(name, x, y) { positions[name] = { x: x, y: y }; }
+      place('Receiving Area', col(0), row(2));
+      place('Detergents Zone', col(1), row(0));
+      place('Fats Zone', col(1), row(1));
+      place('Liquids/Oils Zone', col(1), row(2));
+      place('Soaps Zone', col(1), row(3));
+      place('SuperMarket Area', col(2), row(0));
+      place('QA Hold', col(2), row(1));
+      place('Rework Zone', col(2), row(2));
+      place('Dispatch Loading Area', col(3), row(1));
+      place('Outbounding', col(4), row(0));
+      place('Outbonded', col(4), row(1));
+      zones.forEach(function(z) {
+        if (!positions[z.name]) positions[z.name] = { x: col(2), y: row(zones.indexOf(z)) };
+      });
+      return positions;
+    }
+
+    function rectEdgePoint(cx, cy, w, h, towardX, towardY) {
+      var dx = towardX - cx, dy = towardY - cy;
+      if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return { x: cx, y: cy };
+      var t = Infinity;
+      if (dx > 0) t = Math.min(t, (w/2) / dx);
+      else if (dx < 0) t = Math.min(t, (-w/2) / dx);
+      if (dy > 0) t = Math.min(t, (h/2) / dy);
+      else if (dy < 0) t = Math.min(t, (-h/2) / dy);
+      return { x: cx + dx * t, y: cy + dy * t };
+    }
+
+    function renderMap() {
+      var pub = PUBLIC_HIGHWAY;
+      var svg = d3.select('#trafficMap');
+      svg.selectAll('*').remove();
+      var container = document.getElementById('trafficMap');
+      if (!container) return;
+      var w = Math.max(container.clientWidth || 1000, 500);
+      var h = 520;
+      svg.attr('width', w).attr('height', h);
+      if (!pub) {
+        var flCount = Array.isArray(forkliftPositions) ? forkliftPositions.length : 0;
+        svg.append('text')
+          .attr('x', 12)
+          .attr('y', 22)
+          .attr('fill', '#f0c040')
+          .attr('font-size', 12)
+          .attr('font-weight', 900)
+          .text('FL loaded: ' + flCount);
+      }
+      var maxCount = Math.max(1, Math.max.apply(null, Object.values(palletCounts)));
+      var maxHighway = Math.max(1, Math.max.apply(null, Object.values(highwayCounts)));
+
+      var nodes = zones.map(function(z) {
+        return { id: z.name, name: z.name, count: palletCounts[z.name] || 0 };
+      });
+      var links = transitions.map(function(t) {
+        var k = t.source + '|' + t.target;
+        return { source: t.source, target: t.target, count: highwayCounts[k] || 0 };
+      });
+
+      var cx = w / 2, cy = h / 2;
+      var pos = getLayeredPositions(w, h);
+      layeredPositions = pos;
+      nodes.forEach(function(n) {
+        var p = pos[n.id] || { x: cx, y: cy };
+        n.x = p.x;
+        n.y = p.y;
+      });
+
+      function getPathSegment(d) {
+        var fromPos = pos[d.source] || { x: cx, y: cy };
+        var toPos = pos[d.target] || { x: cx, y: cy };
+        var p1 = rectEdgePoint(fromPos.x, fromPos.y, ZONE_W, ZONE_H, toPos.x, toPos.y);
+        var p2 = rectEdgePoint(toPos.x, toPos.y, ZONE_W, ZONE_H, fromPos.x, fromPos.y);
+        return { seg: { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y }, count: d.count, source: d.source, target: d.target };
+      }
+      var pathSegments = links.map(getPathSegment);
+      // Fan out links that share the same undirected edge (e.g. A→B and B→A) so routes do not stack.
+      (function fanOutOverlappingHighwayPaths() {
+        var STEP = 10;
+        function undirectedKey(s, t) {
+          if (!s || !t) return String(s) + '\n' + String(t);
+          return s < t ? s + '\0' + t : t + '\0' + s;
+        }
+        var groups = {};
+        pathSegments.forEach(function(seg, i) {
+          var k = undirectedKey(seg.source, seg.target);
+          if (!groups[k]) groups[k] = [];
+          groups[k].push(i);
+        });
+        Object.keys(groups).forEach(function(k) {
+          var idxs = groups[k];
+          if (idxs.length < 2) return;
+          idxs.sort(function(a, b) {
+            var sa = (pathSegments[a].source || '') + '→' + (pathSegments[a].target || '');
+            var sb = (pathSegments[b].source || '') + '→' + (pathSegments[b].target || '');
+            return sa.localeCompare(sb);
+          });
+          idxs.forEach(function(pi, slot) {
+            var item = pathSegments[pi];
+            var s = item.seg;
+            var dx = s.x2 - s.x1, dy = s.y2 - s.y1;
+            var len = Math.sqrt(dx * dx + dy * dy) || 1;
+            var px = -dy / len, py = dx / len;
+            var off = (slot - (idxs.length - 1) / 2) * STEP;
+            item.seg = { x1: s.x1 + px * off, y1: s.y1 + py * off, x2: s.x2 + px * off, y2: s.y2 + py * off };
+          });
+        });
+      })();
+
+      var zoneIcons = {
+        'Receiving Area': 'M3 8h4l2-4h6l2 4h4v10H3V8zm4 8h2v-4H7v4zm6 0h2v-4h-2v4z',
+        'Detergents Zone': 'M6 4h12v4l-2 12H8L6 8V4zm2 4v6h8V8H8z',
+        'Fats Zone': 'M4 6h16v12H4V6zm2 2v8h12V8H6z',
+        'Liquids/Oils Zone': 'M12 2c-4 0-7 3-7 7 0 5 7 11 7 11s7-6 7-11c0-4-3-7-7-7zm0 4a3 3 0 110 6 3 3 0 010-6z',
+        'Soaps Zone': 'M5 8h14v2l-2 8H7l-2-8V8zm2 2v4h10v-4H7z',
+        'SuperMarket Area': 'M6 4l2 4h8l2-4H6zm0 6v10h12V10H6zm2 2h2v6H8v-6zm4 0h2v6h-2v-6z',
+        'QA Hold': 'M12 2a8 8 0 100 16 8 8 0 000-16zm0 2a6 6 0 110 12 6 6 0 010-12zm-1 2v4l3 3 1.5-1.5L13 8.5V6h-2z',
+        'Rework Zone': 'M12 2v4l-4 4 4 4v4l6-6-6-6-4 4V2zm-2 8l-4 4 4 4v-2l-2-2 2-2v-2z',
+        'Dispatch Loading Area': 'M2 8h4v2H4v4h2v2H2v-8zm8 0h4l2 4-2 4h-4v-8zm8 0h4v8h-2v-4H18v-4z',
+        'Outbounding': 'M4 12h12l-4-4 1.5-1.5L18 12l-4.5 5.5L18 18l-4-4v4H4v-6z',
+        'Outbonded': 'M10 2l2 2 4-4 2 2-6 6-4-4 2-2z'
+      };
+      var defs = svg.append('defs');
+      Object.keys(zoneIcons).forEach(function(name) {
+        defs.append('symbol').attr('id', 'zone-icon-' + name.replace(/[\s\/]+/g, '-')).attr('viewBox', '0 0 24 24')
+          .append('path').attr('d', zoneIcons[name]).attr('fill', '#0f172a').attr('stroke', 'none');
+      });
+
+      var pathsGroup = svg.append('g').attr('class', 'paths');
+      var pathGroup = pathsGroup.selectAll('g.path-group').data(pathSegments).join('g')
+        .attr('class', 'path-group')
+        .attr('title', pub ? null : function(d) { return (d.source || '') + ' → ' + (d.target || '') + ' (' + (d.count || 0) + ' movements)'; })
+        .style('cursor', pub ? 'default' : 'pointer');
+      pathGroup.append('line').attr('class', 'path-hit')
+        .attr('stroke', 'transparent').attr('stroke-width', 24).attr('stroke-linecap', 'round')
+        .attr('x1', function(d) { return d.seg.x1; }).attr('y1', function(d) { return d.seg.y1; })
+        .attr('x2', function(d) { return d.seg.x2; }).attr('y2', function(d) { return d.seg.y2; });
+      var linkBase = pathGroup.append('line').attr('class', 'path-base')
+        .attr('stroke', 'rgba(94, 234, 212, 0.3)')
+        .attr('stroke-width', 12)
+        .attr('stroke-linecap', 'round')
+        .attr('x1', function(d) { return d.seg.x1; }).attr('y1', function(d) { return d.seg.y1; })
+        .attr('x2', function(d) { return d.seg.x2; }).attr('y2', function(d) { return d.seg.y2; });
+      var linkLine = pathGroup.append('line').attr('class', 'path-line')
+        .attr('stroke', 'rgba(245, 158, 11, 0.6)')
+        .attr('stroke-width', function(d) { return 2 + Math.min(5, (d.count / maxHighway) * 5); })
+        .attr('stroke-linecap', 'round')
+        .attr('x1', function(d) { return d.seg.x1; }).attr('y1', function(d) { return d.seg.y1; })
+        .attr('x2', function(d) { return d.seg.x2; }).attr('y2', function(d) { return d.seg.y2; });
+
+      if (!pub) {
+        pathGroup
+          .on('mouseenter', function(ev, d) {
+            try{
+              var tt = document.getElementById('transitTooltip');
+              if (tt) {
+                tt.innerHTML = '<div class="tt-pallet">' + escapeHtml(d.source || '') + ' → ' + escapeHtml(d.target || '') + '</div>' +
+                                '<div class="tt-route">' + escapeHtml((d.count || 0) + ' movement(s) in range') + '</div>' +
+                                '<div class="tt-state">Highway path</div>';
+                tt.classList.add('visible');
+                positionTooltip(ev, tt);
+              }
+              var g = d3.select(this);
+              var line = g.select('.path-line');
+              if (line && !line.empty()) {
+                var baseW = 2 + Math.min(5, (d.count / maxHighway) * 5);
+                line.attr('stroke', 'rgba(245, 158, 11, 0.95)').attr('stroke-width', baseW + 6);
+              }
+            } catch (_) {}
+          })
+          .on('mouseleave', function(ev, d) {
+            try{
+              hideTransitTooltip();
+              var g = d3.select(this);
+              var line = g.select('.path-line');
+              if (line && !line.empty()) {
+                var baseW = 2 + Math.min(5, (d.count / maxHighway) * 5);
+                line.attr('stroke', 'rgba(245, 158, 11, 0.6)').attr('stroke-width', baseW);
+              }
+            } catch (_) {}
+          });
+      }
+
+      var zonesGroup = svg.append('g').attr('class', 'zones');
+      var node = zonesGroup.selectAll('g').data(nodes).join('g')
+        .attr('class', 'zone-node')
+        .attr('transform', function(d) { return 'translate(' + d.x + ',' + d.y + ')'; })
+        .style('cursor', pub ? 'default' : 'pointer');
+      if (!pub) {
+        node.on('click', function(ev, d) { openDrawer(d); });
+      }
+
+      var shortLabels = {
+        'Receiving Area': 'Receiving',
+        'Detergents Zone': 'Detergents',
+        'Fats Zone': 'Fats',
+        'Liquids/Oils Zone': 'Liquids',
+        'Soaps Zone': 'Soaps',
+        'SuperMarket Area': 'SuperMarket',
+        'QA Hold': 'QA Hold',
+        'Rework Zone': 'Rework',
+        'Dispatch Loading Area': 'Dispatch',
+        'Outbounding': 'Outbounding',
+        'Outbonded': 'Outbonded'
+      };
+      var getLabel = function(d) {
+        var label = shortLabels[d.name] || d.name;
+        return label + ' (' + d.count + ')';
+      };
+
+      node.append('rect')
+        .attr('width', ZONE_W).attr('height', ZONE_H)
+        .attr('x', -ZONE_W/2).attr('y', -ZONE_H/2)
+        .attr('rx', 8)
+        .attr('fill', function(d) { return getHeatColor(d.count, maxCount); })
+        .attr('stroke', 'rgba(245, 158, 11, 0.7)')
+        .attr('stroke-width', 2)
+        .attr('title', pub ? null : function(d) { return d.name + ' (' + d.count + ' pallets) — Click for list'; });
+
+      node.each(function(d) {
+        var g = d3.select(this);
+        var iconId = 'zone-icon-' + (d.name || '').replace(/[\s\/]+/g, '-');
+        if (zoneIcons[d.name]) {
+          g.append('use').attr('href', '#' + iconId).attr('x', -ZONE_W/2 + 8).attr('y', -ZONE_H/2 + 6).attr('width', 20).attr('height', 20);
+        }
+      });
+      if (!pub) {
+        node.append('text')
+          .attr('text-anchor', 'middle')
+          .attr('x', function(d) { return zoneIcons[d.name] ? 8 : 0; })
+          .attr('dy', '0.35em')
+          .attr('fill', '#ffffff')
+          .attr('font-size', 11)
+          .attr('font-weight', 700)
+          .attr('font-family', 'Cascadia Mono, Cascadia Code, Consolas, monospace')
+          .style('paint-order', 'stroke fill')
+          .style('stroke', '#0f172a')
+          .style('stroke-width', '2px')
+          .style('stroke-linejoin', 'round')
+          .text(getLabel);
+      }
+
+      var transitG = svg.append('g').attr('class', 'transit-dots');
+      function updateTransitDots() {
+        transitG.selectAll('*').remove();
+        var currentPos = layeredPositions;
+        var routeGroups = {};
+        inTransitPallets.forEach(function(p) {
+          var k = (p.from_zone || '') + '|' + (p.to_zone || '');
+          if (!routeGroups[k]) routeGroups[k] = [];
+          routeGroups[k].push(p);
+        });
+        Object.keys(routeGroups).forEach(function(k) {
+          var pals = routeGroups[k];
+          pals.sort(function(a, b) { return (a.initiated_at || '').localeCompare(b.initiated_at || '') || (a.pallet_id || '').localeCompare(b.pallet_id || ''); });
+          pals.forEach(function(p, idx) {
+            var fromPos = currentPos[p.from_zone];
+            var toPos = currentPos[p.to_zone];
+            if (!fromPos || !toPos) return;
+            var state = getTransitState(p.initiated_at);
+            var elapsed = p.initiated_at ? (Date.now() - new Date(p.initiated_at).getTime()) / 60000 : 0;
+            var progress;
+            if (state === 'reverting') {
+              progress = Math.max(0, 1 - (elapsed - TRANSIT_TIMEOUT_MIN) / 3);
+            } else {
+              progress = Math.min(1, elapsed / TRANSIT_TIMEOUT_MIN);
+            }
+            var dx = toPos.x - fromPos.x, dy = toPos.y - fromPos.y;
+            var len = Math.sqrt(dx * dx + dy * dy) || 1;
+            var perpX = -dy / len, perpY = dx / len;
+            var offset = (idx - (pals.length - 1) / 2) * 22;
+            var x = fromPos.x + dx * progress + perpX * offset;
+            var y = fromPos.y + dy * progress + perpY * offset;
+            var flCode = p.forklift_code || p.forklift_name || '';
+            var dot = transitG.append('g')
+              .attr('transform', 'translate(' + x + ',' + y + ')')
+              .attr('class', 'transit-dot')
+              .style('cursor', 'pointer');
+            if (!pub && p.pallet_id) dot.attr('data-pallet', p.pallet_id);
+            var circle = dot.append('circle').attr('r', 14).attr('fill', getTransitColor(state)).attr('fill-opacity', 0.9).attr('stroke', '#fff').attr('stroke-width', 3);
+            if (state === 'ok') circle.attr('class', 'dot-pulse');
+            if (flCode) {
+              var pillY = 26;
+              var pill = dot.append('g')
+                .attr('class', 'fl-pill' + (state === 'ok' ? ' pulse' : ''))
+                .attr('transform', 'translate(0,' + pillY + ')');
+              // Diamond polygon centered at 0,0
+              pill.append('polygon')
+                .attr('class', 'pill-shape')
+                .attr('points', '-22,0 0,-12 22,0 0,12');
+              // Green dot at top-right corner
+              pill.append('circle').attr('class', 'pill-dot').attr('cx', 14).attr('cy', -8).attr('r', 4.5);
+              if (!pub) {
+                pill.append('text').attr('class', 'pill-text').attr('x', 0).attr('y', 0).text(flCode);
+              }
+            }
+            if (!pub) {
+              dot.on('mouseenter', function(ev) { showTransitTooltip(ev, p); })
+                 .on('mouseleave', hideTransitTooltip)
+                 .on('mousemove', function(ev) { positionTooltip(ev, document.getElementById('transitTooltip')); });
+            } else {
+              dot.style('cursor', 'default');
+            }
+          });
+        });
+      }
+      updateTransitDots();
+
+        // Render forklift overview icons at their inferred current zones.
+        // Multiple forklifts can be in the same zone; we fan them out so they don't stack.
+        var flG = svg.append('g').attr('class', 'forklift-icons');
+        var delayMin = 5;
+        var travelMin = 5;
+        var zoneDrawCount = {};
+
+        function drawForkliftAt(x, y, fl, drawOpts) {
+          if (!fl) return;
+          drawOpts = drawOpts || {};
+          var isStaging = !!drawOpts.staging;
+          var showOrder = !!fl.has_order;
+          var pillCls = 'fl-pill';
+          if (showOrder) pillCls += ' pulse';
+          else if (isStaging) pillCls += ' fl-staging pulse';
+          var g = flG.append('g')
+            .attr('transform', 'translate(' + x + ',' + y + ')')
+            .attr('class', pillCls)
+            .style('cursor', 'default');
+          var shapeCls = 'pill-shape';
+          if (!showOrder) {
+            shapeCls += ' idle-shape';
+            if (isStaging) shapeCls += ' staging-shape';
+          }
+          g.append('polygon')
+            .attr('class', shapeCls)
+            .attr('points', '-22,0 0,-12 22,0 0,12');
+          if (showOrder) {
+            g.append('circle')
+              .attr('class', 'pill-dot')
+              .attr('cx', 14)
+              .attr('cy', -8)
+              .attr('r', 4.5);
+          }
+          if (!pub) {
+            g.append('text')
+              .attr('class', 'pill-text')
+              .attr('x', 0)
+              .attr('y', 0)
+              .text(fl.forklift_code || fl.forklift_name || '');
+          }
+        }
+
+        function resolveZoneKey(desired) {
+          var zoneKey = null;
+          var desiredLower = String(desired || '').trim().toLowerCase();
+          Object.keys(layeredPositions).some(function(k){
+            var kLower = String(k || '').trim().toLowerCase();
+            if (kLower === desiredLower) { zoneKey = k; return true; }
+            if (kLower.indexOf(desiredLower) !== -1 || desiredLower.indexOf(kLower) !== -1) { zoneKey = k; return true; }
+            return false;
+          });
+          return zoneKey;
+        }
+
+        var dispatchZone = 'Dispatch Loading Area';
+        var dispatchPos = layeredPositions[dispatchZone];
+
+        forkliftPositions.forEach(function(fl, idx) {
+          if (!fl) return;
+          if (fl.in_transit) return; // Draw in transit on highway path only
+          var cz = fl.current_zone ? String(fl.current_zone) : '';
+          if (!cz) return;
+
+          var stZ = fl.staging_target_zone && String(fl.staging_target_zone).trim();
+          var stAvail = String(fl.status || '').toLowerCase() === 'available';
+          if (stZ && stAvail) {
+            var skFrom = resolveZoneKey(cz);
+            var skTo = resolveZoneKey(stZ);
+            var stFromPos = skFrom ? layeredPositions[skFrom] : null;
+            var stToPos = skTo ? layeredPositions[skTo] : null;
+            if (stFromPos && stToPos) {
+              var t0st = fl.staging_set_at ? new Date(fl.staging_set_at).getTime() : Date.now();
+              var elapsedSt = (Date.now() - t0st) / 60000;
+              var progSt = Math.max(0, Math.min(1, (elapsedSt - delayMin) / travelMin));
+              var dxSt = stToPos.x - stFromPos.x, dySt = stToPos.y - stFromPos.y;
+              var lenSt = Math.sqrt(dxSt * dxSt + dySt * dySt) || 1;
+              var pxSt = -dySt / lenSt, pySt = dxSt / lenSt;
+              var offSt = ((idx % 3) - 1) * 16;
+              var xSt = stFromPos.x + dxSt * progSt + pxSt * offSt;
+              var ySt = stFromPos.y + dySt * progSt + pySt * offSt;
+              drawForkliftAt(xSt, ySt - 16, fl, { staging: true });
+              return;
+            }
+          }
+
+          // Returning animation: non-dispatch forklifts that last touched Dispatch
+          if (cz === dispatchZone && !fl.is_dispatch_fleet && fl.return_zone && dispatchPos) {
+            var toKey = resolveZoneKey(fl.return_zone) || resolveZoneKey('Receiving Area');
+            var toPos = toKey ? layeredPositions[toKey] : null;
+            if (toPos) {
+              var fromPos = dispatchPos;
+              var dx = toPos.x - fromPos.x;
+              var dy = toPos.y - fromPos.y;
+              var len = Math.sqrt(dx * dx + dy * dy) || 1;
+              var perpX = -dy / len, perpY = dx / len;
+
+              var t0 = fl.dispatch_arrived_at ? new Date(fl.dispatch_arrived_at).getTime() : (fl.last_movement_at ? new Date(fl.last_movement_at).getTime() : null);
+              var elapsedMin = (t0 ? (Date.now() - t0) / 60000 : 9999);
+              var progress = Math.max(0, Math.min(1, (elapsedMin - delayMin) / travelMin));
+              var offset = ((idx % 3) - 1) * 16;
+              var x = fromPos.x + dx * progress + perpX * offset;
+              var y = fromPos.y + dy * progress + perpY * offset;
+              drawForkliftAt(x, y - 16, fl);
+              return;
+            }
+          }
+
+          // Static placement (including dispatch-dedicated forklifts)
+          var zoneKey = resolveZoneKey(cz) || resolveZoneKey('Receiving Area');
+          if (!zoneKey) return;
+          var pos = layeredPositions[zoneKey];
+          if (!pos) return;
+          // Fan-out offsets within the same zone block
+          if (!zoneDrawCount[zoneKey]) zoneDrawCount[zoneKey] = 0;
+          var n = zoneDrawCount[zoneKey];
+          zoneDrawCount[zoneKey] = n + 1;
+          var col = n % 3; // 3 columns
+          var row = Math.floor(n / 3);
+          var x = pos.x + 18 + col * 18;
+          var y = pos.y - 22 + row * 14;
+          drawForkliftAt(x, y, fl);
+        });
+    }
+
+    async function openDrawer(zoneData) {
+      if (PUBLIC_HIGHWAY) return;
+      var zoneName = zoneData.id || zoneData.name;
+      document.getElementById('drawerTitle').textContent = zoneName + ' — ' + (palletCounts[zoneName] || 0) + ' pallets';
+      document.getElementById('drawerBody').innerHTML = '<div class="empty">Loading…</div>';
+      document.getElementById('drawer').classList.add('open');
+
+      if (!supabase) {
+        document.getElementById('drawerBody').innerHTML = '<div class="empty">Supabase not configured.</div>';
+        return;
+      }
+
+      try {
+        var [palletsRes, inboundsRes, outboundsRes] = await Promise.all([
+          supabase.from('pallets').select('pallet_id, sku, status, remaining_quantity, quantity').eq('current_zone', zoneName).is('in_transit_to_zone', null),
+          supabase.from('zone_movements').select('pallet_id, from_zone, to_zone, movement_status, created_at').eq('to_zone', zoneName).order('created_at', { ascending: false }).limit(50),
+          supabase.from('zone_movements').select('pallet_id, from_zone, to_zone, movement_status, created_at').eq('from_zone', zoneName).order('created_at', { ascending: false }).limit(50)
+        ]);
+        var pallets = palletsRes.data || [];
+        var inbounds = inboundsRes.data || [];
+        var outbounds = outboundsRes.data || [];
+
+        var html = '';
+
+        html += '<div class="drawer-section"><div class="drawer-section-title">Pallets in zone (' + pallets.length + ')</div><div class="drawer-section-content">';
+        if (pallets.length === 0) html += '<div class="empty">No pallets in this zone.</div>';
+        else pallets.forEach(function(p) {
+          var pid = p.pallet_id ? String(p.pallet_id).trim() : '';
+          var trailAttrs = pid ? ' trail-hover" data-pallet-id="' + escapeHtml(pid) + '"' : '';
+          html += '<div class="pallet-row' + trailAttrs + '"><span>' + escapeHtml(p.pallet_id) + ' — ' + escapeHtml(p.sku || '') + '</span><span>' + (p.remaining_quantity != null ? p.remaining_quantity : p.quantity) + ' ' + (p.status || '') + '</span></div>';
+        });
+        html += '</div></div>';
+
+        html += '<div class="drawer-section"><div class="drawer-section-title collapsed">Inbounds (' + inbounds.length + ')</div><div class="drawer-section-content collapsed">';
+        if (inbounds.length === 0) html += '<div class="empty">No recent inbounds.</div>';
+        else inbounds.forEach(function(m) {
+          var d = m.created_at ? new Date(m.created_at).toLocaleString() : '—';
+          var pid = m.pallet_id ? String(m.pallet_id).trim() : '';
+          var trailAttrs = pid ? ' trail-hover" data-pallet-id="' + escapeHtml(pid) + '"' : '';
+          html += '<div class="drawer-movement-row' + trailAttrs + '"><span>' + escapeHtml(m.pallet_id) + '</span><span class="route">' + escapeHtml(m.from_zone || '—') + ' → ' + escapeHtml(zoneName) + '</span><span class="date">' + escapeHtml(d) + '</span></div>';
+        });
+        html += '</div></div>';
+
+        html += '<div class="drawer-section"><div class="drawer-section-title collapsed">Outbounds (' + outbounds.length + ')</div><div class="drawer-section-content collapsed">';
+        if (outbounds.length === 0) html += '<div class="empty">No recent outbounds.</div>';
+        else outbounds.forEach(function(m) {
+          var d = m.created_at ? new Date(m.created_at).toLocaleString() : '—';
+          var pid = m.pallet_id ? String(m.pallet_id).trim() : '';
+          var trailAttrs = pid ? ' trail-hover" data-pallet-id="' + escapeHtml(pid) + '"' : '';
+          html += '<div class="drawer-movement-row' + trailAttrs + '"><span>' + escapeHtml(m.pallet_id) + '</span><span class="route">' + escapeHtml(zoneName) + ' → ' + escapeHtml(m.to_zone || '—') + '</span><span class="date">' + escapeHtml(d) + '</span></div>';
+        });
+        html += '</div></div>';
+
+        document.getElementById('drawerBody').innerHTML = html;
+
+        document.querySelectorAll('.drawer-section-title').forEach(function(btn) {
+          btn.onclick = function() {
+            var content = btn.nextElementSibling;
+            var isCollapsed = content.classList.contains('collapsed');
+            content.classList.toggle('collapsed', !isCollapsed);
+            btn.classList.toggle('collapsed', !isCollapsed);
+          };
+        });
+      } catch (e) {
+        document.getElementById('drawerBody').innerHTML = '<div class="error">Error: ' + escapeHtml(e.message || 'Failed to load') + '</div>';
+      }
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawer').classList.remove('open');
+    }
+
+    function showTransitTooltip(ev, p) {
+      if (PUBLIC_HIGHWAY) return;
+      var tt = document.getElementById('transitTooltip');
+      if (!tt) return;
+      var elapsed = p.initiated_at ? (Date.now() - new Date(p.initiated_at).getTime()) / 60000 : 0;
+      var state = getTransitState(p.initiated_at);
+      var stateLabel = state === 'reverting' ? 'Reverting to origin' : state === 'warning' ? 'Approaching timeout' : 'In transit';
+      var flLine = (p.forklift_code || p.forklift_name) ? '<div class="tt-fl">FL: ' + escapeHtml(p.forklift_code || p.forklift_name || '') + '</div>' : '';
+      tt.innerHTML = '<div class="tt-pallet">' + escapeHtml(p.pallet_id) + '</div>' +
+        '<div class="tt-route">' + escapeHtml(p.from_zone) + ' → ' + escapeHtml(p.to_zone) + '</div>' +
+        flLine +
+        '<div class="tt-elapsed">Elapsed: ' + Math.round(elapsed) + ' min</div>' +
+        '<div class="tt-state">' + stateLabel + '</div>';
+      tt.classList.add('visible');
+      positionTooltip(ev, tt);
+    }
+
+    function positionTooltip(ev, tt) {
+      var x = ev.clientX, y = ev.clientY;
+      var offset = 14;
+      tt.style.left = (x + offset) + 'px';
+      tt.style.top = (y + offset) + 'px';
+      var rect = tt.getBoundingClientRect();
+      if (rect.right > window.innerWidth) tt.style.left = (x - rect.width - offset) + 'px';
+      if (rect.bottom > window.innerHeight) tt.style.top = (y - rect.height - offset) + 'px';
+    }
+
+    function hideTransitTooltip() {
+      var tt = document.getElementById('transitTooltip');
+      if (tt) { tt.classList.remove('visible'); tt.innerHTML = ''; }
+    }
+
+    async function getTrail(palletId) {
+      if (!palletId) return null;
+      if (trailCache[palletId]) return trailCache[palletId];
+      if (!supabase) return null;
+      try {
+        var { data, error } = await supabase.rpc('get_pallet_trail', { p_pallet_id: palletId });
+        if (error) throw error;
+        var result = (data && typeof data === 'object') ? data : (typeof data === 'string' ? JSON.parse(data) : null);
+        if (result && result.success) {
+          trailCache[palletId] = result;
+          return result;
+        }
+        return null;
+      } catch (e) {
+        return { success: false, error: e.message || 'Failed to load trail' };
+      }
+    }
+
+    function renderTrailPopover(popover, data) {
+      if (!data || !data.success) {
+        popover.innerHTML = '<div class="trail-header">Pallet trail</div><div class="trail-meta">' + escapeHtml(data && data.error ? data.error : 'Unable to load trail') + '</div>';
+        return;
+      }
+      var meta = 'SKU: ' + escapeHtml(data.sku || '—') + ' · Qty: ' + (data.quantity != null ? data.quantity : '—') + ' · Zone: ' + escapeHtml(data.current_zone || '—');
+      if (data.in_transit_to) meta += ' · In transit → ' + escapeHtml(data.in_transit_to);
+      var html = '<div class="trail-header">' + escapeHtml(data.pallet_id) + '</div><div class="trail-meta">' + meta + '</div><div class="trail-events">';
+      var trail = data.trail || [];
+      trail.forEach(function(ev) {
+        var cls = ev.type === 'created' ? 'trail-event created' : 'trail-event';
+        var label = ev.label || (ev.from_zone && ev.to_zone ? ev.from_zone + ' → ' + ev.to_zone : ev.zone || '—');
+        var at = ev.at ? new Date(ev.at).toLocaleString() : '—';
+        var by = ev.by || ev.received_by || '';
+        var fl = ev.forklift || '';
+        var detail = at;
+        if (by) detail += ' · ' + escapeHtml(by);
+        if (fl) detail += ' · FL: ' + escapeHtml(fl);
+        if (ev.order_ref) detail += ' · Order: ' + escapeHtml(ev.order_ref);
+        html += '<div class="' + cls + '"><div class="trail-label">' + escapeHtml(label) + '</div><div class="trail-detail">' + detail + '</div></div>';
+      });
+      var splitsOut = data.splits_for_parent || [];
+      if (Array.isArray(splitsOut) && splitsOut.length) {
+        html += '<div class="trail-header" style="margin-top:10px;font-size:11px">Shared with orders</div>';
+        splitsOut.forEach(function(s) {
+          html += '<div class="trail-event"><div class="trail-label">→ ' + escapeHtml(s.child_pallet_id || '') + ' · ' + (s.quantity != null ? s.quantity : '') + ' ' + escapeHtml(s.sku || '') + '</div><div class="trail-detail">Order: ' + escapeHtml(s.order_ref || '—') + '</div></div>';
+        });
+      }
+      var splitsIn = data.splits_from_parents || [];
+      if (Array.isArray(splitsIn) && splitsIn.length) {
+        html += '<div class="trail-header" style="margin-top:10px;font-size:11px">Built from parents</div>';
+        splitsIn.forEach(function(s) {
+          html += '<div class="trail-event"><div class="trail-label">← ' + escapeHtml(s.parent_pallet_id || '') + ' · ' + (s.quantity != null ? s.quantity : '') + ' ' + escapeHtml(s.sku || '') + '</div><div class="trail-detail">Order: ' + escapeHtml(s.order_ref || '—') + '</div></div>';
+        });
+      }
+      html += '</div>';
+      popover.innerHTML = html;
+    }
+
+    function showTrailPopover(ev, palletId) {
+      var popover = document.getElementById('palletTrailPopover');
+      if (!popover || !palletId) return;
+      if (trailHideTimeout) { clearTimeout(trailHideTimeout); trailHideTimeout = null; }
+      popover.innerHTML = '<div class="trail-header">' + escapeHtml(palletId) + '</div><div class="trail-meta">Loading trail…</div>';
+      popover.classList.add('visible');
+      positionTooltip(ev, popover);
+      getTrail(palletId).then(function(data) {
+        renderTrailPopover(popover, data || { success: false, error: 'No data' });
+        positionTooltip(ev, popover);
+      });
+    }
+
+    function hideTrailPopover() {
+      if (trailHideTimeout) clearTimeout(trailHideTimeout);
+      trailHideTimeout = setTimeout(function() {
+        trailHideTimeout = null;
+        var popover = document.getElementById('palletTrailPopover');
+        if (popover) popover.classList.remove('visible');
+      }, 150);
+    }
+
+    function cancelHideTrailPopover() {
+      if (trailHideTimeout) { clearTimeout(trailHideTimeout); trailHideTimeout = null; }
+    }
+
+    function renderRecentTable() {
+      var container = document.getElementById('tableContainer');
+      if (!recentMovements.length) {
+        container.innerHTML = '<div class="empty">No recent movements.</div>';
+        return;
+      }
+      var html = '<table class="recent-table"><thead><tr><th>ID</th><th>Pallet</th><th>From</th><th>To</th><th>Order</th><th>FL</th><th>Moved By</th><th>Received By</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+      recentMovements.forEach(function(m) {
+        var d = m.created_at ? new Date(m.created_at).toLocaleString() : '—';
+        var fl = (m.forklifts && (m.forklifts.forklift_code || m.forklifts.name)) ? (m.forklifts.forklift_code || m.forklifts.name) : '—';
+        var pid = m.pallet_id ? String(m.pallet_id).trim() : '';
+        var trailAttrs = pid ? ' class="trail-hover" data-pallet-id="' + escapeHtml(pid) + '"' : '';
+        html += '<tr>' +
+          '<td>' + escapeHtml(m.movement_id || '—') + '</td>' +
+          '<td><span' + trailAttrs + ' style="font-weight:800;color:#f0c040;cursor:pointer;text-decoration:underline;text-underline-offset:2px;">' + escapeHtml(m.pallet_id || '—') + '</span></td>' +
+          '<td class="from-zone">' + escapeHtml(m.from_zone || '—') + '</td>' +
+          '<td class="to-zone">' + escapeHtml(m.to_zone || '—') + '</td>' +
+          '<td>' + escapeHtml(m.order_reference || '—') + '</td>' +
+          '<td>' + escapeHtml(fl) + '</td>' +
+          '<td>' + escapeHtml(m.moved_by || '—') + '</td>' +
+          '<td>' + escapeHtml(m.received_by || '—') + '</td>' +
+          '<td>' + escapeHtml(m.movement_status || '—') + '</td>' +
+          '<td>' + escapeHtml(d) + '</td>' +
+        '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function updateAvgLabel() {
+      var el = document.getElementById('avgTransitLabel');
+      if (avgTransitSec == null) { el.textContent = 'Avg transit: —'; return; }
+      var min = Math.round(avgTransitSec / 60);
+      el.textContent = 'Avg transit: ' + min + ' min';
+    }
+
+    async function refresh() {
+      if (refreshInFlight) { refreshQueued = true; return; }
+      refreshInFlight = true;
+      try {
+        await loadZones();
+        await loadTransitions();
+        await loadPalletCounts();
+        await loadInTransitPallets();
+        await loadForkliftPositions();
+        var hwHours = parseInt(document.getElementById('highwayRange').value, 10) || 24;
+        await loadHighwayCounts(hwHours);
+        if (!SIMPLE_HIGHWAY) {
+          var avgHours = parseInt(document.getElementById('avgTransitScope').value, 10) || 168;
+          await loadAvgTransit(avgHours);
+          await loadRecentMovements(20);
+        }
+        if (!SIMPLE_HIGHWAY) updateAvgLabel();
+        renderMap();
+        if (!SIMPLE_HIGHWAY) renderRecentTable();
+      } catch (e) {
+        document.querySelector('.map-container').innerHTML = '<div class="error">Error: ' + escapeHtml(e.message || 'Failed to load') + '</div>';
+      } finally {
+        refreshInFlight = false;
+        if (refreshQueued) {
+          refreshQueued = false;
+          refresh();
+        }
+      }
+    }
+
+    function scheduleLiveRefresh(reason) {
+      if (liveRefreshTimer) clearTimeout(liveRefreshTimer);
+      liveRefreshTimer = setTimeout(function() { refresh(); }, reason === 'movement' ? 200 : 350);
+    }
+
+    async function runAutoRevert() {
+      if (!supabase) {
+        showToast('Supabase not configured.', 'error');
+        return;
+      }
+      var btn = document.getElementById('btnAutoRevert');
+      btn.disabled = true;
+      btn.textContent = 'Running…';
+      try {
+        var received = 0, reverted = 0;
+        var { data: dspData } = await supabase.rpc('movement_auto_receive_dispatch', { p_minutes: 8 });
+        if (dspData && dspData.received) received = dspData.received;
+        var { data, error } = await supabase.rpc('movement_auto_revert');
+        if (error) throw error;
+        reverted = (data && data.reverted) || 0;
+        if (received > 0 || reverted > 0) {
+          var msg = [];
+          if (received > 0) msg.push(received + ' auto-arrived at Dispatch');
+          if (reverted > 0) msg.push(reverted + ' reverted to origin');
+          showToast(msg.join('; ') + '.', 'success');
+          await refresh();
+        } else {
+          showToast('No pallets to process. Dispatch: within 8 min; others: within 15 min.', 'success');
+        }
+      } catch (e) {
+        showToast('Error: ' + (e.message || 'Failed to run'), 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '↩ Run auto-revert';
+      }
+    }
+
+    async function runCheckReplenishment() {
+      if (!supabase) {
+        showToast('Supabase not configured.', 'error');
+        return;
+      }
+      var btn = document.getElementById('btnCheckReplenishment');
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      try {
+        var smCreated = 0, zoneWarn = 0, zoneReq = 0;
+        var { data: smData } = await supabase.rpc('check_sm_replenishment');
+        if (smData && smData.created != null) smCreated = smData.created;
+        var { data: zoneData } = await supabase.rpc('check_zone_replenishment');
+        if (zoneData) {
+          zoneWarn = zoneData.warnings || 0;
+          zoneReq = zoneData.requests || 0;
+        }
+        var msg = 'SM: ' + smCreated + ' task(s); Zone: ' + zoneReq + ' request(s), ' + zoneWarn + ' warning(s).';
+        showToast(msg, smCreated + zoneReq > 0 ? 'success' : 'success');
+      } catch (e) {
+        showToast('Replenishment check failed: ' + (e.message || e), 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '📋 Check Replenishment';
+      }
+    }
+
+    async function runCheckConsistency() {
+      if (!supabase) { showToast('Supabase not configured.', 'error'); return; }
+      var btn = document.getElementById('btnCheckConsistency');
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      try {
+        var { data, error } = await supabase.rpc('check_movement_consistency');
+        if (error) throw error;
+        if (data && data.ok) {
+          showToast('Consistency OK: pallets ↔ zone_movements in sync.', 'success');
+        } else {
+          var parts = [];
+          if (data && data.in_transit_no_movement && data.in_transit_no_movement.length) parts.push(data.in_transit_no_movement.length + ' pallet(s) in transit with no movement');
+          if (data && data.movement_in_transit_pallet_cleared && data.movement_in_transit_pallet_cleared.length) parts.push(data.movement_in_transit_pallet_cleared.length + ' movement(s) orphaned');
+          if (data && data.orphan_movements && data.orphan_movements.length) parts.push(data.orphan_movements.length + ' movement(s) for deleted pallets');
+          showToast('Consistency drift: ' + (parts.join('; ') || 'Unknown'), 'error', 8000);
+        }
+      } catch (e) {
+        showToast('Check failed: ' + (e.message || 'RPC not found. Run migration 010.'), 'error', 6000);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✓ Check consistency';
+      }
+    }
+
+    document.getElementById('btnRefresh').onclick = refresh;
+    document.getElementById('btnAutoRevert').onclick = runAutoRevert;
+    document.getElementById('btnCheckReplenishment').onclick = runCheckReplenishment;
+    document.getElementById('btnCheckConsistency').onclick = runCheckConsistency;
+    document.getElementById('drawerClose').onclick = closeDrawer;
+
+    (function setupTrailHover() {
+      var drawerBody = document.getElementById('drawerBody');
+      var tableContainer = document.getElementById('tableContainer');
+      var popover = document.getElementById('palletTrailPopover');
+      if (!popover) return;
+
+      function onOver(ev) {
+        var row = ev.target && ev.target.closest ? ev.target.closest('.trail-hover[data-pallet-id]') : null;
+        if (!row) return;
+        var pid = (row.getAttribute('data-pallet-id') || '').trim();
+        if (!pid) return;
+        cancelHideTrailPopover();
+        showTrailPopover(ev, pid);
+      }
+      function onOut(ev) {
+        var row = ev.target && ev.target.closest ? ev.target.closest('.trail-hover[data-pallet-id]') : null;
+        var intoPopover = ev.relatedTarget && popover.contains(ev.relatedTarget);
+        if (row && !intoPopover) hideTrailPopover();
+      }
+
+      if (drawerBody) {
+        drawerBody.addEventListener('mouseover', onOver);
+        drawerBody.addEventListener('mouseout', onOut);
+      }
+      if (tableContainer) {
+        tableContainer.addEventListener('mouseover', onOver);
+        tableContainer.addEventListener('mouseout', onOut);
+      }
+      popover.addEventListener('mouseenter', cancelHideTrailPopover);
+      popover.addEventListener('mouseleave', hideTrailPopover);
+    })();
+
+    document.getElementById('highwayRange').onchange = refresh;
+    document.getElementById('avgTransitScope').onchange = function() {
+      loadAvgTransit(parseInt(document.getElementById('avgTransitScope').value, 10) || 168).then(function() {
+        updateAvgLabel();
+      });
+    };
+
+    setInterval(function() {
+      if (supabase) {
+        supabase.rpc('movement_auto_receive_dispatch', { p_minutes: 8 }).then(function(r) {
+          if (r.data && r.data.received > 0) refresh();
+        });
+      }
+    }, 5 * 60 * 1000);
+
+    // Hard live fallback: keep highway current even if realtime events drop.
+    setInterval(function() {
+      if (document.hidden) return;
+      refresh();
+    }, 3000);
+
+    setInterval(function() {
+      if (Object.keys(layeredPositions).length > 0) {
+        var svg = d3.select('#trafficMap');
+        var transitG = svg.select('g.transit-dots');
+        if (transitG.empty()) return;
+        transitG.selectAll('*').remove();
+        var tt = document.getElementById('transitTooltip');
+        var routeGroups = {};
+        inTransitPallets.forEach(function(p) {
+          var k = (p.from_zone || '') + '|' + (p.to_zone || '');
+          if (!routeGroups[k]) routeGroups[k] = [];
+          routeGroups[k].push(p);
+        });
+        Object.keys(routeGroups).forEach(function(k) {
+          var pals = routeGroups[k];
+          pals.sort(function(a, b) { return (a.initiated_at || '').localeCompare(b.initiated_at || '') || (a.pallet_id || '').localeCompare(b.pallet_id || ''); });
+          pals.forEach(function(p, idx) {
+            var fromPos = layeredPositions[p.from_zone];
+            var toPos = layeredPositions[p.to_zone];
+            if (!fromPos || !toPos) return;
+            var state = getTransitState(p.initiated_at);
+            var elapsed = p.initiated_at ? (Date.now() - new Date(p.initiated_at).getTime()) / 60000 : 0;
+            var progress;
+            if (state === 'reverting') {
+              progress = Math.max(0, 1 - (elapsed - TRANSIT_TIMEOUT_MIN) / 3);
+            } else {
+              progress = Math.min(1, elapsed / TRANSIT_TIMEOUT_MIN);
+            }
+            var dx = toPos.x - fromPos.x, dy = toPos.y - fromPos.y;
+            var len = Math.sqrt(dx * dx + dy * dy) || 1;
+            var perpX = -dy / len, perpY = dx / len;
+            var offset = (idx - (pals.length - 1) / 2) * 22;
+            var x = fromPos.x + dx * progress + perpX * offset;
+            var y = fromPos.y + dy * progress + perpY * offset;
+            var flCode = p.forklift_code || p.forklift_name || '';
+            var dot = transitG.append('g')
+              .attr('transform', 'translate(' + x + ',' + y + ')')
+              .attr('class', 'transit-dot')
+              .style('cursor', 'pointer');
+            var circle = dot.append('circle')
+              .attr('r', 14)
+              .attr('fill', getTransitColor(state))
+              .attr('fill-opacity', 0.9)
+              .attr('stroke', '#fff')
+              .attr('stroke-width', 3);
+            if (state === 'ok') circle.attr('class', 'dot-pulse');
+            if (flCode) {
+              var pillY = 26;
+              var pill = dot.append('g')
+                .attr('class', 'fl-pill' + (state === 'ok' ? ' pulse' : ''))
+                .attr('transform', 'translate(0,' + pillY + ')');
+              pill.append('polygon')
+                .attr('class', 'pill-shape')
+                .attr('points', '-22,0 0,-12 22,0 0,12');
+              pill.append('circle').attr('class', 'pill-dot').attr('cx', 14).attr('cy', -8).attr('r', 4.5);
+              if (!PUBLIC_HIGHWAY) {
+                pill.append('text').attr('class', 'pill-text').attr('x', 0).attr('y', 0).text(flCode);
+              }
+            }
+            if (!PUBLIC_HIGHWAY) {
+              dot.on('mouseenter', function(ev) { showTransitTooltip(ev, p); })
+                 .on('mouseleave', hideTransitTooltip)
+                 .on('mousemove', function(ev) { if (tt) positionTooltip(ev, tt); });
+            } else {
+              dot.style('cursor', 'default');
+            }
+          });
+        });
+      }
+    }, 2000);
+
+    async function sha256Highway(str) {
+      var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    }
+    function roleDestinationPath(role) {
+      var r = (role || '').trim();
+      if (/^Zone Clerk$/i.test(r)) return 'zone-clerk.html';
+      if (/^Picker$/i.test(r)) return 'pickers.html';
+      return null;
+    }
+    var highwayRcPendingUser = null;
+    function resetHighwayLoginRcUi() {
+      highwayRcPendingUser = null;
+      var form = document.getElementById('hwLoginFormBlock');
+      var rc = document.getElementById('hwRcChoiceWrap');
+      var t = document.getElementById('highwayLoginTitle');
+      var sub = document.getElementById('hwLoginSub');
+      if (form) form.style.display = '';
+      if (rc) {
+        rc.classList.remove('highway-rc-wrap--visible');
+        rc.setAttribute('aria-hidden', 'true');
+      }
+      if (t && t.getAttribute('data-default-title')) t.textContent = t.getAttribute('data-default-title');
+      if (sub) sub.style.display = '';
+    }
+    function showHighwayReceivingClerkChoice() {
+      var form = document.getElementById('hwLoginFormBlock');
+      var rc = document.getElementById('hwRcChoiceWrap');
+      var t = document.getElementById('highwayLoginTitle');
+      var sub = document.getElementById('hwLoginSub');
+      if (form) form.style.display = 'none';
+      if (rc) {
+        rc.classList.add('highway-rc-wrap--visible');
+        rc.setAttribute('aria-hidden', 'false');
+      }
+      if (t) t.textContent = 'Receiving clerk — where are you opening?';
+      if (sub) sub.style.display = 'none';
+      var firstRc = document.getElementById('hwRcBtnPrt');
+      if (firstRc) try { firstRc.focus(); } catch (eF) {}
+    }
+    function finalizeHighwayAppRedirect(data, fileName) {
+      if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(data);
+      try {
+        if (fileName.indexOf('prt-create-form') >= 0) {
+          sessionStorage.setItem('prt_rcv_session', JSON.stringify({
+            user_id: data.user_id,
+            name: data.name,
+            role: data.role,
+            assigned_zone: data.assigned_zone
+          }));
+        } else {
+          sessionStorage.removeItem('prt_rcv_session');
+        }
+      } catch (e0) {}
+      window.location.href = fileName;
+    }
+    function openHighwayLoginModal(intent) {
+      highwayLoginIntent = intent === 'hub' ? 'hub' : 'app';
+      resetHighwayLoginRcUi();
+      var m = document.getElementById('highwayLoginModal');
+      if (!m) return;
+      m.classList.add('open');
+      m.setAttribute('aria-hidden', 'false');
+      var errEl = document.getElementById('hwLoginErr');
+      if (errEl) errEl.textContent = '';
+      var sub = document.getElementById('hwLoginSub');
+      if (sub) {
+        sub.style.display = '';
+        sub.textContent = highwayLoginIntent === 'hub'
+          ? 'Use your User ID and passcode. After verification we open the full app menu (superuser & training).'
+          : 'Use your User ID and passcode. We open your role app (zone clerk, picker, or ask receiving clerks where they are working).';
+      }
+      var pc = document.getElementById('hwLoginPasscode');
+      if (pc) pc.value = '';
+      var uid = document.getElementById('hwLoginUserId');
+      if (uid) uid.focus();
+    }
+    function closeHighwayLoginModal() {
+      resetHighwayLoginRcUi();
+      var m = document.getElementById('highwayLoginModal');
+      if (!m) return;
+      m.classList.remove('open');
+      m.setAttribute('aria-hidden', 'true');
+    }
+    async function submitHighwayLogin() {
+      var errEl = document.getElementById('hwLoginErr');
+      var uidIn = document.getElementById('hwLoginUserId');
+      var pcIn = document.getElementById('hwLoginPasscode');
+      var uid = (uidIn && uidIn.value || '').trim();
+      var pc = (pcIn && pcIn.value || '').trim();
+      if (errEl) errEl.textContent = '';
+      if (!uid || !pc) {
+        if (errEl) errEl.textContent = 'Enter User ID and passcode.';
+        return;
+      }
+      if (!supabase) {
+        if (errEl) errEl.textContent = 'Supabase not configured.';
+        return;
+      }
+      var btn = document.getElementById('hwLoginSubmit');
+      if (btn) btn.disabled = true;
+      try {
+        var hash = await sha256Highway(pc);
+        var res = await supabase.from('authorized_users')
+          .select('user_id, name, role, assigned_zone, passcode_hash')
+          .ilike('user_id', uid)
+          .maybeSingle();
+        if (res.error) throw new Error(res.error.message || 'Sign in failed.');
+        var data = res.data;
+        if (!data) throw new Error('User ID not found.');
+        if (data.passcode_hash !== hash) throw new Error('Incorrect passcode.');
+        var role = (data.role || '').trim();
+        if (highwayLoginIntent === 'hub') {
+          if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(data);
+          window.location.href = '../index.html?hub=1';
+          return;
+        }
+        if ((/^Zone Clerk$/i.test(role) || /^Receiving Clerk$/i.test(role)) && !data.assigned_zone) {
+          throw new Error('No zone assigned. Contact your supervisor.');
+        }
+        if (/^Receiving Clerk$/i.test(role)) {
+          highwayRcPendingUser = data;
+          showHighwayReceivingClerkChoice();
+          return;
+        }
+        var dest = roleDestinationPath(role);
+        if (!dest) {
+          throw new Error('No quick app link for role "' + (role || '—') + '". Use Full app menu (sign in) for the dashboard, or ask IT.');
+        }
+        finalizeHighwayAppRedirect(data, dest);
+      } catch (e) {
+        if (errEl) errEl.textContent = e.message || 'Sign in failed.';
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+    if (SIMPLE_HIGHWAY) {
+      var bApp = document.getElementById('btnHighwayCtaApp');
+      if (bApp) bApp.addEventListener('click', function() { openHighwayLoginModal('app'); });
+      var bHub = document.getElementById('btnHighwayCtaHub');
+      if (bHub) bHub.addEventListener('click', function() { openHighwayLoginModal('hub'); });
+      var cEl = document.getElementById('hwLoginCancel');
+      if (cEl) cEl.addEventListener('click', closeHighwayLoginModal);
+      var sEl = document.getElementById('hwLoginSubmit');
+      if (sEl) sEl.addEventListener('click', submitHighwayLogin);
+      var pEl = document.getElementById('hwLoginPasscode');
+      if (pEl) pEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitHighwayLogin();
+      });
+      var uEl = document.getElementById('hwLoginUserId');
+      if (uEl) uEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          var p = document.getElementById('hwLoginPasscode');
+          if (p) p.focus();
+        }
+      });
+      var modal = document.getElementById('highwayLoginModal');
+      if (modal) modal.addEventListener('click', function(e) {
+        if (e.target === modal) closeHighwayLoginModal();
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && modal.classList.contains('open')) closeHighwayLoginModal();
+      });
+      var brPrt = document.getElementById('hwRcBtnPrt');
+      if (brPrt) brPrt.addEventListener('click', function() {
+        if (!highwayRcPendingUser) return;
+        finalizeHighwayAppRedirect(highwayRcPendingUser, 'prt-create-form.html');
+      });
+      var brZ = document.getElementById('hwRcBtnZone');
+      if (brZ) brZ.addEventListener('click', function() {
+        if (!highwayRcPendingUser) return;
+        finalizeHighwayAppRedirect(highwayRcPendingUser, 'zone-clerk.html');
+      });
+      var brBack = document.getElementById('hwRcBack');
+      if (brBack) brBack.addEventListener('click', function() {
+        resetHighwayLoginRcUi();
+        var errEl = document.getElementById('hwLoginErr');
+        if (errEl) errEl.textContent = '';
+        var sub = document.getElementById('hwLoginSub');
+        if (sub) {
+          sub.style.display = '';
+          sub.textContent = highwayLoginIntent === 'hub'
+            ? 'Use your User ID and passcode. After verification we open the full app menu (superuser & training).'
+            : 'Use your User ID and passcode. We open your role app (zone clerk, picker, or ask receiving clerks where they are working).';
+        }
+        var uid = document.getElementById('hwLoginUserId');
+        if (uid) uid.focus();
+      });
+    }
+
+    (async function init() {
+      try {
+        await refresh();
+        if (supabase) {
+          var rt = supabase.channel('traffic-live');
+          rt
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'zone_movements' }, function() { scheduleLiveRefresh('movement'); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'pallets' }, function() { scheduleLiveRefresh('movement'); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'replenishment_tasks' }, function() { scheduleLiveRefresh('task'); })
+            .subscribe();
+        }
+      } catch (e) {
+        document.querySelector('.map-container').innerHTML = '<div class="error">Error: ' + escapeHtml(e.message || 'Failed to load') + '</div>';
+      }
+      hideSplash();
+    })();
+  })();
+  </script>
+</body>
+</html>

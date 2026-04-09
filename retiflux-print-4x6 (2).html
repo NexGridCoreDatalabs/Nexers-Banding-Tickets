@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RetiFlux™ · Print Label</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:      #000000;
+    --ink-mid:  #1a1a1a;
+    --ink-soft: #2e2e2e;
+    --ink-lt:   #444444;
+    --bg:       #ffffff;
+    --bg-band:  #ebebeb;
+    --bg-dark:  #111111;
+    --red:      #bb0000;
+    --cond: 'Barlow Condensed', Arial Narrow, sans-serif;
+    --mono: 'Consolas', 'IBM Plex Mono', monospace;
+    --body: 'Barlow', sans-serif;
+  }
+
+  /* ── SCREEN WRAPPER ── */
+  body {
+    background: #d0d0d0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 16px 56px;
+    font-family: var(--body);
+    min-height: 100vh;
+  }
+
+  .screen-bar {
+    width: 4in;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .screen-bar-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #333;
+  }
+  .print-btn {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: #111;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 6px 14px;
+    cursor: pointer;
+  }
+  .print-btn:hover { background: #333; }
+
+  /* ── LABEL SHELL: exactly 4in × 6in ── */
+  .label {
+    width: 4in;
+    height: 6in;
+    background: var(--bg);
+    border: 1.5px solid #888;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 6px 28px rgba(0,0,0,0.22);
+  }
+
+  /* ══════════════════════════════
+     HEADER
+     All text solid — no transparency.
+     Thermal printers drop anything < 60% opacity.
+  ══════════════════════════════ */
+  .hdr {
+    background: var(--bg-dark);
+    padding: 5pt 8pt 4pt;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  /* Row 1: RetiFlux™  |  Internal Pallet Ticket */
+  .hdr-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .hdr-retiflux {
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #f0c040;           /* gold — prints well on dark */
+  }
+  .hdr-retiflux sup { font-size: 5pt; vertical-align: super; }
+  .hdr-doctype {
+    font-family: var(--mono);
+    font-size: 6pt;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: #cccccc;
+  }
+
+  /* Row 2: BIDCO Africa  |  subdivision pill */
+  .hdr-row2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .hdr-manufacturer {
+    font-family: var(--mono);
+    font-size: 17pt;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: #ffffff;
+    line-height: 1;
+  }
+  .subdiv-pill {
+    font-family: var(--mono);
+    font-size: 6.5pt;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 2pt 6pt;
+    border-radius: 2px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    border: 1.5px solid #888888;   /* solid border, visible on print */
+    background: #333333;           /* solid dark, not transparent */
+    color: #ffffff;
+  }
+
+  /* Row 3: doc type  |  serial */
+  .hdr-row3 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #444444;  /* solid rule */
+    padding-top: 2pt;
+  }
+  .hdr-row3-left {
+    font-family: var(--mono);
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #cccccc;
+  }
+  .hdr-serial {
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.8px;
+  }
+
+  /* ══════════════════════════════
+     BODY
+  ══════════════════════════════ */
+  .label-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 5pt 7pt 5pt;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .label-body-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .hero {
+    display: flex;
+    gap: 8pt;
+    align-items: flex-end;
+    margin-bottom: 5pt;
+    flex-shrink: 0;
+  }
+  .qr-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .qr-frame {
+    border: 1.5px solid #999;
+    border-radius: 2px;
+    padding: 2pt;
+    background: #fff;
+  }
+  .qr-frame img { display: block; width: 1.55in; height: 1.55in; }
+  .scan-cta {
+    font-family: var(--mono);
+    font-size: 6pt;
+    font-weight: 800;
+    color: var(--ink-mid);
+    text-transform: uppercase;
+    text-align: center;
+    background: #eeeeee;
+    border: 1px solid #aaa;
+    border-radius: 2px;
+    padding: 1.5pt 3pt;
+    width: 100%;
+    letter-spacing: 0.3px;
+  }
+
+  .product-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5pt;
+  }
+  .prd-name {
+    font-family: var(--mono);
+    font-weight: 900;
+    font-size: 20pt;
+    color: var(--ink);
+    line-height: 0.95;
+    text-transform: uppercase;
+  }
+  .prd-variant {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 9.5pt;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-top: 1pt;
+  }
+  .prd-sku {
+    font-family: var(--mono);
+    font-size: 7pt;
+    font-weight: 600;
+    color: var(--ink-lt);
+  }
+  .divider-light { border: none; border-top: 1px dashed #ccc; margin: 3pt 0; }
+
+  .qty-block { display: flex; align-items: baseline; gap: 5pt; margin-top: 2pt; }
+  .qty-num {
+    font-family: var(--mono);
+    font-weight: 900;
+    font-size: 30pt;
+    color: #fff;
+    background: var(--ink);
+    border-radius: 2px;
+    line-height: 1;
+    padding: 1pt 9pt 2pt;
+  }
+  .qty-uom {
+    font-family: var(--mono);
+    font-weight: 800;
+    font-size: 12pt;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pallet-config {
+    font-family: var(--mono);
+    font-size: 7pt;
+    color: var(--ink-lt);
+    margin-top: 1pt;
+  }
+
+  /* RULE */
+  .rule { border: none; border-top: 1.5px solid var(--ink); margin: 3pt 0; flex-shrink: 0; }
+  .rule-light { border: none; border-top: 1px solid #ccc; margin: 3pt 0; flex-shrink: 0; }
+
+  /* BATCH BAND */
+  .batch-band {
+    background: var(--bg-band);
+    border-left: 3.5pt solid var(--ink);
+    border-radius: 0 2px 2px 0;
+    padding: 3pt 6pt;
+    margin-bottom: 3pt;
+    flex-shrink: 0;
+  }
+  .band-lbl {
+    font-family: var(--mono);
+    font-size: 5.5pt;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--ink-lt);
+    margin-bottom: 3.5pt;
+  }
+  .batch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 6pt; }
+
+  /* FIELDS */
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5pt 6pt; flex-shrink: 0; }
+  .field { display: flex; flex-direction: column; }
+  .field.full { grid-column: 1 / -1; }
+  .fl {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 6pt;
+    color: var(--ink-lt);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .fv {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 8.5pt;
+    color: var(--ink);
+    line-height: 1.15;
+  }
+  .expiry .fv { color: var(--red); font-weight: 700; }
+
+  /* HANDLING INSTRUCTIONS — compact single row */
+  .handling {
+    display: flex;
+    flex-direction: column;
+    margin-top: 4pt;
+    border: 1px solid #d0d0d0;
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .handling-lbl {
+    font-family: var(--mono);
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: #ffffff;
+    background: var(--ink);
+    padding: 3pt 6pt;
+    width: 100%;
+  }
+  .h-items {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    background: #fafafa;
+  }
+  .h-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2pt;
+    padding: 4pt 2pt;
+    border-right: 1px solid #e0e0e0;
+    text-align: center;
+  }
+  .h-item:last-child { border-right: none; }
+  .h-icon { font-size: 13pt; line-height: 1; }
+  .h-label {
+    font-family: var(--mono);
+    font-size: 5.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    letter-spacing: 0.3px;
+    line-height: 1.25;
+  }
+
+  /* NOTES */
+  .notes-box {
+    border: 1px dashed #bbb;
+    border-radius: 2px;
+    padding: 3pt 5pt;
+    min-height: 14pt;
+    margin-top: 3pt;
+    flex-shrink: 0;
+  }
+  .notes-box .fl { font-size: 6pt; color: #bbb; }
+
+  /* ZONE TRACKER */
+  .zone-tracker {
+    margin-top: 3pt;
+    border: 1px solid #cccccc;
+    border-left: 3.5pt solid #555555;
+    border-radius: 0 2px 2px 0;
+    padding: 3pt 6pt;
+    background: #fafafa;
+    flex-shrink: 0;
+  }
+  .zone-tracker-title {
+    font-family: var(--mono);
+    font-size: 5.5pt;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--ink-lt);
+    margin-bottom: 4pt;
+  }
+  .zone-grid { display: flex; align-items: center; }
+  .zone-col { flex: 1; display: flex; flex-direction: column; gap: 1pt; }
+  .zone-header {
+    font-family: var(--mono);
+    font-size: 6pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--ink-lt);
+  }
+  .zone-value {
+    font-family: var(--mono);
+    font-size: 9pt;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .zone-value.zone-blank {
+    color: #cccccc;
+    font-weight: 400;
+    letter-spacing: 1.5px;
+  }
+  .zone-sub {
+    font-family: var(--mono);
+    font-size: 6pt;
+    color: var(--ink-lt);
+  }
+  .zone-arrow {
+    font-size: 11pt;
+    color: #bbbbbb;
+    padding: 6pt 4pt 0;
+    flex-shrink: 0;
+  }
+
+  /* DISCLAIMER */
+  .disclaimer {
+    display: flex;
+    gap: 5pt;
+    align-items: flex-start;
+    background: #f5f5f5;
+    border: 1px solid #dddddd;
+    border-left: 3pt solid #999999;
+    border-radius: 0 2px 2px 0;
+    padding: 3pt 6pt;
+    margin-top: 3pt;
+    flex-shrink: 0;
+  }
+  .disclaimer-icon { font-size: 7pt; color: #222; flex-shrink: 0; margin-top: 1pt; }
+  .disclaimer-text {
+    font-family: var(--mono);
+    font-size: 6.5pt;
+    font-style: italic;
+    color: #111111;
+    line-height: 1.55;
+  }
+
+  /* FOOTER */
+  .label-footer {
+    margin-top: auto;
+    border-top: 1px solid #cccccc;
+    padding: 3pt 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .footer-brand { display: flex; align-items: baseline; gap: 3pt; }
+  .footer-retiflux {
+    font-family: var(--mono);
+    font-size: 6.5pt;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .footer-retiflux sup { font-size: 5pt; vertical-align: super; }
+  .footer-powered {
+    font-family: var(--mono);
+    font-size: 6pt;
+    color: #444444;
+    font-style: italic;
+  }
+  .footer-ts {
+    font-family: var(--mono);
+    font-size: 6pt;
+    color: #444444;
+  }
+
+  /* ── PRINT ── */
+  @media print {
+    @page { size: 4in 6in; margin: 0; }
+    body { background: #fff; padding: 0; display: block; }
+    .screen-bar { display: none; }
+    .label {
+      width: 4in;
+      height: 6in;
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="screen-bar">
+  <span class="screen-bar-title">RetiFlux™ · 4″ × 6″ Print Preview</span>
+  <button class="print-btn" onclick="window.print()">🖨 &nbsp;Print Label</button>
+</div>
+
+<div class="label">
+
+  <!-- ══ HEADER ══ -->
+  <div class="hdr">
+    <div class="hdr-row1">
+      <span class="hdr-retiflux">RetiFlux<sup>™</sup></span>
+      <span class="hdr-doctype">Internal Pallet Ticket</span>
+    </div>
+    <div class="hdr-row2">
+      <span class="hdr-manufacturer">BIDCO Africa</span>
+      <span class="subdiv-pill" id="subdivPill">Oils &amp; Fats</span>
+    </div>
+    <div class="hdr-row3">
+      <span class="hdr-row3-left">Finished Goods · Warehouse Use Only</span>
+      <span class="hdr-serial" id="hdrSerial">FG-BND-01194</span>
+    </div>
+  </div>
+
+  <!-- ══ BODY ══ -->
+  <div class="label-body">
+    <div class="label-body-inner">
+
+    <!-- HERO: QR + Product -->
+    <div class="hero">
+      <div class="qr-col">
+        <div class="qr-frame">
+          <img id="qrImg" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=https%3A%2F%2Fnexgridcoredatalabs.github.io%2FNexers-Banding-Tickets%2Fbandingtickets.html%3Fmode%3Dview%26serial%3DFG-BND-01194%26geofence%3Dbypass%26t%3DBIDCO_BYPASS" alt="QR">
+        </div>
+      </div>
+      <div class="product-col">
+        <div class="prd-name" id="prdName">Elianto<br>Sunflower Oil</div>
+        <div class="prd-variant" id="prdVariant">2 Litre · 12-Pack KAR</div>
+        <div class="prd-sku" id="prdSku">OIL-ELI-2L-12</div>
+        <hr class="divider-light">
+        <div class="qty-block">
+          <div class="qty-num" id="qtyNum">105</div>
+          <div class="qty-uom" id="qtyUom">KAR</div>
+        </div>
+        <div class="pallet-config" id="palletConfig">7 layers · 15 KAR / layer</div>
+      </div>
+    </div>
+
+    <hr class="rule">
+
+    <!-- BATCH & PRODUCTION -->
+    <div class="batch-band">
+      <div class="band-lbl">Batch &amp; Production</div>
+      <div class="batch-grid">
+        <div class="field">
+          <span class="fl">Batch / Lot</span>
+          <span class="fv" id="batchLot">BT-0311-194</span>
+        </div>
+        <div class="field">
+          <span class="fl">Mfg. Date</span>
+          <span class="fv" id="mfgDate">11 Mar 2026</span>
+        </div>
+        <div class="field expiry">
+          <span class="fl">Expiry Date</span>
+          <span class="fv" id="expiryDate">11 Sep 2027</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPERATIONAL FIELDS -->
+    <div class="field-grid">
+      <div class="field">
+        <span class="fl">Production Line / Shift</span>
+        <span class="fv" id="lineShift">Line 4 · AM</span>
+      </div>
+      <div class="field">
+        <span class="fl">Banding Type</span>
+        <span class="fv" id="bandingType">Online</span>
+      </div>
+      <div class="field">
+        <span class="fl">Shelf Life</span>
+        <span class="fv" id="shelfLife">18 months</span>
+      </div>
+      <div class="field full">
+        <span class="fl">Recorded By · Date / Time</span>
+        <span class="fv" id="recordedBy">—</span>
+      </div>
+    </div>
+
+    <!-- HANDLING INSTRUCTIONS -->
+    <div class="handling">
+      <div class="handling-lbl">Handling Instructions</div>
+      <div class="h-items">
+        <div class="h-item">
+          <div class="h-icon">🏠</div>
+          <div class="h-label">Cool &amp;<br>Dry Place</div>
+        </div>
+        <div class="h-item">
+          <div class="h-icon">🚫☀️</div>
+          <div class="h-label">Avoid<br>Direct Sun</div>
+        </div>
+        <div class="h-item">
+          <div class="h-icon">⬆️</div>
+          <div class="h-label">This Side<br>Up</div>
+        </div>
+        <div class="h-item">
+          <div class="h-icon">📦</div>
+          <div class="h-label">Max Stack<br>7 Layers</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTES -->
+    <div class="notes-box">
+      <span class="fl">Notes / Override Reason</span>
+      <span class="fv" id="notesVal" style="display:block;margin-top:2pt;"></span>
+    </div>
+
+    <!-- DIGITAL DISCLAIMER -->
+    <div class="disclaimer">
+      <div class="disclaimer-icon">⬥</div>
+      <div class="disclaimer-text">
+        All zone assignments, movements, QC sign-offs, and dispatch authorisations are
+        captured digitally via QR scan in RetiFlux™. No manual sign-off is required on
+        this ticket. Scan above to view the full live record, movement history, and
+        current zone status of this pallet.
+      </div>
+    </div>
+
+    </div><!-- label-body-inner -->
+
+    <!-- FOOTER — always pinned to bottom -->
+    <div class="label-footer">
+      <div class="footer-brand">
+        <span class="footer-retiflux">RetiFlux<sup>™</sup></span>
+        <span class="footer-powered">powered by NexGridCore DataLabs</span>
+      </div>
+      <span class="footer-ts" id="footerTs">11/03/2026 06:55</span>
+    </div>
+
+  </div><!-- label-body -->
+</div><!-- label -->
+
+<script>
+(function() {
+  function getParam(name) {
+    var m = new RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+  }
+  var serial = getParam('serial') || 'FG-BND-01194';
+  var productName = getParam('productName') || 'Elianto Sunflower Oil';
+  var variant = getParam('variant') || '2 Litre · 12-Pack KAR';
+  var sku = getParam('sku') || 'OIL-ELI-2L-12';
+  var qty = getParam('qty') || '105';
+  var uom = getParam('uom') || 'KAR';
+  var palletConfig = getParam('palletConfig') || '';
+  var subdivision = getParam('subdivision') || 'Oils & Fats';
+  var batchLot = getParam('batchLot') || 'BT-0311-194';
+  var mfgDateRaw = getParam('mfgDate') || '';
+  var expiryDateRaw = getParam('expiryDate') || '';
+  var line = getParam('line') || '';
+  var shift = getParam('shift') || '';
+  var bandingType = getParam('bandingType') || 'Online';
+  var shelfLife = getParam('shelfLife') || '18 months';
+  var notes = getParam('notes') || '';
+  var time = getParam('time') || '06:55';
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso + 'T12:00:00');
+    if (isNaN(d.getTime())) return iso;
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+  }
+  function fmtTs(iso, t) {
+    if (!iso) return '—';
+    var parts = iso.split('-');
+    if (parts.length !== 3) return iso + ' ' + (t || '');
+    return parts[2] + '/' + parts[1] + '/' + parts[0] + ' ' + (t || '');
+  }
+
+  document.getElementById('hdrSerial').textContent = serial;
+  document.getElementById('subdivPill').textContent = subdivision || '—';
+  var pn = (productName || '—').trim();
+  var firstSpace = pn.indexOf(' ');
+  document.getElementById('prdName').innerHTML = firstSpace > 0 ? pn.slice(0, firstSpace) + '<br>' + pn.slice(firstSpace + 1) : pn;
+  document.getElementById('prdVariant').textContent = variant || '—';
+  document.getElementById('prdSku').textContent = sku || '—';
+  document.getElementById('qtyNum').textContent = qty;
+  document.getElementById('qtyUom').textContent = uom || '';
+  document.getElementById('palletConfig').textContent = palletConfig || '—';
+  document.getElementById('batchLot').textContent = batchLot || '—';
+  document.getElementById('mfgDate').textContent = fmtDate(mfgDateRaw);
+  document.getElementById('expiryDate').textContent = fmtDate(expiryDateRaw);
+  document.getElementById('lineShift').textContent = [line, shift].filter(Boolean).join(' · ') || '—';
+  document.getElementById('bandingType').textContent = bandingType || '—';
+  document.getElementById('shelfLife').textContent = shelfLife || '—';
+  document.getElementById('recordedBy').textContent = fmtTs(mfgDateRaw, time);
+  document.getElementById('notesVal').textContent = notes || '';
+  document.getElementById('footerTs').textContent = fmtTs(mfgDateRaw, time);
+
+  var base2 = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
+  var viewUrl = base2 + 'app/ticket-view.html?serial=' + encodeURIComponent(serial) + '&geofence=bypass&t=BIDCO_BYPASS';
+  document.getElementById('qrImg').src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=' + encodeURIComponent(viewUrl);
+  document.getElementById('qrImg').alt = 'QR · ' + serial;
+
+  document.title = 'RetiFlux™ · Print Label · ' + serial;
+  // Auto-trigger print when opened with params (from PRT create form)
+  if (window.location.search && window.location.search.indexOf('serial=') !== -1) {
+    setTimeout(function() { window.print(); }, 400);
+  }
+})();
+</script>
+</body>
+</html>

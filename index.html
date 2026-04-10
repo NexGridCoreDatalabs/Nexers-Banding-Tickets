@@ -896,7 +896,8 @@
       try {
         if (new URLSearchParams(location.search).get('hub') === '1') {
           var a = document.getElementById('ctaTrafficCenter');
-          if (a) a.setAttribute('href', 'app/traffic-center.html');
+          // Dense ops view: keep map controls & recent movements visible (not kiosk simple-highway).
+          if (a) a.setAttribute('href', 'app/traffic-center.html?full=1');
         }
       } catch (e) {}
     })();

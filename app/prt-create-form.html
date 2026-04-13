@@ -245,6 +245,101 @@
       cursor: pointer;
     }
     .prt-btn-signout:hover { background: rgba(245, 158, 11, 0.12); }
+
+    /* ── Photo upload zones ───────────────────────────────────────────── */
+    .photo-upload-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 480px) {
+      .photo-upload-section { grid-template-columns: 1fr; }
+    }
+    .photo-zone {
+      position: relative;
+      border: 2px dashed rgba(245, 158, 11, 0.4);
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.6);
+      min-height: 144px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      overflow: hidden;
+    }
+    .photo-zone:hover { border-color: var(--gold); background: rgba(240, 192, 64, 0.06); }
+    .photo-zone.has-photo { border-style: solid; border-color: #34d399; }
+    .photo-zone.uploading { border-color: #60a5fa; opacity: 0.75; cursor: wait; }
+    .photo-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      font-size: 16px;
+      z-index: 2;
+    }
+    .pz-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 14px 10px;
+      pointer-events: none;
+      width: 100%;
+    }
+    .pz-icon { font-size: 30px; line-height: 1; }
+    .pz-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--gold);
+      text-align: center;
+    }
+    .pz-hint { font-size: 9px; color: #64748b; text-align: center; }
+    .pz-thumb {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      border-radius: 8px;
+      pointer-events: none;
+    }
+    .pz-check {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #34d399;
+      color: #0f172a;
+      font-size: 10px;
+      font-weight: 800;
+      border-radius: 999px;
+      padding: 3px 9px;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .pz-change {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #64748b;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+      pointer-events: none;
+      text-align: center;
+    }
+    @keyframes pz-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .pz-spinner { font-size: 22px; animation: pz-spin 1.1s linear infinite; display: inline-block; }
+    .photo-required-hint {
+      font-size: 10px;
+      color: #64748b;
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+    #photoStatus { margin-top: 10px; font-size: 12px; color: #f87171; }
   </style>
 </head>
 <body>
@@ -376,6 +471,30 @@
         <label for="notes">Notes / Override Reason</label>
         <textarea id="notes" name="notes" rows="3" placeholder="Additional remarks..."></textarea>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>⬥ Photo Evidence</h2>
+      <p class="photo-required-hint">Both photos are <strong style="color:var(--gold)">required</strong> before saving. Tap a zone to capture or upload from gallery.</p>
+      <div class="photo-upload-section">
+        <div class="photo-zone" id="pzone1" role="button" aria-label="Upload Pallet Overview photo">
+          <input type="file" id="photoInput1" accept="image/*" capture="environment">
+          <div class="pz-placeholder" id="pzPlaceholder1">
+            <span class="pz-icon">📷</span>
+            <span class="pz-label">Pallet Overview</span>
+            <span class="pz-hint">Tap to capture / upload</span>
+          </div>
+        </div>
+        <div class="photo-zone" id="pzone2" role="button" aria-label="Upload Batch Label photo">
+          <input type="file" id="photoInput2" accept="image/*" capture="environment">
+          <div class="pz-placeholder" id="pzPlaceholder2">
+            <span class="pz-icon">🏷️</span>
+            <span class="pz-label">Batch Label</span>
+            <span class="pz-hint">Tap to capture / upload</span>
+          </div>
+        </div>
+      </div>
+      <div id="photoStatus" style="display:none;"></div>
     </div>
 
     <div class="card">
@@ -619,6 +738,13 @@
         document.getElementById('recordedBy').value = recordedByFromUserId(currentUser);
         document.getElementById('subdivision').value = '';
         document.getElementById('notes').value = '';
+        // Reset photo state
+        photo1Url = null;
+        photo2Url = null;
+        resetPhotoZone(1);
+        resetPhotoZone(2);
+        var pse = document.getElementById('photoStatus');
+        if (pse) { pse.style.display = 'none'; pse.textContent = ''; }
         isSaving = false;
         // Scroll to top of form for the next entry
         try { document.getElementById('prtApp').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
@@ -670,6 +796,91 @@
       // On load: show placeholder; serial assigned only on save
       document.getElementById('serialDisplay').textContent = '—';
 
+      // ── Photo upload state ──────────────────────────────────────────────
+      var photo1Url = null;
+      var photo2Url = null;
+
+      var PHOTO_LABELS = { 1: 'Pallet Overview', 2: 'Batch Label' };
+      var PHOTO_ICONS  = { 1: '📷', 2: '🏷️' };
+
+      function resetPhotoZone(slot) {
+        var zone = document.getElementById('pzone' + slot);
+        var placeholder = document.getElementById('pzPlaceholder' + slot);
+        if (!zone || !placeholder) return;
+        zone.classList.remove('has-photo', 'uploading');
+        zone.querySelectorAll('.pz-check').forEach(function(el) { el.remove(); });
+        var inp = zone.querySelector('input[type="file"]');
+        if (inp) try { inp.value = ''; } catch (e) {}
+        placeholder.innerHTML =
+          '<span class="pz-icon">' + PHOTO_ICONS[slot] + '</span>' +
+          '<span class="pz-label">' + PHOTO_LABELS[slot] + '</span>' +
+          '<span class="pz-hint">Tap to capture / upload</span>';
+      }
+
+      async function uploadPhotoFile(file, slot) {
+        if (!supabase) throw new Error('Supabase not configured');
+        var ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        var dateStr = new Date().toISOString().slice(0, 10);
+        var rand = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        var path = dateStr + '/' + rand + '-' + slot + '.' + ext;
+        var res = await supabase.storage.from('prt-photos').upload(path, file, { contentType: file.type, upsert: false });
+        if (res.error) throw res.error;
+        var urlRes = supabase.storage.from('prt-photos').getPublicUrl(path);
+        return urlRes.data.publicUrl;
+      }
+
+      async function handlePhotoChange(file, slot) {
+        var zone = document.getElementById('pzone' + slot);
+        var placeholder = document.getElementById('pzPlaceholder' + slot);
+        if (!file || !zone || !placeholder) return;
+
+        zone.classList.add('uploading');
+        zone.classList.remove('has-photo');
+        zone.querySelectorAll('.pz-check').forEach(function(el) { el.remove(); });
+        placeholder.innerHTML =
+          '<span class="pz-spinner">⏳</span>' +
+          '<span class="pz-label" style="color:#60a5fa">Uploading…</span>';
+
+        try {
+          var publicUrl = await uploadPhotoFile(file, slot);
+          if (slot === 1) photo1Url = publicUrl;
+          else photo2Url = publicUrl;
+
+          var localSrc = URL.createObjectURL(file);
+          placeholder.innerHTML =
+            '<img class="pz-thumb" src="' + localSrc + '" alt="' + PHOTO_LABELS[slot] + '">' +
+            '<span class="pz-change">Tap to change</span>';
+
+          var badge = document.createElement('span');
+          badge.className = 'pz-check';
+          badge.textContent = '✓ Done';
+          zone.appendChild(badge);
+          zone.classList.remove('uploading');
+          zone.classList.add('has-photo');
+
+          if (photo1Url && photo2Url) {
+            var pse = document.getElementById('photoStatus');
+            pse.style.display = 'none';
+            pse.textContent = '';
+          }
+        } catch (err) {
+          if (slot === 1) photo1Url = null;
+          else photo2Url = null;
+          zone.classList.remove('uploading');
+          placeholder.innerHTML =
+            '<span class="pz-icon">⚠️</span>' +
+            '<span class="pz-label" style="color:#f87171">Upload failed</span>' +
+            '<span class="pz-hint">' + (err && err.message ? err.message : 'Tap to retry') + '</span>';
+        }
+      }
+
+      document.getElementById('photoInput1').addEventListener('change', function() {
+        if (this.files && this.files[0]) handlePhotoChange(this.files[0], 1);
+      });
+      document.getElementById('photoInput2').addEventListener('change', function() {
+        if (this.files && this.files[0]) handlePhotoChange(this.files[0], 2);
+      });
+
       // Submit — prevent duplicate saves; open print after success
       var isSaving = false;
       document.getElementById('submitBtn').addEventListener('click', async function() {
@@ -719,6 +930,22 @@
           if (lc) try { lc.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
           return;
         }
+        // Hard-block: both photos must be uploaded before saving
+        if (!photo1Url || !photo2Url) {
+          var missing = [];
+          if (!photo1Url) missing.push('Pallet Overview');
+          if (!photo2Url) missing.push('Batch Label');
+          var pse = document.getElementById('photoStatus');
+          pse.textContent = '⚠️ Missing required photo(s): ' + missing.join(' · ');
+          pse.style.display = 'block';
+          try { document.getElementById('pzone1').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+          status.textContent = '⚠️ Both photos are required before saving.';
+          status.className = 'status error';
+          btn.disabled = false;
+          isSaving = false;
+          return;
+        }
+
         var recordedBy = recordedByFromUserId(currentUser) || (document.getElementById('recordedBy').value || '').trim();
         if (!recordedBy) {
           status.textContent = '⚠️ Your account has no user ID. Contact your supervisor.';
@@ -744,7 +971,9 @@
           production_line: document.getElementById('productionLine').value || null,
           shift: derivedShift || null,
           subdivision: document.getElementById('subdivision').value || null,
-          recorded_by: recordedBy || null
+          recorded_by: recordedBy || null,
+          photo_1_url: photo1Url || null,
+          photo_2_url: photo2Url || null
         };
         // Backward-compatible payload for databases that haven't run newer ticket-column migrations.
         var payloadLegacy = {

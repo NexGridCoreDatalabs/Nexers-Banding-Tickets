@@ -229,6 +229,92 @@
       color: #fecaca;
       border-color: rgba(248, 113, 113, 0.45);
     }
+    /* ── Photo evidence section ─────────────────────────────────────────── */
+    .photos-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 380px) { .photos-grid { grid-template-columns: 1fr; } }
+    .photo-tile {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .photo-tile-label {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+    }
+    .photo-tile img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      transition: opacity 0.15s, border-color 0.15s;
+    }
+    .photo-tile:hover img { opacity: 0.88; border-color: var(--gold); }
+    .photo-tile .photo-tap-hint {
+      font-size: 9px;
+      color: #475569;
+      text-align: center;
+    }
+    .photos-none {
+      font-size: 12px;
+      color: #475569;
+      font-style: italic;
+    }
+    /* Lightbox */
+    #rfLightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.92);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 20px;
+      touch-action: manipulation;
+    }
+    #rfLightbox.open { display: flex; }
+    #rfLightbox img {
+      max-width: 100%;
+      max-height: 80vh;
+      border-radius: 12px;
+      object-fit: contain;
+      box-shadow: 0 0 60px rgba(0,0,0,0.8);
+    }
+    #rfLightbox .lb-caption {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--gold);
+    }
+    #rfLightbox .lb-close {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      width: 40px;
+      height: 40px;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    #rfLightbox .lb-close:hover { background: rgba(255,255,255,0.25); }
   </style>
 </head>
 <body>
@@ -316,8 +402,20 @@
         <div class="v" id="notesVal">—</div>
       </section>
 
+      <section class="card" id="photoCard" style="display:none;">
+        <div class="card-title">Photo evidence</div>
+        <div class="photos-grid" id="photosGrid"></div>
+      </section>
+
       <p class="footer-ts" id="footerTs">—</p>
     </div>
+  </div>
+
+  <!-- Lightbox overlay -->
+  <div id="rfLightbox" role="dialog" aria-modal="true" aria-label="Photo preview">
+    <button class="lb-close" id="lbClose" aria-label="Close photo">✕</button>
+    <img id="lbImg" src="" alt="">
+    <span class="lb-caption" id="lbCaption"></span>
   </div>
 
   <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
@@ -681,6 +779,51 @@
       document.getElementById('notesVal').textContent = (ticket.notes && String(ticket.notes).trim()) ? String(ticket.notes) : '—';
       document.getElementById('footerTs').textContent = (mfgDateRaw || timeVal) ? fmtTs(mfgDateRaw, timeVal) : '—';
 
+      // Photo evidence
+      (function renderPhotos(t) {
+        var p1 = t.photo_1_url;
+        var p2 = t.photo_2_url;
+        var card = document.getElementById('photoCard');
+        var grid = document.getElementById('photosGrid');
+        if (!p1 && !p2) { card.style.display = 'none'; return; }
+        card.style.display = '';
+        grid.innerHTML = '';
+        var pairs = [
+          { url: p1, label: 'Pallet Overview' },
+          { url: p2, label: 'Batch Label' }
+        ];
+        pairs.forEach(function(ph) {
+          if (!ph.url) return;
+          var tile = document.createElement('div');
+          tile.className = 'photo-tile';
+          tile.setAttribute('role', 'button');
+          tile.setAttribute('tabindex', '0');
+          tile.setAttribute('aria-label', 'Open ' + ph.label + ' full-screen');
+          var lbl = document.createElement('div');
+          lbl.className = 'photo-tile-label';
+          lbl.textContent = ph.label;
+          var img = document.createElement('img');
+          img.src = ph.url;
+          img.alt = ph.label;
+          img.loading = 'lazy';
+          var hint = document.createElement('div');
+          hint.className = 'photo-tap-hint';
+          hint.textContent = 'Tap to enlarge';
+          tile.appendChild(lbl);
+          tile.appendChild(img);
+          tile.appendChild(hint);
+          function openLightbox() {
+            document.getElementById('lbImg').src = ph.url;
+            document.getElementById('lbCaption').textContent = ph.label;
+            document.getElementById('rfLightbox').classList.add('open');
+            document.body.style.overflow = 'hidden';
+          }
+          tile.addEventListener('click', openLightbox);
+          tile.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') openLightbox(); });
+          grid.appendChild(tile);
+        });
+      })(ticket);
+
       viewCtx.ticket = ticket;
       viewCtx.skuRow = skuRow;
       applyPalletDerivedUi(pallet, ticket, skuRow);
@@ -706,6 +849,23 @@
     } else {
       loadTicketViewData();
     }
+  })();
+
+  // Lightbox dismiss
+  (function() {
+    function closeLightbox() {
+      var lb = document.getElementById('rfLightbox');
+      if (lb) lb.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+    var closeBtn = document.getElementById('lbClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
+    document.getElementById('rfLightbox').addEventListener('click', function(e) {
+      if (e.target === this) closeLightbox();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeLightbox();
+    });
   })();
   </script>
 </body>

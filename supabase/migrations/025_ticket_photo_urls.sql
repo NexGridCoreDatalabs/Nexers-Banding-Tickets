@@ -8,7 +8,7 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS photo_1_url text;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS photo_2_url text;
 
 COMMENT ON COLUMN tickets.photo_1_url IS 'Pallet Overview photo — Supabase Storage public URL (prt-photos bucket)';
-COMMENT ON COLUMN tickets.photo_2_url IS 'Batch Label photo — Supabase Storage public URL (prt-photos bucket)';
+COMMENT ON COLUMN tickets.photo_2_url IS 'Pallet Side View photo — Supabase Storage public URL (prt-photos bucket)';
 
 -- ── 2. Storage bucket (run ONCE in Supabase SQL editor or dashboard) ─────────
 -- If the prt-photos bucket does not yet exist, create it:

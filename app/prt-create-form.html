@@ -488,8 +488,8 @@
         <div class="photo-zone" id="pzone2" role="button" aria-label="Upload Batch Label photo">
           <input type="file" id="photoInput2" accept="image/*" capture="environment">
           <div class="pz-placeholder" id="pzPlaceholder2">
-            <span class="pz-icon">🏷️</span>
-            <span class="pz-label">Batch Label</span>
+            <span class="pz-icon">📷</span>
+            <span class="pz-label">Pallet Side View</span>
             <span class="pz-hint">Tap to capture / upload</span>
           </div>
         </div>
@@ -800,8 +800,8 @@
       var photo1Url = null;
       var photo2Url = null;
 
-      var PHOTO_LABELS = { 1: 'Pallet Overview', 2: 'Batch Label' };
-      var PHOTO_ICONS  = { 1: '📷', 2: '🏷️' };
+      var PHOTO_LABELS = { 1: 'Pallet Overview', 2: 'Pallet Side View' };
+      var PHOTO_ICONS  = { 1: '📷', 2: '📷' };
 
       function resetPhotoZone(slot) {
         var zone = document.getElementById('pzone' + slot);

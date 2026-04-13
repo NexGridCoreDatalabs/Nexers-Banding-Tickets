@@ -519,22 +519,22 @@
 
     <div class="card">
       <h2>⬥ Photo Evidence</h2>
-      <p class="photo-required-hint">Both photos are <strong style="color:var(--gold)">required</strong> before saving. Tap a zone to capture or upload from gallery.</p>
+      <p class="photo-required-hint">Both photos are <strong style="color:var(--gold)">required</strong> before saving. Tap a zone to open your camera and take the photo.</p>
       <div class="photo-upload-section">
         <div class="photo-zone" id="pzone1" role="button" aria-label="Upload Pallet Overview photo">
-          <input type="file" id="photoInput1" accept="image/*" capture="environment">
+          <input type="file" id="photoInput1" capture="environment">
           <div class="pz-placeholder" id="pzPlaceholder1">
             <span class="pz-icon">📷</span>
             <span class="pz-label">Pallet Overview</span>
-            <span class="pz-hint">Tap to capture / upload</span>
+            <span class="pz-hint">Tap to open camera</span>
           </div>
         </div>
-        <div class="photo-zone" id="pzone2" role="button" aria-label="Upload Batch Label photo">
-          <input type="file" id="photoInput2" accept="image/*" capture="environment">
+        <div class="photo-zone" id="pzone2" role="button" aria-label="Upload Pallet Side View photo">
+          <input type="file" id="photoInput2" capture="environment">
           <div class="pz-placeholder" id="pzPlaceholder2">
             <span class="pz-icon">📷</span>
             <span class="pz-label">Pallet Side View</span>
-            <span class="pz-hint">Tap to capture / upload</span>
+            <span class="pz-hint">Tap to open camera</span>
           </div>
         </div>
       </div>
@@ -866,7 +866,7 @@
         placeholder.innerHTML =
           '<span class="pz-icon">' + PHOTO_ICONS[slot] + '</span>' +
           '<span class="pz-label">' + PHOTO_LABELS[slot] + '</span>' +
-          '<span class="pz-hint">Tap to capture / upload</span>';
+          '<span class="pz-hint">Tap to open camera</span>';
       }
 
       async function uploadPhotoFile(file, slot) {

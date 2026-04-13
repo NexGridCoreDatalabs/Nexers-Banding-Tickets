@@ -229,6 +229,35 @@
       color: #fecaca;
       border-color: rgba(248, 113, 113, 0.45);
     }
+    /* ── Pallet colour dot ──────────────────────────────────────────────── */
+    .color-dot-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .color-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.18);
+    }
+    .color-dot-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .color-dot-k {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.75px;
+      color: var(--muted);
+    }
+
     /* ── Photo evidence section ─────────────────────────────────────────── */
     .photos-grid {
       display: grid;
@@ -348,6 +377,15 @@
           <span class="qty-uom" id="qtyUom">—</span>
         </div>
         <div class="pallet-config" id="palletConfig">—</div>
+        <div class="color-dot-row" id="colorDotRow" style="display:none;">
+          <div>
+            <div class="color-dot-k">Pallet Colour</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <span class="color-dot" id="colorDot"></span>
+              <span class="color-dot-label" id="colorDotLabel"></span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="card">
@@ -778,6 +816,26 @@
       document.getElementById('recordedBy').textContent = recordedText || '—';
       document.getElementById('notesVal').textContent = (ticket.notes && String(ticket.notes).trim()) ? String(ticket.notes) : '—';
       document.getElementById('footerTs').textContent = (mfgDateRaw || timeVal) ? fmtTs(mfgDateRaw, timeVal) : '—';
+
+      // Pallet colour dot
+      (function() {
+        var colorMap = {
+          'White':  '#f0f4f8',
+          'Blue':   '#2563eb',
+          'Green':  '#16a34a',
+          'Yellow': '#ca8a04',
+          'Maroon': '#881337'
+        };
+        var c = ticket.pallet_color;
+        var row = document.getElementById('colorDotRow');
+        if (c && colorMap[c]) {
+          document.getElementById('colorDot').style.background = colorMap[c];
+          document.getElementById('colorDotLabel').textContent = c;
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      })();
 
       // Photo evidence
       (function renderPhotos(t) {

@@ -246,6 +246,38 @@
     }
     .prt-btn-signout:hover { background: rgba(245, 158, 11, 0.12); }
 
+    /* ── Pallet colour picker ─────────────────────────────────────────── */
+    .color-picker-row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .color-swatch {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .color-swatch:hover { transform: scale(1.14); }
+    .color-swatch:focus-visible {
+      outline: 2px solid var(--gold);
+      outline-offset: 3px;
+    }
+    .color-swatch.selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(240, 192, 64, 0.4);
+      transform: scale(1.12);
+    }
+    /* White needs a visible outline so it doesn't disappear on dark bg */
+    .color-swatch[data-color="White"] { border-color: rgba(148, 163, 184, 0.55); }
+    .color-swatch[data-color="White"].selected { border-color: var(--gold); }
+
     /* ── Photo upload zones ───────────────────────────────────────────── */
     .photo-upload-section {
       display: grid;
@@ -424,6 +456,18 @@
           <label for="maxStack">Max Stack (layers)</label>
           <input type="number" id="maxStack" name="maxStack" min="1" max="99" placeholder="e.g. 7">
           <small>Check the product packaging for the max stack height for this product</small>
+        </div>
+        <div class="form-group full">
+          <label>Pallet Colour <span style="color:#f87171; font-size:13px;">*</span></label>
+          <div class="color-picker-row" id="colorPickerRow" role="radiogroup" aria-label="Pallet colour">
+            <span class="color-swatch" data-color="White"  style="background:#f0f4f8;" tabindex="0" role="radio" aria-checked="false" aria-label="White"></span>
+            <span class="color-swatch" data-color="Blue"   style="background:#2563eb;" tabindex="0" role="radio" aria-checked="false" aria-label="Blue"></span>
+            <span class="color-swatch" data-color="Green"  style="background:#16a34a;" tabindex="0" role="radio" aria-checked="false" aria-label="Green"></span>
+            <span class="color-swatch" data-color="Yellow" style="background:#ca8a04;" tabindex="0" role="radio" aria-checked="false" aria-label="Yellow"></span>
+            <span class="color-swatch" data-color="Maroon" style="background:#881337;" tabindex="0" role="radio" aria-checked="false" aria-label="Maroon"></span>
+          </div>
+          <input type="hidden" id="palletColor" name="palletColor">
+          <small id="colorHint" style="color:#64748b;">Tap a colour to select — required before saving.</small>
         </div>
       </div>
     </div>
@@ -738,6 +782,14 @@
         document.getElementById('recordedBy').value = recordedByFromUserId(currentUser);
         document.getElementById('subdivision').value = '';
         document.getElementById('notes').value = '';
+        // Reset colour picker
+        document.querySelectorAll('.color-swatch').forEach(function(s) {
+          s.classList.remove('selected');
+          s.setAttribute('aria-checked', 'false');
+        });
+        document.getElementById('palletColor').value = '';
+        var ch = document.getElementById('colorHint');
+        if (ch) { ch.textContent = 'Tap a colour to select — required before saving.'; ch.style.color = '#64748b'; }
         // Reset photo state
         photo1Url = null;
         photo2Url = null;
@@ -881,6 +933,25 @@
         if (this.files && this.files[0]) handlePhotoChange(this.files[0], 2);
       });
 
+      // ── Pallet colour swatch picker ─────────────────────────────────────
+      function selectColorSwatch(swatch) {
+        document.querySelectorAll('.color-swatch').forEach(function(s) {
+          s.classList.remove('selected');
+          s.setAttribute('aria-checked', 'false');
+        });
+        swatch.classList.add('selected');
+        swatch.setAttribute('aria-checked', 'true');
+        document.getElementById('palletColor').value = swatch.dataset.color;
+        var hint = document.getElementById('colorHint');
+        if (hint) { hint.textContent = swatch.dataset.color + ' selected.'; hint.style.color = '#34d399'; }
+      }
+      document.querySelectorAll('.color-swatch').forEach(function(swatch) {
+        swatch.addEventListener('click', function() { selectColorSwatch(this); });
+        swatch.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectColorSwatch(this); }
+        });
+      });
+
       // Submit — prevent duplicate saves; open print after success
       var isSaving = false;
       document.getElementById('submitBtn').addEventListener('click', async function() {
@@ -930,6 +1001,19 @@
           if (lc) try { lc.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
           return;
         }
+        // Hard-block: pallet colour must be selected
+        var palletColor = document.getElementById('palletColor').value;
+        if (!palletColor) {
+          var ch = document.getElementById('colorHint');
+          if (ch) { ch.textContent = '⚠️ Select a pallet colour before saving.'; ch.style.color = '#f87171'; }
+          try { document.getElementById('colorPickerRow').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+          status.textContent = '⚠️ Select a pallet colour before saving.';
+          status.className = 'status error';
+          btn.disabled = false;
+          isSaving = false;
+          return;
+        }
+
         // Hard-block: both photos must be uploaded before saving
         if (!photo1Url || !photo2Url) {
           var missing = [];
@@ -973,7 +1057,8 @@
           subdivision: document.getElementById('subdivision').value || null,
           recorded_by: recordedBy || null,
           photo_1_url: photo1Url || null,
-          photo_2_url: photo2Url || null
+          photo_2_url: photo2Url || null,
+          pallet_color: palletColor || null
         };
         // Backward-compatible payload for databases that haven't run newer ticket-column migrations.
         var payloadLegacy = {

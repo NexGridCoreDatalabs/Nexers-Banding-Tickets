@@ -1,24 +1,529 @@
 /**
- * RetiFlux™ — Responsive breakpoints & shared branding
- * Phone: < 480px | Tablet: 480–768px | PC: 768–1200px | Big: > 1200px
+ * RetiFlux™ — Responsive polish & shared mobile system
+ * Breakpoints:  phone <480px | small-tablet 480–640px | tablet 640–768px | desktop 768–1200px | wide >1200px
+ * Covers: .header, .tabs/.tab-btn, .back-home, .content, .card, .btn variants,
+ *         .controls, .table-wrap, .stats-grid, .search, .pallet-card, toasts,
+ *         forms (select/input), topbar, layout, and themed utility classes.
+ *
+ * Load AFTER retiflux-splash.css and per-page <style> blocks.
+ * All selectors are additive / override-safe for the amber-slate theme.
  */
-/* ── Base responsive container ── */
-.rf-container { width: 100%; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+
+/* ── 0. Global baseline ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  /* Prevent tiny-font iOS tap zoom */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* Prevent horizontal overflow from overflowing content */
+  overflow-x: hidden;
+  /* Smooth momentum scroll on iOS */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent auto-zoom on input focus (iOS): keep font-size ≥16px on inputs */
+input, select, textarea {
+  font-size: max(16px, 1em);
+}
+
+/* Better tap highlight */
+a, button, [role="button"] {
+  -webkit-tap-highlight-color: rgba(245, 158, 11, 0.15);
+}
+
+/* ── 1. Page container ── */
+.rf-container {
+  width: 100%;
+  margin: 0 auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
 @media (min-width: 480px) { .rf-container { padding-left: 20px; padding-right: 20px; } }
 @media (min-width: 768px) { .rf-container { padding-left: 24px; padding-right: 24px; max-width: 1100px; } }
 @media (min-width: 1200px) { .rf-container { max-width: 1400px; padding-left: 32px; padding-right: 32px; } }
 
-/* ── App page footer branding (RetiFlux™ Powered by NexGridCore DataLabs) ── */
+/* ── 2. Header bar (.header) ── */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 2px solid rgba(245, 158, 11, 0.3);
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header h1 {
+  font-size: clamp(14px, 4vw, 20px);
+  font-weight: 800;
+  line-height: 1.25;
+  flex: 1;
+  min-width: 0;
+  /* Truncate gracefully on very narrow screens */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Back to Home / nav link */
+.back-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #f0c040;
+  text-decoration: none;
+  border: 2px solid rgba(245, 158, 11, 0.5);
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  min-height: 36px;
+}
+.back-home:hover, .back-home:focus-visible {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.8);
+}
+
+/* On very small screens let header title wrap to its own line */
+@media (max-width: 400px) {
+  .header { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 14px; }
+  .header h1 { white-space: normal; font-size: 15px; width: 100%; }
+}
+
+/* ── 3. Tab bar (.tabs / .tab-btn) ── */
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 18px;
+  background: rgba(15, 23, 42, 0.6);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;            /* Firefox */
+  flex-wrap: nowrap;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  flex-shrink: 0;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: transparent;
+  border: 2px solid rgba(245, 158, 11, 0.35);
+  color: #94a3b8;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s;
+  min-height: 40px;
+  font-family: inherit;
+}
+.tab-btn.active {
+  background: rgba(245, 158, 11, 0.18);
+  color: #f0c040;
+  border-color: #f0c040;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+}
+.tab-btn:hover:not(.active) {
+  color: #f0c040;
+  border-color: rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+@media (max-width: 480px) {
+  .tabs { padding: 10px 12px; gap: 5px; }
+  .tab-btn { font-size: 12px; padding: 8px 12px; min-height: 38px; }
+}
+
+/* ── 4. Content area ── */
+.content {
+  padding: 18px 18px 32px;
+  width: 100%;
+}
+@media (max-width: 480px) {
+  .content { padding: 12px 12px 28px; }
+}
+
+/* ── 5. Cards (.card) ── */
+.card {
+  background: rgba(15, 23, 42, 0.95);
+  border: 2px solid rgba(245, 158, 11, 0.28);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(245, 158, 11, 0.06);
+  transition: box-shadow 0.2s;
+}
+.card:hover {
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(245, 158, 11, 0.12);
+}
+.card h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #f0c040;
+  margin-bottom: 14px;
+  letter-spacing: 0.2px;
+}
+
+@media (max-width: 480px) {
+  .card { padding: 14px; border-radius: 12px; }
+  .card h2 { font-size: 14px; }
+}
+
+/* ── 6. Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.18s;
+  min-height: 44px;           /* WCAG touch target */
+  font-family: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f0c040, #f59e0b);
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+.btn-primary:hover, .btn-primary:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 18px rgba(245, 158, 11, 0.45);
+}
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+  border: 2px solid rgba(148, 163, 184, 0.35);
+}
+.btn-secondary:hover, .btn-secondary:focus-visible {
+  background: rgba(148, 163, 184, 0.25);
+  border-color: rgba(148, 163, 184, 0.6);
+}
+.btn-secondary:disabled { opacity: 0.55; cursor: not-allowed; pointer-events: none; }
+
+/* Full-width buttons on very narrow phones */
+@media (max-width: 380px) {
+  .btn { width: 100%; justify-content: center; }
+}
+
+/* ── 7. Controls bar (.controls) ── */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+@media (max-width: 480px) {
+  .controls { gap: 6px; }
+  .controls .btn { flex: 1 0 auto; min-width: 100px; }
+}
+
+/* ── 8. Search input (.search) ── */
+.search {
+  flex: 1;
+  min-width: 0;          /* Allow shrinking — override per-file 220px min */
+  max-width: 420px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+  font-size: 14px;       /* Avoid iOS zoom */
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.search:focus {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+@media (max-width: 480px) {
+  .search { max-width: 100%; width: 100%; }
+}
+
+/* ── 9. Forms: select + input ── */
+select, input[type="text"], input[type="number"], input[type="date"],
+input[type="search"], input[type="email"], textarea {
+  font-size: 16px;       /* Prevent iOS zoom */
+  border-radius: 8px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+select:focus, input:focus, textarea:focus {
+  outline: none;
+  border-color: rgba(245, 158, 11, 0.7);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+/* ── 10. Stats grid (.stats-grid / .stat) ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 400px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+}
+
+.stat {
+  background: rgba(30, 58, 95, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: border-color 0.15s;
+}
+.stat:hover { border-color: rgba(245, 158, 11, 0.3); }
+.stat-label {
+  font-size: 10px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.stat-value {
+  font-size: 18px;
+  color: #f8fafc;
+  font-weight: 800;
+  margin-top: 4px;
+  line-height: 1.2;
+}
+
+/* ── 11. Table wrapper (.table-wrap) ── */
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  /* Subtle scroll shadow to hint overflow */
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.95) 30%, transparent),
+    linear-gradient(to left,  rgba(15, 23, 42, 0.95) 30%, transparent);
+  background-position: left center, right center;
+  background-size: 20px 100%, 20px 100%;
+  background-repeat: no-repeat;
+  background-attachment: local, local;
+}
+
+/* Table base ─ works with .tbl, .recent-table, .overview-table */
+.tbl, .recent-table, .overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.tbl th, .recent-table th, .overview-table th {
+  padding: 10px 12px;
+  text-align: left;
+  background: rgba(245, 158, 11, 0.2);
+  color: #f0c040;
+  border-bottom: 2px solid rgba(245, 158, 11, 0.45);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+.tbl td, .recent-table td, .overview-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  color: #e2e8f0;
+  vertical-align: top;
+}
+.tbl tr:nth-child(even),
+.recent-table tr:nth-child(even),
+.overview-table tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.28);
+}
+.tbl tr:hover,
+.recent-table tr:hover,
+.overview-table tr:hover {
+  background: rgba(245, 158, 11, 0.05);
+}
+
+/* ── 12. Pallet cards (.pallet-card) ── */
+.pallet-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: rgba(30, 58, 95, 0.48);
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  gap: 10px;
+}
+.pallet-card:hover { border-color: rgba(245, 158, 11, 0.5); }
+.pallet-card.selected {
+  border-color: #f0c040;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+}
+
+@media (max-width: 480px) {
+  .pallet-card { flex-direction: column; gap: 6px; }
+}
+
+/* ── 13. Toast notifications ── */
+.movement-toast,
+.rf-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 20px;
+  left: auto;
+  max-width: calc(100vw - 32px);
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  z-index: 100000;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  animation: rfToastIn 0.22s ease-out;
+  word-break: break-word;
+}
+.movement-toast.success, .rf-toast.success { background: #059669; color: #fff; }
+.movement-toast.error,   .rf-toast.error   { background: #dc2626; color: #fff; }
+.movement-toast.info,    .rf-toast.info    { background: #0284c7; color: #fff; }
+.movement-toast.warning, .rf-toast.warning { background: #d97706; color: #fff; }
+
+@keyframes rfToastIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* On very narrow phones: stretch toast full-width */
+@media (max-width: 420px) {
+  .movement-toast, .rf-toast {
+    right: 10px;
+    left: 10px;
+    bottom: 14px;
+    font-size: 12px;
+  }
+}
+
+/* ── 14. Topbar (order/picker flow pages) ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: rgba(15, 23, 42, 0.92);
+  border-bottom: 2px solid rgba(245, 158, 11, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.topbar-title {
+  font-size: clamp(14px, 3.5vw, 18px);
+  font-weight: 800;
+  color: #f0c040;
+  flex: 1;
+  min-width: 0;
+}
+.topbar-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+@media (max-width: 480px) {
+  .topbar { padding: 10px 12px; }
+}
+
+/* ── 15. Pill / badge ── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  color: #cbd5e1;
+  background: rgba(30, 58, 95, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* ── 16. Empty / error / muted states ── */
+.empty, .empty-state {
+  color: #64748b;
+  text-align: center;
+  padding: 24px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.error-msg, .error-state {
+  color: #f87171;
+  text-align: center;
+  padding: 20px 16px;
+  font-size: 13px;
+}
+.muted { color: #94a3b8; font-size: 11px; line-height: 1.5; }
+
+/* ── 17. Section divider / separator ── */
+.rf-divider {
+  border: none;
+  border-top: 1px solid rgba(245, 158, 11, 0.18);
+  margin: 16px 0;
+}
+
+/* ── 18. Print: hide interactive chrome ── */
+@media print {
+  .header, .tabs, .controls, .btn, .back-home, .topbar { display: none !important; }
+  .card { border: 1px solid #cbd5e1 !important; box-shadow: none !important; }
+}
+
+/* ── 19. Scrollbar theming (webkit) ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); }
+::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.35);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.55); }
+
+/* ── 20. App page footer ── */
 .rf-page-footer {
   text-align: center;
-  margin-top: 32px;
-  padding: 16px 12px;
-  border-top: 1px solid rgba(245, 158, 11, 0.2);
+  margin-top: 28px;
+  margin-bottom: 4px;
+  padding: 14px 12px;
+  border-top: 1px solid rgba(245, 158, 11, 0.18);
   font-size: 11px;
   color: #64748b;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   font-family: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
 }
-.rf-page-footer .footer-brand { color: #fbbf24; font-weight: 700; }
-.rf-page-footer .footer-lab { color: #818cf8; font-weight: 700; }
-@media (min-width: 768px) { .rf-page-footer { font-size: 12px; padding: 20px 16px; margin-top: 40px; } }
+.rf-page-footer .footer-brand { color: #f0c040; font-weight: 800; }
+.rf-page-footer .footer-lab   { color: #818cf8; font-weight: 700; }
+@media (min-width: 768px) {
+  .rf-page-footer { font-size: 12px; padding: 18px 16px; margin-top: 36px; }
+}

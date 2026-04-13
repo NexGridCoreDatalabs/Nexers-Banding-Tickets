@@ -8,6 +8,7 @@
     <link rel="icon" href="../favicon.png" type="image/png">
   <link rel="stylesheet" href="../css/retiflux-splash.css">
   <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link rel="stylesheet" href="../css/retiflux-responsive.css">
   <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&family=Cascadia+Code:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
     html { background: #0f172a; }
@@ -412,7 +413,7 @@
               <option value="push">Push to Dispatch only</option>
               <option value="keep">Keep for orders only</option>
             </select>
-          </div>
+            </div>
           <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 12px;">
             <div id="zoneSelectWrap" style="display:none;"><label>Zone</label><select id="zoneSelect"></select></div>
             <div style="flex: 1; min-width: 100px;">
@@ -527,15 +528,15 @@
           <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Zones/SKUs at 30% stock. Acknowledge when addressed.</p>
           <div id="replenishmentWarningsList" class="status"></div>
         </div>
-        </div>
+      </div>
         <div class="replenishment-main">
         <div class="card" id="cardPushTasks">
           <h2>⬥ Orders Needing Your Zone (Push)</h2>
           <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;" id="pushCardDesc">When another area needs stock from your zone, use the action on each line to open the move form with the right pallet and destination. <strong style="color:#fde68a">Order-pull alerts</strong> (same as the bell panel) also appear at the top here.</p>
           <button type="button" class="btn btn-secondary" id="btnRefreshReplenishment" style="margin-bottom: 12px;">🔄 Refresh Tasks</button>
           <div id="replenishmentTaskList" class="status"></div>
-        </div>
-        </div>
+    </div>
+  </div>
         </div>
       </div>
     </div>
@@ -1059,12 +1060,12 @@
         if (sel) { sel.innerHTML = '<option value="' + escapeHtml(assignedZone) + '">' + escapeHtml(assignedZone) + '</option>'; sel.value = assignedZone; }
         if (recSel) { recSel.innerHTML = '<option value="' + escapeHtml(assignedZone) + '">' + escapeHtml(assignedZone) + '</option>'; recSel.value = assignedZone; }
       } else {
-        var opts = '<option value="">Select zone</option>';
-        zones.forEach(function(z) {
-          opts += '<option value="' + escapeHtml(z.ZoneName) + '">' + escapeHtml(z.ZoneName) + ' (' + escapeHtml(z.Prefix || '') + ')</option>';
-        });
-        if (sel) sel.innerHTML = opts;
-        if (recSel) recSel.innerHTML = opts;
+      var opts = '<option value="">Select zone</option>';
+      zones.forEach(function(z) {
+        opts += '<option value="' + escapeHtml(z.ZoneName) + '">' + escapeHtml(z.ZoneName) + ' (' + escapeHtml(z.Prefix || '') + ')</option>';
+      });
+      if (sel) sel.innerHTML = opts;
+      if (recSel) recSel.innerHTML = opts;
       }
       populateMoveToZone(null);
     }

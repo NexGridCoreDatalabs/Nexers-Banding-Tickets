@@ -68,7 +68,7 @@
     .form-group select,
     .form-group textarea {
       font-family: var(--font-app);
-      font-size: 14px;
+      font-size: 16px; /* 16px minimum prevents iOS auto-zoom */
       padding: 10px 12px;
       border: 2px solid rgba(245, 158, 11, 0.4);
       border-radius: 8px;
@@ -93,15 +93,17 @@
     }
     .serial-display {
       font-family: var(--font-app);
-      font-size: 20px;
+      font-size: clamp(15px, 4.5vw, 20px);
       font-weight: 800;
       color: var(--gold);
-      letter-spacing: 2px;
+      letter-spacing: clamp(0px, 1vw, 2px);
       padding: 12px 16px;
       background: rgba(240, 192, 64, 0.1);
       border: 2px solid rgba(240, 192, 64, 0.4);
       border-radius: 8px;
       text-align: center;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
     .btn-submit {
       width: 100%;
@@ -152,7 +154,12 @@
       background: rgba(245, 158, 11, 0.15);
       color: #fcd34d;
     }
-    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) {
+      .form-grid { grid-template-columns: 1fr !important; }
+      .page-title { font-size: 20px; }
+      .page-sub { font-size: 12px; }
+      body { padding: 16px 12px 48px; }
+    }
     .post-save-actions {
       display: flex;
       gap: 12px;
@@ -194,7 +201,7 @@
       width: 100%;
       padding: 10px 12px;
       font-family: var(--font-app);
-      font-size: 14px;
+      font-size: 16px; /* 16px minimum prevents iOS auto-zoom */
       border: 2px solid rgba(245, 158, 11, 0.4);
       border-radius: 8px;
       background: rgba(15, 23, 42, 0.8);
@@ -296,10 +303,11 @@
       <div class="form-grid">
         <div class="form-group full">
           <label for="sku">SKU *</label>
-          <select id="sku" name="sku" required>
-            <option value="">Select SKU...</option>
-          </select>
-          <small>Product name, variant, UoM, subdivision from skus table</small>
+          <input type="text" id="sku" name="sku" list="skuDatalist" required
+            placeholder="Type SKU or product name to search…"
+            autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+          <datalist id="skuDatalist"></datalist>
+          <small>Start typing — SKU code, product name or variant. Select from suggestions.</small>
         </div>
         <div class="form-group">
           <label for="qty">Quantity *</label>
@@ -550,22 +558,24 @@
         try {
           var { data, error } = await supabase.from('skus').select('sku, product_name, variant, subdivision, uom, shelf_life_days, sachet_type, tablet_type').eq('is_active', true).order('sku');
           if (error) throw error;
-          var sel = document.getElementById('sku');
-          sel.innerHTML = '<option value="">Select SKU...</option>';
+          var dl = document.getElementById('skuDatalist');
+          dl.innerHTML = '';
           (data || []).forEach(function(r) {
             skuCache[r.sku] = r;
             var opt = document.createElement('option');
             opt.value = r.sku;
-            opt.textContent = r.sku + ' — ' + r.product_name + ' ' + (r.variant || '');
-            sel.appendChild(opt);
+            opt.label = r.sku + ' — ' + (r.product_name || '') + (r.variant ? ' ' + r.variant : '');
+            dl.appendChild(opt);
           });
         } catch (e) { console.warn('SKU load failed:', e.message); } finally { hideSplash(); }
       }
-      document.getElementById('sku').addEventListener('change', function() {
-        var m = skuCache[this.value];
-        document.getElementById('uom').value = m ? m.uom : '';
-        document.getElementById('subdivision').value = m ? m.subdivision : '';
-      });
+      function onSkuPick() {
+        var m = skuCache[this.value.trim()];
+        document.getElementById('uom').value = m ? (m.uom || '') : '';
+        document.getElementById('subdivision').value = m ? (m.subdivision || '') : '';
+      }
+      document.getElementById('sku').addEventListener('change', onSkuPick);
+      document.getElementById('sku').addEventListener('input', onSkuPick);
       function syncPalletSizeFromQty() {
         var q = document.getElementById('qty').value;
         var ps = document.getElementById('palletSize');
@@ -586,10 +596,12 @@
         });
       });
 
-      // Create New Ticket — reset form, show submit button
+      // Create New Ticket — reset form, re-enable submit button
       document.getElementById('btnNewTicket').addEventListener('click', function() {
-        document.getElementById('submitBtn').style.display = '';
-        document.getElementById('submitBtn').textContent = '💾 Save to PostgreSQL & Print Label';
+        var btn = document.getElementById('submitBtn');
+        btn.style.display = '';
+        btn.disabled = false;   // critical: was left disabled after successful save
+        btn.textContent = '💾 Save to PostgreSQL & Print Label';
         document.getElementById('postSaveActions').style.display = 'none';
         document.getElementById('serialDisplay').textContent = '—';
         document.getElementById('status').textContent = '';
@@ -608,6 +620,8 @@
         document.getElementById('subdivision').value = '';
         document.getElementById('notes').value = '';
         isSaving = false;
+        // Scroll to top of form for the next entry
+        try { document.getElementById('prtApp').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
       });
 
       // Fetch next serial — only when needed (avoids consuming sequence on load/refresh)
@@ -672,7 +686,7 @@
           serial = await fetchNextSerial();
           document.getElementById('serialDisplay').textContent = serial;
         }
-        var skuVal = document.getElementById('sku').value;
+        var skuVal = document.getElementById('sku').value.trim();
         var mfgDate = document.getElementById('mfgDate').value;
         var now = new Date();
         var timeStr = now.toTimeString().slice(0, 5);
@@ -680,6 +694,14 @@
         var derivedShift = (!isNaN(hour) && hour >= 7 && hour < 19) ? 'Day Shift (DS)' : 'Night Shift (NS)';
         var skuRec = skuCache[skuVal] || {};
 
+        if (!skuVal || !skuCache[skuVal]) {
+          status.textContent = '⚠️ Select a valid SKU from the list before saving.';
+          status.className = 'status error';
+          btn.disabled = false;
+          isSaving = false;
+          document.getElementById('sku').focus();
+          return;
+        }
         if (!supabase) {
           status.textContent = '⚠️ Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to config.js';
           status.className = 'status error';

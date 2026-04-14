@@ -462,23 +462,6 @@ async function buildShiftReport(
 
     if (cur.pallets === 0) {
       msg += `  — No production this shift\n`;
-      // Only flag consecutive zeros when other lines were actually running
-      // (proves production was happening but this line specifically was idle)
-      const consecutiveCount = sevenMetrics.filter((sm) => {
-        const totalOtherLines = LINES
-          .filter((l) => l !== line)
-          .reduce((sum, l) => sum + sm[l].pallets, 0);
-        return sm[line].pallets === 0 && totalOtherLines > 0;
-      }).length;
-      if (consecutiveCount >= 1) {
-        const total = consecutiveCount + 1; // include current shift
-        const escalation = total >= 5
-          ? `🚨 Zero output · ${total} consecutive shifts · Immediate escalation required`
-          : total >= 3
-          ? `⚠️ Zero output · ${total} consecutive shifts · Escalation advised`
-          : `⚠️ Zero output · ${total} consecutive shifts`;
-        msg += `  ${escalation}\n`;
-      }
     } else {
       for (const [sku, skuData] of Object.entries(cur.skus)) {
         const skuName   = skuNames[sku] || sku;
@@ -587,7 +570,7 @@ async function buildShiftReport(
   // Flags
   msg += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  // Compute idle periods during this shift (any 30+ min gap)
+  // Compute idle periods during this shift — flag any gap of 60+ mins
   const idleEvents: string[] = [];
   for (const line of LINES) {
     const lineTickets = curTickets
@@ -596,7 +579,7 @@ async function buildShiftReport(
     if (lineTickets.length === 0) continue;
     for (let i = 1; i < lineTickets.length; i++) {
       const gapMins = (new Date(lineTickets[i].created_at).getTime() - new Date(lineTickets[i-1].created_at).getTime()) / 60000;
-      if (gapMins >= 30) {
+      if (gapMins >= 60) {
         const gapStart = fmtTime(toEAT(new Date(lineTickets[i-1].created_at)));
         const gapEnd   = fmtTime(toEAT(new Date(lineTickets[i].created_at)));
         idleEvents.push(`  ${line} · idle ${gapStart}–${gapEnd} (${Math.round(gapMins)} mins)`);
@@ -628,18 +611,7 @@ async function buildShiftReport(
     for (const e of quietEvents)  msg += `${e}\n`;
     for (const e of idleEvents)   msg += `${e}\n`;
     for (const l of zeroLines) {
-      const consecutiveCount = sevenMetrics.filter((sm) => {
-        const totalOtherLines = LINES
-          .filter((ol) => ol !== l)
-          .reduce((sum, ol) => sum + sm[ol].pallets, 0);
-        return sm[l].pallets === 0 && totalOtherLines > 0;
-      }).length;
-      if (consecutiveCount >= 1) {
-        const total = consecutiveCount + 1;
-        msg += `  ${l} · zero production · ${total} consecutive shifts\n`;
-      } else {
-        msg += `  ${l} · zero production this shift\n`;
-      }
+      msg += `  ⚠️ ${l} · zero production this shift\n`;
     }
     // Large output drop
     if (prevTotal > 0 && pct(curTotal, prevTotal).includes("▼")) {

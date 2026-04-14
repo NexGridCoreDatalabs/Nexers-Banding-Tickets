@@ -269,12 +269,12 @@ async function buildHourlyReport(
   sb: ReturnType<typeof createClient>
 ): Promise<string> {
   const now = eatNow();
-  // Current hour window in EAT, convert to UTC for DB query
-  const eatHourStart = new Date(Date.UTC(
+  // Cron fires at top of hour — report on the hour that just completed (look back 1hr)
+  const eatHourEnd = new Date(Date.UTC(
     now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
     now.getUTCHours(), 0, 0, 0
   ));
-  const eatHourEnd = new Date(eatHourStart.getTime() + 60 * 60 * 1000);
+  const eatHourStart = new Date(eatHourEnd.getTime() - 60 * 60 * 1000);
 
   // Convert EAT window to UTC for query (subtract 3h offset)
   const utcHourStart = new Date(eatHourStart.getTime() - EAT_OFFSET_MS);

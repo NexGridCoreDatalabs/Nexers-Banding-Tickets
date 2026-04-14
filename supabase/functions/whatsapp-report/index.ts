@@ -461,19 +461,22 @@ async function buildShiftReport(
     msg += `LINE: ${line}\n`;
 
     if (cur.pallets === 0) {
-      // Check consecutive zero shifts
-      let consecutive = 1;
-      for (const sm of sevenMetrics) {
-        if (sm[line].pallets === 0) consecutive++;
-        else break;
-      }
       msg += `  — No production this shift\n`;
-      if (consecutive >= 2) {
-        const escalation = consecutive >= 5
-          ? `🚨 Zero output · ${consecutive} consecutive shifts · Immediate escalation required`
-          : consecutive >= 3
-          ? `⚠️ Zero output · ${consecutive} consecutive shifts · Escalation advised`
-          : `⚠️ Zero output · ${consecutive} consecutive shifts`;
+      // Only flag consecutive zeros when other lines were actually running
+      // (proves production was happening but this line specifically was idle)
+      const consecutiveCount = sevenMetrics.filter((sm) => {
+        const totalOtherLines = LINES
+          .filter((l) => l !== line)
+          .reduce((sum, l) => sum + sm[l].pallets, 0);
+        return sm[line].pallets === 0 && totalOtherLines > 0;
+      }).length;
+      if (consecutiveCount >= 1) {
+        const total = consecutiveCount + 1; // include current shift
+        const escalation = total >= 5
+          ? `🚨 Zero output · ${total} consecutive shifts · Immediate escalation required`
+          : total >= 3
+          ? `⚠️ Zero output · ${total} consecutive shifts · Escalation advised`
+          : `⚠️ Zero output · ${total} consecutive shifts`;
         msg += `  ${escalation}\n`;
       }
     } else {
@@ -497,7 +500,7 @@ async function buildShiftReport(
         if (prevSkuD) {
           msg += `    Last shift:  ${prevSkuD.pallets} pallets · ${prevSkuD.units.toLocaleString()} units  ${pct(skuData.pallets, prevSkuD.pallets)}\n`;
         } else {
-          msg += `    Last shift:  — (not run)  · NEW this shift\n`;
+          msg += `    Last shift:  — (not run)\n`;
         }
         if (avg7Sku > 0) {
           msg += `    7-day avg:   ${avg7Sku} pallets · ${avg7Units.toLocaleString()} units  ${pct(skuData.pallets, avg7Sku)}\n`;
@@ -506,18 +509,6 @@ async function buildShiftReport(
       const gapStr = cur.avgGapMins !== null ? `${cur.avgGapMins} mins` : "—";
       msg += `  Avg gap: ${gapStr}\n`;
       msg += `  Line total: ${cur.pallets} pallets · ${cur.units.toLocaleString()} units\n`;
-
-      // Mix change detection
-      const curSkuSet  = new Set(Object.keys(cur.skus));
-      const prevSkuSet = new Set(Object.keys(prev.skus));
-      const added   = [...curSkuSet].filter((s) => !prevSkuSet.has(s));
-      const removed = [...prevSkuSet].filter((s) => !curSkuSet.has(s));
-      if (added.length || removed.length) {
-        msg += `  ⚠️ Mix change vs last shift\n`;
-        if (added.length)   msg += `    Added:   ${added.join(", ")}\n`;
-        if (removed.length) msg += `    Removed: ${removed.join(", ")}\n`;
-        msg += `    Line total change partly reflects SKU mix change\n`;
-      }
     }
 
     msg += "\n";
@@ -637,13 +628,15 @@ async function buildShiftReport(
     for (const e of quietEvents)  msg += `${e}\n`;
     for (const e of idleEvents)   msg += `${e}\n`;
     for (const l of zeroLines) {
-      let consecutive = 1;
-      for (const sm of sevenMetrics) {
-        if (sm[l].pallets === 0) consecutive++;
-        else break;
-      }
-      if (consecutive >= 2) {
-        msg += `  ${l} · zero production · ${consecutive} consecutive shifts\n`;
+      const consecutiveCount = sevenMetrics.filter((sm) => {
+        const totalOtherLines = LINES
+          .filter((ol) => ol !== l)
+          .reduce((sum, ol) => sum + sm[ol].pallets, 0);
+        return sm[l].pallets === 0 && totalOtherLines > 0;
+      }).length;
+      if (consecutiveCount >= 1) {
+        const total = consecutiveCount + 1;
+        msg += `  ${l} · zero production · ${total} consecutive shifts\n`;
       } else {
         msg += `  ${l} · zero production this shift\n`;
       }

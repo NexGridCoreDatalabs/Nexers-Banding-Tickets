@@ -23,8 +23,12 @@ const EAT_OFFSET_MS = 3 * 60 * 60 * 1000; // UTC+3
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+// mock_now allows historical test runs — pass an ISO UTC string to override
+let _mockNowUtc: Date | null = null;
+
 function eatNow(): Date {
-  return new Date(Date.now() + EAT_OFFSET_MS);
+  const base = _mockNowUtc ? _mockNowUtc : new Date();
+  return new Date(base.getTime() + EAT_OFFSET_MS);
 }
 
 function toEAT(d: Date): Date {
@@ -664,9 +668,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body = await req.json() as { type?: string; shift?: string };
+    const body = await req.json() as { type?: string; shift?: string; mock_now?: string };
     const type  = body.type  || "hourly";
     const shift = (body.shift || "day") as "day" | "night";
+
+    // Optional: override "now" for historical test runs
+    // mock_now should be a UTC ISO string, e.g. "2026-04-13T16:00:00Z" = 19:00 EAT Apr 13
+    _mockNowUtc = body.mock_now ? new Date(body.mock_now) : null;
 
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 

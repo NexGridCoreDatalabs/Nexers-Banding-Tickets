@@ -14,5 +14,7 @@ COMMENT ON TABLE whatsapp_recipients IS 'Phone numbers that receive hourly + end
 
 -- Seed: the first recipient comes from the Supabase secret WHATSAPP_RECIPIENT_1.
 -- Add rows here or via SQL when onboarding more recipients.
--- Example:
--- INSERT INTO whatsapp_recipients (name, phone) VALUES ('Manager', 'whatsapp:+254712345678');
+-- Seed recipient
+INSERT INTO whatsapp_recipients (name, phone)
+VALUES ('RetiFlux', 'whatsapp:+254711432025')
+ON CONFLICT (phone) DO NOTHING;

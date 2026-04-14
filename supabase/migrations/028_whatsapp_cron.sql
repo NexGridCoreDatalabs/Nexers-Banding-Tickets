@@ -12,10 +12,9 @@
 -- In Supabase: Dashboard → Database → Extensions → enable pg_cron
 -- Then run this script in the SQL editor.
 --
--- Replace <YOUR_EDGE_FUNCTION_URL> with your actual Edge Function URL, e.g.:
---   https://xxxxxxxxxxx.supabase.co/functions/v1/whatsapp-report
 -- Replace <YOUR_SERVICE_ROLE_KEY> with your Supabase service_role key.
--- (These are only used inside the DB to call the function — not exposed to clients.)
+-- Get it from: Supabase dashboard → Settings → API → service_role (secret key)
+-- (Only used inside the DB to call the function — never exposed to clients.)
 
 -- ── Enable required extensions ────────────────────────────────────────────────
 CREATE EXTENSION IF NOT EXISTS pg_cron;
@@ -37,7 +36,7 @@ SELECT cron.schedule(
   '0 * * * *',
   $$
     SELECT net.http_post(
-      url     := '<YOUR_EDGE_FUNCTION_URL>',
+      url     := 'https://dxlsuirjfpcycwurntgs.supabase.co/functions/v1/whatsapp-report',
       headers := jsonb_build_object(
         'Content-Type',  'application/json',
         'Authorization', 'Bearer <YOUR_SERVICE_ROLE_KEY>'
@@ -53,7 +52,7 @@ SELECT cron.schedule(
   '0 16 * * *',
   $$
     SELECT net.http_post(
-      url     := '<YOUR_EDGE_FUNCTION_URL>',
+      url     := 'https://dxlsuirjfpcycwurntgs.supabase.co/functions/v1/whatsapp-report',
       headers := jsonb_build_object(
         'Content-Type',  'application/json',
         'Authorization', 'Bearer <YOUR_SERVICE_ROLE_KEY>'
@@ -69,7 +68,7 @@ SELECT cron.schedule(
   '0 4 * * *',
   $$
     SELECT net.http_post(
-      url     := '<YOUR_EDGE_FUNCTION_URL>',
+      url     := 'https://dxlsuirjfpcycwurntgs.supabase.co/functions/v1/whatsapp-report',
       headers := jsonb_build_object(
         'Content-Type',  'application/json',
         'Authorization', 'Bearer <YOUR_SERVICE_ROLE_KEY>'

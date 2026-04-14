@@ -90,9 +90,34 @@ async function sendWhatsApp(to: string, body: string): Promise<void> {
   }
 }
 
+// Split a long message into chunks at newline boundaries, max maxLen chars each
+function chunkMessage(msg: string, maxLen = 1500): string[] {
+  const lines = msg.split("\n");
+  const chunks: string[] = [];
+  let current = "";
+  for (const line of lines) {
+    const next = current ? current + "\n" + line : line;
+    if (next.length > maxLen) {
+      if (current) chunks.push(current);
+      current = line;
+    } else {
+      current = next;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 async function broadcast(message: string): Promise<void> {
   const recipients = getRecipients();
-  await Promise.all(recipients.map((r) => sendWhatsApp(r, message)));
+  const chunks = chunkMessage(message, 1500);
+  for (let i = 0; i < chunks.length; i++) {
+    const part = chunks.length > 1
+      ? `[${i + 1}/${chunks.length}]\n${chunks[i]}`
+      : chunks[i];
+    await Promise.all(recipients.map((r) => sendWhatsApp(r, part)));
+    if (i < chunks.length - 1) await new Promise((res) => setTimeout(res, 800));
+  }
 }
 
 // ── Data queries ──────────────────────────────────────────────────────────────

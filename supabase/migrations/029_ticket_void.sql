@@ -31,7 +31,7 @@ ALTER TABLE pallets
 COMMENT ON COLUMN pallets.voided IS 'Mirrors tickets.voided — set true when the source ticket is voided';
 
 CREATE INDEX IF NOT EXISTS idx_pallets_not_voided
-  ON pallets (zone_id, created_at DESC)
+  ON pallets (current_zone, created_at DESC)
   WHERE voided = false;
 
 -- ── RLS-friendly void function ────────────────────────────────────────────────

@@ -424,6 +424,111 @@
       letter-spacing: 0.3px;
     }
 
+    /* ── My Tickets Today ─────────────────────────────────────────────── */
+    .my-tickets-section { margin-top: 16px; }
+    .my-tickets-header {
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; padding: 13px 18px;
+      background: rgba(15,23,42,0.7);
+      border: 1px solid rgba(245,158,11,0.2); border-radius: 12px;
+      transition: border-color 0.15s; user-select: none;
+    }
+    .my-tickets-header:hover { border-color: rgba(245,158,11,0.4); }
+    .my-tickets-header h3 {
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--gold); margin: 0;
+    }
+    .my-tickets-caret { font-size: 0.75rem; color: #475569; transition: transform 0.2s; }
+    .my-tickets-section.open .my-tickets-caret { transform: rotate(180deg); }
+    .my-tickets-body {
+      display: none;
+      background: rgba(15,23,42,0.5);
+      border: 1px solid rgba(245,158,11,0.15); border-top: none;
+      border-radius: 0 0 12px 12px; overflow: hidden;
+    }
+    .my-tickets-section.open .my-tickets-body { display: block; }
+    .mt-empty { padding: 20px; text-align: center; font-size: 0.8rem; color: #475569; }
+    .mt-row {
+      display: flex; align-items: center; gap: 10px; padding: 11px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.04); flex-wrap: wrap;
+    }
+    .mt-row:last-child { border-bottom: none; }
+    .mt-row.voided-row { opacity: 0.4; }
+    .mt-serial { font-size: 0.72rem; font-weight: 700; color: var(--gold); min-width: 108px; }
+    .mt-sku { font-size: 0.72rem; color: #94a3b8; flex: 1; min-width: 70px; }
+    .mt-qty { font-size: 0.72rem; color: #e2e8f0; white-space: nowrap; }
+    .mt-color-dot {
+      width: 11px; height: 11px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0;
+    }
+    .mt-time { font-size: 0.68rem; color: #475569; white-space: nowrap; }
+    .mt-void-badge {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      color: #f87171; background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3); border-radius: 20px; padding: 2px 8px; white-space: nowrap;
+    }
+    .mt-void-btn {
+      padding: 5px 11px; font-family: inherit; font-size: 0.66rem; font-weight: 700;
+      color: #f87171; background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.3); border-radius: 8px;
+      cursor: pointer; transition: background 0.15s, border-color 0.15s; white-space: nowrap;
+    }
+    .mt-void-btn:hover { background: rgba(239,68,68,0.18); border-color: rgba(239,68,68,0.5); }
+
+    /* ── Void modal ───────────────────────────────────────────────────── */
+    #voidOverlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.78); z-index: 1100;
+      backdrop-filter: blur(5px); align-items: center; justify-content: center; padding: 20px;
+    }
+    #voidOverlay.open { display: flex; }
+    .void-card {
+      background: rgba(13,20,38,0.99);
+      border: 2px solid rgba(239,68,68,0.45); border-radius: 18px;
+      padding: 28px 24px 24px; width: 100%; max-width: 380px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(239,68,68,0.1);
+    }
+    .void-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .void-icon { font-size: 1.5rem; line-height: 1; }
+    .void-title { font-size: 1rem; font-weight: 800; color: #f87171; margin: 0 0 2px; }
+    .void-subtitle { font-size: 0.73rem; color: #94a3b8; margin: 0; }
+    .void-serial-pill {
+      display: inline-block; font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 1px; color: #fbbf24;
+      background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.25);
+      border-radius: 20px; padding: 4px 12px; margin-bottom: 16px;
+    }
+    .void-reason-label {
+      display: block; font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase; color: #64748b; margin-bottom: 8px;
+    }
+    .void-reason-input {
+      width: 100%; padding: 10px 14px;
+      background: rgba(30,41,59,0.85); border: 1.5px solid rgba(100,116,139,0.35);
+      border-radius: 10px; color: #e2e8f0; font-family: inherit;
+      font-size: 0.88rem; line-height: 1.5; resize: vertical; min-height: 80px;
+      transition: border-color 0.15s; margin-bottom: 18px;
+    }
+    .void-reason-input:focus { border-color: rgba(248,113,113,0.6); outline: none; }
+    .void-reason-input::placeholder { color: #334155; }
+    .void-actions { display: flex; gap: 10px; }
+    .void-cancel {
+      flex: 1; padding: 12px; font-family: inherit; font-size: 0.85rem; font-weight: 700;
+      color: #94a3b8; background: rgba(148,163,184,0.1);
+      border: 1px solid rgba(148,163,184,0.2); border-radius: 10px;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .void-cancel:hover { background: rgba(148,163,184,0.18); }
+    .void-confirm-btn {
+      flex: 2; padding: 12px; font-family: inherit; font-size: 0.85rem; font-weight: 800;
+      color: #fff; background: linear-gradient(135deg, #dc2626, #b91c1c);
+      border: none; border-radius: 10px; cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s; letter-spacing: 0.3px;
+    }
+    .void-confirm-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    .void-confirm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .void-status { font-size: 0.78rem; margin-top: 12px; text-align: center; min-height: 1.2em; }
+
     /* ── Pallet colour picker ─────────────────────────────────────────── */
     .color-picker-row {
       display: flex;
@@ -727,6 +832,18 @@
         <a href="../index.html" class="btn-home">🏠 Back to Home</a>
       </div>
     </div>
+
+    <!-- My Tickets Today -->
+    <div class="my-tickets-section" id="myTicketsSection" style="display:none;">
+      <div class="my-tickets-header" id="myTicketsToggle" role="button" tabindex="0" aria-expanded="false" aria-controls="myTicketsBody">
+        <h3>📋 My Tickets Today</h3>
+        <span class="my-tickets-caret">▾</span>
+      </div>
+      <div class="my-tickets-body" id="myTicketsBody">
+        <div class="mt-empty" id="myTicketsEmpty">No tickets created yet this shift.</div>
+        <div id="myTicketsList"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Confirmation modal -->
@@ -769,6 +886,27 @@
         </button>
       </div>
       <div class="confirm-hint">Press and hold to confirm · Release to cancel</div>
+    </div>
+  </div>
+
+  <!-- Void modal -->
+  <div id="voidOverlay" role="dialog" aria-modal="true" aria-label="Void ticket">
+    <div class="void-card">
+      <div class="void-header">
+        <div class="void-icon">🚫</div>
+        <div>
+          <div class="void-title">Void Ticket</div>
+          <div class="void-subtitle">This action cannot be undone — ticket stays in DB for audit</div>
+        </div>
+      </div>
+      <div class="void-serial-pill" id="voidSerialPill">—</div>
+      <label class="void-reason-label" for="voidReasonInput">Reason for void <span style="color:#f87171">*</span></label>
+      <textarea class="void-reason-input" id="voidReasonInput" placeholder="e.g. Wrong SKU entered, duplicate ticket, incorrect quantity…" maxlength="300"></textarea>
+      <div class="void-actions">
+        <button type="button" class="void-cancel" id="voidCancel">Cancel</button>
+        <button type="button" class="void-confirm-btn" id="voidConfirmBtn" disabled>🚫 Void Ticket</button>
+      </div>
+      <div class="void-status" id="voidStatus"></div>
     </div>
   </div>
 
@@ -877,6 +1015,7 @@
           applyPrtUserToUi(data);
           document.getElementById('inputPrtPasscode').value = '';
           loadSkus();
+          loadMyTicketsToday();
         } catch (ex) {
           if (errEl) errEl.textContent = ex.message || 'Sign in failed.';
         } finally {
@@ -919,6 +1058,7 @@
           if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(s);
           applyPrtUserToUi(s);
           loadSkus();
+          loadMyTicketsToday();
           return;
         }
         clearPrtSession();
@@ -1179,6 +1319,44 @@
       var _holdActive  = false;
       var COLOR_HEX = { White:'#f0f4f8', Blue:'#2563eb', Green:'#16a34a', Yellow:'#facc15', Maroon:'#881337' };
 
+      // ── Speech readout ────────────────────────────────────────────────
+      function speakConfirmation(params) {
+        try {
+          if (!('speechSynthesis' in window)) return;
+          var synth = window.speechSynthesis;
+          synth.cancel();
+          var skuRec = skuCache[params.skuVal] || {};
+          var productName = skuRec.product_name || '';
+          function doSpeak() {
+            var voices = synth.getVoices();
+            var femaleVoice = null, maleVoice = null;
+            voices.forEach(function(v) {
+              if (!femaleVoice && /samantha|karen|victoria|zira|fiona|female|google.*en.*f/i.test(v.name)) femaleVoice = v;
+              if (!maleVoice && /(^|\s)(daniel|david|mark|alex|fred|google uk.*male|google.*en.*m)/i.test(v.name)) maleVoice = v;
+            });
+            // Utterance 1 (female): SKU code, spelled out
+            var skuSpelled = params.skuVal.split('').join(' ');
+            var u1 = new SpeechSynthesisUtterance('Please confirm. S K U: ' + skuSpelled + '.');
+            u1.rate = 0.85; u1.lang = 'en-US';
+            if (femaleVoice) u1.voice = femaleVoice;
+            // Utterance 2 (male): product name, qty, colour
+            var u2text = (productName ? productName + '. ' : '') +
+              'Quantity: ' + params.qty + ' ' + (params.uom || '') + '. ' +
+              'Pallet colour: ' + (params.palletColor || 'not set') + '.';
+            var u2 = new SpeechSynthesisUtterance(u2text);
+            u2.rate = 0.85; u2.lang = 'en-US';
+            if (maleVoice) u2.voice = maleVoice;
+            synth.speak(u1);
+            synth.speak(u2);
+          }
+          if (synth.getVoices().length > 0) {
+            doSpeak();
+          } else {
+            synth.onvoiceschanged = function() { synth.onvoiceschanged = null; doSpeak(); };
+          }
+        } catch (e) { /* speech is non-critical — never block save */ }
+      }
+
       function openConfirmModal(params) {
         _pendingSave = params;
         var skuRec = skuCache[params.skuVal] || {};
@@ -1190,6 +1368,7 @@
         document.getElementById('cfBatch').textContent    = params.batchLot || '—';
         document.getElementById('confirmOverlay').classList.add('open');
         document.body.style.overflow = 'hidden';
+        speakConfirmation(params);
       }
 
       function closeConfirmModal() {
@@ -1425,6 +1604,7 @@
           btn.style.display = 'none';
           document.getElementById('postSaveActions').style.display = 'flex';
           document.getElementById('serialDisplay').textContent = '—';
+          loadMyTicketsToday();
 
           // Open print page (prototype styling) — pass data via sessionStorage + hash
           var palletSize = document.getElementById('palletSize').value || '';
@@ -1478,6 +1658,144 @@
           isSaving = false;
         }
       }
+
+      // ── My Tickets Today ──────────────────────────────────────────────
+      var MT_COLOR_HEX = { White:'#f0f4f8', Blue:'#2563eb', Green:'#16a34a', Yellow:'#facc15', Maroon:'#881337' };
+
+      async function loadMyTicketsToday() {
+        if (!supabase || !currentUser) return;
+        var section = document.getElementById('myTicketsSection');
+        if (!section) return;
+        section.style.display = '';
+
+        // Compute today's midnight in UTC (accounting for EAT = UTC+3)
+        var nowUtc = new Date();
+        var eatDate = new Date(nowUtc.getTime() + 3 * 60 * 60 * 1000);
+        eatDate.setUTCHours(0, 0, 0, 0);
+        var dayStartUtc = new Date(eatDate.getTime() - 3 * 60 * 60 * 1000);
+
+        var clerkId = recordedByFromUserId(currentUser);
+        var { data } = await supabase
+          .from('tickets')
+          .select('serial, sku, qty, uom, pallet_color, created_at, voided, voided_reason')
+          .eq('recorded_by', clerkId)
+          .gte('created_at', dayStartUtc.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(15);
+
+        var list  = document.getElementById('myTicketsList');
+        var empty = document.getElementById('myTicketsEmpty');
+        if (!list || !empty) return;
+        list.innerHTML = '';
+
+        if (!data || data.length === 0) {
+          empty.style.display = '';
+          return;
+        }
+        empty.style.display = 'none';
+
+        data.forEach(function(t) {
+          var row = document.createElement('div');
+          row.className = 'mt-row' + (t.voided ? ' voided-row' : '');
+
+          // Time in EAT
+          var eat = new Date(new Date(t.created_at).getTime() + 3 * 60 * 60 * 1000);
+          var timeStr = eat.getUTCHours().toString().padStart(2,'0') + ':' + eat.getUTCMinutes().toString().padStart(2,'0');
+
+          var colorDotStyle = 'background:' + (MT_COLOR_HEX[t.pallet_color] || '#334155') + ';';
+          var rightEl = t.voided
+            ? '<span class="mt-void-badge">VOIDED</span>'
+            : '<button class="mt-void-btn" data-serial="' + t.serial + '">Void</button>';
+
+          row.innerHTML =
+            '<span class="mt-serial">' + (t.serial || '—') + '</span>' +
+            '<span class="mt-sku">' + (t.sku || '—') + '</span>' +
+            '<span class="mt-qty">' + (t.qty || '—') + (t.uom ? ' ' + t.uom : '') + '</span>' +
+            '<span class="mt-color-dot" style="' + colorDotStyle + '" title="' + (t.pallet_color || '') + '"></span>' +
+            '<span class="mt-time">' + timeStr + '</span>' +
+            rightEl;
+
+          if (!t.voided) {
+            row.querySelector('.mt-void-btn').addEventListener('click', function() {
+              openVoidModal(t.serial);
+            });
+          }
+          list.appendChild(row);
+        });
+      }
+
+      // Toggle My Tickets Today panel
+      var mtToggle = document.getElementById('myTicketsToggle');
+      if (mtToggle) {
+        mtToggle.addEventListener('click', function() {
+          var section = document.getElementById('myTicketsSection');
+          var expanded = section.classList.toggle('open');
+          mtToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+        mtToggle.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mtToggle.click(); }
+        });
+      }
+
+      // ── Void modal logic ──────────────────────────────────────────────
+      var _voidTargetSerial = null;
+
+      function openVoidModal(serial) {
+        _voidTargetSerial = serial;
+        document.getElementById('voidSerialPill').textContent = serial || '—';
+        document.getElementById('voidReasonInput').value = '';
+        document.getElementById('voidConfirmBtn').disabled = true;
+        document.getElementById('voidStatus').textContent = '';
+        document.getElementById('voidOverlay').classList.add('open');
+        document.body.style.overflow = 'hidden';
+        setTimeout(function() { document.getElementById('voidReasonInput').focus(); }, 80);
+      }
+
+      function closeVoidModal() {
+        document.getElementById('voidOverlay').classList.remove('open');
+        document.body.style.overflow = '';
+        _voidTargetSerial = null;
+      }
+
+      document.getElementById('voidReasonInput').addEventListener('input', function() {
+        document.getElementById('voidConfirmBtn').disabled = this.value.trim().length < 3;
+      });
+
+      document.getElementById('voidCancel').addEventListener('click', closeVoidModal);
+      document.getElementById('voidOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeVoidModal();
+      });
+
+      document.getElementById('voidConfirmBtn').addEventListener('click', async function() {
+        var btn = this;
+        var statusEl = document.getElementById('voidStatus');
+        var reason = document.getElementById('voidReasonInput').value.trim();
+        if (!reason || !_voidTargetSerial || !supabase) return;
+        btn.disabled = true;
+        btn.textContent = 'Voiding…';
+        statusEl.textContent = '';
+        try {
+          var { data, error } = await supabase.rpc('void_ticket', {
+            p_serial:        _voidTargetSerial,
+            p_voided_by:     currentUser ? (currentUser.name || currentUser.user_id || 'Clerk') : 'Clerk',
+            p_voided_reason: reason
+          });
+          if (error) throw new Error(error.message || 'Void failed');
+          if (data && data.ok === false) throw new Error(data.error || 'Void failed');
+          statusEl.textContent = '✅ Ticket voided.';
+          statusEl.style.color = '#34d399';
+          setTimeout(function() {
+            closeVoidModal();
+            loadMyTicketsToday();
+          }, 900);
+        } catch (ex) {
+          statusEl.textContent = '❌ ' + (ex.message || 'Error voiding ticket');
+          statusEl.style.color = '#f87171';
+          btn.disabled = false;
+          btn.textContent = '🚫 Void Ticket';
+        }
+      });
+
     })();
   </script>
 </body>

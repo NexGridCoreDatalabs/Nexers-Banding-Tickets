@@ -147,7 +147,8 @@ async function fetchTickets(
     .select("production_line, sku, qty, created_at")
     .gte("created_at", from.toISOString())
     .lt("created_at", to.toISOString())
-    .not("production_line", "is", null);
+    .not("production_line", "is", null)
+    .eq("voided", false);
   if (error) throw error;
   return (data ?? []) as TicketRow[];
 }

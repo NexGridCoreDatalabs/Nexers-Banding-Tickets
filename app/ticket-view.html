@@ -344,6 +344,33 @@
       line-height: 1;
     }
     #rfLightbox .lb-close:hover { background: rgba(255,255,255,0.25); }
+
+    /* ── Voided banner ───────────────────────────────────────────────── */
+    .voided-banner {
+      display: none;
+      margin: 0 0 18px;
+      padding: 18px 20px;
+      background: rgba(220, 38, 38, 0.1);
+      border: 2px solid rgba(239, 68, 68, 0.5);
+      border-radius: 14px;
+      backdrop-filter: blur(6px);
+    }
+    .voided-banner.show { display: block; }
+    .voided-banner-top {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+    }
+    .voided-banner-icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
+    .voided-banner-title {
+      font-size: 1rem; font-weight: 800; color: #f87171;
+      letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .voided-banner-subtitle { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+    .voided-banner-reason {
+      font-size: 0.82rem; color: #fca5a5;
+      background: rgba(239,68,68,0.08); border-radius: 8px;
+      padding: 8px 12px; margin-bottom: 8px; line-height: 1.5;
+    }
+    .voided-banner-meta { font-size: 0.7rem; color: #64748b; }
   </style>
 </head>
 <body>
@@ -361,6 +388,19 @@
 
   <div id="viewShell" class="view-shell">
     <p class="view-rotate" id="viewRotatingHeading" aria-live="polite"></p>
+
+    <!-- Voided banner — shown only when ticket.voided = true -->
+    <div class="voided-banner" id="voidedBanner" role="alert">
+      <div class="voided-banner-top">
+        <div class="voided-banner-icon">🚫</div>
+        <div>
+          <div class="voided-banner-title">Ticket Voided</div>
+          <div class="voided-banner-subtitle">This ticket was voided and is excluded from all reports</div>
+        </div>
+      </div>
+      <div class="voided-banner-reason" id="voidedReason"></div>
+      <div class="voided-banner-meta" id="voidedMeta"></div>
+    </div>
 
     <div id="stateContent" class="content-main">
       <section class="card">
@@ -881,6 +921,27 @@
           grid.appendChild(tile);
         });
       })(ticket);
+
+      // Voided banner
+      (function() {
+        var banner = document.getElementById('voidedBanner');
+        if (!banner) return;
+        if (ticket.voided) {
+          document.getElementById('voidedReason').textContent = ticket.voided_reason
+            ? 'Reason: ' + ticket.voided_reason
+            : 'No reason recorded.';
+          var metaParts = [];
+          if (ticket.voided_by)  metaParts.push('Voided by: ' + ticket.voided_by);
+          if (ticket.voided_at) {
+            var d = new Date(ticket.voided_at);
+            metaParts.push('At: ' + d.toLocaleString('en-KE', { timeZone: 'Africa/Nairobi', dateStyle: 'medium', timeStyle: 'short' }));
+          }
+          document.getElementById('voidedMeta').textContent = metaParts.join(' · ');
+          banner.classList.add('show');
+        } else {
+          banner.classList.remove('show');
+        }
+      })();
 
       viewCtx.ticket = ticket;
       viewCtx.skuRow = skuRow;

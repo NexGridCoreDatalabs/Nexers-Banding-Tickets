@@ -246,6 +246,184 @@
     }
     .prt-btn-signout:hover { background: rgba(245, 158, 11, 0.12); }
 
+    /* ── Confirmation modal ───────────────────────────────────────────── */
+    #confirmOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 8000;
+      background: rgba(5, 10, 25, 0.88);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #confirmOverlay.open { display: flex; }
+    .confirm-card {
+      background: linear-gradient(160deg, #0d1a2e 0%, #0f172a 60%, #0a1628 100%);
+      border: 1.5px solid rgba(251, 191, 36, 0.55);
+      border-radius: 20px;
+      padding: 28px 24px 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 0 60px rgba(251, 191, 36, 0.12), 0 24px 64px rgba(0,0,0,0.7);
+      position: relative;
+      overflow: hidden;
+    }
+    .confirm-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(251,191,36,0.8), transparent);
+    }
+    .confirm-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    .confirm-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(251, 191, 36, 0.12);
+      border: 1.5px solid rgba(251, 191, 36, 0.4);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .confirm-title {
+      font-family: var(--font-app);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+    .confirm-subtitle {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+      font-weight: 500;
+    }
+    .confirm-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border: 1px solid rgba(251, 191, 36, 0.15);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .cf-row {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(251, 191, 36, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .cf-row:last-child { border-bottom: none; }
+    .cf-label {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #475569;
+    }
+    .cf-value {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f1f5f9;
+      line-height: 1.3;
+    }
+    .cf-sub {
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 500;
+      margin-top: 1px;
+    }
+    .cf-color-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .cf-color-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid rgba(255,255,255,0.2);
+    }
+    .confirm-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .confirm-cancel {
+      flex: 0 0 auto;
+      padding: 14px 20px;
+      font-family: var(--font-app);
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748b;
+      background: transparent;
+      border: 1.5px solid rgba(100, 116, 139, 0.35);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      letter-spacing: 0.5px;
+    }
+    .confirm-cancel:hover { color: #94a3b8; border-color: rgba(148,163,184,0.5); }
+    .confirm-hold {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      padding: 14px 20px;
+      font-family: var(--font-app);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #0f172a;
+      background: transparent;
+      border: 1.5px solid var(--gold);
+      border-radius: 12px;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .hold-fill {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      width: 0%;
+      transition: none;
+      z-index: 0;
+    }
+    .confirm-hold.holding .hold-fill {
+      width: 100%;
+      transition: width 1.5s linear;
+    }
+    .hold-text {
+      position: relative;
+      z-index: 1;
+      pointer-events: none;
+      color: var(--gold);
+      transition: color 0.1s;
+    }
+    .confirm-hold.holding .hold-text { color: #0f172a; }
+    .confirm-hint {
+      text-align: center;
+      font-size: 10px;
+      color: #334155;
+      margin-top: 10px;
+      letter-spacing: 0.3px;
+    }
+
     /* ── Pallet colour picker ─────────────────────────────────────────── */
     .color-picker-row {
       display: flex;
@@ -548,6 +726,49 @@
         <button type="button" class="btn-new" id="btnNewTicket">➕ Create New Ticket</button>
         <a href="../index.html" class="btn-home">🏠 Back to Home</a>
       </div>
+    </div>
+  </div>
+
+  <!-- Confirmation modal -->
+  <div id="confirmOverlay" role="dialog" aria-modal="true" aria-label="Confirm ticket details">
+    <div class="confirm-card">
+      <div class="confirm-header">
+        <div class="confirm-icon">⚠️</div>
+        <div>
+          <div class="confirm-title">Confirm Ticket</div>
+          <div class="confirm-subtitle">Review details before saving</div>
+        </div>
+      </div>
+      <div class="confirm-fields">
+        <div class="cf-row">
+          <div class="cf-label">SKU</div>
+          <div class="cf-value" id="cfSkuCode">—</div>
+          <div class="cf-sub" id="cfSkuName">—</div>
+        </div>
+        <div class="cf-row">
+          <div class="cf-label">Quantity</div>
+          <div class="cf-value" id="cfQty">—</div>
+        </div>
+        <div class="cf-row">
+          <div class="cf-label">Pallet Colour</div>
+          <div class="cf-value cf-color-row">
+            <span class="cf-color-dot" id="cfColorDot"></span>
+            <span id="cfColorName">—</span>
+          </div>
+        </div>
+        <div class="cf-row">
+          <div class="cf-label">Batch / Lot</div>
+          <div class="cf-value" id="cfBatch">—</div>
+        </div>
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="confirm-cancel" id="confirmCancel">Cancel</button>
+        <button type="button" class="confirm-hold" id="confirmHold">
+          <div class="hold-fill" id="holdFill"></div>
+          <span class="hold-text" id="holdText">Hold to Confirm</span>
+        </button>
+      </div>
+      <div class="confirm-hint">Press and hold to confirm · Release to cancel</div>
     </div>
   </div>
 
@@ -952,7 +1173,91 @@
         });
       });
 
-      // Submit — prevent duplicate saves; open print after success
+      // ── Confirmation modal logic ────────────────────────────────────────
+      var _pendingSave = null;
+      var _holdTimer   = null;
+      var _holdActive  = false;
+      var COLOR_HEX = { White:'#f0f4f8', Blue:'#2563eb', Green:'#16a34a', Yellow:'#facc15', Maroon:'#881337' };
+
+      function openConfirmModal(params) {
+        _pendingSave = params;
+        var skuRec = skuCache[params.skuVal] || {};
+        document.getElementById('cfSkuCode').textContent  = params.skuVal || '—';
+        document.getElementById('cfSkuName').textContent  = [skuRec.product_name, skuRec.variant].filter(Boolean).join(' · ') || '—';
+        document.getElementById('cfQty').textContent      = (params.qty || '—') + (params.uom ? ' ' + params.uom : '');
+        document.getElementById('cfColorName').textContent = params.palletColor || '—';
+        document.getElementById('cfColorDot').style.background = COLOR_HEX[params.palletColor] || '#334155';
+        document.getElementById('cfBatch').textContent    = params.batchLot || '—';
+        document.getElementById('confirmOverlay').classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeConfirmModal() {
+        cancelHold();
+        document.getElementById('confirmOverlay').classList.remove('open');
+        document.body.style.overflow = '';
+        _pendingSave = null;
+      }
+
+      function startHold() {
+        if (_holdActive) return;
+        _holdActive = true;
+        var btn = document.getElementById('confirmHold');
+        btn.classList.add('holding');
+        document.getElementById('holdText').textContent = 'Confirming…';
+        _holdTimer = setTimeout(function() {
+          _holdActive = false;
+          closeConfirmModal();
+          if (_pendingSave) proceedWithSave(_pendingSave);
+        }, 1500);
+      }
+
+      function cancelHold() {
+        if (!_holdActive) return;
+        _holdActive = false;
+        clearTimeout(_holdTimer);
+        _holdTimer = null;
+        var btn = document.getElementById('confirmHold');
+        if (btn) {
+          btn.classList.remove('holding');
+          document.getElementById('holdText').textContent = 'Hold to Confirm';
+        }
+      }
+
+      var holdBtn = document.getElementById('confirmHold');
+      holdBtn.addEventListener('mousedown',   startHold);
+      holdBtn.addEventListener('touchstart',  function(e) { e.preventDefault(); startHold(); }, { passive: false });
+      holdBtn.addEventListener('mouseup',     cancelHold);
+      holdBtn.addEventListener('mouseleave',  cancelHold);
+      holdBtn.addEventListener('touchend',    cancelHold);
+      holdBtn.addEventListener('touchcancel', cancelHold);
+
+      document.getElementById('confirmCancel').addEventListener('click', function() {
+        closeConfirmModal();
+        var btn = document.getElementById('submitBtn');
+        btn.disabled = false;
+        isSaving = false;
+      });
+
+      document.getElementById('confirmOverlay').addEventListener('click', function(e) {
+        if (e.target === this) {
+          closeConfirmModal();
+          var btn = document.getElementById('submitBtn');
+          btn.disabled = false;
+          isSaving = false;
+        }
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('confirmOverlay').classList.contains('open')) {
+          closeConfirmModal();
+          var btn = document.getElementById('submitBtn');
+          btn.disabled = false;
+          isSaving = false;
+        }
+      });
+
+      // Submit — validate then show confirmation modal
       var isSaving = false;
       document.getElementById('submitBtn').addEventListener('click', async function() {
         var btn = this;
@@ -960,7 +1265,7 @@
         if (isSaving) return;
         isSaving = true;
         btn.disabled = true;
-        status.textContent = 'Assigning serial...';
+        status.textContent = 'Checking fields…';
         status.className = 'status';
 
         var serial = document.getElementById('serialDisplay').textContent.trim();
@@ -979,29 +1284,25 @@
         if (!skuVal || !skuCache[skuVal]) {
           status.textContent = '⚠️ Select a valid SKU from the list before saving.';
           status.className = 'status error';
-          btn.disabled = false;
-          isSaving = false;
+          btn.disabled = false; isSaving = false;
           document.getElementById('sku').focus();
           return;
         }
         if (!supabase) {
-          status.textContent = '⚠️ Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to config.js';
+          status.textContent = '⚠️ Supabase not configured.';
           status.className = 'status error';
-          btn.disabled = false;
-          isSaving = false;
+          btn.disabled = false; isSaving = false;
           return;
         }
         if (!currentUser || !/^Receiving Clerk$/i.test(currentUser.role || '')) {
           status.textContent = '⚠️ Sign in as a Receiving Clerk to save tickets.';
           status.className = 'status error';
-          btn.disabled = false;
-          isSaving = false;
+          btn.disabled = false; isSaving = false;
           showPrtInlineLogin();
           var lc = document.getElementById('prtLoginCard');
           if (lc) try { lc.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
           return;
         }
-        // Hard-block: pallet colour must be selected
         var palletColor = document.getElementById('palletColor').value;
         if (!palletColor) {
           var ch = document.getElementById('colorHint');
@@ -1009,35 +1310,53 @@
           try { document.getElementById('colorPickerRow').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
           status.textContent = '⚠️ Select a pallet colour before saving.';
           status.className = 'status error';
-          btn.disabled = false;
-          isSaving = false;
+          btn.disabled = false; isSaving = false;
           return;
         }
-
-        // Hard-block: both photos must be uploaded before saving
         if (!photo1Url || !photo2Url) {
           var missing = [];
           if (!photo1Url) missing.push('Pallet Overview');
-          if (!photo2Url) missing.push('Batch Label');
+          if (!photo2Url) missing.push('Pallet Side View');
           var pse = document.getElementById('photoStatus');
           pse.textContent = '⚠️ Missing required photo(s): ' + missing.join(' · ');
           pse.style.display = 'block';
           try { document.getElementById('pzone1').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
           status.textContent = '⚠️ Both photos are required before saving.';
           status.className = 'status error';
-          btn.disabled = false;
-          isSaving = false;
+          btn.disabled = false; isSaving = false;
           return;
         }
-
         var recordedBy = recordedByFromUserId(currentUser) || (document.getElementById('recordedBy').value || '').trim();
         if (!recordedBy) {
           status.textContent = '⚠️ Your account has no user ID. Contact your supervisor.';
           status.className = 'status error';
-          btn.disabled = false;
-          isSaving = false;
+          btn.disabled = false; isSaving = false;
           return;
         }
+        syncPalletSizeFromQty();
+        // All validation passed — show confirmation modal
+        status.textContent = '';
+        status.className = 'status';
+        openConfirmModal({
+          serial: serial, skuVal: skuVal, skuRec: skuRec,
+          qty: parseFloat(document.getElementById('qty').value) || 0,
+          uom: document.getElementById('uom').value || '',
+          palletColor: palletColor, batchLot: document.getElementById('batchLot').value,
+          mfgDate: mfgDate, timeStr: timeStr, derivedShift: derivedShift,
+          recordedBy: recordedBy
+        });
+      });
+
+      async function proceedWithSave(p) {
+        var btn = document.getElementById('submitBtn');
+        var status = document.getElementById('status');
+        var serial = p.serial;
+        var skuVal = p.skuVal; var skuRec = p.skuRec;
+        var mfgDate = p.mfgDate; var timeStr = p.timeStr;
+        var derivedShift = p.derivedShift; var recordedBy = p.recordedBy;
+        var palletColor = p.palletColor;
+        status.textContent = 'Saving…';
+        status.className = 'status';
         syncPalletSizeFromQty();
         var payload = {
           serial: serial,
@@ -1157,7 +1476,7 @@
           btn.disabled = false;
           isSaving = false;
         }
-      });
+      }
     })();
   </script>
 </body>

@@ -989,20 +989,23 @@
         var notes       = (ticket.notes && String(ticket.notes).trim()) ? String(ticket.notes).trim() : '';
         var serialSaid  = fmtSerial(ticket.serial || serial);
         var isVoided    = !!ticket.voided;
+        var qty         = ticket.qty != null ? String(ticket.qty) : '';
+        var uom         = (ticket.uom || (skuRow && skuRow.uom) || '').trim();
+        var qtyClause   = qty ? (qty + (uom ? ' ' + uom : '')) : '';
 
         function buildScript() {
           var productClause = productName + (variant ? ', ' + variant : '');
 
           if (isVoided) {
             return {
-              line1: 'Heads up — this ticket has been voided. It was for ' + productClause + '. Serial ' + serialSaid + '.',
+              line1: 'Heads up — this ticket has been voided. It was for ' + productClause + (qtyClause ? ', ' + qtyClause : '') + '. Serial ' + serialSaid + '.',
               line2: ticket.voided_reason
                 ? 'The reason given was: ' + ticket.voided_reason + '.'
                 : 'No void reason was recorded.'
             };
           }
 
-          var line1 = 'This is ' + productClause + '. Serial ' + serialSaid + '.';
+          var line1 = 'This is ' + productClause + (qtyClause ? ', ' + qtyClause : '') + '. Serial ' + serialSaid + '.';
 
           var line2 = '';
           if (colour && zone) {

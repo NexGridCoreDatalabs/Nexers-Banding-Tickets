@@ -962,32 +962,78 @@
       // ── Audio readout ────────────────────────────────────────────────
       (function() {
         if (!('speechSynthesis' in window)) return;
-        var productName = (skuRow && skuRow.product_name) ? skuRow.product_name : (ticket.sku || '');
-        var variant     = (skuRow && skuRow.variant)       ? skuRow.variant       : '';
+
+        // Swahili M-class prefix fix: M+consonant → "M [consonant]" so TTS says "em ..."
+        // e.g. MSAFI → "M SAFI" → engine says "em SAH-fi". Zero performance cost.
+        function phoneticize(text) {
+          if (!text) return '';
+          return String(text).replace(/\bM([BCDFGHJKLMNPQRSTVWXYZ])/gi, 'M $1');
+        }
+
+        // PRT000123RF → "P R T, 123, R F"  (numeric middle stripped of leading zeros)
+        function fmtSerial(s) {
+          var m = String(s || '').match(/^([A-Za-z]+)(\d+)([A-Za-z]*)$/);
+          if (!m) return s;
+          var pre = m[1].split('').join(' ');
+          var num = parseInt(m[2], 10);
+          var suf = m[3] ? ', ' + m[3].split('').join(' ') : '';
+          return pre + ', ' + num + suf;
+        }
+
+        var productName = phoneticize((skuRow && skuRow.product_name) ? skuRow.product_name : (ticket.sku || ''));
+        var variant     = phoneticize((skuRow && skuRow.variant) ? skuRow.variant : '');
         var colour      = ticket.pallet_color || '';
-        var zone        = (pallet && pallet.current_zone)  ? pallet.current_zone  : '';
+        var zone        = (pallet && pallet.current_zone)     ? pallet.current_zone     : '';
+        var toZone      = (pallet && pallet.in_transit_to_zone) ? pallet.in_transit_to_zone : '';
+        var status      = (pallet && pallet.status)           ? pallet.status           : '';
+        var notes       = (ticket.notes && String(ticket.notes).trim()) ? String(ticket.notes).trim() : '';
+        var serialSaid  = fmtSerial(ticket.serial || serial);
+        var isVoided    = !!ticket.voided;
 
-        function buildUtterances() {
-          var synth  = window.speechSynthesis;
-          var voices = synth.getVoices();
-          var femaleVoice = null, maleVoice = null;
+        function buildScript() {
+          var productClause = productName + (variant ? ', ' + variant : '');
+
+          if (isVoided) {
+            return {
+              line1: 'Heads up — this ticket has been voided. It was for ' + productClause + '. Serial ' + serialSaid + '.',
+              line2: ticket.voided_reason
+                ? 'The reason given was: ' + ticket.voided_reason + '.'
+                : 'No void reason was recorded.'
+            };
+          }
+
+          var line1 = 'This is ' + productClause + '. Serial ' + serialSaid + '.';
+
+          var line2 = '';
+          if (colour && zone) {
+            if (toZone) {
+              line2 = "It's a " + colour + " pallet, on its way to " + toZone + " from " + zone + ".";
+            } else {
+              line2 = "It's a " + colour + " pallet, currently sitting in " + zone + ".";
+            }
+          } else if (zone) {
+            line2 = 'Currently in ' + zone + '.';
+          }
+          if (status && /active/i.test(status)) {
+            line2 += ' Status is active.';
+          } else if (status) {
+            line2 += ' Status: ' + status + '.';
+          }
+          if (notes) {
+            line2 += ' Notes say: ' + notes;
+          }
+
+          return { line1: line1.trim(), line2: line2.trim() };
+        }
+
+        function pickVoices() {
+          var voices = window.speechSynthesis.getVoices();
+          var f = null, m = null;
           voices.forEach(function(v) {
-            if (!femaleVoice && /samantha|karen|victoria|zira|fiona|female|google.*en.*f/i.test(v.name)) femaleVoice = v;
-            if (!maleVoice   && /(^|\s)(daniel|david|mark|alex|fred|google uk.*male|google.*en.*m)/i.test(v.name)) maleVoice = v;
+            if (!f && /samantha|karen|victoria|zira|fiona|female|google.*en.*f/i.test(v.name)) f = v;
+            if (!m && /(^|\s)(daniel|david|mark|alex|fred|google uk.*male|google.*en.*m)/i.test(v.name)) m = v;
           });
-          var parts = [productName];
-          if (variant) parts.push(variant);
-          var u1 = new SpeechSynthesisUtterance(parts.join('. ') + '.');
-          u1.rate = 0.88; u1.lang = 'en-US';
-          if (femaleVoice) u1.voice = femaleVoice;
-
-          var line2 = [];
-          if (colour) line2.push('Pallet colour: ' + colour);
-          if (zone)   line2.push('Currently in: ' + zone);
-          var u2 = new SpeechSynthesisUtterance(line2.join('. ') + '.');
-          u2.rate = 0.88; u2.lang = 'en-US';
-          if (maleVoice) u2.voice = maleVoice;
-          return [u1, u2];
+          return { f: f, m: m };
         }
 
         function speak() {
@@ -996,24 +1042,38 @@
             synth.cancel();
             var btn = document.getElementById('listenBtn');
             function doSpeak() {
-              var utts = buildUtterances();
+              var script = buildScript();
+              var v = pickVoices();
+
+              var u1 = new SpeechSynthesisUtterance(script.line1);
+              u1.rate = 0.88; u1.lang = 'en-US';
+              if (v.f) u1.voice = v.f;
+
               if (btn) btn.classList.add('speaking');
-              utts[utts.length - 1].onend = function() { if (btn) btn.classList.remove('speaking'); };
-              utts.forEach(function(u) { synth.speak(u); });
+
+              if (script.line2) {
+                var u2 = new SpeechSynthesisUtterance(script.line2);
+                u2.rate = 0.88; u2.lang = 'en-US';
+                if (v.m) u2.voice = v.m;
+                u2.onend = function() { if (btn) btn.classList.remove('speaking'); };
+                synth.speak(u1);
+                synth.speak(u2);
+              } else {
+                u1.onend = function() { if (btn) btn.classList.remove('speaking'); };
+                synth.speak(u1);
+              }
             }
             if (synth.getVoices().length > 0) { doSpeak(); }
             else { synth.onvoiceschanged = function() { synth.onvoiceschanged = null; doSpeak(); }; }
-          } catch (e) { /* non-critical */ }
+          } catch (e) { /* speech is non-critical */ }
         }
 
-        // Show the listen button regardless (always-available fallback)
         var listenBtn = document.getElementById('listenBtn');
         if (listenBtn) {
           listenBtn.style.display = '';
           listenBtn.addEventListener('click', speak);
         }
-
-        // Auto-attempt (works on Android Chrome; silently fails on iOS — button is the fallback)
+        // Auto-attempt on load: fires on Android Chrome, silently ignored on iOS
         setTimeout(speak, 600);
       })();
 

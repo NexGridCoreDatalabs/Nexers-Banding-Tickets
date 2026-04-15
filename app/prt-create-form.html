@@ -1321,13 +1321,18 @@
       var COLOR_HEX = { White:'#f0f4f8', Blue:'#2563eb', Green:'#16a34a', Yellow:'#facc15', Maroon:'#881337' };
 
       // ── Speech readout ────────────────────────────────────────────────
+      function phoneticize(text) {
+        if (!text) return '';
+        return String(text).replace(/\bM([BCDFGHJKLMNPQRSTVWXYZ])/gi, 'M $1');
+      }
+
       function speakConfirmation(params) {
         try {
           if (!('speechSynthesis' in window)) return;
           var synth = window.speechSynthesis;
           synth.cancel();
           var skuRec = skuCache[params.skuVal] || {};
-          var productName = skuRec.product_name || '';
+          var productName = phoneticize(skuRec.product_name || '');
           function doSpeak() {
             var voices = synth.getVoices();
             var femaleVoice = null, maleVoice = null;

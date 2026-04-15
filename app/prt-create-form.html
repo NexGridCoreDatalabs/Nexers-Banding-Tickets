@@ -1335,16 +1335,15 @@
               if (!femaleVoice && /samantha|karen|victoria|zira|fiona|female|google.*en.*f/i.test(v.name)) femaleVoice = v;
               if (!maleVoice && /(^|\s)(daniel|david|mark|alex|fred|google uk.*male|google.*en.*m)/i.test(v.name)) maleVoice = v;
             });
-            // Utterance 1 (female): SKU code, spelled out
-            var skuSpelled = params.skuVal.split('').join(' ');
-            var u1 = new SpeechSynthesisUtterance('Please confirm. S K U: ' + skuSpelled + '.');
+            // Utterance 1 (female): product name spoken naturally as a word
+            var u1 = new SpeechSynthesisUtterance('Please confirm: ' + (productName || params.skuVal) + '.');
             u1.rate = 0.85; u1.lang = 'en-US';
             if (femaleVoice) u1.voice = femaleVoice;
-            // Utterance 2 (male): product name, qty, colour
-            var u2text = (productName ? productName + '. ' : '') +
+            // Utterance 2 (male): quantity and pallet colour
+            var u2 = new SpeechSynthesisUtterance(
               'Quantity: ' + params.qty + ' ' + (params.uom || '') + '. ' +
-              'Pallet colour: ' + (params.palletColor || 'not set') + '.';
-            var u2 = new SpeechSynthesisUtterance(u2text);
+              'Pallet colour: ' + (params.palletColor || 'not set') + '.'
+            );
             u2.rate = 0.85; u2.lang = 'en-US';
             if (maleVoice) u2.voice = maleVoice;
             synth.speak(u1);

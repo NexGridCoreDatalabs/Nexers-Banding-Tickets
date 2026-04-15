@@ -345,6 +345,19 @@
     }
     #rfLightbox .lb-close:hover { background: rgba(255,255,255,0.25); }
 
+    /* ── Listen button ───────────────────────────────────────────────── */
+    .listen-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; margin-top: 10px;
+      font-family: inherit; font-size: 0.75rem; font-weight: 700;
+      color: #fbbf24; background: rgba(251,191,36,0.08);
+      border: 1px solid rgba(251,191,36,0.3); border-radius: 20px;
+      cursor: pointer; transition: background 0.15s, border-color 0.15s;
+      letter-spacing: 0.3px;
+    }
+    .listen-btn:hover { background: rgba(251,191,36,0.16); border-color: rgba(251,191,36,0.5); }
+    .listen-btn.speaking { color: #34d399; border-color: rgba(52,211,153,0.4); background: rgba(52,211,153,0.08); }
+
     /* ── Voided banner ───────────────────────────────────────────────── */
     .voided-banner {
       display: none;
@@ -426,6 +439,9 @@
             </div>
           </div>
         </div>
+        <button type="button" class="listen-btn" id="listenBtn" style="display:none;" aria-label="Read ticket details aloud">
+          🔊 Listen
+        </button>
       </section>
 
       <section class="card">
@@ -941,6 +957,64 @@
         } else {
           banner.classList.remove('show');
         }
+      })();
+
+      // ── Audio readout ────────────────────────────────────────────────
+      (function() {
+        if (!('speechSynthesis' in window)) return;
+        var productName = (skuRow && skuRow.product_name) ? skuRow.product_name : (ticket.sku || '');
+        var variant     = (skuRow && skuRow.variant)       ? skuRow.variant       : '';
+        var colour      = ticket.pallet_color || '';
+        var zone        = (pallet && pallet.current_zone)  ? pallet.current_zone  : '';
+
+        function buildUtterances() {
+          var synth  = window.speechSynthesis;
+          var voices = synth.getVoices();
+          var femaleVoice = null, maleVoice = null;
+          voices.forEach(function(v) {
+            if (!femaleVoice && /samantha|karen|victoria|zira|fiona|female|google.*en.*f/i.test(v.name)) femaleVoice = v;
+            if (!maleVoice   && /(^|\s)(daniel|david|mark|alex|fred|google uk.*male|google.*en.*m)/i.test(v.name)) maleVoice = v;
+          });
+          var parts = [productName];
+          if (variant) parts.push(variant);
+          var u1 = new SpeechSynthesisUtterance(parts.join('. ') + '.');
+          u1.rate = 0.88; u1.lang = 'en-US';
+          if (femaleVoice) u1.voice = femaleVoice;
+
+          var line2 = [];
+          if (colour) line2.push('Pallet colour: ' + colour);
+          if (zone)   line2.push('Currently in: ' + zone);
+          var u2 = new SpeechSynthesisUtterance(line2.join('. ') + '.');
+          u2.rate = 0.88; u2.lang = 'en-US';
+          if (maleVoice) u2.voice = maleVoice;
+          return [u1, u2];
+        }
+
+        function speak() {
+          try {
+            var synth = window.speechSynthesis;
+            synth.cancel();
+            var btn = document.getElementById('listenBtn');
+            function doSpeak() {
+              var utts = buildUtterances();
+              if (btn) btn.classList.add('speaking');
+              utts[utts.length - 1].onend = function() { if (btn) btn.classList.remove('speaking'); };
+              utts.forEach(function(u) { synth.speak(u); });
+            }
+            if (synth.getVoices().length > 0) { doSpeak(); }
+            else { synth.onvoiceschanged = function() { synth.onvoiceschanged = null; doSpeak(); }; }
+          } catch (e) { /* non-critical */ }
+        }
+
+        // Show the listen button regardless (always-available fallback)
+        var listenBtn = document.getElementById('listenBtn');
+        if (listenBtn) {
+          listenBtn.style.display = '';
+          listenBtn.addEventListener('click', speak);
+        }
+
+        // Auto-attempt (works on Android Chrome; silently fails on iOS — button is the fallback)
+        setTimeout(speak, 600);
       })();
 
       viewCtx.ticket = ticket;

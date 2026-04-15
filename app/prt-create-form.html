@@ -887,6 +887,15 @@
         </button>
       </div>
       <div class="confirm-hint">Press and hold to confirm · Release to cancel</div>
+      <div style="text-align:center;margin-top:12px;">
+        <button type="button" id="confirmListenBtn" style="
+          display:inline-flex;align-items:center;gap:6px;
+          padding:6px 16px;font-family:inherit;font-size:0.72rem;font-weight:700;
+          color:#fbbf24;background:rgba(251,191,36,0.08);
+          border:1px solid rgba(251,191,36,0.28);border-radius:20px;
+          cursor:pointer;transition:background 0.15s,border-color 0.15s;letter-spacing:0.3px;
+        ">🔊 Tap to Listen</button>
+      </div>
     </div>
   </div>
 
@@ -1374,6 +1383,15 @@
         document.getElementById('confirmOverlay').classList.add('open');
         document.body.style.overflow = 'hidden';
         speakConfirmation(params);
+        // Wire listen button to replay on demand (iOS fallback)
+        var lb = document.getElementById('confirmListenBtn');
+        if (lb) {
+          lb.onclick = function() {
+            lb.textContent = '🔊 …';
+            speakConfirmation(params);
+            setTimeout(function() { lb.textContent = '🔊 Tap to Listen'; }, 3500);
+          };
+        }
       }
 
       function closeConfirmModal() {

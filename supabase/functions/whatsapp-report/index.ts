@@ -122,7 +122,7 @@ async function broadcast(message: string): Promise<void> {
 
 // ── Data queries ──────────────────────────────────────────────────────────────
 
-const LINES = ["SP", "PKN", "MB-250", "AL", "MB-150"];
+const LINES = ["SP", "PKN", "MB-250", "AL", "MB-150", "Offline Banding"];
 
 interface TicketRow {
   production_line: string;

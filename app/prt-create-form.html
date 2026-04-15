@@ -1207,8 +1207,9 @@
         document.getElementById('holdText').textContent = 'Confirming…';
         _holdTimer = setTimeout(function() {
           _holdActive = false;
+          var params = _pendingSave; // capture before closeConfirmModal nullifies it
           closeConfirmModal();
-          if (_pendingSave) proceedWithSave(_pendingSave);
+          if (params) proceedWithSave(params);
         }, 1500);
       }
 

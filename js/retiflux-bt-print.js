@@ -20,12 +20,13 @@
   'use strict';
 
   var SERVICE_UUID    = '49535343-fe7d-4ae5-8fa9-9fafd205e455';
-  var WRITE_CHAR_UUID = '49535343-8841-43f4-a8d4-ecbe34729bb3';
-  var CHUNK_MS        = 12;   // delay between BLE write chunks (ms)
-  var CHUNK_SIZE      = 100;  // bytes per chunk — modern BLE MTU is 247; 100 is safe and fast
+  var WRITE_CHAR_UUID = '49535343-8841-43f4-a8d4-ecbe34729bb3'; // preferred; auto-fallback if absent
+  var CHUNK_MS        = 50;   // delay between BLE write chunks (ms) — conservative for reliability
+  var CHUNK_SIZE      = 20;   // bytes per chunk — BLE safe minimum (MTU 23 - 3 ATT header)
 
-  var _device = null;
-  var _char   = null;
+  var _device    = null;
+  var _char      = null;
+  var _writeMode = 'withResponse'; // 'withResponse' | 'withoutResponse'
 
   // ── BLE connection ──────────────────────────────────────────────────────────
 
@@ -33,45 +34,84 @@
     return !!(navigator && navigator.bluetooth && navigator.bluetooth.requestDevice);
   }
 
+  // Resolve the best writable characteristic from a connected GATT service.
+  // Prefers the known ISSC UUID; falls back to any char with write capability.
+  async function resolveWriteChar(server) {
+    var service = await server.getPrimaryService(SERVICE_UUID);
+    var chars   = await service.getCharacteristics();
+
+    var preferred = null, fallback = null;
+    for (var i = 0; i < chars.length; i++) {
+      var c = chars[i];
+      var canWrite = (c.properties.write || c.properties.writeWithoutResponse);
+      if (!canWrite) continue;
+      if (c.uuid === WRITE_CHAR_UUID) { preferred = c; break; }
+      if (!fallback) fallback = c;
+    }
+
+    var chosen = preferred || fallback;
+    if (!chosen) throw new Error('No writable characteristic found on printer. Verify the printer is on and in range.');
+
+    // Determine write mode from actual characteristic properties
+    _writeMode = chosen.properties.write ? 'withResponse' : 'withoutResponse';
+    return chosen;
+  }
+
   async function connect() {
     if (_char && _device && _device.gatt.connected) return _char;
 
-    // If we have a device but it disconnected, try to reconnect silently
+    // Device known but GATT dropped — try silent reconnect
     if (_device && !_device.gatt.connected) {
       try {
-        var srv  = await _device.gatt.connect();
-        var svc  = await srv.getPrimaryService(SERVICE_UUID);
-        _char    = await svc.getCharacteristic(WRITE_CHAR_UUID);
+        var srv = await _device.gatt.connect();
+        _char   = await resolveWriteChar(srv);
         return _char;
       } catch (e) {
         _device = null; _char = null;
       }
     }
 
-    // Fresh pairing — show all nearby BLE devices so the printer is visible.
-    // Many thermal printers don't advertise service UUIDs in their beacons;
-    // the ISSC UART service only becomes accessible after connecting.
+    // Fresh pairing — show all nearby BLE devices.
+    // Thermal printers don't advertise service UUIDs in beacons;
+    // services are only visible after connecting.
     var device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
       optionalServices: [SERVICE_UUID]
     });
     device.addEventListener('gattserverdisconnected', function () {
-      _char = null;
-      // Don't null _device so we can reconnect silently next time
+      _char = null; // keep _device for silent reconnect
     });
-    var server  = await device.gatt.connect();
-    var service = await server.getPrimaryService(SERVICE_UUID);
-    var char    = await service.getCharacteristic(WRITE_CHAR_UUID);
+    var server = await device.gatt.connect();
+    var char   = await resolveWriteChar(server);
     _device = device;
     _char   = char;
     return char;
+  }
+
+  async function writeChunk(char, chunk) {
+    // Try the method indicated by the characteristic's properties first,
+    // then fall through the chain so a wrong assumption never silently fails.
+    if (_writeMode === 'withResponse') {
+      if (char.writeValueWithResponse) {
+        return char.writeValueWithResponse(chunk);
+      }
+      if (char.writeValue) {
+        return char.writeValue(chunk); // older Chrome API
+      }
+    }
+    // withoutResponse path (or fallback)
+    if (char.writeValueWithoutResponse) {
+      return char.writeValueWithoutResponse(chunk);
+    }
+    // Last resort — older Chrome
+    return char.writeValue(chunk);
   }
 
   async function writeBytes(uint8) {
     var char = await connect();
     for (var i = 0; i < uint8.length; i += CHUNK_SIZE) {
       var chunk = uint8.slice(i, i + CHUNK_SIZE);
-      await char.writeValueWithoutResponse(chunk);
+      await writeChunk(char, chunk);
       if (i + CHUNK_SIZE < uint8.length) {
         await new Promise(function (r) { setTimeout(r, CHUNK_MS); });
       }

@@ -246,8 +246,13 @@
     await writeBytes(label);
   }
 
+  function isPaired() {
+    return _device !== null;
+  }
+
   global.RetiFluxBTPrint = {
     isSupported : isSupported,
+    isPaired    : isPaired,
     connect     : connect,
     print       : print,
     disconnect  : disconnect

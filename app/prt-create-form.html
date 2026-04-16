@@ -196,6 +196,47 @@
     }
     .post-save-actions .btn-bt:hover { box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4); }
     .post-save-actions .btn-bt:disabled { opacity: 0.6; cursor: not-allowed; }
+    /* ── Bluetooth pair banner ── */
+    .bt-pair-banner {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, rgba(14,165,233,0.10), rgba(2,132,199,0.06));
+      border: 1.5px solid rgba(14,165,233,0.35);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .bt-pair-banner .bt-pair-hint {
+      font-size: 12px;
+      color: #94a3b8;
+      flex: 1;
+      min-width: 120px;
+    }
+    .bt-pair-banner .btn-pair {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-family: var(--font-app);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: box-shadow 0.2s;
+    }
+    .bt-pair-banner .btn-pair:hover { box-shadow: 0 3px 12px rgba(14,165,233,0.4); }
+    .bt-pair-banner .btn-pair:disabled { opacity: 0.6; cursor: not-allowed; }
+    .bt-paired-indicator {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #34d399;
+    }
     .prt-field label {
       display: block;
       font-size: 11px;
@@ -833,12 +874,23 @@
       <div id="photoStatus" style="display:none;"></div>
     </div>
 
+    <!-- Bluetooth printer pairing banner — only rendered on Chrome Android -->
+    <div class="bt-pair-banner" id="btPairBanner" aria-live="polite">
+      <div id="btPairState" style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap;">
+        <button type="button" class="btn-pair" id="btPairBtn">🖨 Pair Printer</button>
+        <span class="bt-pair-hint">Pair once per shift — labels print automatically on every save</span>
+      </div>
+      <div class="bt-paired-indicator" id="btPairedState">
+        <span>🖨</span><span>Printer ready</span>
+      </div>
+    </div>
+
     <div class="card">
-      <button type="button" class="btn-submit" id="submitBtn">💾 Save to PostgreSQL & Print Label</button>
+      <button type="button" class="btn-submit" id="submitBtn">💾 Save & Print Label</button>
       <div class="status" id="status"></div>
       <div class="post-save-actions" id="postSaveActions" style="display:none;">
         <button type="button" class="btn-new" id="btnNewTicket">➕ Create New Ticket</button>
-        <button type="button" class="btn-bt" id="btnBTPrint">🖨 Bluetooth Print</button>
+        <button type="button" class="btn-bt" id="btnBTPrint">🖨 Reprint</button>
         <a href="../index.html" class="btn-home">🏠 Back to Home</a>
       </div>
     </div>
@@ -1183,46 +1235,66 @@
         try { document.getElementById('prtApp').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
       });
 
-      // ── Bluetooth Print button ────────────────────────────────────────────
+      // ── Bluetooth Pairing Banner ──────────────────────────────────────────
       (function () {
-        var btnBT = document.getElementById('btnBTPrint');
-        if (!btnBT) return;
+        if (typeof RetiFluxBTPrint === 'undefined' || !RetiFluxBTPrint.isSupported()) return;
 
-        // Only reveal the button on browsers that support Web Bluetooth
-        if (typeof RetiFluxBTPrint !== 'undefined' && RetiFluxBTPrint.isSupported()) {
-          btnBT.style.display = '';
+        var banner    = document.getElementById('btPairBanner');
+        var pairState = document.getElementById('btPairState');
+        var pairedState = document.getElementById('btPairedState');
+        var pairBtn   = document.getElementById('btPairBtn');
+        var btnBT     = document.getElementById('btnBTPrint');
+
+        // Show the banner
+        banner.style.display = 'flex';
+
+        function refreshPairUI() {
+          var paired = RetiFluxBTPrint.isPaired();
+          pairState.style.display   = paired ? 'none' : 'flex';
+          pairedState.style.display = paired ? 'flex' : 'none';
+          if (btnBT) btnBT.style.display = paired ? '' : 'none';
         }
+        refreshPairUI();
 
-        btnBT.addEventListener('click', async function () {
-          var data = null;
-          try { data = JSON.parse(localStorage.getItem(
-            // Find the most-recently written bridge key
-            Object.keys(localStorage)
-              .filter(function (k) { return k.startsWith('prtprint_'); })
-              .sort()
-              .pop() || ''
-          ) || 'null'); } catch (e) {}
-
-          if (!data) {
-            alert('Print data not found — please save a ticket first.');
-            return;
-          }
-
-          btnBT.disabled = true;
-          btnBT.textContent = '🖨 Printing…';
+        pairBtn.addEventListener('click', async function () {
+          pairBtn.disabled = true;
+          pairBtn.textContent = 'Connecting…';
           try {
-            await RetiFluxBTPrint.print(data);
-            btnBT.textContent = '✅ Printed';
-            setTimeout(function () {
-              btnBT.textContent = '🖨 Bluetooth Print';
-              btnBT.disabled = false;
-            }, 3000);
+            await RetiFluxBTPrint.connect();
+            refreshPairUI();
           } catch (err) {
-            btnBT.disabled = false;
-            btnBT.textContent = '🖨 Bluetooth Print';
-            alert('Bluetooth print failed:\n' + (err.message || err));
+            pairBtn.disabled = false;
+            pairBtn.textContent = '🖨 Pair Printer';
+            if (!/cancel/i.test(err.message || '')) {
+              alert('Could not connect to printer:\n' + (err.message || err));
+            }
           }
         });
+
+        // Reprint button — prints last saved ticket again
+        if (btnBT) {
+          btnBT.addEventListener('click', async function () {
+            if (!_lastBTPrintData) {
+              alert('No ticket saved yet this session.');
+              return;
+            }
+            btnBT.disabled = true;
+            btnBT.textContent = '🖨 Reprinting…';
+            try {
+              await RetiFluxBTPrint.print(_lastBTPrintData);
+              btnBT.textContent = '✅ Reprinted';
+              setTimeout(function () {
+                btnBT.textContent = '🖨 Reprint';
+                btnBT.disabled = false;
+              }, 3000);
+            } catch (err) {
+              btnBT.disabled = false;
+              btnBT.textContent = '🖨 Reprint';
+              alert('Reprint failed:\n' + (err.message || err));
+              refreshPairUI(); // device may have disconnected
+            }
+          });
+        }
       })();
 
       // Fetch next serial — only when needed (avoids consuming sequence on load/refresh)
@@ -1514,6 +1586,7 @@
 
       // Submit — validate then show confirmation modal
       var isSaving = false;
+      var _lastBTPrintData = null; // cached for Reprint button
       document.getElementById('submitBtn').addEventListener('click', async function() {
         var btn = this;
         var status = document.getElementById('status');
@@ -1718,15 +1791,32 @@
             recordedBy: recordedBy || '',
             palletColor: palletColor || ''
           };
+          // Store for reprint button and popup bridge
           try { sessionStorage.setItem('prt_print_data', JSON.stringify(printData)); } catch (e) {}
-          // Popup windows do NOT share sessionStorage with the opener — use localStorage + short key (and hash backup).
           var bridgeKey = 'prtprint_' + Date.now() + '_' + Math.random().toString(36).slice(2, 14);
           try { localStorage.setItem(bridgeKey, JSON.stringify(printData)); } catch (e) {}
+          _lastBTPrintData = printData; // cache for Reprint button
+
           var hashData = '';
           try { hashData = btoa(unescape(encodeURIComponent(JSON.stringify(printData)))); } catch (e) {}
           var printPath = (window.location.pathname || '').indexOf('/app/') !== -1 ? '../retiflux-print-4x6.html' : 'retiflux-print-4x6.html';
           var printUrl = printPath + '?k=' + encodeURIComponent(bridgeKey) + '&t=' + Date.now() + (hashData ? '#' + hashData : '');
-          window.open(printUrl, 'RetiFluxPrint_' + Date.now(), 'width=480,height=720,scrollbars=yes');
+
+          // ── Print routing: BT if paired, popup otherwise ──
+          var btReady = typeof RetiFluxBTPrint !== 'undefined' && RetiFluxBTPrint.isSupported() && RetiFluxBTPrint.isPaired();
+          if (btReady) {
+            status.textContent = '✅ Saved — 🖨 Printing…';
+            RetiFluxBTPrint.print(printData).then(function () {
+              status.textContent = '✅ Saved & printed via Bluetooth';
+            }).catch(function (btErr) {
+              // BT print failed — fall back to popup
+              status.textContent = '✅ Saved — BT print failed, opening popup…';
+              window.open(printUrl, 'RetiFluxPrint_' + Date.now(), 'width=480,height=720,scrollbars=yes');
+            });
+          } else {
+            // No BT or printer not yet paired — use popup as before
+            window.open(printUrl, 'RetiFluxPrint_' + Date.now(), 'width=480,height=720,scrollbars=yes');
+          }
         } catch (e) {
           status.textContent = '❌ ' + (e.message || 'Error');
           status.className = 'status error';

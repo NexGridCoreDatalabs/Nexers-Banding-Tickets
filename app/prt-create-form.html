@@ -188,6 +188,14 @@
       color: var(--gold);
     }
     .post-save-actions .btn-home:hover { background: rgba(245, 158, 11, 0.15); }
+    .post-save-actions .btn-bt {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      color: #fff;
+      border-color: #0ea5e9;
+      display: none; /* shown by JS only when Web Bluetooth is available */
+    }
+    .post-save-actions .btn-bt:hover { box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4); }
+    .post-save-actions .btn-bt:disabled { opacity: 0.6; cursor: not-allowed; }
     .prt-field label {
       display: block;
       font-size: 11px;
@@ -830,6 +838,7 @@
       <div class="status" id="status"></div>
       <div class="post-save-actions" id="postSaveActions" style="display:none;">
         <button type="button" class="btn-new" id="btnNewTicket">➕ Create New Ticket</button>
+        <button type="button" class="btn-bt" id="btnBTPrint">🖨 Bluetooth Print</button>
         <a href="../index.html" class="btn-home">🏠 Back to Home</a>
       </div>
     </div>
@@ -924,6 +933,7 @@
   <script src="../config.js"></script>
   <script src="../js/retiflux-screenshot-guard.js"></script>
   <script src="../js/retiflux-auth-session.js"></script>
+  <script src="../js/retiflux-bt-print.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
     (function() {
@@ -1172,6 +1182,48 @@
         // Scroll to top of form for the next entry
         try { document.getElementById('prtApp').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
       });
+
+      // ── Bluetooth Print button ────────────────────────────────────────────
+      (function () {
+        var btnBT = document.getElementById('btnBTPrint');
+        if (!btnBT) return;
+
+        // Only reveal the button on browsers that support Web Bluetooth
+        if (typeof RetiFluxBTPrint !== 'undefined' && RetiFluxBTPrint.isSupported()) {
+          btnBT.style.display = '';
+        }
+
+        btnBT.addEventListener('click', async function () {
+          var data = null;
+          try { data = JSON.parse(localStorage.getItem(
+            // Find the most-recently written bridge key
+            Object.keys(localStorage)
+              .filter(function (k) { return k.startsWith('prtprint_'); })
+              .sort()
+              .pop() || ''
+          ) || 'null'); } catch (e) {}
+
+          if (!data) {
+            alert('Print data not found — please save a ticket first.');
+            return;
+          }
+
+          btnBT.disabled = true;
+          btnBT.textContent = '🖨 Printing…';
+          try {
+            await RetiFluxBTPrint.print(data);
+            btnBT.textContent = '✅ Printed';
+            setTimeout(function () {
+              btnBT.textContent = '🖨 Bluetooth Print';
+              btnBT.disabled = false;
+            }, 3000);
+          } catch (err) {
+            btnBT.disabled = false;
+            btnBT.textContent = '🖨 Bluetooth Print';
+            alert('Bluetooth print failed:\n' + (err.message || err));
+          }
+        });
+      })();
 
       // Fetch next serial — only when needed (avoids consuming sequence on load/refresh)
       async function fetchNextSerial() {
@@ -1663,7 +1715,8 @@
             notes: payload.notes || '',
             shelfLife: shelfLife,
             time: timeStr,
-            recordedBy: recordedBy || ''
+            recordedBy: recordedBy || '',
+            palletColor: palletColor || ''
           };
           try { sessionStorage.setItem('prt_print_data', JSON.stringify(printData)); } catch (e) {}
           // Popup windows do NOT share sessionStorage with the opener — use localStorage + short key (and hash backup).

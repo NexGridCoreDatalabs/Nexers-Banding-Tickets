@@ -48,9 +48,12 @@
       }
     }
 
-    // Fresh pairing — triggers browser device picker
+    // Fresh pairing — show all nearby BLE devices so the printer is visible.
+    // Many thermal printers don't advertise service UUIDs in their beacons;
+    // the ISSC UART service only becomes accessible after connecting.
     var device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [SERVICE_UUID] }]
+      acceptAllDevices: true,
+      optionalServices: [SERVICE_UUID]
     });
     device.addEventListener('gattserverdisconnected', function () {
       _char = null;

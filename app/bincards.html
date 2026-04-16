@@ -13,15 +13,15 @@
     </style>
 </head>
 <body>
-    <iframe id="app" src="" title="PRT Bin Cards"></iframe>
     <script>
         (function() {
             var p = new URLSearchParams(window.location.search);
-            var parts = ['mode=bincards'];
+            var parts = [];
             if (p.get('geofence') === 'bypass' && p.get('t') === 'BIDCO_BYPASS') {
                 parts.push('geofence=bypass', 't=BIDCO_BYPASS');
             }
-            document.getElementById('app').src = '../bandingtickets-full.html?' + parts.join('&');
+            var dest = 'stocks-monitor.html' + (parts.length ? '?' + parts.join('&') : '');
+            window.location.replace(dest);
         })();
     </script>
 </body>

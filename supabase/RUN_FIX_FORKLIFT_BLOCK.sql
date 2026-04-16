@@ -11,11 +11,13 @@
 -- FIX APPLIED:
 --   Step 1 — One-time cleanup: release forklifts whose last movement is no
 --             longer 'In Transit' (already received, cancelled, or orphaned).
---   Step 2 — Soft-fallback in assign_forklift_to_movement: if preferred fleet
---             pool is empty, try any available forklift before giving up.
---   Step 3 — movement_initiate no longer hard-blocks on forklift unavailability.
---             Move records and pallet state are committed; forklift assignment is
---             best-effort and noted in the response.
+--             This is the most likely root cause — forklifts visually idle but
+--             stuck as 'busy' in the DB from moves that were never received.
+--   Step 2 — Pool fallback in assign_forklift_to_movement: if the preferred
+--             fleet pool is empty, try any available forklift across both pools
+--             before returning 'not found'. Forklift assignment stays mandatory.
+--   Step 3 — movement_initiate: forklift assignment is still required. The move
+--             rolls back if no FL is free. Step 1 + 2 ensure this rarely fires.
 --
 -- Run once in Supabase SQL Editor.
 -- Safe to re-run (all steps are idempotent).
@@ -224,29 +226,20 @@ BEGIN
     END
   WHERE pallet_id = p_pallet_id;
 
-  -- Best-effort forklift assignment — never block the move if none available
+  -- Forklift assignment is mandatory — roll back move if none available
   v_fl_res := assign_forklift_to_movement(v_movement_id);
-
-  v_res := jsonb_build_object(
-    'success',    true,
-    'message',    'Move initiated to ' || p_to_zone,
-    'movementId', v_movement_id,
-    'fromZone',   v_pallet.current_zone
-  );
-
-  IF COALESCE((v_fl_res->>'success')::boolean, false) THEN
-    v_res := v_res || jsonb_build_object(
-      'forklift_code', v_fl_res->>'forklift_code',
-      'forklift_name', v_fl_res->>'forklift_name'
-    );
-  ELSE
-    -- Move committed — forklift will be assigned when one becomes free
-    v_res := v_res || jsonb_build_object(
-      'forklift_warning', COALESCE(v_fl_res->>'error', 'No forklift assigned — move queued without FL')
-    );
+  IF COALESCE((v_fl_res->>'success')::boolean, false) = false THEN
+    RAISE EXCEPTION 'No available forklift. Move cannot be initiated right now.';
   END IF;
 
-  RETURN v_res;
+  RETURN jsonb_build_object(
+    'success',       true,
+    'message',       'Move initiated to ' || p_to_zone,
+    'movementId',    v_movement_id,
+    'fromZone',      v_pallet.current_zone,
+    'forklift_code', v_fl_res->>'forklift_code',
+    'forklift_name', v_fl_res->>'forklift_name'
+  );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

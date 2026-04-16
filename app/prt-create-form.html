@@ -1811,11 +1811,11 @@
             }).catch(function (btErr) {
               // BT print failed — fall back to popup
               status.textContent = '✅ Saved — BT print failed, opening popup…';
-              window.open(printUrl, 'RetiFluxPrint_' + Date.now(), 'width=480,height=720,scrollbars=yes');
+              window.open(printUrl, '_blank');
             });
           } else {
-            // No BT or printer not yet paired — use popup as before
-            window.open(printUrl, 'RetiFluxPrint_' + Date.now(), 'width=480,height=720,scrollbars=yes');
+            // No BT or printer not yet paired — open label preview in new tab
+            window.open(printUrl, '_blank');
           }
         } catch (e) {
           status.textContent = '❌ ' + (e.message || 'Error');

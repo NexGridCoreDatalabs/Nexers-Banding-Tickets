@@ -34,11 +34,11 @@
   }
 
   .screen-bar {
-    width: 4in;
+    width: min(4in, 96vw);
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
   }
   .screen-bar-title {
     font-family: var(--mono);
@@ -46,22 +46,48 @@
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
-    color: #333;
+    color: #555;
+    text-align: center;
+  }
+  .screen-bar-actions {
+    display: flex;
+    gap: 8px;
+    width: 100%;
   }
   .print-btn {
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 12px;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     text-transform: uppercase;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 0;
+    cursor: pointer;
+    flex: 1;
+    transition: opacity 0.15s;
+  }
+  .print-btn:active { opacity: 0.75; }
+  .btn-print-primary {
     background: #111;
     color: #fff;
-    border: none;
-    border-radius: 3px;
-    padding: 6px 14px;
-    cursor: pointer;
   }
-  .print-btn:hover { background: #333; }
+  .btn-print-pdf {
+    background: #e53e3e;
+    color: #fff;
+  }
+  .btn-print-close {
+    background: #e2e8f0;
+    color: #1a202c;
+    flex: 0 0 auto;
+    padding: 10px 16px;
+  }
+  .screen-bar-hint {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: #888;
+    text-align: center;
+  }
 
   /* ── LABEL SHELL: exactly 4in × 6in ── */
   .label {
@@ -428,14 +454,15 @@
 
   @media print {
     @page { size: 4in 6in; margin: 0; }
-    body { background: #fff; padding: 0; display: block; }
-    .screen-bar { display: none; }
+    html, body { background: #fff !important; padding: 0 !important; margin: 0 !important; display: block !important; }
+    .screen-bar { display: none !important; }
     .label {
-      width: 4in;
-      height: 6in;
-      border: none;
-      box-shadow: none;
-      border-radius: 0;
+      width: 4in !important;
+      height: 6in !important;
+      border: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      page-break-after: avoid;
     }
   }
 </style>
@@ -443,9 +470,13 @@
 <body>
 
 <div class="screen-bar">
-  <span class="screen-bar-title">RetiFlux™ · 4″ × 6″ Print Preview</span>
-  <button type="button" class="print-btn" id="prtPrintBtn">🖨 &nbsp;Print Label</button>
-  <span class="screen-bar-hint" id="prtPrintHint" style="font-size:11px;color:#64748b;max-width:220px;">No dialog? Allow pop-ups for this site, then click Print Label.</span>
+  <span class="screen-bar-title">RetiFlux™ · Label Preview · 4″ × 6″</span>
+  <div class="screen-bar-actions">
+    <button type="button" class="print-btn btn-print-primary" id="prtPrintBtn">🖨 Print / Select Printer</button>
+    <button type="button" class="print-btn btn-print-pdf" id="prtPdfBtn">📄 Save as PDF</button>
+    <button type="button" class="print-btn btn-print-close" id="prtCloseBtn" title="Close">✕</button>
+  </div>
+  <span class="screen-bar-hint">Both buttons open your device's print dialog — select your printer or choose "Save as PDF"</span>
 </div>
 
 <div class="label">
@@ -738,23 +769,27 @@
     }
   }
 
-  document.title = 'RetiFlux™ · Print Label · ' + (serial || 'PRT');
+  document.title = 'RetiFlux™ · ' + (serial || 'Label') + ' · Print Preview';
 
+  // Print / Select Printer
   var printBtn = document.getElementById('prtPrintBtn');
-  if (printBtn) {
-    printBtn.onclick = function() { window.print(); };
+  if (printBtn) printBtn.onclick = function() { window.print(); };
+
+  // Save as PDF — same dialog, user picks "Save as PDF" printer
+  var pdfBtn = document.getElementById('prtPdfBtn');
+  if (pdfBtn) pdfBtn.onclick = function() { window.print(); };
+
+  // Close tab / go back
+  var closeBtn = document.getElementById('prtCloseBtn');
+  if (closeBtn) {
+    closeBtn.onclick = function() {
+      if (window.opener) { window.close(); }
+      else if (window.history.length > 1) { window.history.back(); }
+      else { window.close(); }
+    };
   }
 
-  // Auto-open print dialog when we have label data (browsers may still block without a user gesture — button is the fallback)
-  if (serial) {
-    var delay = 400;
-    try {
-      if (typeof QRCode !== 'undefined' && serial) delay = 600;
-    } catch (e) {}
-    setTimeout(function() {
-      try { window.print(); } catch (e) {}
-    }, delay);
-  }
+  // No auto-print — user sees the preview first and decides what to do.
 })();
 </script>
 </body>

@@ -100,18 +100,18 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_eat           timestamptz;
-  v_eat_hour      integer;
-  v_shift         text;
-  v_shift_start   timestamptz;
-  v_shift_date    date;
-  v_last_ticket   timestamptz;
-  v_last_sku      text;
-  v_gap_start     timestamptz;
-  v_gap_mins      integer;
+  v_eat            timestamp;        -- timestamp WITHOUT timezone (EAT local clock)
+  v_eat_hour       integer;
+  v_shift          text;
+  v_shift_start    timestamptz;      -- UTC anchor for shift start
+  v_shift_date     date;
+  v_last_ticket    timestamptz;
+  v_last_sku       text;
+  v_gap_start      timestamptz;
+  v_gap_mins       integer;
   v_is_shift_start boolean;
   v_already_logged boolean;
-  v_logged_by     text;
+  v_logged_by      text;
 BEGIN
   -- Determine current shift in EAT (UTC+3)
   v_eat      := p_now AT TIME ZONE 'Africa/Nairobi';
@@ -231,11 +231,11 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_eat            timestamptz;
+  v_eat            timestamp;        -- timestamp WITHOUT timezone (EAT local clock)
   v_eat_hour       integer;
   v_shift          text;
   v_shift_date     date;
-  v_shift_start    timestamptz;
+  v_shift_start    timestamptz;      -- UTC anchor for shift start
   v_handover_done  boolean;
   v_first_ticket   boolean;
 BEGIN

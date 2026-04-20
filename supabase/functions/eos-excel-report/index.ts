@@ -814,61 +814,583 @@ function buildHourlySheet(
   ws.columns = [{width:2},{width:22},{width:14}, ...LINES.map(()=>({width:12})),{width:12}];
 }
 
-// ── TAB 6: Trend (7-Day) ──────────────────────────────────────────────────────
+// ── TAB 6: Trend Intelligence (BI Dashboard) ──────────────────────────────────
 
-function buildTrendSheet(
-  wb: ExcelJS.Workbook,
-  shift: "day"|"night",
-  curTickets: TicketRow[],
+const SHIFT_TARGET_MIN_T    = 42.5;   // 85 MT / 2 shifts
+const SHIFT_TARGET_KAIZEN_T = 50.0;   // 100 MT / 2 shifts
+const SPARKS = ["▁","▂","▃","▄","▅","▆","▇","█"];
+
+const RAG = {
+  green: { bg:"FF14532D", text:"FF86EFAC" },
+  amber: { bg:"FF78350F", text:"FFFDE68A" },
+  red:   { bg:"FF7F1D1D", text:"FFFCA5A5" },
+  blue:  { bg:"FF1E3A5F", text:C.gold     },
+  gold:  { bg:C.gold,     text:C.navy     },
+} as const;
+
+function spark(values: number[]): string {
+  const max = Math.max(...values, 0.01);
+  return values.map(v => v === 0 ? "·" : SPARKS[Math.min(7, Math.floor((v/max)*8))]).join("");
+}
+
+function linearSlope(values: number[]): number {
+  const n = values.length;
+  if (n < 2) return 0;
+  const xm = (n-1)/2, ym = values.reduce((a,b)=>a+b,0)/n;
+  let num=0, den=0;
+  for (let i=0; i<n; i++) { num+=(i-xm)*(values[i]-ym); den+=(i-xm)**2; }
+  return den>0 ? num/den : 0;
+}
+
+interface HealthScore {
+  score:      number;
+  grade:      string;
+  gradeLabel: string;
+  throughput: number;  // /40
+  cadence:    number;  // /30
+  idle:       number;  // /30
+}
+
+function lineHealth(
+  lineTickets: TicketRow[],
+  lineTonnes:  number,
+  activeLines: number
+): HealthScore {
+  const expectedT = SHIFT_TARGET_KAIZEN_T / Math.max(activeLines, 1);
+
+  // Throughput /40
+  const tScore = Math.min(40, r2((lineTonnes / Math.max(expectedT, 0.001)) * 40));
+
+  // Cadence /30 — coefficient of variation of inter-ticket gaps
+  let cScore = 0;
+  if (lineTickets.length >= 2) {
+    const times = [...lineTickets]
+      .sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime())
+      .map(t=>new Date(t.created_at).getTime());
+    const gaps = times.slice(1).map((t,i)=>(t-times[i])/60000);
+    const mean = gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    const sd   = Math.sqrt(gaps.reduce((a,g)=>a+(g-mean)**2,0)/gaps.length);
+    const cv   = mean>0 ? sd/mean : 1;
+    cScore = Math.max(0, Math.min(30, Math.round(30*(1-Math.min(1,cv*0.5)))));
+  } else if (lineTickets.length===1) { cScore=10; }
+
+  // Idle /30 — penalty for largest single gap (capped at 120 mins)
+  let iScore = 30;
+  if (lineTickets.length===0) { iScore=0; }
+  else if (lineTickets.length>=2) {
+    const sorted=[...lineTickets].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
+    const maxGap=Math.max(...sorted.slice(1).map((t,i)=>
+      (new Date(t.created_at).getTime()-new Date(sorted[i].created_at).getTime())/60000));
+    iScore=Math.max(0,Math.min(30,Math.round(30*(1-maxGap/120))));
+  }
+
+  const score = Math.round(tScore+cScore+iScore);
+  const [grade,gradeLabel] = score>=85?["A","Excellent"]:score>=70?["B","Good"]:score>=55?["C","Fair"]:score>=40?["D","Needs Attention"]:["F","Critical"];
+  return { score, grade, gradeLabel, throughput:Math.round(tScore), cadence:cScore, idle:iScore };
+}
+
+function intelSection(ws: ExcelJS.Worksheet, title: string, maxCol: number): void {
+  const row = ws.addRow([title]);
+  ws.mergeCells(row.number,1,row.number,maxCol);
+  const c=ws.getCell(row.number,1);
+  c.fill=solidFill(C.gold); c.font={bold:true,size:10,color:{argb:C.navy},name:"Calibri"};
+  c.alignment={horizontal:"left",vertical:"middle",indent:1}; row.height=22;
+}
+
+function ragCell(cell: ExcelJS.Cell, label: string, tier: keyof typeof RAG): void {
+  const r=RAG[tier];
+  cell.value=label; cell.fill=solidFill(r.bg);
+  cell.font={bold:true,size:10,color:{argb:r.text},name:"Calibri"};
+  cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(r.bg);
+}
+
+function buildNarrative(
+  shift:       "day"|"night",
+  shiftEnd:    Date,
+  curTickets:  TicketRow[],
+  prevTickets: TicketRow[],
+  sevenTickets:TicketRow[][],
+  curMetrics:  Record<string,LineAgg>,
+  skuMeta:     Record<string,SkuMeta>,
+  totalTonnes: number,
+  voidCount:   number,
+  totalCount:  number
+): string {
+  const shiftLabel = shift==="day"?"Day Shift":"Night Shift";
+  const dateStr    = fmtDateFull(toEAT(shiftEnd));
+  const pallets    = curTickets.length;
+  const activeLines= LINES.filter(l=>curMetrics[l].pallets>0).length;
+
+  // Target context
+  const minPct   = Math.round((totalTonnes/SHIFT_TARGET_MIN_T)*100);
+  const kaizenPct= Math.round((totalTonnes/SHIFT_TARGET_KAIZEN_T)*100);
+  let targetNarr: string;
+  if (totalTonnes>=SHIFT_TARGET_KAIZEN_T) {
+    targetNarr=`At ${totalTonnes} t, the shift hit ${kaizenPct}% of the 50 MT kaizen benchmark — a result the floor team should be proud of.`;
+  } else if (totalTonnes>=SHIFT_TARGET_MIN_T) {
+    const gap=r2(SHIFT_TARGET_KAIZEN_T-totalTonnes);
+    targetNarr=`Output of ${totalTonnes} t clears the 42.5 MT minimum floor, sitting at ${kaizenPct}% of the 50 MT kaizen target. The gap to kaizen is ${gap} t — within reach for the next shift.`;
+  } else {
+    const shortfall=r2(SHIFT_TARGET_MIN_T-totalTonnes);
+    targetNarr=`At ${totalTonnes} t, this shift fell ${shortfall} t short of the 42.5 MT minimum threshold. This warrants immediate review of line availability and downtime events.`;
+  }
+
+  // Best and weakest lines
+  const activeLinesList=LINES.filter(l=>curMetrics[l].pallets>0);
+  const bestLine = activeLinesList.length>0
+    ? activeLinesList.reduce((b,l)=>curMetrics[l].tonnes>curMetrics[b].tonnes?l:b)
+    : null;
+  const worstLine= activeLinesList.length>1
+    ? activeLinesList.reduce((b,l)=>curMetrics[l].tonnes<curMetrics[b].tonnes?l:b)
+    : null;
+  const zeroLines=LINES.filter(l=>curMetrics[l].pallets===0);
+
+  const bestNarr = bestLine
+    ? `${bestLine} was the standout performer — ${curMetrics[bestLine].pallets} pallets / ${r2(curMetrics[bestLine].tonnes)} t.`
+    : "No lines recorded production this shift.";
+
+  let concernNarr="";
+  if (zeroLines.length===LINES.length) {
+    concernNarr="⚠ CRITICAL: All production lines were idle this shift.";
+  } else if (zeroLines.length>0) {
+    concernNarr=`${zeroLines.join(", ")} recorded no production. ${worstLine&&worstLine!==bestLine?`${worstLine} was the weakest active line at ${curMetrics[worstLine].pallets} pallets.`:""}`;
+  } else if (worstLine) {
+    concernNarr=`${worstLine} was the quietest line at ${curMetrics[worstLine].pallets} pallets / ${r2(curMetrics[worstLine].tonnes)} t.`;
+  }
+
+  // vs last shift
+  const prevTotal=prevTickets.length;
+  const prevTonnes=r2(prevTickets.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0));
+  const vsLastNarr=prevTotal>0
+    ? `Compared to the previous same shift (${prevTonnes} t), output is ${totalTonnes>=prevTonnes?"up":"down"} ${r2(Math.abs(totalTonnes-prevTonnes))} t.`
+    : "";
+
+  // 7-day trend
+  const sevenTonnes=sevenTickets.map(ts=>r2(ts.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0)));
+  const slope=linearSlope(sevenTonnes);
+  const trendNarr=slope>0.5
+    ? `The 7-shift trend is pointing upward (+${r2(slope)} t/shift) — momentum is building.`
+    :slope<-0.5
+    ? `The 7-shift trend is declining (${r2(slope)} t/shift). If this continues, management attention is warranted.`
+    :`Production has been broadly stable over the last 7 shifts — consistent, but watch for complacency.`;
+
+  // Void rate
+  const voidRate= totalCount>0 ? r2((voidCount/(totalCount+voidCount))*100) : 0;
+  const voidNarr= voidCount===0
+    ? "Data integrity is clean — no voided tickets recorded this shift."
+    : `${voidCount} ticket${voidCount!==1?"s were":" was"} voided this shift (void rate: ${voidRate}%). ${voidRate>3?"This is above the 3% red threshold — review the Audit Trail tab.":voidRate>1?"This sits in the amber zone. Check the Audit Trail tab for context.":"Within the acceptable green threshold."}`;
+
+  return [
+    `RetiFlux™ Intelligence Briefing  ·  ${shiftLabel}  ·  ${dateStr}`,
+    "",
+    `This shift delivered ${pallets} pallets and ${totalTonnes} tonnes across ${activeLines} of ${LINES.length} production lines.`,
+    targetNarr,
+    vsLastNarr,
+    "",
+    bestNarr,
+    concernNarr,
+    "",
+    voidNarr,
+    "",
+    trendNarr,
+  ].filter(l=>l!==undefined).join("\n");
+}
+
+function buildTrendIntelligenceSheet(
+  wb:           ExcelJS.Workbook,
+  shift:        "day"|"night",
+  curTickets:   TicketRow[],
+  prevTickets:  TicketRow[],
   sevenTickets: TicketRow[][],
-  sevenDates: Date[],
-  skuMeta: Record<string, SkuMeta>,
-  shiftEnd: Date
+  sevenDates:   Date[],
+  skuMeta:      Record<string,SkuMeta>,
+  shiftEnd:     Date,
+  curTicketsAll:TicketRow[]
 ): void {
-  const ws = wb.addWorksheet("Trend (7-Day)", {
+  const ws = wb.addWorksheet("Trend Intelligence", {
     properties:{ tabColor:{ argb:"FF06B6D4" } }
   });
-  ws.properties.defaultColWidth = 15;
-  const shiftLabel = shift==="day" ? "Day Shift" : "Night Shift";
-  const maxCol = LINES.length + 4;
+  ws.properties.defaultColWidth = 14;
+  const MAX = 11;
+  const shiftLabel = shift==="day"?"Day Shift":"Night Shift";
 
-  addSheetTitle(ws, "7-Day Trend Analysis", `${shiftLabel}  ·  last 7 same-shift occurrences`, maxCol);
-  applyHeaderRow(ws.addRow([]),
-    ["Shift Date","Total Pallets","Total Tonnes", ...LINES, "Best Line"],
-    C.navy, C.gold
+  addSheetTitle(ws,
+    "RetiFlux™  ·  Trend Intelligence",
+    `${shiftLabel}  ·  Board-Level Production Review  ·  ${fmtDateFull(toEAT(shiftEnd))}`,
+    MAX
   );
-  ws.views = [{ state:"frozen", ySplit: ws.rowCount }];
 
-  const allSeries = [
-    { tickets: curTickets, date: toEAT(shiftEnd), isCurrent: true },
-    ...sevenTickets.map((t,i) => ({ tickets:t, date: toEAT(sevenDates[i]), isCurrent:false }))
+  const curMetrics   = aggregateByLine(curTickets,  skuMeta);
+  const prevMetrics  = aggregateByLine(prevTickets, skuMeta);
+  const sevenMetrics = sevenTickets.map(t=>aggregateByLine(t,skuMeta));
+
+  const totalPallets = curTickets.length;
+  const totalTonnes  = r2(curTickets.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0));
+  const voidedCount  = curTicketsAll.filter(t=>t.voided).length;
+  const totalAll     = curTicketsAll.length;
+  const activeLines  = LINES.filter(l=>curMetrics[l].pallets>0).length;
+
+  const avgCadenceMins = (() => {
+    if (curTickets.length<2) return null;
+    const sorted=[...curTickets].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
+    const spanMins=(new Date(sorted.at(-1)!.created_at).getTime()-new Date(sorted[0].created_at).getTime())/60000;
+    return r2(spanMins/Math.max(curTickets.length-1,1));
+  })();
+
+  // ── SECTION 1: INTELLIGENCE NARRATIVE ────────────────────────────────────────
+  intelSection(ws, "  ① INTELLIGENCE NARRATIVE", MAX);
+
+  const narrative = buildNarrative(shift,shiftEnd,curTickets,prevTickets,sevenTickets,curMetrics,skuMeta,totalTonnes,voidedCount,totalAll);
+  const narRow = ws.addRow([narrative]);
+  ws.mergeCells(narRow.number,1,narRow.number,MAX);
+  const narCell = ws.getCell(narRow.number,1);
+  narCell.fill = solidFill(C.navyMid);
+  narCell.font = { size:10, color:{argb:C.textLight}, name:"Calibri", italic:false };
+  narCell.alignment = { horizontal:"left", vertical:"top", wrapText:true, indent:1 };
+  narRow.height = 110;
+
+  addSeparator(ws, MAX);
+
+  // ── SECTION 2: SHIFT SCORECARD ────────────────────────────────────────────────
+  intelSection(ws, "  ② SHIFT SCORECARD", MAX);
+
+  // Header
+  applyHeaderRow(ws.addRow([]),
+    ["KPI","Value","Status","vs Min (42.5 t)","vs Kaizen (50 t)","vs Last Shift","vs 7-Day Avg","","","",""],
+    C.navyMid, C.gold
+  );
+
+  const sevenAvgTonnes = (() => {
+    const vals=sevenMetrics.map(m=>r2(LINES.reduce((s,l)=>s+m[l].tonnes,0))).filter(v=>v>0);
+    return vals.length?r2(vals.reduce((a,b)=>a+b,0)/vals.length):0;
+  })();
+  const prevTonnes = r2(LINES.reduce((s,l)=>s+prevMetrics[l].tonnes,0));
+
+  const kpis = [
+    {
+      label:"Total Tonnage",
+      val:`${totalTonnes} t`,
+      rag:(totalTonnes>=SHIFT_TARGET_KAIZEN_T?"green":totalTonnes>=SHIFT_TARGET_MIN_T?"amber":"red") as keyof typeof RAG,
+      vsMin:`${Math.round((totalTonnes/SHIFT_TARGET_MIN_T)*100)}%`,
+      vsKai:`${Math.round((totalTonnes/SHIFT_TARGET_KAIZEN_T)*100)}%`,
+      vsLast:prevTonnes>0?pctVs(totalTonnes,prevTonnes):"—",
+      vs7:sevenAvgTonnes>0?pctVs(totalTonnes,sevenAvgTonnes):"—",
+    },
+    {
+      label:"Total Pallets",
+      val:`${totalPallets}`,
+      rag:"blue" as keyof typeof RAG,
+      vsMin:"—",vsKai:"—",
+      vsLast:prevTickets.length>0?pctVs(totalPallets,prevTickets.length):"—",
+      vs7:(() => { const v=sevenMetrics.map(m=>LINES.reduce((s,l)=>s+m[l].pallets,0)).filter(v=>v>0); return v.length?pctVs(totalPallets,Math.round(v.reduce((a,b)=>a+b,0)/v.length)):"—"; })(),
+    },
+    {
+      label:"Lines Active",
+      val:`${activeLines} / ${LINES.length}`,
+      rag:(activeLines===LINES.length?"green":activeLines>=LINES.length-1?"amber":"red") as keyof typeof RAG,
+      vsMin:"—",vsKai:"—",vsLast:"—",vs7:"—",
+    },
+    {
+      label:"Avg Ticket Cadence",
+      val: avgCadenceMins!==null?`${avgCadenceMins} mins`:"—",
+      rag:(avgCadenceMins===null?"blue":avgCadenceMins<15?"green":avgCadenceMins<30?"amber":"red") as keyof typeof RAG,
+      vsMin:"—",vsKai:"—",vsLast:"—",vs7:"—",
+    },
+    {
+      label:"Void Rate",
+      val:totalAll>0?`${r2((voidedCount/totalAll)*100)}%  (${voidedCount} tickets)`:"0%",
+      rag:(voidedCount===0?"green":totalAll>0&&(voidedCount/totalAll)<0.03?"amber":"red") as keyof typeof RAG,
+      vsMin:"—",vsKai:"—",vsLast:"—",vs7:"—",
+    },
   ];
 
-  allSeries.forEach((s, idx) => {
-    const agg   = aggregateByLine(s.tickets, skuMeta);
-    const total = LINES.reduce((sum,l) => sum + agg[l].pallets, 0);
-    const tonnes = r2(LINES.reduce((sum,l) => sum + agg[l].tonnes, 0));
-    const best  = LINES.reduce((b,l) => agg[l].pallets > agg[b].pallets ? l : b, LINES[0]);
-    const lineCounts = LINES.map(l => agg[l].pallets);
+  kpis.forEach((k,i) => {
+    const bg=i%2===0?C.navyMid:C.navyLight;
+    const row=ws.addRow(["",k.label,k.val,"",k.vsMin,k.vsKai,k.vsLast,k.vs7,"","",""]);
+    row.height=20;
+    [2,3,5,6,7,8].forEach((col,j)=>{
+      const cell=ws.getCell(row.number,col);
+      cell.fill=solidFill(bg); cell.font=cellFont(j===0,10,C.textLight);
+      cell.border=thinBorder();
+      cell.alignment={horizontal:j===0?"left":"center",vertical:"middle"};
+    });
+    ragCell(ws.getCell(row.number,4), k.rag.toUpperCase(), k.rag);
+    // Colour trend cells
+    [7,8].forEach(col=>{
+      const cell=ws.getCell(row.number,col);
+      const v=String(cell.value);
+      if(v.startsWith("▲")) cell.font={...cell.font,color:{argb:C.green},bold:true};
+      if(v.startsWith("▼")) cell.font={...cell.font,color:{argb:C.red},bold:true};
+    });
+  });
 
-    const bg = s.isCurrent ? "FF1C2A00" : idx%2===0 ? C.navyMid : C.navyLight;
-    const tc = s.isCurrent ? C.gold     : C.textLight;
+  addSeparator(ws, MAX);
 
-    const row = ws.addRow(["",
-      fmtDateShort(s.date) + (s.isCurrent ? " ← TODAY" : ""),
-      total, tonnes+" t", ...lineCounts, best
+  // ── SECTION 3: LINE HEALTH INDEX ──────────────────────────────────────────────
+  intelSection(ws, "  ③ LINE HEALTH INDEX", MAX);
+
+  // Score methodology explainer
+  const exRow=ws.addRow(["  Scoring: Throughput /40 pts (line output vs expected share of 50 MT kaizen)  ·  Cadence /30 pts (ticket interval consistency)  ·  Idle /30 pts (penalty for longest idle gap)   |   A ≥85  B ≥70  C ≥55  D ≥40  F <40"]);
+  ws.mergeCells(exRow.number,1,exRow.number,MAX);
+  const ec=ws.getCell(exRow.number,1);
+  ec.fill=solidFill("FF0F1E35"); ec.font={size:9,color:{argb:C.textMuted},name:"Calibri",italic:true};
+  ec.alignment={horizontal:"left",vertical:"middle",wrapText:true}; exRow.height=24;
+
+  applyHeaderRow(ws.addRow([]),
+    ["Line","Score","Grade","Throughput /40","Cadence /30","Idle /30","Pallets","Tonnes","Status","Sparkline (7-day)",""],
+    C.navyMid,C.gold
+  );
+
+  const gradeColors: Record<string,keyof typeof RAG> = {A:"green",B:"green",C:"amber",D:"amber",F:"red"};
+
+  LINES.forEach((line,i)=>{
+    const lineTickets=curTickets.filter(t=>t.production_line?.trim()===line);
+    const h=lineHealth(lineTickets,curMetrics[line].tonnes,activeLines);
+    const sevenLineTonnes=sevenMetrics.map(m=>m[line]?.tonnes||0);
+    const lineSpk=spark([...sevenLineTonnes,curMetrics[line].tonnes]);
+    const bg=i%2===0?C.navyMid:C.navyLight;
+    const isZero=curMetrics[line].pallets===0;
+
+    const row=ws.addRow(["",
+      line, h.score,
+      `${h.grade}  ·  ${h.gradeLabel}`,
+      `${h.throughput} pts`, `${h.cadence} pts`, `${h.idle} pts`,
+      curMetrics[line].pallets,
+      r2(curMetrics[line].tonnes)+" t",
+      isZero?"NO PRODUCTION":h.grade,
+      lineSpk, ""
     ]);
-    row.height = 20;
-    for (let c=2; c<=maxCol+1; c++) {
+    row.height=22;
+    [2,3,5,6,7,8,9,11].forEach((col,j)=>{
+      const cell=ws.getCell(row.number,col);
+      cell.fill=solidFill(isZero?"FF1C0000":bg);
+      cell.font=cellFont(j===0||j===1,10,isZero?C.voidText:C.textLight);
+      cell.border=thinBorder();
+      cell.alignment={horizontal:j===0?"left":"center",vertical:"middle"};
+    });
+    // Grade badge
+    ragCell(ws.getCell(row.number,4), `${h.grade}  ${h.score}%`, isZero?"red":gradeColors[h.grade]);
+    // Sparkline cell
+    const spkCell=ws.getCell(row.number,11);
+    spkCell.font={size:12,color:{argb:isZero?C.voidText:C.gold},name:"Courier New"};
+  });
+
+  addSeparator(ws, MAX);
+
+  // ── SECTION 4: 7-DAY TREND TABLE ─────────────────────────────────────────────
+  intelSection(ws, "  ④ 7-DAY PRODUCTION TREND", MAX);
+
+  applyHeaderRow(ws.addRow([]),
+    ["Shift Date","Pallets","Tonnes","vs Min","vs Kaizen",...LINES,"Sparkline"],
+    C.navy,C.gold
+  );
+  ws.views=[{state:"frozen",ySplit:ws.rowCount}];
+
+  const allSeries=[
+    {tickets:curTickets,date:toEAT(shiftEnd),isCurrent:true},
+    ...sevenTickets.map((t,i)=>({tickets:t,date:toEAT(sevenDates[i]),isCurrent:false}))
+  ];
+  const allTonnesArr=allSeries.map(s=>r2(s.tickets.reduce((sum,t)=>sum+calcTonnes(t,skuMeta[t.sku]),0)));
+
+  allSeries.forEach((s,idx)=>{
+    const agg   =aggregateByLine(s.tickets,skuMeta);
+    const tot   =s.tickets.length;
+    const tonnes=allTonnesArr[idx];
+    const lineCounts=LINES.map(l=>agg[l].pallets);
+    const lineSpk=spark(LINES.map(l=>agg[l].pallets));
+
+    const bg  =s.isCurrent?"FF1C2A00":idx%2===0?C.navyMid:C.navyLight;
+    const tc  =s.isCurrent?C.gold:C.textLight;
+    const bold=s.isCurrent;
+
+    const row=ws.addRow(["",
+      fmtDateShort(s.date)+(s.isCurrent?" ← THIS SHIFT":""),
+      tot, tonnes+" t",
+      `${Math.round((tonnes/SHIFT_TARGET_MIN_T)*100)}%`,
+      `${Math.round((tonnes/SHIFT_TARGET_KAIZEN_T)*100)}%`,
+      ...lineCounts, lineSpk
+    ]);
+    row.height=20;
+    for(let c=2;c<=MAX;c++){
       const cell=ws.getCell(row.number,c);
       cell.fill=solidFill(bg);
-      cell.font={bold:s.isCurrent,size:10,color:{argb:tc},name:"Calibri"};
+      cell.font={bold,size:10,color:{argb:tc},name:"Calibri"};
       cell.border=thinBorder();
       cell.alignment={horizontal:c===2?"left":"center",vertical:"middle"};
     }
+    // Colour vs-min and vs-kaizen cells
+    [5,6].forEach(col=>{
+      const cell=ws.getCell(row.number,col);
+      const pct=parseInt(String(cell.value));
+      if(!isNaN(pct)){
+        const tier=pct>=100?"green":pct>=85?"amber":"red";
+        cell.font={...cell.font,color:{argb:RAG[tier].text},bold:pct>=100};
+      }
+    });
+    // Sparkline font
+    const spkCell=ws.getCell(row.number,MAX);
+    spkCell.font={size:12,color:{argb:s.isCurrent?C.gold:C.textMuted},name:"Courier New"};
   });
 
-  ws.columns=[{width:2},{width:22},{width:14},{width:14},...LINES.map(()=>({width:12})),{width:16}];
+  // 7-day average row
+  const avgTonnes=r2(allTonnesArr.slice(1).filter(v=>v>0).reduce((a,b)=>a+b,0)/Math.max(allTonnesArr.slice(1).filter(v=>v>0).length,1));
+  const avgPallets=Math.round(allSeries.slice(1).map(s=>s.tickets.length).filter(v=>v>0).reduce((a,b)=>a+b,0)/Math.max(allSeries.slice(1).filter(s=>s.tickets.length>0).length,1));
+  const avgRow=ws.addRow(["","7-SHIFT AVERAGE",avgPallets,avgTonnes+" t",
+    `${Math.round((avgTonnes/SHIFT_TARGET_MIN_T)*100)}%`,
+    `${Math.round((avgTonnes/SHIFT_TARGET_KAIZEN_T)*100)}%`,
+    ...LINES.map(l=>Math.round(sevenMetrics.map(m=>m[l].pallets).filter(v=>v>0).reduce((a,b)=>a+b,0)/Math.max(sevenMetrics.filter(m=>m[l].pallets>0).length,1))),
+    ""
+  ]);
+  avgRow.height=22;
+  for(let c=2;c<=MAX;c++){
+    const cell=ws.getCell(avgRow.number,c);
+    cell.fill=solidFill(C.navyLight);
+    cell.font={bold:true,size:10,color:{argb:C.textMuted},name:"Calibri"};
+    cell.border=thinBorder(C.goldDim);
+    cell.alignment={horizontal:c===2?"left":"center",vertical:"middle"};
+  }
+
+  addSeparator(ws, MAX);
+
+  // ── SECTION 5: SKU VELOCITY ───────────────────────────────────────────────────
+  intelSection(ws, "  ⑤ SKU VELOCITY  —  Top 5 · Bottom 5 by volume this shift", MAX);
+
+  // Aggregate SKUs across all lines for this shift
+  const skuAgg: Record<string,{pallets:number;tonnes:number}> = {};
+  for(const t of curTickets){
+    if(!skuAgg[t.sku]) skuAgg[t.sku]={pallets:0,tonnes:0};
+    skuAgg[t.sku].pallets++;
+    skuAgg[t.sku].tonnes+=calcTonnes(t,skuMeta[t.sku]);
+  }
+  const sevenSkuAvg=(sku:string)=>{
+    const vals=sevenMetrics.map(m=>LINES.reduce((s,l)=>s+(m[l].skus[sku]?.pallets||0),0)).filter(v=>v>0);
+    return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):0;
+  };
+  const ranked=Object.entries(skuAgg).sort((a,b)=>b[1].pallets-a[1].pallets);
+  const top5=ranked.slice(0,5);
+  const bot5=[...ranked].reverse().slice(0,5).reverse();
+
+  const halfCols=Math.floor((MAX-1)/2);
+  applyHeaderRow(ws.addRow([]),["TOP 5 SKUs","Pallets","Tonnes","vs 7-Day","","BOTTOM 5 SKUs","Pallets","Tonnes","vs 7-Day","",""],C.navyMid,C.gold);
+
+  for(let i=0;i<5;i++){
+    const t=top5[i]; const b=bot5[i];
+    const bg=i%2===0?C.navyMid:C.navyLight;
+    const row=ws.addRow([""]);
+    if(t){
+      const avg=sevenSkuAvg(t[0]);
+      ws.getCell(row.number,2).value=t[0];
+      ws.getCell(row.number,3).value=t[1].pallets;
+      ws.getCell(row.number,4).value=r2(t[1].tonnes)+" t";
+      ws.getCell(row.number,5).value=avg?pctVs(t[1].pallets,avg):"— (new)";
+    }
+    if(b){
+      const avg=sevenSkuAvg(b[0]);
+      ws.getCell(row.number,7).value=b[0];
+      ws.getCell(row.number,8).value=b[1].pallets;
+      ws.getCell(row.number,9).value=r2(b[1].tonnes)+" t";
+      ws.getCell(row.number,10).value=avg?pctVs(b[1].pallets,avg):"— (new)";
+    }
+    row.height=18;
+    [2,3,4,5,7,8,9,10].forEach((col,j)=>{
+      const cell=ws.getCell(row.number,col);
+      cell.fill=solidFill(bg); cell.font=cellFont(false,10,C.textLight);
+      cell.border=thinBorder();
+      cell.alignment={horizontal:j===0||j===4?"left":"center",vertical:"middle"};
+      // Colour trend cells
+      if(j===3||j===7){
+        const v=String(cell.value);
+        if(v.startsWith("▲")) cell.font={...cell.font,color:{argb:C.green}};
+        if(v.startsWith("▼")) cell.font={...cell.font,color:{argb:C.red}};
+      }
+    });
+    // Divider between top/bottom tables
+    const divCell=ws.getCell(row.number,6);
+    divCell.fill=solidFill(C.navy);
+  }
+
+  addSeparator(ws, MAX);
+
+  // ── SECTION 6: IDLE & DOWNTIME LOG ───────────────────────────────────────────
+  intelSection(ws, "  ⑥ IDLE & DOWNTIME LOG  (gaps ≥ 30 minutes)", MAX);
+  applyHeaderRow(ws.addRow([]),["Line","Idle Start","Idle End","Duration (mins)","Severity","Lost Pallet Equiv.","","","","",""],C.navyMid,C.gold);
+
+  let idleCount=0;
+  for(const line of LINES){
+    const lt=[...curTickets.filter(t=>t.production_line?.trim()===line)]
+      .sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
+    for(let i=1;i<lt.length;i++){
+      const gapMins=Math.round((new Date(lt[i].created_at).getTime()-new Date(lt[i-1].created_at).getTime())/60000);
+      if(gapMins<30) continue;
+      const severity=gapMins>=90?"red":gapMins>=60?"amber":"green" as keyof typeof RAG;
+      const lostPallets=avgCadenceMins?r2(gapMins/avgCadenceMins):0;
+      const row=ws.addRow(["",line,
+        fmtTime(toEAT(new Date(lt[i-1].created_at))),
+        fmtTime(toEAT(new Date(lt[i].created_at))),
+        gapMins+" mins", "",
+        lostPallets?`~${lostPallets} pallets`:"—",
+        "","","","",""
+      ]);
+      row.height=18;
+      [2,3,4,5,7].forEach((col,j)=>{
+        const cell=ws.getCell(row.number,col);
+        cell.fill=solidFill(idleCount%2===0?C.navyMid:C.navyLight);
+        cell.font=cellFont(false,10,C.textLight); cell.border=thinBorder();
+        cell.alignment={horizontal:j===0?"left":"center",vertical:"middle"};
+      });
+      ragCell(ws.getCell(row.number,6),severity==="red"?"CRITICAL":severity==="amber"?"MODERATE":"MINOR",severity);
+      idleCount++;
+    }
+  }
+  if(idleCount===0){
+    const r=ws.addRow(["  ✓ No idle events detected — all lines maintained continuous production"]);
+    ws.mergeCells(r.number,1,r.number,MAX);
+    const rc=ws.getCell(r.number,1);
+    rc.fill=solidFill(C.navyMid); rc.font={bold:true,size:10,color:{argb:C.green},name:"Calibri"};
+    rc.alignment={horizontal:"center",vertical:"middle"}; r.height=22;
+  }
+
+  addSeparator(ws, MAX);
+
+  // ── SECTION 7: FORWARD SIGNAL ─────────────────────────────────────────────────
+  intelSection(ws, "  ⑦ FORWARD SIGNAL", MAX);
+
+  const sevenTonnesArr=sevenMetrics.map(m=>r2(LINES.reduce((s,l)=>s+m[l].tonnes,0)));
+  const slope=linearSlope([...sevenTonnesArr.reverse(),totalTonnes]);
+  const [signalEmoji,signalWord,signalDetail,signalRag]:(["📈"|"📉"|"➡","IMPROVING"|"DECLINING"|"STABLE",string,keyof typeof RAG]) =
+    slope>0.5
+      ? ["📈","IMPROVING",`Production tonnage has been trending upward at +${r2(slope)} t per shift over the last 7 shifts. If momentum holds, the next shift is on track to approach or exceed the kaizen target.`,"green"]
+      : slope<-0.5
+      ? ["📉","DECLINING",`Output has been declining at ${r2(slope)} t per shift across the last 7 shifts. Without intervention, the next shift risks falling below the 42.5 MT minimum floor. Review line availability, material supply, and staffing before the next handover.`,"red"]
+      : ["➡","STABLE",`Production has held broadly steady over the last 7 shifts (slope: ${r2(slope)} t/shift). The operation is consistent — the focus for the next shift should be pushing output towards the 50 MT kaizen target.`,"amber"];
+
+  const sigHeadRow=ws.addRow([`${signalEmoji}  ${signalWord}`]);
+  ws.mergeCells(sigHeadRow.number,1,sigHeadRow.number,MAX);
+  const shc=ws.getCell(sigHeadRow.number,1);
+  shc.fill=solidFill(RAG[signalRag].bg);
+  shc.font={bold:true,size:16,color:{argb:RAG[signalRag].text},name:"Calibri"};
+  shc.alignment={horizontal:"center",vertical:"middle"}; sigHeadRow.height=36;
+
+  const sigDetailRow=ws.addRow([signalDetail]);
+  ws.mergeCells(sigDetailRow.number,1,sigDetailRow.number,MAX);
+  const sdc=ws.getCell(sigDetailRow.number,1);
+  sdc.fill=solidFill(C.navyMid);
+  sdc.font={size:11,color:{argb:C.textLight},name:"Calibri"};
+  sdc.alignment={horizontal:"left",vertical:"top",wrapText:true,indent:1}; sigDetailRow.height=60;
+
+  // Footer brand stamp
+  addSeparator(ws, MAX);
+  const footRow=ws.addRow(["RetiFlux™  ·  NexGridCore DataLabs  ·  Automated Intelligence Report  ·  Confidential"]);
+  ws.mergeCells(footRow.number,1,footRow.number,MAX);
+  const fc=ws.getCell(footRow.number,1);
+  fc.fill=solidFill(C.navy);
+  fc.font={size:9,color:{argb:C.textMuted},name:"Calibri",italic:true};
+  fc.alignment={horizontal:"center",vertical:"middle"}; footRow.height=18;
+
+  ws.columns=[
+    {width:2},{width:22},{width:12},{width:16},{width:14},{width:14},
+    {width:14},{width:12},{width:12},{width:12},{width:20},{width:10}
+  ];
 }
 
 // ── TAB 7: Audit Trail (Voided) ───────────────────────────────────────────────
@@ -1033,7 +1555,7 @@ async function buildReport(
   buildSkuComparisonsSheet(wb, shift, curTickets, prevTickets, sevenTickets, skuMeta, curEnd);
   buildMaterialsSheet(wb, shift, curTickets, skuMeta, curEnd);
   buildHourlySheet(wb, shift, curTickets, skuMeta, curEnd);
-  buildTrendSheet(wb, shift, curTickets, sevenTickets, sevenDates, skuMeta, curEnd);
+  buildTrendIntelligenceSheet(wb, shift, curTickets, prevTickets, sevenTickets, sevenDates, skuMeta, curEnd, curTicketsAll);
   buildAuditTrailSheet(wb, shift, curTicketsAll, skuMeta, curEnd);
 
   // Serialize to buffer
@@ -1062,7 +1584,7 @@ async function buildReport(
     `📦 ${totalPallets} pallets  ·  ${totalTonnes} tonnes\n` +
     (voidedCount > 0 ? `⚠ ${voidedCount} voided ticket${voidedCount!==1?"s":""} in Audit Trail\n\n` : `✅ No voided tickets\n\n`) +
     `📥 Download Report:\n${publicUrl}\n\n` +
-    `Tabs: Summary · By Line · SKU Comparisons · Materials · Hourly · Trend · Audit Trail\n` +
+    `Tabs: Summary · By Line · SKU Comparisons · Materials · Hourly · Trend Intelligence · Audit Trail\n` +
     `RetiFlux™ · NexGridCore DataLabs`;
 
   const recipients = getRecipients();

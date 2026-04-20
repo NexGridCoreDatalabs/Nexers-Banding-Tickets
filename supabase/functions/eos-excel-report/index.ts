@@ -201,7 +201,8 @@ function calcTonnes(ticket: TicketRow, meta: SkuMeta | undefined): number {
   return (ticket.qty * meta.units_per_carton * meta.net_weight_kg_per_unit) / 1000;
 }
 
-function r2(n: number): number { return Math.round(n * 100) / 100; }
+function r2(n: number): number { return Math.round(n * 100)   / 100; }
+function r5(n: number): number { return Math.round(n * 100000) / 100000; }
 
 // ── Aggregation helpers ───────────────────────────────────────────────────────
 
@@ -262,7 +263,7 @@ function thinBorder(color = "FF334155"): Partial<ExcelJS.Borders> {
   return { top:side, bottom:side, left:side, right:side };
 }
 function cellFont(bold=false, size=10, color=C.textLight): Partial<ExcelJS.Font> {
-  return { bold, size, color:{ argb: color }, name:"Calibri" };
+  return { bold, size, color:{ argb: color }, name:"Consolas" };
 }
 
 function applyHeaderRow(
@@ -314,7 +315,7 @@ function addSheetTitle(ws: ExcelJS.Worksheet, title: string, subtitle: string, m
   ws.mergeCells(r1.number, 1, r1.number, maxCol);
   const c1 = ws.getCell(r1.number, 1);
   c1.fill  = solidFill(C.navy);
-  c1.font  = { bold:true, size:14, color:{argb:C.gold}, name:"Calibri" };
+  c1.font  = { bold:true, size:14, color:{argb:C.gold}, name:"Consolas" };
   c1.alignment = { horizontal:"center", vertical:"middle" };
   r1.height = 32;
 
@@ -323,7 +324,7 @@ function addSheetTitle(ws: ExcelJS.Worksheet, title: string, subtitle: string, m
   ws.mergeCells(r2.number, 1, r2.number, maxCol);
   const c2 = ws.getCell(r2.number, 1);
   c2.fill  = solidFill(C.navyMid);
-  c2.font  = { bold:false, size:10, color:{argb:C.textMuted}, name:"Calibri" };
+  c2.font  = { bold:false, size:10, color:{argb:C.textMuted}, name:"Consolas" };
   c2.alignment = { horizontal:"center", vertical:"middle" };
   r2.height = 20;
 
@@ -363,7 +364,7 @@ function buildSummarySheet(
 
   const totalPallets = LINES.reduce((s,l) => s + cur[l].pallets, 0);
   const totalUnits   = LINES.reduce((s,l) => s + cur[l].units,   0);
-  const totalTonnes  = r2(LINES.reduce((s,l) => s + cur[l].tonnes, 0));
+  const totalTonnes  = r5(LINES.reduce((s,l) => s + cur[l].tonnes, 0));
   const linesActive  = LINES.filter(l => cur[l].pallets > 0).length;
 
   // KPI boxes row
@@ -374,7 +375,7 @@ function buildSummarySheet(
     const cell = ws.getCell(kpiRow.number, col as number);
     cell.value = val as ExcelJS.CellValue;
     cell.fill  = solidFill(C.navyMid);
-    cell.font  = { bold:true, size:13, color:{argb:C.gold}, name:"Calibri" };
+    cell.font  = { bold:true, size:13, color:{argb:C.gold}, name:"Consolas" };
     cell.alignment = { horizontal:"center", vertical:"middle" };
     cell.border = thinBorder(C.goldDim);
   });
@@ -383,7 +384,7 @@ function buildSummarySheet(
   for (let c = 2; c <= maxCol; c++) {
     const cell = ws.getCell(kpiLabelRow.number, c);
     cell.fill  = solidFill(C.navy);
-    cell.font  = { bold:false, size:8, color:{argb:C.textMuted}, name:"Calibri" };
+    cell.font  = { bold:false, size:8, color:{argb:C.textMuted}, name:"Consolas" };
     cell.alignment = { horizontal:"center", vertical:"middle" };
   }
 
@@ -405,19 +406,19 @@ function buildSummarySheet(
     const bg     = isZero ? "FF1C0000" : (LINES.indexOf(l) % 2 === 0 ? C.navyMid : C.navyLight);
     const tc     = isZero ? C.voidText : C.textLight;
 
-    const row = ws.addRow(["", l, c.pallets, c.units, r2(c.tonnes)+" t", vsLast, vs7]);
+    const row = ws.addRow(["", l, c.pallets, c.units, r5(c.tonnes)+" t", vsLast, vs7]);
     row.height = 20;
     [2,3,4,5,6,7].forEach((col,i) => {
       const cell = ws.getCell(row.number, col);
       cell.fill  = solidFill(bg);
-      cell.font  = { bold: i===0, size:10, color:{argb:tc}, name:"Calibri" };
+      cell.font  = { bold: i===0, size:10, color:{argb:tc}, name:"Consolas" };
       cell.border = thinBorder();
       cell.alignment = { horizontal: i===0?"left":"center", vertical:"middle" };
     });
     if (isZero) {
       const fl = ws.getCell(row.number, 7);
       fl.value = "⚠ No production";
-      fl.font  = { bold:true, size:10, color:{argb:C.amber}, name:"Calibri" };
+      fl.font  = { bold:true, size:10, color:{argb:C.amber}, name:"Consolas" };
     }
   }
 
@@ -430,7 +431,7 @@ function buildSummarySheet(
   [2,3,4,5,6].forEach((col,i) => {
     const cell = ws.getCell(totRow.number, col);
     cell.fill  = solidFill(C.gold);
-    cell.font  = { bold:true, size:11, color:{argb:C.navy}, name:"Calibri" };
+    cell.font  = { bold:true, size:11, color:{argb:C.navy}, name:"Consolas" };
     cell.alignment = { horizontal: i===0?"left":"center", vertical:"middle" };
     cell.border = thinBorder(C.goldDim);
   });
@@ -470,7 +471,7 @@ function buildByLineSheet(
     ws.mergeCells(lhRow.number, 1, lhRow.number, maxCol);
     const lhCell = ws.getCell(lhRow.number, 1);
     lhCell.fill  = solidFill(C.gold);
-    lhCell.font  = { bold:true, size:11, color:{argb:C.navy}, name:"Calibri" };
+    lhCell.font  = { bold:true, size:11, color:{argb:C.navy}, name:"Consolas" };
     lhCell.alignment = { horizontal:"left", vertical:"middle", indent:1 };
     lhRow.height = 20;
 
@@ -479,7 +480,7 @@ function buildByLineSheet(
       ws.mergeCells(emptyRow.number, 1, emptyRow.number, maxCol);
       const ec = ws.getCell(emptyRow.number, 1);
       ec.fill = solidFill(C.navyMid);
-      ec.font = { italic:true, size:10, color:{argb:C.textMuted}, name:"Calibri" };
+      ec.font = { italic:true, size:10, color:{argb:C.textMuted}, name:"Consolas" };
       emptyRow.height = 18;
       addSeparator(ws, maxCol);
       continue;
@@ -508,7 +509,7 @@ function buildByLineSheet(
 
       const bg = linePallets % 2 === 0 ? C.navyMid : C.navyLight;
       const row = ws.addRow(["", sku, meta?.product_name||sku,
-        agg.pallets, agg.units, r2(agg.tonnes)>0 ? r2(agg.tonnes)+" t" : "—",
+        agg.pallets, agg.units, r5(agg.tonnes)>0 ? r5(agg.tonnes)+" t" : "—",
         cartons, sachets||"—", tablets||"—",
         prevAgg ? pctVs(agg.pallets, prevAgg.pallets) : "— (new)"
       ]);
@@ -524,12 +525,12 @@ function buildByLineSheet(
 
     // Line subtotal row
     const stRow = ws.addRow(["", `${line} SUBTOTAL`, "",
-      linePallets, lineUnits, r2(lineTonnes)+" t", "", "", "", ""]);
+      linePallets, lineUnits, r5(lineTonnes)+" t", "", "", "", ""]);
     stRow.height = 20;
     [2,3,4,5,6].forEach((col,i) => {
       const cell = ws.getCell(stRow.number, col);
       cell.fill  = solidFill(C.navyLight);
-      cell.font  = { bold:true, size:10, color:{argb:C.gold}, name:"Calibri" };
+      cell.font  = { bold:true, size:10, color:{argb:C.gold}, name:"Consolas" };
       cell.alignment = { horizontal: i===0?"left":"center", vertical:"middle" };
       cell.border = thinBorder(C.goldDim);
     });
@@ -593,7 +594,7 @@ function buildSkuComparisonsSheet(
       const row = ws.addRow(["",
         line, sku, meta?.product_name||sku,
         agg.pallets,
-        r2(agg.tonnes)>0 ? r2(agg.tonnes)+" t" : "—",
+        r5(agg.tonnes)>0 ? r5(agg.tonnes)+" t" : "—",
         pAgg?.pallets ?? "—",
         pAgg ? pctVs(agg.pallets, pAgg.pallets) : "—",
         avg7Pallets || "—",
@@ -648,7 +649,7 @@ function buildMaterialsSheet(
   const secRow1 = ws.addRow(["OUTER CARTONS"]);
   ws.mergeCells(secRow1.number, 1, secRow1.number, maxCol);
   const sc1 = ws.getCell(secRow1.number, 1);
-  sc1.fill = solidFill(C.gold); sc1.font = { bold:true, size:10, color:{argb:C.navy}, name:"Calibri" };
+  sc1.fill = solidFill(C.gold); sc1.font = { bold:true, size:10, color:{argb:C.navy}, name:"Consolas" };
   sc1.alignment = { horizontal:"left", vertical:"middle", indent:1 }; secRow1.height = 20;
 
   applyHeaderRow(ws.addRow([]), ["Line","SKU","Product","Pallets","Cartons Used","UOM"], C.navyMid, C.gold);
@@ -682,7 +683,7 @@ function buildMaterialsSheet(
   ctTot.height=20;
   [2,3,4,5,6].forEach(col=>{
     const cell=ws.getCell(ctTot.number,col);
-    cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Calibri"};
+    cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
     cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(C.goldDim);
   });
 
@@ -692,7 +693,7 @@ function buildMaterialsSheet(
   const secRow2 = ws.addRow(["SACHETS (Inner Units)"]);
   ws.mergeCells(secRow2.number, 1, secRow2.number, maxCol);
   const sc2 = ws.getCell(secRow2.number, 1);
-  sc2.fill = solidFill(C.gold); sc2.font = { bold:true, size:10, color:{argb:C.navy}, name:"Calibri" };
+  sc2.fill = solidFill(C.gold); sc2.font = { bold:true, size:10, color:{argb:C.navy}, name:"Consolas" };
   sc2.alignment = { horizontal:"left", vertical:"middle", indent:1 }; secRow2.height = 20;
 
   applyHeaderRow(ws.addRow([]), ["Line","SKU","Product","Sachet Type","Pallets","Sachets Used"], C.navyMid, C.gold);
@@ -716,12 +717,12 @@ function buildMaterialsSheet(
     const nr=ws.addRow(["  — No sachet products this shift"]);
     ws.mergeCells(nr.number,1,nr.number,maxCol);
     const nc=ws.getCell(nr.number,1);
-    nc.fill=solidFill(C.navyMid); nc.font={italic:true,size:10,color:{argb:C.textMuted},name:"Calibri"};
+    nc.fill=solidFill(C.navyMid); nc.font={italic:true,size:10,color:{argb:C.textMuted},name:"Consolas"};
   } else {
     const sTot=ws.addRow(["","TOTAL","","","",sachetTotal, ""]);
     [2,3,4,5,6].forEach(col=>{
       const cell=ws.getCell(sTot.number,col);
-      cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Calibri"};
+      cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
       cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(C.goldDim);
     });
   }
@@ -732,7 +733,7 @@ function buildMaterialsSheet(
   const secRow3 = ws.addRow(["TABLETS"]);
   ws.mergeCells(secRow3.number, 1, secRow3.number, maxCol);
   const sc3 = ws.getCell(secRow3.number, 1);
-  sc3.fill = solidFill(C.gold); sc3.font = { bold:true, size:10, color:{argb:C.navy}, name:"Calibri" };
+  sc3.fill = solidFill(C.gold); sc3.font = { bold:true, size:10, color:{argb:C.navy}, name:"Consolas" };
   sc3.alignment = { horizontal:"left", vertical:"middle", indent:1 }; secRow3.height = 20;
 
   applyHeaderRow(ws.addRow([]), ["Line","SKU","Product","Tablet Type","Pallets","Tablets Used"], C.navyMid, C.gold);
@@ -756,12 +757,12 @@ function buildMaterialsSheet(
     const nr=ws.addRow(["  — No tablet products this shift"]);
     ws.mergeCells(nr.number,1,nr.number,maxCol);
     const nc=ws.getCell(nr.number,1);
-    nc.fill=solidFill(C.navyMid); nc.font={italic:true,size:10,color:{argb:C.textMuted},name:"Calibri"};
+    nc.fill=solidFill(C.navyMid); nc.font={italic:true,size:10,color:{argb:C.textMuted},name:"Consolas"};
   } else {
     const tTot=ws.addRow(["","TOTAL","","","",tabletTotal,""]);
     [2,3,4,5,6].forEach(col=>{
       const cell=ws.getCell(tTot.number,col);
-      cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Calibri"};
+      cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
       cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(C.goldDim);
     });
   }
@@ -818,7 +819,7 @@ function buildHourlySheet(
 
     const label = `${String(h).padStart(2,"0")}:00`;
     const lineCounts = LINES.map(l => hrLine[h]?.[l]||0);
-    const row = ws.addRow(["", label, tot, ...lineCounts, r2(hrTonnes[h]||0)+" t"]);
+    const row = ws.addRow(["", label, tot, ...lineCounts, r5(hrTonnes[h]||0)+" t"]);
     row.height = 20;
 
     const colsCount = 2 + 1 + LINES.length + 1;
@@ -829,7 +830,7 @@ function buildHourlySheet(
         bold: isPeak || tot===0,
         size: 10,
         color: { argb: tot===0 ? C.voidText : isPeak ? C.gold : C.textLight },
-        name: "Calibri"
+        name: "Consolas"
       };
       cell.border = thinBorder();
       cell.alignment = { horizontal: c===2?"left":"center", vertical:"middle" };
@@ -849,13 +850,13 @@ function buildHourlySheet(
     hours.reduce((s,h) => s+(hrLine[h]?.[l]||0), 0)
   );
   const shiftTotal = totals.reduce((s,v)=>s+v,0);
-  const shiftTonnes = r2(Object.values(hrTonnes).reduce((s,v)=>s+v,0));
+  const shiftTonnes = r5(Object.values(hrTonnes).reduce((s,v)=>s+v,0));
   const totRow = ws.addRow(["","SHIFT TOTAL", shiftTotal, ...colTotals, shiftTonnes+" t"]);
   totRow.height = 22;
   for (let c=2; c<=2+1+LINES.length+1; c++) {
     const cell = ws.getCell(totRow.number,c);
     cell.fill  = solidFill(C.gold);
-    cell.font  = {bold:true,size:11,color:{argb:C.navy},name:"Calibri"};
+    cell.font  = {bold:true,size:11,color:{argb:C.navy},name:"Consolas"};
     cell.alignment={horizontal:c===2?"left":"center",vertical:"middle"};
     cell.border=thinBorder(C.goldDim);
   }
@@ -942,14 +943,14 @@ function intelSection(ws: ExcelJS.Worksheet, title: string, maxCol: number): voi
   const row = ws.addRow([title]);
   ws.mergeCells(row.number,1,row.number,maxCol);
   const c=ws.getCell(row.number,1);
-  c.fill=solidFill(C.gold); c.font={bold:true,size:10,color:{argb:C.navy},name:"Calibri"};
+  c.fill=solidFill(C.gold); c.font={bold:true,size:10,color:{argb:C.navy},name:"Consolas"};
   c.alignment={horizontal:"left",vertical:"middle",indent:1}; row.height=22;
 }
 
 function ragCell(cell: ExcelJS.Cell, label: string, tier: keyof typeof RAG): void {
   const r=RAG[tier];
   cell.value=label; cell.fill=solidFill(r.bg);
-  cell.font={bold:true,size:10,color:{argb:r.text},name:"Calibri"};
+  cell.font={bold:true,size:10,color:{argb:r.text},name:"Consolas"};
   cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(r.bg);
 }
 
@@ -977,10 +978,10 @@ function buildNarrative(
   if (totalTonnes>=SHIFT_TARGET_KAIZEN_T) {
     targetNarr=`At ${totalTonnes} t, the shift hit ${kaizenPct}% of the 50 MT kaizen benchmark — a result the floor team should be proud of.`;
   } else if (totalTonnes>=SHIFT_TARGET_MIN_T) {
-    const gap=r2(SHIFT_TARGET_KAIZEN_T-totalTonnes);
+    const gap=r5(SHIFT_TARGET_KAIZEN_T-totalTonnes);
     targetNarr=`Output of ${totalTonnes} t clears the 42.5 MT minimum floor, sitting at ${kaizenPct}% of the 50 MT kaizen target. The gap to kaizen is ${gap} t — within reach for the next shift.`;
   } else {
-    const shortfall=r2(SHIFT_TARGET_MIN_T-totalTonnes);
+    const shortfall=r5(SHIFT_TARGET_MIN_T-totalTonnes);
     targetNarr=`At ${totalTonnes} t, this shift fell ${shortfall} t short of the 42.5 MT minimum threshold. This warrants immediate review of line availability and downtime events.`;
   }
 
@@ -995,7 +996,7 @@ function buildNarrative(
   const zeroLines=LINES.filter(l=>curMetrics[l].pallets===0);
 
   const bestNarr = bestLine
-    ? `${bestLine} was the standout performer — ${curMetrics[bestLine].pallets} pallets / ${r2(curMetrics[bestLine].tonnes)} t.`
+    ? `${bestLine} was the standout performer — ${curMetrics[bestLine].pallets} pallets / ${r5(curMetrics[bestLine].tonnes)} t.`
     : "No lines recorded production this shift.";
 
   let concernNarr="";
@@ -1004,18 +1005,18 @@ function buildNarrative(
   } else if (zeroLines.length>0) {
     concernNarr=`${zeroLines.join(", ")} recorded no production. ${worstLine&&worstLine!==bestLine?`${worstLine} was the weakest active line at ${curMetrics[worstLine].pallets} pallets.`:""}`;
   } else if (worstLine) {
-    concernNarr=`${worstLine} was the quietest line at ${curMetrics[worstLine].pallets} pallets / ${r2(curMetrics[worstLine].tonnes)} t.`;
+    concernNarr=`${worstLine} was the quietest line at ${curMetrics[worstLine].pallets} pallets / ${r5(curMetrics[worstLine].tonnes)} t.`;
   }
 
   // vs last shift
   const prevTotal=prevTickets.length;
-  const prevTonnes=r2(prevTickets.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0));
+  const prevTonnes=r5(prevTickets.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0));
   const vsLastNarr=prevTotal>0
-    ? `Compared to the previous same shift (${prevTonnes} t), output is ${totalTonnes>=prevTonnes?"up":"down"} ${r2(Math.abs(totalTonnes-prevTonnes))} t.`
+    ? `Compared to the previous same shift (${prevTonnes} t), output is ${totalTonnes>=prevTonnes?"up":"down"} ${r5(Math.abs(totalTonnes-prevTonnes))} t.`
     : "";
 
   // 7-day trend
-  const sevenTonnes=sevenTickets.map(ts=>r2(ts.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0)));
+  const sevenTonnes=sevenTickets.map(ts=>r5(ts.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0)));
   const slope=linearSlope(sevenTonnes);
   const trendNarr=slope>0.5
     ? `The 7-shift trend is pointing upward (+${r2(slope)} t/shift) — momentum is building.`
@@ -1090,7 +1091,7 @@ function buildTrendIntelligenceSheet(
   const sevenMetrics = sevenTickets.map(t=>aggregateByLine(t,skuMeta));
 
   const totalPallets = curTickets.length;
-  const totalTonnes  = r2(curTickets.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0));
+  const totalTonnes  = r5(curTickets.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0));
   const voidedCount  = curTicketsAll.filter(t=>t.voided).length;
   const totalAll     = curTicketsAll.length;
   const activeLines  = LINES.filter(l=>curMetrics[l].pallets>0).length;
@@ -1113,7 +1114,7 @@ function buildTrendIntelligenceSheet(
   ws.mergeCells(narRow.number,1,narRow.number,MAX);
   const narCell = ws.getCell(narRow.number,1);
   narCell.fill = solidFill(C.navyMid);
-  narCell.font = { size:10, color:{argb:C.textLight}, name:"Calibri", italic:false };
+  narCell.font = { size:10, color:{argb:C.textLight}, name:"Consolas", italic:false };
   narCell.alignment = { horizontal:"left", vertical:"top", wrapText:true, indent:1 };
   narRow.height = 110;
 
@@ -1129,10 +1130,10 @@ function buildTrendIntelligenceSheet(
   );
 
   const sevenAvgTonnes = (() => {
-    const vals=sevenMetrics.map(m=>r2(LINES.reduce((s,l)=>s+m[l].tonnes,0))).filter(v=>v>0);
+    const vals=sevenMetrics.map(m=>r5(LINES.reduce((s,l)=>s+m[l].tonnes,0))).filter(v=>v>0);
     return vals.length?r2(vals.reduce((a,b)=>a+b,0)/vals.length):0;
   })();
-  const prevTonnes = r2(LINES.reduce((s,l)=>s+prevMetrics[l].tonnes,0));
+  const prevTonnes = r5(LINES.reduce((s,l)=>s+prevMetrics[l].tonnes,0));
 
   const kpis = [
     {
@@ -1201,7 +1202,7 @@ function buildTrendIntelligenceSheet(
   const exRow=ws.addRow(["  Scoring: Throughput /40 pts (line output vs expected share of 50 MT kaizen)  ·  Cadence /30 pts (ticket interval consistency)  ·  Idle /30 pts (penalty for longest idle gap)   |   A ≥85  B ≥70  C ≥55  D ≥40  F <40"]);
   ws.mergeCells(exRow.number,1,exRow.number,MAX);
   const ec=ws.getCell(exRow.number,1);
-  ec.fill=solidFill("FF0F1E35"); ec.font={size:9,color:{argb:C.textMuted},name:"Calibri",italic:true};
+  ec.fill=solidFill("FF0F1E35"); ec.font={size:9,color:{argb:C.textMuted},name:"Consolas",italic:true};
   ec.alignment={horizontal:"left",vertical:"middle",wrapText:true}; exRow.height=24;
 
   applyHeaderRow(ws.addRow([]),
@@ -1224,7 +1225,7 @@ function buildTrendIntelligenceSheet(
       `${h.grade}  ·  ${h.gradeLabel}`,
       `${h.throughput} pts`, `${h.cadence} pts`, `${h.idle} pts`,
       curMetrics[line].pallets,
-      r2(curMetrics[line].tonnes)+" t",
+      r5(curMetrics[line].tonnes)+" t",
       isZero?"NO PRODUCTION":h.grade,
       lineSpk, ""
     ]);
@@ -1240,7 +1241,7 @@ function buildTrendIntelligenceSheet(
     ragCell(ws.getCell(row.number,4), `${h.grade}  ${h.score}%`, isZero?"red":gradeColors[h.grade]);
     // Sparkline cell
     const spkCell=ws.getCell(row.number,11);
-    spkCell.font={size:12,color:{argb:isZero?C.voidText:C.gold},name:"Courier New"};
+    spkCell.font={size:12,color:{argb:isZero?C.voidText:C.gold},name:"Consolas"};
   });
 
   addSeparator(ws, MAX);
@@ -1257,7 +1258,7 @@ function buildTrendIntelligenceSheet(
     {tickets:curTickets,date:toEAT(shiftEnd),isCurrent:true},
     ...sevenTickets.map((t,i)=>({tickets:t,date:toEAT(sevenDates[i]),isCurrent:false}))
   ];
-  const allTonnesArr=allSeries.map(s=>r2(s.tickets.reduce((sum,t)=>sum+calcTonnes(t,skuMeta[t.sku]),0)));
+  const allTonnesArr=allSeries.map(s=>r5(s.tickets.reduce((sum,t)=>sum+calcTonnes(t,skuMeta[t.sku]),0)));
 
   allSeries.forEach((s,idx)=>{
     const agg   =aggregateByLine(s.tickets,skuMeta);
@@ -1281,7 +1282,7 @@ function buildTrendIntelligenceSheet(
     for(let c=2;c<=MAX;c++){
       const cell=ws.getCell(row.number,c);
       cell.fill=solidFill(bg);
-      cell.font={bold,size:10,color:{argb:tc},name:"Calibri"};
+      cell.font={bold,size:10,color:{argb:tc},name:"Consolas"};
       cell.border=thinBorder();
       cell.alignment={horizontal:c===2?"left":"center",vertical:"middle"};
     }
@@ -1296,11 +1297,11 @@ function buildTrendIntelligenceSheet(
     });
     // Sparkline font
     const spkCell=ws.getCell(row.number,MAX);
-    spkCell.font={size:12,color:{argb:s.isCurrent?C.gold:C.textMuted},name:"Courier New"};
+    spkCell.font={size:12,color:{argb:s.isCurrent?C.gold:C.textMuted},name:"Consolas"};
   });
 
   // 7-day average row
-  const avgTonnes=r2(allTonnesArr.slice(1).filter(v=>v>0).reduce((a,b)=>a+b,0)/Math.max(allTonnesArr.slice(1).filter(v=>v>0).length,1));
+  const avgTonnes = r5(allTonnesArr.slice(1).filter(v=>v>0).reduce((a,b)=>a+b,0)/Math.max(allTonnesArr.slice(1).filter(v=>v>0).length,1));
   const avgPallets=Math.round(allSeries.slice(1).map(s=>s.tickets.length).filter(v=>v>0).reduce((a,b)=>a+b,0)/Math.max(allSeries.slice(1).filter(s=>s.tickets.length>0).length,1));
   const avgRow=ws.addRow(["","7-SHIFT AVERAGE",avgPallets,avgTonnes+" t",
     `${Math.round((avgTonnes/SHIFT_TARGET_MIN_T)*100)}%`,
@@ -1312,7 +1313,7 @@ function buildTrendIntelligenceSheet(
   for(let c=2;c<=MAX;c++){
     const cell=ws.getCell(avgRow.number,c);
     cell.fill=solidFill(C.navyLight);
-    cell.font={bold:true,size:10,color:{argb:C.textMuted},name:"Calibri"};
+    cell.font={bold:true,size:10,color:{argb:C.textMuted},name:"Consolas"};
     cell.border=thinBorder(C.goldDim);
     cell.alignment={horizontal:c===2?"left":"center",vertical:"middle"};
   }
@@ -1348,14 +1349,14 @@ function buildTrendIntelligenceSheet(
       const avg=sevenSkuAvg(t[0]);
       ws.getCell(row.number,2).value=t[0];
       ws.getCell(row.number,3).value=t[1].pallets;
-      ws.getCell(row.number,4).value=r2(t[1].tonnes)+" t";
+      ws.getCell(row.number,4).value=r5(t[1].tonnes)+" t";
       ws.getCell(row.number,5).value=avg?pctVs(t[1].pallets,avg):"— (new)";
     }
     if(b){
       const avg=sevenSkuAvg(b[0]);
       ws.getCell(row.number,7).value=b[0];
       ws.getCell(row.number,8).value=b[1].pallets;
-      ws.getCell(row.number,9).value=r2(b[1].tonnes)+" t";
+      ws.getCell(row.number,9).value=r5(b[1].tonnes)+" t";
       ws.getCell(row.number,10).value=avg?pctVs(b[1].pallets,avg):"— (new)";
     }
     row.height=18;
@@ -1389,13 +1390,16 @@ function buildTrendIntelligenceSheet(
   const lineAvgTonnesPerPallet: Record<string,number> = {};
   for(const line of LINES){
     const lp=curMetrics[line].pallets;
-    lineAvgTonnesPerPallet[line]=lp>0?r2(curMetrics[line].tonnes/lp):0;
+    lineAvgTonnesPerPallet[line]=lp>0?r5(curMetrics[line].tonnes/lp):0;
   }
 
-  // Build a lookup of logged downtime events keyed by line+gap_start (UTC ISO)
-  const dtByKey: Record<string, DowntimeEvent> = {};
-  for(const ev of downtimeEvents) {
-    dtByKey[`${ev.production_line}::${ev.gap_start}`] = ev;
+  // Match downtime events to gaps by ms-level timestamp comparison (tolerates ISO format differences)
+  function findDowntimeEvent(line: string, gapStartUtc: string): DowntimeEvent | null {
+    const ts = new Date(gapStartUtc).getTime();
+    return downtimeEvents.find(ev =>
+      ev.production_line === line &&
+      Math.abs(new Date(ev.gap_start).getTime() - ts) < 10000   // 10-second tolerance
+    ) ?? null;
   }
 
   let idleCount=0, totalLostPallets=0, totalLostTonnes=0;
@@ -1409,10 +1413,10 @@ function buildTrendIntelligenceSheet(
     gapMins:number, logged: DowntimeEvent|null
   ) {
     const severity=(gapMins>=90?"red":gapMins>=60?"amber":"green") as keyof typeof RAG;
-    const lostPallets=avgCadenceMins?r2(gapMins/avgCadenceMins):0;
-    const lostTonnes =lostPallets?(r2(lostPallets*(lineAvgTonnesPerPallet[line]||0))):0;
+    const lostPallets=avgCadenceMins?r5(gapMins/avgCadenceMins):0;
+    const lostTonnes =lostPallets?r5(lostPallets*(lineAvgTonnesPerPallet[line]||0)):0;
     totalLostPallets+=lostPallets;
-    totalLostTonnes  =r2(totalLostTonnes+lostTonnes);
+    totalLostTonnes  =r5(totalLostTonnes+lostTonnes);
 
     const cat    = logged?.category    || "— unlogged";
     const sub    = logged?.sub_category|| "—";
@@ -1466,8 +1470,8 @@ function buildTrendIntelligenceSheet(
       const firstTicketTime = new Date(lt[0].created_at).getTime();
       const startGapMins = Math.round((firstTicketTime - shiftStartApprox.getTime())/60000);
       if(startGapMins >= thresh){
-        const key=`${line}::${shiftStartApprox.toISOString()}`;
-        renderIdleRow(line, shiftStartApprox.toISOString(), lt[0].created_at, startGapMins, dtByKey[key]||null);
+        renderIdleRow(line, shiftStartApprox.toISOString(), lt[0].created_at, startGapMins,
+          findDowntimeEvent(line, shiftStartApprox.toISOString()));
       }
     }
 
@@ -1475,23 +1479,16 @@ function buildTrendIntelligenceSheet(
     for(let i=1;i<lt.length;i++){
       const gapMins=Math.round((new Date(lt[i].created_at).getTime()-new Date(lt[i-1].created_at).getTime())/60000);
       if(gapMins < thresh) continue;
-      const key=`${line}::${lt[i-1].created_at}`;
-      renderIdleRow(line, lt[i-1].created_at, lt[i].created_at, gapMins, dtByKey[key]||null);
+      renderIdleRow(line, lt[i-1].created_at, lt[i].created_at, gapMins,
+        findDowntimeEvent(line, lt[i-1].created_at));
     }
-  }
-
-  // Also surface any logged events not yet matched (e.g. line had no further tickets after gap)
-  for(const ev of downtimeEvents){
-    const key=`${ev.production_line}::${ev.gap_start}`;
-    if(!Object.keys(dtByKey).some(k=> k===key && idleCount>0)) continue; // already rendered
-    // (already rendered inline above via dtByKey lookup)
   }
 
   if(idleCount===0){
     const r=ws.addRow(["  ✓ No idle events above threshold — all lines maintained continuous production"]);
     ws.mergeCells(r.number,1,r.number,MAX);
     const rc=ws.getCell(r.number,1);
-    rc.fill=solidFill(C.navyMid); rc.font={bold:true,size:10,color:{argb:C.green},name:"Calibri"};
+    rc.fill=solidFill(C.navyMid); rc.font={bold:true,size:10,color:{argb:C.green},name:"Consolas"};
     rc.alignment={horizontal:"center",vertical:"middle"}; r.height=22;
   } else {
     const totRow=ws.addRow(["","TOTAL DOWNTIME COST","","","","","","",
@@ -1504,7 +1501,7 @@ function buildTrendIntelligenceSheet(
     [2,3,4,5,6,7,8,9,10,11,12].forEach((col,j)=>{
       const cell=ws.getCell(totRow.number,col);
       cell.fill=solidFill(C.navyLight);
-      cell.font={bold:true,size:10,color:{argb:C.gold},name:"Calibri"};
+      cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
       cell.border=thinBorder(C.goldDim);
       cell.alignment={horizontal:j===0?"left":"center",vertical:"middle"};
     });
@@ -1515,7 +1512,7 @@ function buildTrendIntelligenceSheet(
   // ── SECTION 7: FORWARD SIGNAL ─────────────────────────────────────────────────
   intelSection(ws, "  ⑦ FORWARD SIGNAL", MAX);
 
-  const sevenTonnesArr=sevenMetrics.map(m=>r2(LINES.reduce((s,l)=>s+m[l].tonnes,0)));
+  const sevenTonnesArr=sevenMetrics.map(m=>r5(LINES.reduce((s,l)=>s+m[l].tonnes,0)));
   const slope=linearSlope([...sevenTonnesArr.reverse(),totalTonnes]);
   const [signalEmoji,signalWord,signalDetail,signalRag]:(["📈"|"📉"|"➡","IMPROVING"|"DECLINING"|"STABLE",string,keyof typeof RAG]) =
     slope>0.5
@@ -1528,14 +1525,14 @@ function buildTrendIntelligenceSheet(
   ws.mergeCells(sigHeadRow.number,1,sigHeadRow.number,MAX);
   const shc=ws.getCell(sigHeadRow.number,1);
   shc.fill=solidFill(RAG[signalRag].bg);
-  shc.font={bold:true,size:16,color:{argb:RAG[signalRag].text},name:"Calibri"};
+  shc.font={bold:true,size:16,color:{argb:RAG[signalRag].text},name:"Consolas"};
   shc.alignment={horizontal:"center",vertical:"middle"}; sigHeadRow.height=36;
 
   const sigDetailRow=ws.addRow([signalDetail]);
   ws.mergeCells(sigDetailRow.number,1,sigDetailRow.number,MAX);
   const sdc=ws.getCell(sigDetailRow.number,1);
   sdc.fill=solidFill(C.navyMid);
-  sdc.font={size:11,color:{argb:C.textLight},name:"Calibri"};
+  sdc.font={size:11,color:{argb:C.textLight},name:"Consolas"};
   sdc.alignment={horizontal:"left",vertical:"top",wrapText:true,indent:1}; sigDetailRow.height=60;
 
   // Footer brand stamp
@@ -1544,7 +1541,7 @@ function buildTrendIntelligenceSheet(
   ws.mergeCells(footRow.number,1,footRow.number,MAX);
   const fc=ws.getCell(footRow.number,1);
   fc.fill=solidFill(C.navy);
-  fc.font={size:9,color:{argb:C.textMuted},name:"Calibri",italic:true};
+  fc.font={size:9,color:{argb:C.textMuted},name:"Consolas",italic:true};
   fc.alignment={horizontal:"center",vertical:"middle"}; footRow.height=18;
 
   ws.columns=[
@@ -1578,7 +1575,7 @@ function buildAuditTrailSheet(
     ws.mergeCells(nr.number, 1, nr.number, maxCol);
     const nc = ws.getCell(nr.number, 1);
     nc.fill = solidFill(C.navyMid);
-    nc.font = { bold:true, italic:false, size:11, color:{argb:C.green}, name:"Calibri" };
+    nc.font = { bold:true, italic:false, size:11, color:{argb:C.green}, name:"Consolas" };
     nc.alignment = { horizontal:"center", vertical:"middle" };
     nr.height = 28;
     ws.columns = [{width:2},...Array(maxCol-1).fill({width:18})];
@@ -1590,7 +1587,7 @@ function buildAuditTrailSheet(
   ws.mergeCells(warnRow.number, 1, warnRow.number, maxCol);
   const wc = ws.getCell(warnRow.number, 1);
   wc.fill = solidFill(C.voidRed);
-  wc.font = { bold:true, size:11, color:{argb:C.voidText}, name:"Calibri" };
+  wc.font = { bold:true, size:11, color:{argb:C.voidText}, name:"Consolas" };
   wc.alignment = { horizontal:"center", vertical:"middle" };
   warnRow.height = 26;
 
@@ -1739,7 +1736,7 @@ async function buildReport(
   // WhatsApp notification
   const shiftLabel = shift==="day" ? "Day Shift ☀" : "Night Shift 🌙";
   const totalPallets = curTickets.length;
-  const totalTonnes  = r2(curTickets.reduce((s,t) => {
+  const totalTonnes  = r5(curTickets.reduce((s,t) => {
     const meta = skuMeta[t.sku];
     return s + calcTonnes(t, meta);
   }, 0));

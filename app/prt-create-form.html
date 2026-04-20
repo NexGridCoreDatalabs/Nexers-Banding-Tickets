@@ -2130,7 +2130,7 @@
         btn.disabled = true; btn.textContent = 'Submitting…';
         try {
           const clerk = (currentUser?.name || document.getElementById('recordedBy').value || 'Unknown');
-          await supabase.rpc('log_shift_handover', {
+          const { error: hovrErr } = await supabase.rpc('log_shift_handover', {
             p_shift_date:           _hovrPending.shiftDate,
             p_shift:                _hovrPending.shift,
             p_outgoing_supervisor:  document.getElementById('hovrOutgoing').value.trim() || null,
@@ -2139,6 +2139,7 @@
             p_outstanding_issues:   document.getElementById('hovrIssues').value.trim() || null,
             p_logged_by:            clerk,
           });
+          if (hovrErr) throw new Error(hovrErr.message || JSON.stringify(hovrErr));
           hideHandoverModal();
           // After handover, immediately check if a downtime dialog is also needed for the selected line
           const line = document.getElementById('productionLine').value;
@@ -2224,7 +2225,7 @@
         try {
           const clerk = (currentUser?.name || document.getElementById('recordedBy').value || 'Unknown');
           const nowUtc = new Date().toISOString();
-          await supabase.rpc('log_downtime_event', {
+          const { error: dtErr } = await supabase.rpc('log_downtime_event', {
             p_line:           _dtPending.line,
             p_shift:          _dtPending.shift,
             p_shift_date:     _dtPending.shiftDate,
@@ -2237,6 +2238,7 @@
             p_description:    desc,
             p_logged_by:      clerk,
           });
+          if (dtErr) throw new Error(dtErr.message || JSON.stringify(dtErr));
           document.getElementById('dtModal').style.display = 'none';
           _dtPending = null;
         } catch(e) {

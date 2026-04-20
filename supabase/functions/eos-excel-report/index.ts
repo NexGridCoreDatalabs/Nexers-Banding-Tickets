@@ -1076,7 +1076,13 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers:{ "Access-Control-Allow-Origin":"*" } });
   }
   try {
-    const body  = await req.json() as { shift?: string; mock_now?: string };
+    // Safe body parse — falls back to {} if body is empty or not valid JSON
+    let body: { shift?: string; mock_now?: string } = {};
+    try {
+      const text = await req.text();
+      if (text.trim().startsWith("{")) body = JSON.parse(text);
+    } catch { /* ignore — use defaults */ }
+
     const shift = ((body.shift || "day") as "day"|"night");
     _mockNowUtc = body.mock_now ? new Date(body.mock_now) : null;
 

@@ -659,7 +659,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body = await req.json() as { type?: string; shift?: string; mock_now?: string };
+    let body: { type?: string; shift?: string; mock_now?: string } = {};
+    try {
+      const text = await req.text();
+      if (text.trim().startsWith("{")) body = JSON.parse(text);
+    } catch { /* ignore — use defaults */ }
     const type  = body.type  || "hourly";
     const shift = (body.shift || "day") as "day" | "night";
 

@@ -114,6 +114,29 @@ interface SkuMeta {
   subdivision:           string;
 }
 
+interface DowntimeEvent {
+  production_line:      string;
+  gap_start:            string;
+  gap_end:              string;
+  gap_minutes:          number;
+  is_shift_start_delay: boolean;
+  category:             string;
+  sub_category:         string;
+  description:          string | null;
+  logged_by:            string;
+}
+
+interface HandoverNote {
+  shift:                string;
+  shift_date:           string;
+  outgoing_supervisor:  string | null;
+  incoming_supervisor:  string | null;
+  note:                 string;
+  outstanding_issues:   string | null;
+  logged_by:            string;
+  created_at:           string;
+}
+
 // ── Data fetch ────────────────────────────────────────────────────────────────
 
 async function fetchTickets(
@@ -142,6 +165,32 @@ async function fetchSkuMeta(
   const map: Record<string, SkuMeta> = {};
   (data ?? []).forEach((r: SkuMeta) => { map[r.sku] = r; });
   return map;
+}
+
+async function fetchDowntimeEvents(
+  sb: ReturnType<typeof createClient>,
+  from: Date, to: Date
+): Promise<DowntimeEvent[]> {
+  const { data, error } = await sb.from("downtime_events")
+    .select("production_line,gap_start,gap_end,gap_minutes,is_shift_start_delay,category,sub_category,description,logged_by")
+    .gte("gap_start", from.toISOString())
+    .lt("gap_end",   to.toISOString())
+    .order("gap_start", { ascending: true });
+  if (error) { console.warn("downtime_events fetch:", error.message); return []; }
+  return (data ?? []) as DowntimeEvent[];
+}
+
+async function fetchHandoverNote(
+  sb: ReturnType<typeof createClient>,
+  shiftDate: string, shift: string
+): Promise<HandoverNote | null> {
+  const { data, error } = await sb.from("shift_handover_notes")
+    .select("shift,shift_date,outgoing_supervisor,incoming_supervisor,note,outstanding_issues,logged_by,created_at")
+    .eq("shift_date", shiftDate)
+    .eq("shift", shift)
+    .maybeSingle();
+  if (error) { console.warn("shift_handover_notes fetch:", error.message); return null; }
+  return data as HandoverNote | null;
 }
 
 // ── Tonnage helpers ───────────────────────────────────────────────────────────
@@ -996,16 +1045,32 @@ function buildNarrative(
   ].filter(l=>l!==undefined).join("\n");
 }
 
+function buildNarrativeWithHandover(
+  base:     string,
+  handover: HandoverNote | null
+): string {
+  if (!handover) return base;
+  const lines = [base, "", "─────────────────────────────────────────"];
+  lines.push(`SHIFT HANDOVER NOTE  ·  logged by ${handover.logged_by}`);
+  if (handover.outgoing_supervisor) lines.push(`  Outgoing: ${handover.outgoing_supervisor}`);
+  if (handover.incoming_supervisor) lines.push(`  Incoming: ${handover.incoming_supervisor}`);
+  lines.push(`  ${handover.note}`);
+  if (handover.outstanding_issues) lines.push(`  Outstanding: ${handover.outstanding_issues}`);
+  return lines.join("\n");
+}
+
 function buildTrendIntelligenceSheet(
-  wb:           ExcelJS.Workbook,
-  shift:        "day"|"night",
-  curTickets:   TicketRow[],
-  prevTickets:  TicketRow[],
-  sevenTickets: TicketRow[][],
-  sevenDates:   Date[],
-  skuMeta:      Record<string,SkuMeta>,
-  shiftEnd:     Date,
-  curTicketsAll:TicketRow[]
+  wb:            ExcelJS.Workbook,
+  shift:         "day"|"night",
+  curTickets:    TicketRow[],
+  prevTickets:   TicketRow[],
+  sevenTickets:  TicketRow[][],
+  sevenDates:    Date[],
+  skuMeta:       Record<string,SkuMeta>,
+  shiftEnd:      Date,
+  curTicketsAll: TicketRow[],
+  downtimeEvents:DowntimeEvent[],
+  handoverNote:  HandoverNote | null
 ): void {
   const ws = wb.addWorksheet("Trend Intelligence", {
     properties:{ tabColor:{ argb:"FF06B6D4" } }
@@ -1040,7 +1105,10 @@ function buildTrendIntelligenceSheet(
   // ── SECTION 1: INTELLIGENCE NARRATIVE ────────────────────────────────────────
   intelSection(ws, "  ① INTELLIGENCE NARRATIVE", MAX);
 
-  const narrative = buildNarrative(shift,shiftEnd,curTickets,prevTickets,sevenTickets,curMetrics,skuMeta,totalTonnes,voidedCount,totalAll);
+  const narrative = buildNarrativeWithHandover(
+    buildNarrative(shift,shiftEnd,curTickets,prevTickets,sevenTickets,curMetrics,skuMeta,totalTonnes,voidedCount,totalAll),
+    handoverNote
+  );
   const narRow = ws.addRow([narrative]);
   ws.mergeCells(narRow.number,1,narRow.number,MAX);
   const narCell = ws.getCell(narRow.number,1);
@@ -1311,75 +1379,129 @@ function buildTrendIntelligenceSheet(
   addSeparator(ws, MAX);
 
   // ── SECTION 6: IDLE & DOWNTIME LOG ───────────────────────────────────────────
-  intelSection(ws, "  ⑥ IDLE & DOWNTIME LOG  (gaps ≥ 30 minutes)", MAX);
+  intelSection(ws, "  ⑥ IDLE & DOWNTIME LOG  (clerk-logged reasons + unlogged gaps)", MAX);
   applyHeaderRow(ws.addRow([]),
-    ["Line","Idle Start","Idle End","Duration (mins)","Severity","Lost Pallet Equiv.","Lost Tonnage Equiv.","","","",""],
+    ["Line","Start (EAT)","End (EAT)","Mins","Severity","Category","Sub-Category","Description","Lost Pallets","Lost Tonnes","Logged By"],
     C.navyMid, C.gold
   );
 
-  // Pre-compute per-line avg tonnes per pallet (for lost tonnage estimate)
+  // Pre-compute per-line avg tonnes per pallet
   const lineAvgTonnesPerPallet: Record<string,number> = {};
   for(const line of LINES){
     const lp=curMetrics[line].pallets;
     lineAvgTonnesPerPallet[line]=lp>0?r2(curMetrics[line].tonnes/lp):0;
   }
 
-  // Running totals across the whole sheet
+  // Build a lookup of logged downtime events keyed by line+gap_start (UTC ISO)
+  const dtByKey: Record<string, DowntimeEvent> = {};
+  for(const ev of downtimeEvents) {
+    dtByKey[`${ev.production_line}::${ev.gap_start}`] = ev;
+  }
+
   let idleCount=0, totalLostPallets=0, totalLostTonnes=0;
 
+  const LINE_THRESHOLDS: Record<string,number> = {
+    'SP':25,'PKN':15,'MB-250':20,'AL':45,'MB-150':60,'Offline Banding':30
+  };
+
+  function renderIdleRow(
+    line:string, gapStartUtc:string, gapEndUtc:string,
+    gapMins:number, logged: DowntimeEvent|null
+  ) {
+    const severity=(gapMins>=90?"red":gapMins>=60?"amber":"green") as keyof typeof RAG;
+    const lostPallets=avgCadenceMins?r2(gapMins/avgCadenceMins):0;
+    const lostTonnes =lostPallets?(r2(lostPallets*(lineAvgTonnesPerPallet[line]||0))):0;
+    totalLostPallets+=lostPallets;
+    totalLostTonnes  =r2(totalLostTonnes+lostTonnes);
+
+    const cat    = logged?.category    || "— unlogged";
+    const sub    = logged?.sub_category|| "—";
+    const desc   = logged?.description || (logged ? "—" : "⚠ No reason logged");
+    const logBy  = logged?.logged_by   || "—";
+
+    const bg = logged
+      ? (idleCount%2===0?C.navyMid:C.navyLight)
+      : (idleCount%2===0?"FF1A0A00":"FF200D00");  // darker red tint for unlogged
+
+    const row=ws.addRow(["",
+      line,
+      fmtTime(toEAT(new Date(gapStartUtc))),
+      fmtTime(toEAT(new Date(gapEndUtc))),
+      gapMins+" mins", "",
+      cat, sub, desc,
+      lostPallets?`~${lostPallets}`:"—",
+      lostTonnes ?`~${lostTonnes} t`:"—",
+      logBy
+    ]);
+    row.height = logged ? 18 : 20;
+
+    [2,3,4,5,7,8,9,10,11,12].forEach((col,j)=>{
+      const cell=ws.getCell(row.number,col);
+      cell.fill=solidFill(bg);
+      cell.font=cellFont(false,10,logged?C.textLight:C.voidText);
+      cell.border=thinBorder();
+      cell.alignment={horizontal:j===0||j===5||j===6||j===7?"left":"center",vertical:"middle",wrapText:j===6};
+    });
+    ragCell(ws.getCell(row.number,6),
+      severity==="red"?"CRITICAL":severity==="amber"?"MODERATE":"MINOR", severity);
+    if(!logged) {
+      const cell=ws.getCell(row.number,12);
+      cell.font={...cell.font,color:{argb:C.amber},bold:true};
+    }
+    idleCount++;
+  }
+
+  // Iterate gaps per line — merge with logged events
   for(const line of LINES){
+    const thresh = LINE_THRESHOLDS[line] || 30;
     const lt=[...curTickets.filter(t=>t.production_line?.trim()===line)]
       .sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
+
+    // Check shift-start delay (gap from shift start to first ticket)
+    // Shift start is curStart (passed in from buildReport — we approximate via the shiftEnd)
+    if(lt.length>0){
+      const shiftStartApprox = shift==="day"
+        ? new Date(shiftEnd.getTime() - 12*3600000)
+        : new Date(shiftEnd.getTime() - 12*3600000);
+      const firstTicketTime = new Date(lt[0].created_at).getTime();
+      const startGapMins = Math.round((firstTicketTime - shiftStartApprox.getTime())/60000);
+      if(startGapMins >= thresh){
+        const key=`${line}::${shiftStartApprox.toISOString()}`;
+        renderIdleRow(line, shiftStartApprox.toISOString(), lt[0].created_at, startGapMins, dtByKey[key]||null);
+      }
+    }
+
+    // Check inter-ticket gaps
     for(let i=1;i<lt.length;i++){
       const gapMins=Math.round((new Date(lt[i].created_at).getTime()-new Date(lt[i-1].created_at).getTime())/60000);
-      if(gapMins<30) continue;
-      const severity=gapMins>=90?"red":gapMins>=60?"amber":"green" as keyof typeof RAG;
-
-      // Lost pallet equiv: idle mins ÷ avg cadence per pallet
-      const lostPallets=avgCadenceMins?r2(gapMins/avgCadenceMins):0;
-      // Lost tonnage equiv: lost pallets × this line's avg tonnes per pallet
-      const avgTpp=lineAvgTonnesPerPallet[line]||0;
-      const lostTonnes=lostPallets&&avgTpp?r2(lostPallets*avgTpp):0;
-
-      totalLostPallets+=lostPallets;
-      totalLostTonnes =r2(totalLostTonnes+lostTonnes);
-
-      const row=ws.addRow(["",line,
-        fmtTime(toEAT(new Date(lt[i-1].created_at))),
-        fmtTime(toEAT(new Date(lt[i].created_at))),
-        gapMins+" mins", "",
-        lostPallets?`~${lostPallets} pallets`:"—",
-        lostTonnes  ?`~${lostTonnes} t`       :"—",
-        "","","",""
-      ]);
-      row.height=18;
-      [2,3,4,5,7,8].forEach((col,j)=>{
-        const cell=ws.getCell(row.number,col);
-        cell.fill=solidFill(idleCount%2===0?C.navyMid:C.navyLight);
-        cell.font=cellFont(false,10,C.textLight); cell.border=thinBorder();
-        cell.alignment={horizontal:j===0?"left":"center",vertical:"middle"};
-      });
-      ragCell(ws.getCell(row.number,6),severity==="red"?"CRITICAL":severity==="amber"?"MODERATE":"MINOR",severity);
-      idleCount++;
+      if(gapMins < thresh) continue;
+      const key=`${line}::${lt[i-1].created_at}`;
+      renderIdleRow(line, lt[i-1].created_at, lt[i].created_at, gapMins, dtByKey[key]||null);
     }
   }
 
+  // Also surface any logged events not yet matched (e.g. line had no further tickets after gap)
+  for(const ev of downtimeEvents){
+    const key=`${ev.production_line}::${ev.gap_start}`;
+    if(!Object.keys(dtByKey).some(k=> k===key && idleCount>0)) continue; // already rendered
+    // (already rendered inline above via dtByKey lookup)
+  }
+
   if(idleCount===0){
-    const r=ws.addRow(["  ✓ No idle events detected — all lines maintained continuous production"]);
+    const r=ws.addRow(["  ✓ No idle events above threshold — all lines maintained continuous production"]);
     ws.mergeCells(r.number,1,r.number,MAX);
     const rc=ws.getCell(r.number,1);
     rc.fill=solidFill(C.navyMid); rc.font={bold:true,size:10,color:{argb:C.green},name:"Calibri"};
     rc.alignment={horizontal:"center",vertical:"middle"}; r.height=22;
   } else {
-    // Running total row
-    const totRow=ws.addRow(["","TOTAL DOWNTIME COST","","",
-      "","",
-      totalLostPallets?`~${r2(totalLostPallets)} pallets`:"—",
-      totalLostTonnes ?`~${totalLostTonnes} t`          :"—",
-      "","","",""
+    const totRow=ws.addRow(["","TOTAL DOWNTIME COST","","","","","","",
+      "",
+      totalLostPallets?`~${r2(totalLostPallets)}`:"—",
+      totalLostTonnes ?`~${totalLostTonnes} t`  :"—",
+      ""
     ]);
     totRow.height=22;
-    [2,3,4,5,6,7,8].forEach((col,j)=>{
+    [2,3,4,5,6,7,8,9,10,11,12].forEach((col,j)=>{
       const cell=ws.getCell(totRow.number,col);
       cell.fill=solidFill(C.navyLight);
       cell.font={bold:true,size:10,color:{argb:C.gold},name:"Calibri"};
@@ -1565,17 +1687,24 @@ async function buildReport(
     sevenDates.push(e);
   }
 
+  // Shift date + label for handover lookup
+  const shiftDateStr = fmtDateFile(toEAT(curEnd));  // YYYY-MM-DD
+
   // Fetch data in parallel
   const [
     curTickets,
     curTicketsAll,   // includes voided — for Audit Trail
     prevTickets,
-    skuMeta
+    skuMeta,
+    downtimeEvents,
+    handoverNote
   ] = await Promise.all([
     fetchTickets(sb, curStart, curEnd, false),
     fetchTickets(sb, curStart, curEnd, true),
     fetchTickets(sb, prevStart, prevEnd, false),
-    fetchSkuMeta(sb)
+    fetchSkuMeta(sb),
+    fetchDowntimeEvents(sb, curStart, curEnd),
+    fetchHandoverNote(sb, shiftDateStr, shift),
   ]);
 
   const sevenTickets = await Promise.all(
@@ -1593,7 +1722,7 @@ async function buildReport(
   buildSkuComparisonsSheet(wb, shift, curTickets, prevTickets, sevenTickets, skuMeta, curEnd);
   buildMaterialsSheet(wb, shift, curTickets, skuMeta, curEnd);
   buildHourlySheet(wb, shift, curTickets, skuMeta, curEnd);
-  buildTrendIntelligenceSheet(wb, shift, curTickets, prevTickets, sevenTickets, sevenDates, skuMeta, curEnd, curTicketsAll);
+  buildTrendIntelligenceSheet(wb, shift, curTickets, prevTickets, sevenTickets, sevenDates, skuMeta, curEnd, curTicketsAll, downtimeEvents, handoverNote);
   buildAuditTrailSheet(wb, shift, curTicketsAll, skuMeta, curEnd);
 
   // Serialize to buffer

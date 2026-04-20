@@ -1962,6 +1962,382 @@
         }
       });
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // DOWNTIME & HANDOVER SYSTEM
+    // ═══════════════════════════════════════════════════════════════════════
+
+    (function() {
+
+      // ── Per-line idle thresholds (minutes) ─────────────────────────────────
+      const LINE_THRESHOLDS = {
+        'SP':             25,
+        'PKN':            15,
+        'MB-250':         20,
+        'AL':             45,
+        'MB-150':         60,
+        'Offline Banding':30,
+      };
+
+      // ── 5M category + sub-category map ──────────────────────────────────────
+      const DT_CATS = {
+        'Machine':    ['Breakdown / Fault','Conveyor Issue','Sealer / Bander Fault','Changeover Setup','Sensor / Control Issue','Planned Maintenance'],
+        'Material':   ['Sachet Stock Out','Carton Stock Out','Tablet Stock Out','Wrong Material Delivered','Material Quality Rejection','Waiting for Delivery'],
+        'Manpower':   ['Operator Absence','Unofficial Break','Training / Meeting','Injury / Incident','Insufficient Operators'],
+        'Method':     ['SKU Changeover','Rework / Re-banding Required','Quality Hold','SOP Review','Process Change'],
+        'Management': ['Shift Start Delay','Line Priority Change','Schedule Change','Management Walkthrough','Power / Utility Interruption','Facility-Wide Event'],
+      };
+
+      // ── Dynamic description prompts per sub-category ────────────────────────
+      const DT_PROMPTS = {
+        'Breakdown / Fault':          'Describe the fault. Was maintenance called? Has it been resolved?',
+        'Conveyor Issue':              'Which conveyor section? Was it stopped or running slow?',
+        'Sealer / Bander Fault':       'Describe the fault. Was the line halted completely?',
+        'Changeover Setup':            'What was being set up? How long was the setup expected to take?',
+        'Sensor / Control Issue':      'Which sensor/controller? Was it a false alarm or a genuine fault?',
+        'Planned Maintenance':         'What maintenance was scheduled? Who authorised it?',
+        'Sachet Stock Out':            'Which sachet type ran out? When was it replenished?',
+        'Carton Stock Out':            'Which carton size ran out? When was stock restored?',
+        'Tablet Stock Out':            'Which tablet type ran out? When was it replenished?',
+        'Wrong Material Delivered':    'What was delivered vs what was expected? Was it returned?',
+        'Material Quality Rejection':  'What was the quality issue? Who rejected the material?',
+        'Waiting for Delivery':        'What material was pending? When did it arrive?',
+        'Operator Absence':            'How many operators absent? Was a replacement sourced?',
+        'Unofficial Break':            'How many operators? Was a supervisor informed?',
+        'Training / Meeting':          'What was the training/meeting? Who authorised the line stop?',
+        'Injury / Incident':           'Briefly describe the incident. Was a report filed?',
+        'Insufficient Operators':      'How many operators were available vs required?',
+        'SKU Changeover':              'Switching from which SKU? What caused the changeover delay?',
+        'Rework / Re-banding Required':'What needed to be reworked? How many pallets affected?',
+        'Quality Hold':                'Who called the hold? What was the issue? Is it resolved?',
+        'SOP Review':                  'Which SOP? Who initiated the review?',
+        'Process Change':              'What changed? Was it authorised?',
+        'Shift Start Delay':           'What caused the delay in starting this line?',
+        'Line Priority Change':        'Which line took priority? Who made the decision?',
+        'Schedule Change':             'What changed in the schedule and who authorised it?',
+        'Management Walkthrough':      'Estimated duration? Was production fully stopped?',
+        'Power / Utility Interruption':'When did power/utility go down? When was it restored?',
+        'Facility-Wide Event':         'Describe the event. Did all lines stop? When did production resume?',
+      };
+
+      // ── State ───────────────────────────────────────────────────────────────
+      let _dtPending  = null;   // { line, gapMins, isShiftStart, shift, shiftDate, gapStart, lastSku }
+      let _hovrPending= null;   // { shift, shiftDate, shiftLabel }
+      let _lineDebounce = null;
+
+      // ── Inject HTML (modals) ────────────────────────────────────────────────
+      document.body.insertAdjacentHTML('beforeend', `
+
+        <!-- HANDOVER MODAL -->
+        <div id="hovrModal" style="display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;padding:16px;">
+          <div style="background:#0f172a;border:2px solid #f0c040;border-radius:16px;padding:24px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+              <span style="font-size:22px;">📋</span>
+              <div>
+                <div style="font-weight:800;font-size:15px;color:#f0c040;font-family:Consolas,monospace;">Shift Handover</div>
+                <div id="hovrShiftLabel" style="font-size:11px;color:#94a3b8;font-family:Consolas,monospace;"></div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:#94a3b8;margin-bottom:16px;line-height:1.5;">This is the first ticket of the shift. Please complete the handover before proceeding.</p>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div>
+                <label style="font-size:11px;color:#f0c040;text-transform:uppercase;display:block;margin-bottom:4px;">Outgoing Supervisor</label>
+                <input id="hovrOutgoing" type="text" placeholder="Name of outgoing supervisor" style="width:100%;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-family:Consolas,monospace;font-size:13px;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#f0c040;text-transform:uppercase;display:block;margin-bottom:4px;">Incoming Supervisor</label>
+                <input id="hovrIncoming" type="text" placeholder="Name of incoming supervisor" style="width:100%;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-family:Consolas,monospace;font-size:13px;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#f0c040;text-transform:uppercase;display:block;margin-bottom:4px;">Handover Notes <span style="color:#ef4444">*</span></label>
+                <textarea id="hovrNote" rows="3" placeholder="Line conditions, ongoing jobs, issues to monitor..." style="width:100%;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-family:Consolas,monospace;font-size:13px;resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#f0c040;text-transform:uppercase;display:block;margin-bottom:4px;">Outstanding Issues</label>
+                <textarea id="hovrIssues" rows="2" placeholder="Any unresolved faults, material shortages, pending work..." style="width:100%;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-family:Consolas,monospace;font-size:13px;resize:vertical;"></textarea>
+              </div>
+            </div>
+            <div id="hovrError" style="color:#f87171;font-size:12px;margin-top:10px;display:none;"></div>
+            <button id="hovrSubmit" style="margin-top:16px;width:100%;padding:14px;background:#f0c040;color:#0f172a;font-weight:800;font-size:14px;border:none;border-radius:10px;cursor:pointer;font-family:Consolas,monospace;">Submit Handover & Continue</button>
+          </div>
+        </div>
+
+        <!-- DOWNTIME MODAL -->
+        <div id="dtModal" style="display:none;position:fixed;inset:0;z-index:9200;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px;">
+          <div style="background:#0f172a;border:2px solid #ef4444;border-radius:16px;padding:24px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <span style="font-size:22px;">⏱</span>
+              <div>
+                <div style="font-weight:800;font-size:15px;color:#ef4444;font-family:Consolas,monospace;">Gap Detected</div>
+                <div id="dtLineBadge" style="font-size:11px;color:#94a3b8;font-family:Consolas,monospace;"></div>
+              </div>
+            </div>
+            <div id="dtGapSummary" style="background:#1c0606;border:1px solid #7f1d1d;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:#fca5a5;font-family:Consolas,monospace;line-height:1.6;"></div>
+
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div>
+                  <label style="font-size:11px;color:#f0c040;text-transform:uppercase;display:block;margin-bottom:4px;">Category (5M) <span style="color:#ef4444">*</span></label>
+                  <select id="dtCat" style="width:100%;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-family:Consolas,monospace;font-size:13px;">
+                    <option value="">— Select —</option>
+                    ${Object.keys(DT_CATS).map(c=>`<option value="${c}">${c}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:11px;color:#f0c040;text-transform:uppercase;display:block;margin-bottom:4px;">Sub-Category <span style="color:#ef4444">*</span></label>
+                  <select id="dtSub" style="width:100%;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-family:Consolas,monospace;font-size:13px;" disabled>
+                    <option value="">— Select category first —</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#f0c040;text-transform:uppercase;display:block;margin-bottom:4px;" id="dtDescLabel">Description <span style="color:#ef4444">*</span></label>
+                <textarea id="dtDesc" rows="3" placeholder="Describe what happened..." style="width:100%;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-family:Consolas,monospace;font-size:13px;resize:vertical;"></textarea>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#f0c040;text-transform:uppercase;display:block;margin-bottom:6px;">Was the line fully stopped?</label>
+                <div style="display:flex;gap:16px;">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#e2e8f0;cursor:pointer;">
+                    <input type="radio" name="dtStopped" value="yes" checked style="accent-color:#f0c040;"> Fully stopped
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#e2e8f0;cursor:pointer;">
+                    <input type="radio" name="dtStopped" value="no" style="accent-color:#f0c040;"> Running slow
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div id="dtError" style="color:#f87171;font-size:12px;margin-top:10px;display:none;"></div>
+            <button id="dtSubmit" style="margin-top:16px;width:100%;padding:14px;background:#ef4444;color:#fff;font-weight:800;font-size:14px;border:none;border-radius:10px;cursor:pointer;font-family:Consolas,monospace;">Log Downtime & Continue</button>
+          </div>
+        </div>
+      `);
+
+      // ── Handover modal logic ────────────────────────────────────────────────
+      function showHandoverModal(info) {
+        _hovrPending = info;
+        document.getElementById('hovrShiftLabel').textContent = info.shiftLabel;
+        document.getElementById('hovrModal').style.display = 'flex';
+      }
+      function hideHandoverModal() {
+        document.getElementById('hovrModal').style.display = 'none';
+        _hovrPending = null;
+      }
+      document.getElementById('hovrSubmit').addEventListener('click', async () => {
+        const note = document.getElementById('hovrNote').value.trim();
+        const err  = document.getElementById('hovrError');
+        if (!note) { err.textContent = 'Handover notes are required.'; err.style.display='block'; return; }
+        err.style.display = 'none';
+        const btn = document.getElementById('hovrSubmit');
+        btn.disabled = true; btn.textContent = 'Submitting…';
+        try {
+          const clerk = (currentUser?.name || document.getElementById('recordedBy').value || 'Unknown');
+          await supabase.rpc('log_shift_handover', {
+            p_shift_date:           _hovrPending.shiftDate,
+            p_shift:                _hovrPending.shift,
+            p_outgoing_supervisor:  document.getElementById('hovrOutgoing').value.trim() || null,
+            p_incoming_supervisor:  document.getElementById('hovrIncoming').value.trim() || null,
+            p_note:                 note,
+            p_outstanding_issues:   document.getElementById('hovrIssues').value.trim() || null,
+            p_logged_by:            clerk,
+          });
+          hideHandoverModal();
+          // After handover, immediately check if a downtime dialog is also needed for the selected line
+          const line = document.getElementById('productionLine').value;
+          if (line) triggerLineCheck(line);
+        } catch(e) {
+          err.textContent = 'Error: ' + (e.message||String(e)); err.style.display='block';
+          btn.disabled=false; btn.textContent='Submit Handover & Continue';
+        }
+      });
+
+      // ── Downtime modal logic ────────────────────────────────────────────────
+      document.getElementById('dtCat').addEventListener('change', function() {
+        const subs = DT_CATS[this.value] || [];
+        const sel = document.getElementById('dtSub');
+        sel.innerHTML = `<option value="">— Select —</option>` + subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+        sel.disabled = !this.value;
+        document.getElementById('dtDesc').placeholder = 'Describe what happened…';
+        document.getElementById('dtDesc').value = '';
+      });
+      document.getElementById('dtSub').addEventListener('change', function() {
+        const prompt = DT_PROMPTS[this.value];
+        if (prompt) document.getElementById('dtDesc').placeholder = prompt;
+      });
+
+      function showDowntimeModal(info) {
+        _dtPending = info;
+        document.getElementById('dtLineBadge').textContent = `LINE: ${info.line}  ·  threshold: ${LINE_THRESHOLDS[info.line] || 30} mins`;
+
+        const gapLabel = info.gapMins >= 60
+          ? `${Math.floor(info.gapMins/60)}h ${info.gapMins%60}m`
+          : `${info.gapMins} mins`;
+        const startDesc = info.isShiftStart
+          ? `since shift start (${info.shiftStartLabel})`
+          : `since last ticket (${info.lastTicketLabel})`;
+        document.getElementById('dtGapSummary').innerHTML =
+          `Line <strong>${info.line}</strong> has been idle for <strong>${gapLabel}</strong> ${startDesc}.<br>` +
+          `Before creating this ticket, you must explain the gap.`;
+
+        // Reset selects
+        const catSel = document.getElementById('dtCat');
+        catSel.value = '';
+        const subSel = document.getElementById('dtSub');
+        subSel.innerHTML = `<option value="">— Select category first —</option>`;
+        subSel.disabled = true;
+        document.getElementById('dtDesc').value = '';
+        document.getElementById('dtDesc').placeholder = 'Describe what happened…';
+
+        // Auto-pre-select based on context
+        let preCat = '', preSub = '';
+        if (info.isShiftStart) {
+          preCat = 'Management'; preSub = 'Shift Start Delay';
+        } else if (info.skuChanged) {
+          preCat = 'Method'; preSub = 'SKU Changeover';
+          document.getElementById('dtDesc').placeholder = `Switching from ${info.lastSku}. ${DT_PROMPTS['SKU Changeover']}`;
+        } else if (info.gapMins >= 120) {
+          preCat = 'Machine'; preSub = 'Breakdown / Fault';
+        }
+        if (preCat) {
+          catSel.value = preCat;
+          const subs = DT_CATS[preCat] || [];
+          subSel.innerHTML = `<option value="">— Select —</option>` + subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+          subSel.disabled = false;
+          if (preSub) {
+            subSel.value = preSub;
+            document.getElementById('dtDesc').placeholder = DT_PROMPTS[preSub] || 'Describe what happened…';
+          }
+        }
+
+        document.getElementById('dtError').style.display = 'none';
+        document.getElementById('dtModal').style.display = 'flex';
+      }
+
+      document.getElementById('dtSubmit').addEventListener('click', async () => {
+        const cat  = document.getElementById('dtCat').value.trim();
+        const sub  = document.getElementById('dtSub').value.trim();
+        const desc = document.getElementById('dtDesc').value.trim();
+        const err  = document.getElementById('dtError');
+        if (!cat || !sub) { err.textContent = 'Please select both a category and sub-category.'; err.style.display='block'; return; }
+        if (!desc) { err.textContent = 'A description is required — be specific about what happened.'; err.style.display='block'; return; }
+        err.style.display = 'none';
+        const btn = document.getElementById('dtSubmit');
+        btn.disabled=true; btn.textContent='Logging…';
+        try {
+          const clerk = (currentUser?.name || document.getElementById('recordedBy').value || 'Unknown');
+          const nowUtc = new Date().toISOString();
+          await supabase.rpc('log_downtime_event', {
+            p_line:           _dtPending.line,
+            p_shift:          _dtPending.shift,
+            p_shift_date:     _dtPending.shiftDate,
+            p_gap_start:      _dtPending.gapStart,
+            p_gap_end:        nowUtc,
+            p_gap_minutes:    _dtPending.gapMins,
+            p_is_shift_start: _dtPending.isShiftStart,
+            p_category:       cat,
+            p_sub_category:   sub,
+            p_description:    desc,
+            p_logged_by:      clerk,
+          });
+          document.getElementById('dtModal').style.display = 'none';
+          _dtPending = null;
+        } catch(e) {
+          err.textContent = 'Error saving: ' + (e.message||String(e)); err.style.display='block';
+          btn.disabled=false; btn.textContent='Log Downtime & Continue';
+        }
+      });
+
+      // ── Core check logic ────────────────────────────────────────────────────
+      async function triggerLineCheck(line) {
+        const threshold = LINE_THRESHOLDS[line];
+        if (!threshold) return;
+        try {
+          const { data, error } = await supabase.rpc('check_line_gap', { p_line: line });
+          if (error || !data) return;
+          const gapMins = data.gap_minutes;
+          if (gapMins < threshold) return;
+          if (data.already_logged) {
+            // Show a soft banner instead of the full dialog
+            showAlreadyLoggedBanner(line, data.logged_by, gapMins);
+            return;
+          }
+          // Determine if the current SKU selection differs from last ticket SKU
+          const currentSku = document.getElementById('sku')?.value || '';
+          const skuChanged  = data.last_sku && currentSku && currentSku !== data.last_sku;
+          // Format display times (EAT)
+          const eatOffset = 3 * 60 * 60 * 1000;
+          const shiftStartEAT = new Date(new Date(data.shift_start).getTime() + eatOffset);
+          const lastTicketEAT = data.last_ticket_at ? new Date(new Date(data.last_ticket_at).getTime() + eatOffset) : null;
+          const pad = n => String(n).padStart(2,'0');
+          const fmtT = d => `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} EAT`;
+          showDowntimeModal({
+            line,
+            gapMins,
+            isShiftStart:     data.is_shift_start,
+            shift:            data.shift,
+            shiftDate:        data.shift_date,
+            gapStart:         data.is_shift_start ? data.shift_start : data.last_ticket_at,
+            shiftStartLabel:  fmtT(shiftStartEAT),
+            lastTicketLabel:  lastTicketEAT ? fmtT(lastTicketEAT) : '—',
+            lastSku:          data.last_sku || '',
+            skuChanged,
+          });
+        } catch(e) {
+          console.warn('[RetiFlux downtime check]', e);
+        }
+      }
+
+      async function triggerHandoverCheck() {
+        try {
+          const { data, error } = await supabase.rpc('check_shift_handover');
+          if (error || !data) return;
+          if (data.needs_handover) {
+            showHandoverModal({
+              shift:      data.shift,
+              shiftDate:  data.shift_date,
+              shiftLabel: data.shift_label,
+            });
+            return true;
+          }
+        } catch(e) {
+          console.warn('[RetiFlux handover check]', e);
+        }
+        return false;
+      }
+
+      // ── Already-logged banner ───────────────────────────────────────────────
+      function showAlreadyLoggedBanner(line, loggedBy, gapMins) {
+        let banner = document.getElementById('dtAlreadyBanner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'dtAlreadyBanner';
+          banner.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 20px;font-size:12px;color:#94a3b8;font-family:Consolas,monospace;z-index:8000;max-width:360px;text-align:center;';
+          document.body.appendChild(banner);
+        }
+        banner.textContent = `ℹ Downtime already logged for ${line} (${gapMins} mins gap) by ${loggedBy || 'another clerk'}.`;
+        banner.style.display = 'block';
+        setTimeout(() => { banner.style.display = 'none'; }, 5000);
+      }
+
+      // ── Line selection event listener with 1-second debounce ───────────────
+      const lineSelect = document.getElementById('productionLine');
+      if (lineSelect) {
+        lineSelect.addEventListener('change', async function() {
+          const line = this.value;
+          clearTimeout(_lineDebounce);
+          if (!line) return;
+          _lineDebounce = setTimeout(async () => {
+            // Handover check first (only fires if this is the first ticket of the shift)
+            const needsHandover = await triggerHandoverCheck();
+            if (!needsHandover) {
+              // Proceed directly to downtime check
+              await triggerLineCheck(line);
+            }
+            // (If handover fires, it calls triggerLineCheck after submit)
+          }, 1000);
+        });
+      }
+
+    })();
+
     })();
   </script>
 </body>

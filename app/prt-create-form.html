@@ -704,6 +704,71 @@
       line-height: 1.6;
     }
     #photoStatus { margin-top: 10px; font-size: 12px; color: #f87171; }
+
+    /* ── Progress Bar ───────────────────────────────────────────────────── */
+    #prtProgress {
+      position: sticky;
+      top: 0;
+      z-index: 800;
+      background: rgba(10, 18, 35, 0.97);
+      border-bottom: 2px solid rgba(240, 192, 64, 0.35);
+      backdrop-filter: blur(10px);
+      padding: 10px 16px 8px;
+      margin: 0 -16px 20px;
+    }
+    #prtProgress .pg-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    #prtProgress .pg-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      font-family: var(--font-app);
+    }
+    #prtProgress .pg-pct {
+      font-size: 13px;
+      font-weight: 800;
+      color: #f0c040;
+      font-family: var(--font-app);
+      transition: color 0.3s;
+    }
+    #prtProgress .pg-pct.complete { color: #22c55e; }
+    #prtProgress .pg-track {
+      width: 100%;
+      height: 6px;
+      background: #1e293b;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    #prtProgress .pg-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #f0c040, #f59e0b);
+      border-radius: 99px;
+      transition: width 0.35s cubic-bezier(.4,0,.2,1);
+      width: 0%;
+    }
+    #prtProgress .pg-fill.complete {
+      background: linear-gradient(90deg, #22c55e, #16a34a);
+    }
+    #prtProgress .pg-missing {
+      margin-top: 5px;
+      font-size: 10px;
+      color: #64748b;
+      font-family: var(--font-app);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: 14px;
+    }
+    #prtProgress .pg-missing.all-done {
+      color: #22c55e;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
@@ -717,6 +782,17 @@
     <div class="splash-dots"><span></span><span></span><span></span></div>
   </div>
   <div class="container" id="prtApp">
+
+    <!-- Form completion progress bar -->
+    <div id="prtProgress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="pg-top">
+        <span class="pg-label">Form Completion</span>
+        <span class="pg-pct" id="pgPct">0 / 11 fields</span>
+      </div>
+      <div class="pg-track"><div class="pg-fill" id="pgFill"></div></div>
+      <div class="pg-missing" id="pgMissing">Fill in the required fields below to continue.</div>
+    </div>
+
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 12px; flex-wrap: wrap;">
       <div>
         <h1 class="page-title">Create PRT</h1>
@@ -778,7 +854,7 @@
         </div>
         <div class="form-group">
           <label for="layers">Layers</label>
-          <input type="number" id="layers" name="layers" min="0" placeholder="e.g. 7">
+          <input type="number" id="layers" name="layers" min="1" required placeholder="e.g. 7">
         </div>
         <div class="form-group">
           <label for="palletSize">Pallet Size</label>
@@ -786,7 +862,7 @@
         </div>
         <div class="form-group">
           <label for="maxStack">Max Stack (layers)</label>
-          <input type="number" id="maxStack" name="maxStack" min="1" max="99" placeholder="e.g. 7">
+          <input type="number" id="maxStack" name="maxStack" min="1" max="99" required placeholder="e.g. 7">
           <small>Check the product packaging for the max stack height for this product</small>
         </div>
         <div class="form-group full">
@@ -817,11 +893,11 @@
         </div>
         <div class="form-group">
           <label for="expiryDate">Expiry Date</label>
-          <input type="date" id="expiryDate" name="expiryDate">
+          <input type="date" id="expiryDate" name="expiryDate" required>
         </div>
         <div class="form-group">
           <label for="productionLine">Production Line</label>
-          <select id="productionLine" name="productionLine">
+          <select id="productionLine" name="productionLine" required>
             <option value="">—</option>
             <option value="SP">SP</option>
             <option value="PKN">PKN</option>
@@ -1148,6 +1224,7 @@
 
       // SKU lookup from Supabase skus table
       var skuCache = {};
+      Object.defineProperty(window, 'skuCache', { get: () => skuCache, configurable: true });
       async function loadSkus() {
         if (!supabase) { hideSplash(); return; }
         showSplash();
@@ -1346,6 +1423,9 @@
       // ── Photo upload state ──────────────────────────────────────────────
       var photo1Url = null;
       var photo2Url = null;
+      // Expose to window so the progress tracker (separate IIFE) can read them
+      Object.defineProperty(window, 'photo1Url', { get: () => photo1Url, configurable: true });
+      Object.defineProperty(window, 'photo2Url', { get: () => photo2Url, configurable: true });
 
       var PHOTO_LABELS = { 1: 'Pallet Overview', 2: 'Pallet Side View' };
       var PHOTO_ICONS  = { 1: '📷', 2: '📷' };
@@ -1639,6 +1719,59 @@
           status.textContent = '⚠️ Select a pallet colour before saving.';
           status.className = 'status error';
           btn.disabled = false; isSaving = false;
+          return;
+        }
+        var qtyVal = parseInt(document.getElementById('qty').value, 10);
+        if (!qtyVal || qtyVal < 1) {
+          status.textContent = '⚠️ Quantity is required and must be at least 1.';
+          status.className = 'status error';
+          btn.disabled = false; isSaving = false;
+          document.getElementById('qty').focus();
+          return;
+        }
+        var layersVal = document.getElementById('layers').value.trim();
+        if (!layersVal) {
+          status.textContent = '⚠️ Layers is required.';
+          status.className = 'status error';
+          btn.disabled = false; isSaving = false;
+          document.getElementById('layers').focus();
+          return;
+        }
+        var maxStackVal = document.getElementById('maxStack').value.trim();
+        if (!maxStackVal) {
+          status.textContent = '⚠️ Max Stack is required — check the product packaging.';
+          status.className = 'status error';
+          btn.disabled = false; isSaving = false;
+          document.getElementById('maxStack').focus();
+          return;
+        }
+        var batchVal = document.getElementById('batchLot').value.trim();
+        if (!batchVal) {
+          status.textContent = '⚠️ Batch / Lot number is required.';
+          status.className = 'status error';
+          btn.disabled = false; isSaving = false;
+          document.getElementById('batchLot').focus();
+          return;
+        }
+        if (!document.getElementById('mfgDate').value) {
+          status.textContent = '⚠️ Manufacturing date is required.';
+          status.className = 'status error';
+          btn.disabled = false; isSaving = false;
+          document.getElementById('mfgDate').focus();
+          return;
+        }
+        if (!document.getElementById('expiryDate').value) {
+          status.textContent = '⚠️ Expiry date is required.';
+          status.className = 'status error';
+          btn.disabled = false; isSaving = false;
+          document.getElementById('expiryDate').focus();
+          return;
+        }
+        if (!document.getElementById('productionLine').value) {
+          status.textContent = '⚠️ Select a production line before saving.';
+          status.className = 'status error';
+          btn.disabled = false; isSaving = false;
+          document.getElementById('productionLine').focus();
           return;
         }
         if (!photo1Url || !photo2Url) {
@@ -2337,6 +2470,107 @@
           }, 1000);
         });
       }
+
+    })();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FORM PROGRESS TRACKER
+    // ═══════════════════════════════════════════════════════════════════════
+    (function() {
+
+      // All 11 trackable required fields with human labels and validators
+      const FIELDS = [
+        { id:'sku',            label:'SKU',              ok: () => {
+            const v = document.getElementById('sku')?.value.trim();
+            return !!(v && window.skuCache && window.skuCache[v]);
+          }
+        },
+        { id:'qty',            label:'Quantity',         ok: () => {
+            const v = parseInt(document.getElementById('qty')?.value, 10);
+            return v > 0;
+          }
+        },
+        { id:'layers',         label:'Layers',           ok: () => {
+            const v = parseInt(document.getElementById('layers')?.value, 10);
+            return v > 0;
+          }
+        },
+        { id:'maxStack',       label:'Max Stack',        ok: () => {
+            const v = parseInt(document.getElementById('maxStack')?.value, 10);
+            return v > 0;
+          }
+        },
+        { id:'palletColor',    label:'Pallet Colour',    ok: () => !!(document.getElementById('palletColor')?.value) },
+        { id:'batchLot',       label:'Batch / Lot',      ok: () => !!(document.getElementById('batchLot')?.value.trim()) },
+        { id:'mfgDate',        label:'Mfg. Date',        ok: () => !!(document.getElementById('mfgDate')?.value) },
+        { id:'expiryDate',     label:'Expiry Date',      ok: () => !!(document.getElementById('expiryDate')?.value) },
+        { id:'productionLine', label:'Production Line',  ok: () => !!(document.getElementById('productionLine')?.value) },
+        { id:'photo1',         label:'Pallet Overview Photo',   ok: () => !!(window.photo1Url) },
+        { id:'photo2',         label:'Pallet Side View Photo',  ok: () => !!(window.photo2Url) },
+      ];
+
+      const TOTAL = FIELDS.length;
+
+      function updateProgress() {
+        const done   = FIELDS.filter(f => f.ok());
+        const count  = done.length;
+        const pct    = Math.round((count / TOTAL) * 100);
+        const fill   = document.getElementById('pgFill');
+        const pctEl  = document.getElementById('pgPct');
+        const missEl = document.getElementById('pgMissing');
+        const bar    = document.getElementById('prtProgress');
+        if (!fill) return;
+
+        fill.style.width = pct + '%';
+        pctEl.textContent = `${count} / ${TOTAL} fields  ·  ${pct}%`;
+        bar.setAttribute('aria-valuenow', pct);
+
+        if (count === TOTAL) {
+          fill.classList.add('complete');
+          pctEl.classList.add('complete');
+          missEl.textContent = '✓ All required fields complete — ready to save.';
+          missEl.className = 'pg-missing all-done';
+        } else {
+          fill.classList.remove('complete');
+          pctEl.classList.remove('complete');
+          const missing = FIELDS.filter(f => !f.ok()).map(f => f.label);
+          missEl.textContent = 'Still needed: ' + missing.join(' · ');
+          missEl.className = 'pg-missing';
+        }
+      }
+
+      // Expose so photo upload code (in parent IIFE) can trigger updates
+      window._prtUpdateProgress = updateProgress;
+
+      // Listen to all relevant inputs
+      const watchIds = ['sku','qty','layers','maxStack','palletColor','batchLot','mfgDate','expiryDate','productionLine'];
+      watchIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        ['input','change'].forEach(ev => el.addEventListener(ev, updateProgress));
+      });
+
+      // MutationObserver on palletColor (set programmatically by colour picker clicks)
+      const pcEl = document.getElementById('palletColor');
+      if (pcEl) {
+        new MutationObserver(updateProgress).observe(pcEl, { attributes: true, attributeFilter: ['value'] });
+        // Also intercept value setter
+        const orig = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+        if (orig) {
+          const desc = {
+            get: orig.get,
+            set: function(v) { orig.set.call(this, v); if (this.id === 'palletColor') updateProgress(); },
+            configurable: true,
+          };
+          Object.defineProperty(pcEl, 'value', desc);
+        }
+      }
+
+      // Initial render
+      updateProgress();
+
+      // Re-run every 2 seconds as a safety net for photo uploads (which set window.photo1Url directly)
+      setInterval(updateProgress, 2000);
 
     })();
 

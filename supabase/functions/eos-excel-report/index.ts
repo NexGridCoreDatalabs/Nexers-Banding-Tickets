@@ -1313,9 +1313,21 @@ function buildTrendIntelligenceSheet(
 
   // ── SECTION 6: IDLE & DOWNTIME LOG ───────────────────────────────────────────
   intelSection(ws, "  ⑥ IDLE & DOWNTIME LOG  (gaps ≥ 30 minutes)", MAX);
-  applyHeaderRow(ws.addRow([]),["Line","Idle Start","Idle End","Duration (mins)","Severity","Lost Pallet Equiv.","","","","",""],C.navyMid,C.gold);
+  applyHeaderRow(ws.addRow([]),
+    ["Line","Idle Start","Idle End","Duration (mins)","Severity","Lost Pallet Equiv.","Lost Tonnage Equiv.","","","",""],
+    C.navyMid, C.gold
+  );
 
-  let idleCount=0;
+  // Pre-compute per-line avg tonnes per pallet (for lost tonnage estimate)
+  const lineAvgTonnesPerPallet: Record<string,number> = {};
+  for(const line of LINES){
+    const lp=curMetrics[line].pallets;
+    lineAvgTonnesPerPallet[line]=lp>0?r2(curMetrics[line].tonnes/lp):0;
+  }
+
+  // Running totals across the whole sheet
+  let idleCount=0, totalLostPallets=0, totalLostTonnes=0;
+
   for(const line of LINES){
     const lt=[...curTickets.filter(t=>t.production_line?.trim()===line)]
       .sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
@@ -1323,16 +1335,26 @@ function buildTrendIntelligenceSheet(
       const gapMins=Math.round((new Date(lt[i].created_at).getTime()-new Date(lt[i-1].created_at).getTime())/60000);
       if(gapMins<30) continue;
       const severity=gapMins>=90?"red":gapMins>=60?"amber":"green" as keyof typeof RAG;
+
+      // Lost pallet equiv: idle mins ÷ avg cadence per pallet
       const lostPallets=avgCadenceMins?r2(gapMins/avgCadenceMins):0;
+      // Lost tonnage equiv: lost pallets × this line's avg tonnes per pallet
+      const avgTpp=lineAvgTonnesPerPallet[line]||0;
+      const lostTonnes=lostPallets&&avgTpp?r2(lostPallets*avgTpp):0;
+
+      totalLostPallets+=lostPallets;
+      totalLostTonnes =r2(totalLostTonnes+lostTonnes);
+
       const row=ws.addRow(["",line,
         fmtTime(toEAT(new Date(lt[i-1].created_at))),
         fmtTime(toEAT(new Date(lt[i].created_at))),
         gapMins+" mins", "",
         lostPallets?`~${lostPallets} pallets`:"—",
-        "","","","",""
+        lostTonnes  ?`~${lostTonnes} t`       :"—",
+        "","","",""
       ]);
       row.height=18;
-      [2,3,4,5,7].forEach((col,j)=>{
+      [2,3,4,5,7,8].forEach((col,j)=>{
         const cell=ws.getCell(row.number,col);
         cell.fill=solidFill(idleCount%2===0?C.navyMid:C.navyLight);
         cell.font=cellFont(false,10,C.textLight); cell.border=thinBorder();
@@ -1342,12 +1364,29 @@ function buildTrendIntelligenceSheet(
       idleCount++;
     }
   }
+
   if(idleCount===0){
     const r=ws.addRow(["  ✓ No idle events detected — all lines maintained continuous production"]);
     ws.mergeCells(r.number,1,r.number,MAX);
     const rc=ws.getCell(r.number,1);
     rc.fill=solidFill(C.navyMid); rc.font={bold:true,size:10,color:{argb:C.green},name:"Calibri"};
     rc.alignment={horizontal:"center",vertical:"middle"}; r.height=22;
+  } else {
+    // Running total row
+    const totRow=ws.addRow(["","TOTAL DOWNTIME COST","","",
+      "","",
+      totalLostPallets?`~${r2(totalLostPallets)} pallets`:"—",
+      totalLostTonnes ?`~${totalLostTonnes} t`          :"—",
+      "","","",""
+    ]);
+    totRow.height=22;
+    [2,3,4,5,6,7,8].forEach((col,j)=>{
+      const cell=ws.getCell(totRow.number,col);
+      cell.fill=solidFill(C.navyLight);
+      cell.font={bold:true,size:10,color:{argb:C.gold},name:"Calibri"};
+      cell.border=thinBorder(C.goldDim);
+      cell.alignment={horizontal:j===0?"left":"center",vertical:"middle"};
+    });
   }
 
   addSeparator(ws, MAX);

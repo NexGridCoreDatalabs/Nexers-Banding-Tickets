@@ -1184,7 +1184,6 @@ function buildTrendIntelligenceSheet(
     ["Shift Date","Pallets","Tonnes","vs Min","vs Kaizen",...LINES,"Sparkline"],
     C.navy,C.gold
   );
-  ws.views=[{state:"frozen",ySplit:ws.rowCount}];
 
   const allSeries=[
     {tickets:curTickets,date:toEAT(shiftEnd),isCurrent:true},

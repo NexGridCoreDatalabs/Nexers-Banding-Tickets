@@ -96,7 +96,7 @@ interface TicketRow {
   qty:             number;
   uom:             string;
   pallet_color:    string | null;
-  clerk_name:      string | null;
+  group_leader:    string | null;   // clerk who created the ticket
   created_at:      string;
   voided:          boolean;
   voided_at:       string | null;
@@ -122,7 +122,7 @@ async function fetchTickets(
   includeVoided = false
 ): Promise<TicketRow[]> {
   let q = sb.from("tickets")
-    .select("id,serial,production_line,sku,qty,uom,pallet_color,clerk_name,created_at,voided,voided_at,voided_reason,voided_by")
+    .select("id,serial,production_line,sku,qty,uom,pallet_color,group_leader,created_at,voided,voided_at,voided_reason,voided_by")
     .gte("created_at", from.toISOString())
     .lt("created_at", to.toISOString())
     .not("production_line", "is", null);
@@ -927,7 +927,7 @@ function buildAuditTrailSheet(
     const row = ws.addRow(["",
       t.serial, t.production_line, t.sku, meta?.product_name||t.sku,
       t.qty, t.uom, t.pallet_color||"—",
-      t.clerk_name||"—", t.voided_by||"—", t.voided_reason||"—", voidedAtEAT
+      t.group_leader||"—", t.voided_by||"—", t.voided_reason||"—", voidedAtEAT
     ]);
     row.height = 18;
     [2,3,4,5,6,7,8,9,10,11,12].forEach((col,j) => {
@@ -1093,7 +1093,12 @@ Deno.serve(async (req: Request) => {
       { headers:{ "Content-Type":"application/json" } });
   } catch (e) {
     console.error(e);
-    return new Response(JSON.stringify({ ok:false, error: String(e) }),
+    const errMsg = (e instanceof Error)
+      ? e.message
+      : (typeof e === "object" && e !== null)
+        ? JSON.stringify(e)
+        : String(e);
+    return new Response(JSON.stringify({ ok:false, error: errMsg }),
       { status:500, headers:{ "Content-Type":"application/json" } });
   }
 });

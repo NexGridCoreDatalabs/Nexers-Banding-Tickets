@@ -128,12 +128,26 @@ interface TicketRow {
   production_line: string;
   sku: string;
   qty: number;
+  uom: string | null;
   created_at: string;
 }
 
 interface SkuRow {
   sku: string;
   product_name: string;
+  units_per_carton: number | null;
+  net_weight_kg_per_unit: number | null;
+}
+
+interface DowntimeEvent {
+  production_line: string;
+  gap_start: string;
+  gap_end: string;
+  gap_minutes: number;
+  category: string;
+  sub_category: string;
+  description: string | null;
+  logged_by: string;
 }
 
 async function fetchTickets(
@@ -144,7 +158,7 @@ async function fetchTickets(
   // from/to are UTC Date objects
   const { data, error } = await sb
     .from("tickets")
-    .select("production_line, sku, qty, created_at")
+    .select("production_line, sku, qty, uom, created_at")
     .gte("created_at", from.toISOString())
     .lt("created_at", to.toISOString())
     .not("production_line", "is", null)
@@ -153,37 +167,83 @@ async function fetchTickets(
   return (data ?? []) as TicketRow[];
 }
 
+// Returns { nameMap, weightMap } — weightMap[sku] = tonnes per carton (KAR) or per unit (PCS)
+async function fetchSkuData(
+  sb: ReturnType<typeof createClient>
+): Promise<{
+  names: Record<string, string>;
+  weights: Record<string, number>;  // kg-per-carton for KAR tickets, kg-per-pcs for PCS
+}> {
+  const { data } = await sb
+    .from("skus")
+    .select("sku, product_name, units_per_carton, net_weight_kg_per_unit");
+  const names: Record<string, string>  = {};
+  const weights: Record<string, number> = {};
+  (data ?? []).forEach((r: SkuRow) => {
+    names[r.sku] = r.product_name || r.sku;
+    if (r.net_weight_kg_per_unit != null) {
+      const upc = r.units_per_carton ?? 1;
+      // Store kg per carton; tonnage calc will use qty × this / 1000
+      weights[r.sku] = Number(r.net_weight_kg_per_unit) * upc;
+    }
+  });
+  return { names, weights };
+}
+
+// Kept for backward compatibility (end-of-shift path still calls this)
 async function fetchSkuNames(
   sb: ReturnType<typeof createClient>
 ): Promise<Record<string, string>> {
-  const { data } = await sb.from("skus").select("sku, product_name");
-  const map: Record<string, string> = {};
-  (data ?? []).forEach((r: SkuRow) => { map[r.sku] = r.product_name || r.sku; });
-  return map;
+  const { names } = await fetchSkuData(sb);
+  return names;
+}
+
+async function fetchDowntimeEvents(
+  sb: ReturnType<typeof createClient>,
+  from: Date,
+  to: Date
+): Promise<DowntimeEvent[]> {
+  const { data, error } = await sb
+    .from("downtime_events")
+    .select("production_line, gap_start, gap_end, gap_minutes, category, sub_category, description, logged_by")
+    .gte("gap_start", from.toISOString())
+    .lt("gap_start", to.toISOString())
+    .order("gap_start", { ascending: true });
+  if (error) {
+    console.error("fetchDowntimeEvents error:", error.message);
+    return [];
+  }
+  return (data ?? []) as DowntimeEvent[];
 }
 
 // ── Metric computation ────────────────────────────────────────────────────────
+
+interface GapEntry {
+  gapStartUtc: string;   // ISO UTC — last ticket before the gap (or window start)
+  gapMins: number;
+}
 
 interface LineMetrics {
   line: string;
   pallets: number;
   units: number;
+  tonnage: number;       // MT
   avgGapMins: number | null;
-  skus: Record<string, { pallets: number; units: number }>;
+  gaps: GapEntry[];      // individual inter-ticket gaps (>= 5 min)
+  skus: Record<string, { pallets: number; units: number; tonnage: number }>;
   lastTicketAt: Date | null;
 }
 
-function computeLineMetrics(tickets: TicketRow[]): Record<string, LineMetrics> {
+function computeLineMetrics(
+  tickets: TicketRow[],
+  skuWeights: Record<string, number> = {}   // kg per carton
+): Record<string, LineMetrics> {
   const result: Record<string, LineMetrics> = {};
 
   for (const line of LINES) {
     result[line] = {
-      line,
-      pallets: 0,
-      units: 0,
-      avgGapMins: null,
-      skus: {},
-      lastTicketAt: null,
+      line, pallets: 0, units: 0, tonnage: 0,
+      avgGapMins: null, gaps: [], skus: {}, lastTicketAt: null,
     };
   }
 
@@ -199,35 +259,45 @@ function computeLineMetrics(tickets: TicketRow[]): Record<string, LineMetrics> {
     const rows = byLine[line] || [];
     rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    let pallets = 0, units = 0;
-    const skuMap: Record<string, { pallets: number; units: number }> = {};
+    let pallets = 0, units = 0, tonnageLine = 0;
+    const skuMap: Record<string, { pallets: number; units: number; tonnage: number }> = {};
+    const gapsList: GapEntry[] = [];
 
     for (const r of rows) {
       pallets++;
-      units += Number(r.qty) || 0;
-      if (!skuMap[r.sku]) skuMap[r.sku] = { pallets: 0, units: 0 };
+      const qty = Number(r.qty) || 0;
+      units += qty;
+
+      // Tonnage: kg per carton × qty / 1000 → MT
+      const kgPerCarton = skuWeights[r.sku] ?? 0;
+      const mt = kgPerCarton > 0 ? (qty * kgPerCarton) / 1000 : 0;
+      tonnageLine += mt;
+
+      if (!skuMap[r.sku]) skuMap[r.sku] = { pallets: 0, units: 0, tonnage: 0 };
       skuMap[r.sku].pallets++;
-      skuMap[r.sku].units += Number(r.qty) || 0;
+      skuMap[r.sku].units += qty;
+      skuMap[r.sku].tonnage += mt;
     }
 
-    // Avg gap between consecutive tickets on this line
+    // Gaps between consecutive tickets (record any gap >= 5 min)
     let avgGapMins: number | null = null;
     if (rows.length >= 2) {
-      const gaps: number[] = [];
+      const gapVals: number[] = [];
       for (let i = 1; i < rows.length; i++) {
         const diff = (new Date(rows[i].created_at).getTime() - new Date(rows[i-1].created_at).getTime()) / 60000;
-        gaps.push(diff);
+        gapVals.push(diff);
+        if (diff >= 5) {
+          gapsList.push({ gapStartUtc: rows[i-1].created_at, gapMins: Math.round(diff) });
+        }
       }
-      avgGapMins = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+      avgGapMins = Math.round(gapVals.reduce((a, b) => a + b, 0) / gapVals.length);
     }
 
     const lastRow = rows[rows.length - 1];
     result[line] = {
-      line,
-      pallets,
-      units,
-      avgGapMins,
-      skus: skuMap,
+      line, pallets, units,
+      tonnage: Math.round(tonnageLine * 100000) / 100000,
+      avgGapMins, gaps: gapsList, skus: skuMap,
       lastTicketAt: lastRow ? new Date(lastRow.created_at) : null,
     };
   }
@@ -300,17 +370,29 @@ async function buildHourlyReport(
   const utcPrevStart = new Date(utcHourStart.getTime() - 60 * 60 * 1000);
   const utcPrevEnd   = utcHourStart;
 
-  const [thisHrTickets, prevHrTickets, shiftTickets, skuNames] = await Promise.all([
+  const [thisHrTickets, prevHrTickets, shiftTickets, skuData, downtimeEvents] = await Promise.all([
     fetchTickets(sb, utcHourStart, utcHourEnd),
     fetchTickets(sb, utcPrevStart, utcPrevEnd),
     fetchTickets(sb, utcShiftStart, utcHourEnd),
-    fetchSkuNames(sb),
+    fetchSkuData(sb),
+    fetchDowntimeEvents(sb, utcHourStart, utcHourEnd),
   ]);
 
-  const thisHrMetrics  = computeLineMetrics(thisHrTickets);
-  const prevHrMetrics  = computeLineMetrics(prevHrTickets);
-  const shiftMetrics   = computeLineMetrics(shiftTickets);
+  const { names: skuNames, weights: skuWeights } = skuData;
+
+  const thisHrMetrics  = computeLineMetrics(thisHrTickets, skuWeights);
+  const prevHrMetrics  = computeLineMetrics(prevHrTickets, skuWeights);
+  const shiftMetrics   = computeLineMetrics(shiftTickets,  skuWeights);
   const idleFlags      = detectIdle(thisHrMetrics, utcHourEnd, 30);
+
+  // Helper: find a logged downtime event for a given gap (10-sec tolerance)
+  function findDt(line: string, gapStartUtc: string): DowntimeEvent | null {
+    const ts = new Date(gapStartUtc).getTime();
+    return downtimeEvents.find(ev =>
+      ev.production_line === line &&
+      Math.abs(new Date(ev.gap_start).getTime() - ts) < 10000
+    ) ?? null;
+  }
 
   const windowLabel = `${fmtTime(eatHourStart)}–${fmtTime(eatHourEnd)}`;
   const dateLabel   = fmtDate(now);
@@ -332,18 +414,49 @@ async function buildHourlyReport(
     if (isIdle) {
       const mins = idle!.idleMins === -1 ? "60+" : String(idle!.idleMins);
       msg += `  ⚠️ No tickets · idle ${mins} mins\n`;
+      // Show any logged downtime reason covering this idle window
+      const dt = downtimeEvents.find(ev => ev.production_line === line);
+      if (dt) {
+        msg += `  📋 ${dt.category} › ${dt.sub_category}`;
+        if (dt.description) msg += ` — ${dt.description}`;
+        msg += `\n`;
+      }
     } else {
-      for (const [sku, skuData] of Object.entries(cur.skus)) {
+      // ── Per-SKU breakdown ──
+      for (const [sku, skuStat] of Object.entries(cur.skus)) {
         const skuName  = skuNames[sku] || sku;
         const prevSkuD = prev.skus[sku];
-        const skuPct   = prevSkuD ? pct(skuData.pallets, prevSkuD.pallets) : "— (new this hour)";
+        const skuPct   = prevSkuD ? pct(skuStat.pallets, prevSkuD.pallets) : "new";
         msg += `  ${sku} · ${skuName}\n`;
-        msg += `    ${skuData.pallets} pallet${skuData.pallets !== 1 ? "s" : ""} · ${skuData.units.toLocaleString()} units\n`;
-        msg += `    vs last hr: ${prevSkuD ? `${prevSkuD.pallets} pallets · ${prevSkuD.units.toLocaleString()} units` : "—"}  ${skuPct}\n`;
+        msg += `    ${skuStat.pallets} pallet${skuStat.pallets !== 1 ? "s" : ""} · ${skuStat.units.toLocaleString()} units`;
+        if (skuStat.tonnage > 0) msg += ` · ${skuStat.tonnage.toFixed(5)} MT`;
+        msg += `\n`;
+        msg += `    vs last hr: ${prevSkuD ? `${prevSkuD.pallets} pal · ${prevSkuD.units.toLocaleString()} u` : "—"}  ${skuPct}\n`;
       }
-      const gapStr = cur.avgGapMins !== null ? `${cur.avgGapMins} mins` : "—";
-      msg += `  Avg ticket gap: ${gapStr}\n`;
-      msg += `  Line hr total: ${cur.pallets} pallets · ${cur.units.toLocaleString()} units\n`;
+
+      // ── Line totals ──
+      const gapStr = cur.avgGapMins !== null ? `${cur.avgGapMins} min avg` : "—";
+      const tonStr = cur.tonnage > 0 ? ` · ${cur.tonnage.toFixed(5)} MT` : "";
+      msg += `  Total: ${cur.pallets} pallets · ${cur.units.toLocaleString()} units${tonStr}\n`;
+      msg += `  Avg gap: ${gapStr}\n`;
+
+      // ── Gap explanations ──
+      if (cur.gaps.length > 0) {
+        msg += `  ── Gaps ──\n`;
+        for (const gap of cur.gaps) {
+          const eatStart = toEAT(new Date(gap.gapStartUtc));
+          const label = fmtTime(eatStart);
+          const dt    = findDt(line, gap.gapStartUtc);
+          if (dt) {
+            msg += `  ${label} +${gap.gapMins}m: ${dt.category} › ${dt.sub_category}`;
+            if (dt.description) msg += ` — ${dt.description}`;
+            msg += `\n`;
+          } else if (gap.gapMins >= 15) {
+            // Only surface unlogged gaps >= 15 min to avoid noise
+            msg += `  ${label} +${gap.gapMins}m: ⚠ No reason logged\n`;
+          }
+        }
+      }
     }
 
     thisHrTotalPallets += cur.pallets;
@@ -353,10 +466,15 @@ async function buildHourlyReport(
 
   const shiftTotalPallets = Object.values(shiftMetrics).reduce((a, m) => a + m.pallets, 0);
   const shiftTotalUnits   = Object.values(shiftMetrics).reduce((a, m) => a + m.units, 0);
+  const thisHrTotalTonnage  = Object.values(thisHrMetrics).reduce((a, m) => a + m.tonnage, 0);
+  const shiftTotalTonnage   = Object.values(shiftMetrics).reduce((a, m) => a + m.tonnage, 0);
+
+  const hrTonStr    = thisHrTotalTonnage  > 0 ? ` · ${thisHrTotalTonnage.toFixed(5)} MT`  : "";
+  const shiftTonStr = shiftTotalTonnage   > 0 ? ` · ${shiftTotalTonnage.toFixed(5)} MT`   : "";
 
   msg += `──────────────────────\n`;
-  msg += `This hour:         ${thisHrTotalPallets} pallets · ${thisHrTotalUnits.toLocaleString()} units\n`;
-  msg += `${shiftLabel} so far: ${shiftTotalPallets} pallets · ${shiftTotalUnits.toLocaleString()} units (as of ${fmtTime(eatHourEnd)})\n`;
+  msg += `This hour:         ${thisHrTotalPallets} pallets · ${thisHrTotalUnits.toLocaleString()} units${hrTonStr}\n`;
+  msg += `${shiftLabel} so far: ${shiftTotalPallets} pallets · ${shiftTotalUnits.toLocaleString()} units${shiftTonStr} (as of ${fmtTime(eatHourEnd)})\n`;
   msg += `──────────────────────\n`;
 
   // Idle flag summary

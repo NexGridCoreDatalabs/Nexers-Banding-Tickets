@@ -967,7 +967,33 @@
         // e.g. MSAFI → "M SAFI" → engine says "em SAH-fi". Zero performance cost.
         function phoneticize(text) {
           if (!text) return '';
-          return String(text).replace(/\bM([BCDFGHJKLMNPQRSTVWXYZ])/gi, 'M $1');
+          return String(text)
+            .replace(/\bMSAFI\b/gi,  'em-safi')
+            .replace(/\bGBAND\b/gi,  'gee-band')
+            .replace(/\bBAHARI\b/gi, 'ba-ha-ri')
+            .replace(/\bUFUTA\b/gi,  'oo-foo-ta')
+            .replace(/\bSGOLD\b/gi,  'supreme gold')
+            .replace(/\bELI\b/gi,    'Elianto')
+            .replace(/\bGFRY\b/gi,   'Golden Fry')
+            .replace(/\bSOYA\b/gi,   'Soya')
+            .replace(/\bOLIVE\b/gi,  'Olive')
+            .replace(/\bM([BCDFGHJKLMNPQRSTVWXYZ])/gi, 'M $1');
+        }
+
+        function uomToWords(uom, qty) {
+          if (!uom) return '';
+          var n = (parseFloat(qty) === 1) ? 1 : 2;
+          var map = {
+            'KAR': n === 1 ? 'carton'  : 'cartons',
+            'PCS': n === 1 ? 'piece'   : 'pieces',
+            'BTL': n === 1 ? 'bottle'  : 'bottles',
+            'JAR': n === 1 ? 'jar'     : 'jars',
+            'BAG': n === 1 ? 'bag'     : 'bags',
+            'PKT': n === 1 ? 'packet'  : 'packets',
+            'TIN': n === 1 ? 'tin'     : 'tins',
+            'SET': n === 1 ? 'set'     : 'sets',
+          };
+          return map[(uom || '').toUpperCase()] || uom;
         }
 
         // PRT000123RF → "P R T, 123, R F"  (numeric middle stripped of leading zeros)
@@ -991,7 +1017,8 @@
         var isVoided    = !!ticket.voided;
         var qty         = ticket.qty != null ? String(ticket.qty) : '';
         var uom         = (ticket.uom || (skuRow && skuRow.uom) || '').trim();
-        var qtyClause   = qty ? (qty + (uom ? ' ' + uom : '')) : '';
+        var uomSpoken   = uomToWords(uom, qty);
+        var qtyClause   = qty ? (qty + (uomSpoken ? ' ' + uomSpoken : '')) : '';
 
         function buildScript() {
           var productClause = productName + (variant ? ', ' + variant : '');

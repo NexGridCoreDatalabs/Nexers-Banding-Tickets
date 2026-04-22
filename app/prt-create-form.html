@@ -1534,9 +1534,55 @@
       var COLOR_HEX = { White:'#f0f4f8', Blue:'#2563eb', Green:'#16a34a', Yellow:'#facc15', Maroon:'#881337' };
 
       // ── Speech readout ────────────────────────────────────────────────
+
+      // Make Swahili-origin brand names TTS-friendly
+      // e.g. MSAFI → "em-safi", GBAND → "gee-band", BAHARI → "ba-ha-ri"
       function phoneticize(text) {
         if (!text) return '';
-        return String(text).replace(/\bM([BCDFGHJKLMNPQRSTVWXYZ])/gi, 'M $1');
+        return String(text)
+          .replace(/\bMSAFI\b/gi,  'em-safi')
+          .replace(/\bGBAND\b/gi,  'gee-band')
+          .replace(/\bBAHARI\b/gi, 'ba-ha-ri')
+          .replace(/\bUFUTA\b/gi,  'oo-foo-ta')
+          .replace(/\bSGOLD\b/gi,  'supreme gold')
+          .replace(/\bELI\b/gi,    'Elianto')
+          .replace(/\bGFRY\b/gi,   'Golden Fry')
+          .replace(/\bSOYA\b/gi,   'Soya')
+          .replace(/\bOLIVE\b/gi,  'Olive')
+          // Generic: break up consecutive consonants so TTS doesn't slur them
+          .replace(/\bM([BCDFGHJKLMNPQRSTVWXYZ])/gi, 'M $1');
+      }
+
+      // Expand UOM codes into natural spoken words
+      function uomToWords(uom, qty) {
+        if (!uom) return '';
+        var n = qty === 1 ? 1 : 2; // singular vs plural
+        var map = {
+          'KAR': n === 1 ? 'carton'  : 'cartons',
+          'PCS': n === 1 ? 'piece'   : 'pieces',
+          'BTL': n === 1 ? 'bottle'  : 'bottles',
+          'JAR': n === 1 ? 'jar'     : 'jars',
+          'BAG': n === 1 ? 'bag'     : 'bags',
+          'PKT': n === 1 ? 'packet'  : 'packets',
+          'TIN': n === 1 ? 'tin'     : 'tins',
+          'SET': n === 1 ? 'set'     : 'sets',
+        };
+        return map[uom.toUpperCase()] || uom;
+      }
+
+      // Pick a fun, varied opener so repeat listens don't feel robotic
+      var _confirmOpeners = [
+        "Alright, let's lock this in —",
+        "Quick check before we go —",
+        "Eyes on the screen —",
+        "Almost there! Here's what we're recording —",
+        "Looking good. Just confirm this —",
+      ];
+      var _confirmOpenerIdx = 0;
+      function nextOpener() {
+        var o = _confirmOpeners[_confirmOpenerIdx % _confirmOpeners.length];
+        _confirmOpenerIdx++;
+        return o;
       }
 
       function speakConfirmation(params) {
@@ -1544,29 +1590,46 @@
           if (!('speechSynthesis' in window)) return;
           var synth = window.speechSynthesis;
           synth.cancel();
-          var skuRec = skuCache[params.skuVal] || {};
-          var productName = phoneticize(skuRec.product_name || '');
+
+          var skuRec     = skuCache[params.skuVal] || {};
+          var productRaw = skuRec.product_name || params.skuVal || 'unknown product';
+          var variant    = skuRec.variant || '';
+          var product    = phoneticize(productRaw);
+          var qty        = params.qty || 0;
+          var uomWord    = uomToWords(params.uom, qty);
+          var color      = params.palletColor || 'unspecified colour';
+          var batch      = params.batchLot    || 'no batch';
+          var line       = params.productionLine || '';
+
           function doSpeak() {
             var voices = synth.getVoices();
             var femaleVoice = null, maleVoice = null;
             voices.forEach(function(v) {
               if (!femaleVoice && /samantha|karen|victoria|zira|fiona|female|google.*en.*f/i.test(v.name)) femaleVoice = v;
-              if (!maleVoice && /(^|\s)(daniel|david|mark|alex|fred|google uk.*male|google.*en.*m)/i.test(v.name)) maleVoice = v;
+              if (!maleVoice  && /(^|\s)(daniel|david|mark|alex|fred|google uk.*male|google.*en.*m)/i.test(v.name))  maleVoice  = v;
             });
-            // Utterance 1 (female): product name spoken naturally as a word
-            var u1 = new SpeechSynthesisUtterance('Please confirm: ' + (productName || params.skuVal) + '.');
-            u1.rate = 0.85; u1.lang = 'en-US';
+
+            // Utterance 1 — announce the product with opener
+            var line1 = nextOpener() + ' '
+              + qty + ' ' + uomWord + ' of ' + product
+              + (variant ? ', ' + variant : '') + '.';
+            var u1 = new SpeechSynthesisUtterance(line1);
+            u1.rate = 0.88; u1.pitch = 1.05; u1.lang = 'en-US';
             if (femaleVoice) u1.voice = femaleVoice;
-            // Utterance 2 (male): quantity and pallet colour
-            var u2 = new SpeechSynthesisUtterance(
-              'Quantity: ' + params.qty + ' ' + (params.uom || '') + '. ' +
-              'Pallet colour: ' + (params.palletColor || 'not set') + '.'
-            );
-            u2.rate = 0.85; u2.lang = 'en-US';
+
+            // Utterance 2 — colour, batch, call to action
+            var line2 = color + ' pallet.'
+              + ' Batch: ' + batch + '.'
+              + (line ? ' Line: ' + line + '.' : '')
+              + ' If that\'s all correct, hold to confirm and let\'s get it done!';
+            var u2 = new SpeechSynthesisUtterance(line2);
+            u2.rate = 0.88; u2.pitch = 0.97; u2.lang = 'en-US';
             if (maleVoice) u2.voice = maleVoice;
+
             synth.speak(u1);
             synth.speak(u2);
           }
+
           if (synth.getVoices().length > 0) {
             doSpeak();
           } else {
@@ -1803,6 +1866,7 @@
           qty: parseFloat(document.getElementById('qty').value) || 0,
           uom: document.getElementById('uom').value || '',
           palletColor: palletColor, batchLot: document.getElementById('batchLot').value,
+          productionLine: document.getElementById('productionLine').value || '',
           mfgDate: mfgDate, timeStr: timeStr, derivedShift: derivedShift,
           recordedBy: recordedBy
         });

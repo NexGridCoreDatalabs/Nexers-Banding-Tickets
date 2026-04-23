@@ -537,15 +537,21 @@ async function buildShiftReport(
     }
   }
 
-  const [curStart, curEnd]   = shiftBounds(shift, 0);
-  // Previous same-type shift (2 shifts back = 24h for same type)
-  const [prevStart, prevEnd] = shiftBounds(shift, -1);
+  const [curStart, curEnd] = shiftBounds(shift, 0);
 
-  // 7-day average: same shift type for the past 7 occurrences
-  const sevenDayWindows: [Date, Date][] = [];
-  for (let d = 1; d <= 7; d++) {
-    sevenDayWindows.push(shiftBounds(shift, -d));
-  }
+  // Actual 7 preceding shifts in reverse-chronological order (alternating day/night).
+  // For Day current:   Night(0), Day(-1), Night(-1), Day(-2), Night(-2), Day(-3), Night(-3)
+  // For Night current: Day(-1),  Night(-1), Day(-2), Night(-2), Day(-3), Night(-3), Day(-4)
+  type ShiftSpec = ["day"|"night", number];
+  const precedingSpec: ShiftSpec[] = shift === "day"
+    ? [["night",0],["day",-1],["night",-1],["day",-2],["night",-2],["day",-3],["night",-3]]
+    : [["day",-1],["night",-1],["day",-2],["night",-2],["day",-3],["night",-3],["day",-4]];
+
+  // Previous shift = first entry (the immediately preceding shift, not same-type-1-day-ago)
+  const [prevStart, prevEnd] = shiftBounds(precedingSpec[0][0], precedingSpec[0][1]);
+
+  // 7 actual preceding shifts for trend averaging
+  const sevenDayWindows: [Date, Date][] = precedingSpec.map(([sh, off]) => shiftBounds(sh, off));
 
   const [curTickets, prevTickets, skuNames] = await Promise.all([
     fetchTickets(sb, curStart, curEnd),

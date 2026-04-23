@@ -1018,7 +1018,7 @@ function buildNarrative(
   const prevTotal=prevTickets.length;
   const prevTonnes=r5(prevTickets.reduce((s,t)=>s+calcTonnes(t,skuMeta[t.sku]),0));
   const vsLastNarr=prevTotal>0
-    ? `Compared to the previous same shift (${prevTonnes} t), output is ${totalTonnes>=prevTonnes?"up":"down"} ${r5(Math.abs(totalTonnes-prevTonnes))} t.`
+    ? `Compared to the immediately preceding shift (${prevTonnes} t), output is ${totalTonnes>=prevTonnes?"up":"down"} ${r5(Math.abs(totalTonnes-prevTonnes))} t.`
     : "";
 
   // 7-day trend
@@ -1067,17 +1067,18 @@ function buildNarrativeWithHandover(
 }
 
 function buildTrendIntelligenceSheet(
-  wb:            ExcelJS.Workbook,
-  shift:         "day"|"night",
-  curTickets:    TicketRow[],
-  prevTickets:   TicketRow[],
-  sevenTickets:  TicketRow[][],
-  sevenDates:    Date[],
-  skuMeta:       Record<string,SkuMeta>,
-  shiftEnd:      Date,
-  curTicketsAll: TicketRow[],
-  downtimeEvents:DowntimeEvent[],
-  handoverNote:  HandoverNote | null
+  wb:              ExcelJS.Workbook,
+  shift:           "day"|"night",
+  curTickets:      TicketRow[],
+  prevTickets:     TicketRow[],
+  sevenTickets:    TicketRow[][],
+  sevenDates:      Date[],
+  sevenShiftTypes: Array<"day"|"night">,
+  skuMeta:         Record<string,SkuMeta>,
+  shiftEnd:        Date,
+  curTicketsAll:   TicketRow[],
+  downtimeEvents:  DowntimeEvent[],
+  handoverNote:    HandoverNote | null
 ): void {
   // Shift started 12h before shiftEnd (true for both day and night shifts).
   // For night shift this gives the prior-evening date — the correct identity date.
@@ -1256,17 +1257,23 @@ function buildTrendIntelligenceSheet(
 
   addSeparator(ws, MAX);
 
-  // ── SECTION 4: 7-DAY TREND TABLE ─────────────────────────────────────────────
-  intelSection(ws, "  ④ 7-DAY PRODUCTION TREND", MAX);
+  // ── SECTION 4: 7-SHIFT TREND TABLE ───────────────────────────────────────────
+  intelSection(ws, "  ④ 7-SHIFT PRODUCTION TREND  (actual preceding shifts, alternating Day / Night)", MAX);
 
   applyHeaderRow(ws.addRow([]),
     ["Shift Date","Pallets","Tonnes","vs Min","vs Kaizen",...LINES,"Sparkline"],
     C.navy,C.gold
   );
 
+  const shiftTag = (s:"day"|"night") => s==="day"?"☀ DS":"🌙 NS";
   const allSeries=[
-    {tickets:curTickets,date:toEAT(shiftEnd),isCurrent:true},
-    ...sevenTickets.map((t,i)=>({tickets:t,date:toEAT(sevenDates[i]),isCurrent:false}))
+    { tickets:curTickets, date:shiftStartEAT, shiftType:shift, isCurrent:true },
+    ...sevenTickets.map((t,i)=>({
+      tickets:t,
+      date:toEAT(sevenDates[i]),
+      shiftType:sevenShiftTypes[i],
+      isCurrent:false
+    }))
   ];
   const allTonnesArr=allSeries.map(s=>r5(s.tickets.reduce((sum,t)=>sum+calcTonnes(t,skuMeta[t.sku]),0)));
 
@@ -1282,7 +1289,7 @@ function buildTrendIntelligenceSheet(
     const bold=s.isCurrent;
 
     const row=ws.addRow(["",
-      fmtDateShort(s.date)+(s.isCurrent?" ← THIS SHIFT":""),
+      `${shiftTag(s.shiftType)} ${fmtDateShort(s.date)}`+(s.isCurrent?" ← THIS SHIFT":""),
       tot, tonnes+" t",
       `${Math.round((tonnes/SHIFT_TARGET_MIN_T)*100)}%`,
       `${Math.round((tonnes/SHIFT_TARGET_KAIZEN_T)*100)}%`,
@@ -1724,13 +1731,30 @@ async function buildReport(
 ): Promise<void> {
   const now = eatNow();
   const [curStart, curEnd] = shiftBounds(shift, 0, now);
-  const [prevStart, prevEnd] = shiftBounds(shift, -1, now);
-  const sevenWindows: [Date, Date][] = [];
-  const sevenDates:  Date[]          = [];
-  for (let d=1; d<=7; d++) {
-    const [s,e] = shiftBounds(shift, -d, now);
+
+  // The 7 actual preceding shifts in reverse chronological order
+  // (alternating day/night, not 7 of the same type).
+  //
+  // For Day current:   Night(0), Day(-1), Night(-1), Day(-2), Night(-2), Day(-3), Night(-3)
+  // For Night current: Day(-1),  Night(-1), Day(-2), Night(-2), Day(-3), Night(-3), Day(-4)
+  //
+  // The immediately preceding shift is index [0] and also used as "prev" for vs-comparison.
+  type ShiftSpec = ["day"|"night", number];
+  const precedingSpec: ShiftSpec[] = shift === "day"
+    ? [["night",0],["day",-1],["night",-1],["day",-2],["night",-2],["day",-3],["night",-3]]
+    : [["day",-1],["night",-1],["day",-2],["night",-2],["day",-3],["night",-3],["day",-4]];
+
+  const [prevStart, prevEnd] = shiftBounds(precedingSpec[0][0], precedingSpec[0][1], now);
+
+  const sevenWindows:    [Date, Date][]       = [];
+  const sevenDates:      Date[]               = [];
+  const sevenShiftTypes: Array<"day"|"night"> = [];
+  for (const [sh, off] of precedingSpec) {
+    const [s,e] = shiftBounds(sh, off, now);
     sevenWindows.push([s,e]);
-    sevenDates.push(e);
+    // Label each by its shift-start date (end - 12h gives correct EAT date for both types)
+    sevenDates.push(new Date(e.getTime() - 12*3600000));
+    sevenShiftTypes.push(sh);
   }
 
   // Shift date + label for handover lookup
@@ -1768,7 +1792,7 @@ async function buildReport(
   buildSkuComparisonsSheet(wb, shift, curTickets, prevTickets, sevenTickets, skuMeta, curEnd);
   buildMaterialsSheet(wb, shift, curTickets, skuMeta, curEnd);
   buildHourlySheet(wb, shift, curTickets, skuMeta, curEnd);
-  buildTrendIntelligenceSheet(wb, shift, curTickets, prevTickets, sevenTickets, sevenDates, skuMeta, curEnd, curTicketsAll, downtimeEvents, handoverNote);
+  buildTrendIntelligenceSheet(wb, shift, curTickets, prevTickets, sevenTickets, sevenDates, sevenShiftTypes, skuMeta, curEnd, curTicketsAll, downtimeEvents, handoverNote);
   buildAuditTrailSheet(wb, shift, curTicketsAll, skuMeta, curEnd);
 
   // Serialize to buffer

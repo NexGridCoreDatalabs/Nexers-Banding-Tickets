@@ -978,6 +978,92 @@ function buildDailyTrendIntelligenceSheet(
   const nightPallets = LINES.reduce((s,l)=>s+agg.night[l].pallets,0);
   const linesActive  = LINES.filter(l=>combined[l].pallets>0).length;
 
+  // Previous day totals (first entry in history)
+  const prevAggH = history[0]?.agg;
+  const prevTotal = prevAggH
+    ? LINES.reduce((s,l)=>s+(prevAggH.day[l]?.pallets||0)+(prevAggH.night[l]?.pallets||0),0)
+    : 0;
+  const prevTonnes = prevAggH
+    ? r5(LINES.reduce((s,l)=>s+(prevAggH.day[l]?.tonnes||0)+(prevAggH.night[l]?.tonnes||0),0))
+    : 0;
+
+  // 7-day average
+  const sevenDailyTonnes = history.map(h=>r5(LINES.reduce((s,l)=>s+(h.agg.day[l]?.tonnes||0)+(h.agg.night[l]?.tonnes||0),0)));
+  const avgTonnes7 = sevenDailyTonnes.length
+    ? r5(sevenDailyTonnes.reduce((a,b)=>a+b,0)/sevenDailyTonnes.length)
+    : 0;
+
+  // Top line by combined pallets
+  const topLine = LINES.reduce((best,l) => combined[l].pallets > (combined[best]?.pallets||0) ? l : best, LINES[0]);
+  const topLineTonnes = r5(combined[topLine]?.tonnes||0);
+
+  // Top SKU overall
+  const skuGlobal: Record<string,number> = {};
+  for (const l of LINES) for (const [sku,s] of Object.entries(combined[l].skus)) skuGlobal[sku]=(skuGlobal[sku]||0)+s.pallets;
+  const topSkuCode = Object.entries(skuGlobal).sort((a,b)=>b[1]-a[1])[0]?.[0] || null;
+  const topSkuName = topSkuCode ? (skuMeta[topSkuCode]?.product_name || topSkuCode) : "—";
+  const topSkuPallets = topSkuCode ? skuGlobal[topSkuCode] : 0;
+
+  // Day/night balance
+  const dayPct  = totalPallets > 0 ? Math.round(dayPallets/totalPallets*100)   : 0;
+  const nightPct = totalPallets > 0 ? Math.round(nightPallets/totalPallets*100) : 0;
+
+  // Trend slope
+  const slope7 = linearSlope([...sevenDailyTonnes.slice().reverse(), totalTonnes]);
+
+  // Build narrative paragraph
+  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const dayName = days[dateEAT.getUTCDay()];
+  const dateStr = `${dateEAT.getUTCDate()} ${months[dateEAT.getUTCMonth()]} ${dateEAT.getUTCFullYear()}`;
+
+  const vsMinStr = totalTonnes >= DAY_TARGET_MIN_T
+    ? `exceeding the minimum daily floor of ${DAY_TARGET_MIN_T} MT`
+    : `falling short of the ${DAY_TARGET_MIN_T} MT minimum daily floor by ${r5(DAY_TARGET_MIN_T-totalTonnes)} t`;
+  const vsKaizenStr = totalTonnes >= DAY_TARGET_KAIZEN_T
+    ? `and reaching the ${DAY_TARGET_KAIZEN_T} MT kaizen target`
+    : `with ${r5(DAY_TARGET_KAIZEN_T-totalTonnes)} t still needed to reach the ${DAY_TARGET_KAIZEN_T} MT kaizen target`;
+  const vsPrevStr = prevTotal > 0
+    ? totalTonnes > prevTonnes
+      ? `This marks an improvement of ${r5(totalTonnes-prevTonnes)} t on yesterday's ${prevTonnes} t.`
+      : totalTonnes < prevTonnes
+      ? `This is ${r5(prevTonnes-totalTonnes)} t below yesterday's ${prevTonnes} t.`
+      : `Output matches yesterday's ${prevTonnes} t exactly.`
+    : "";
+  const vs7Str = avgTonnes7 > 0
+    ? `Against the 7-day daily average of ${avgTonnes7} t, the operation is ${totalTonnes>=avgTonnes7?"running above":"tracking below"} recent form.`
+    : "";
+  const trendStr = slope7 > 1
+    ? `The 7-day production trend is pointing upward (+${r2(slope7)} t/day), indicating building momentum.`
+    : slope7 < -1
+    ? `A declining trend of ${r2(slope7)} t/day over the past 7 days warrants management attention.`
+    : `Production has been broadly stable across the past 7 days.`;
+  const splitStr = dayPallets > 0 && nightPallets > 0
+    ? `Output split ${dayPct}% Day / ${nightPct}% Night (${dayPallets} vs ${nightPallets} pallets).`
+    : dayPallets > 0
+    ? `Only the Day Shift recorded output (${dayPallets} pallets) — Night Shift figures may still be pending.`
+    : `Only the Night Shift recorded output (${nightPallets} pallets).`;
+  const topLineStr = combined[topLine]?.pallets > 0
+    ? `The standout line today was ${topLine} with ${combined[topLine].pallets} pallets and ${topLineTonnes} t.`
+    : "";
+  const topSkuStr = topSkuCode
+    ? `The dominant SKU across the factory was ${topSkuName} at ${topSkuPallets} pallets.`
+    : "";
+  const downtimeSummary = (downtimeDay.length + downtimeNight.length) > 0
+    ? `${downtimeDay.length+downtimeNight.length} downtime event${downtimeDay.length+downtimeNight.length!==1?"s":""} were logged today — see the Downtime Log below for details.`
+    : "No downtime events were logged today — the operation ran uninterrupted.";
+
+  const narrative = [
+    `RetiFlux™ Daily Intelligence Briefing — ${dayName}, ${dateStr}.`,
+    ``,
+    `The factory produced ${totalPallets} pallets and ${totalTonnes} tonnes across both shifts today, ${vsMinStr} ${vsKaizenStr}.`,
+    vsPrevStr, vs7Str,
+    ``,
+    splitStr, topLineStr, topSkuStr,
+    ``,
+    trendStr, downtimeSummary,
+  ].filter(Boolean).join(" ");
+
   function intelSection(label: string) {
     const r=ws.addRow([label]);
     ws.mergeCells(r.number,1,r.number,MAX);
@@ -991,8 +1077,19 @@ function buildDailyTrendIntelligenceSheet(
     cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder();
   }
 
-  // ── Section 1: KPI Summary ────────────────────────────────────────────────
-  intelSection("  ① DAILY KPIs");
+  // ── Section 1: Intelligence Narrative ────────────────────────────────────
+  intelSection("  ① INTELLIGENCE NARRATIVE");
+  const narRow = ws.addRow([narrative]);
+  ws.mergeCells(narRow.number,1,narRow.number,MAX);
+  const narCell = ws.getCell(narRow.number,1);
+  narCell.fill = solidFill(C.navyMid);
+  narCell.font = { size:10, color:{argb:C.textLight}, name:"Consolas", italic:false };
+  narCell.alignment = { horizontal:"left", vertical:"top", wrapText:true, indent:1 };
+  narRow.height = 130;
+  addSeparator(ws, MAX);
+
+  // ── Section 2: KPI Summary ────────────────────────────────────────────────
+  intelSection("  ② DAILY KPIs");
   const kpiData = [
     { label:"Total Pallets", val:`${totalPallets}`, rag:(totalPallets>=240?"green":totalPallets>=180?"amber":"red") as keyof typeof RAG },
     { label:"Total Tonnes",  val:`${totalTonnes} t`, rag:(totalTonnes>=DAY_TARGET_KAIZEN_T?"green":totalTonnes>=DAY_TARGET_MIN_T?"amber":"red") as keyof typeof RAG },
@@ -1018,8 +1115,8 @@ function buildDailyTrendIntelligenceSheet(
   });
   addSeparator(ws, MAX);
 
-  // ── Section 2: Per-line scoring ───────────────────────────────────────────
-  intelSection("  ② PER-LINE DAILY SCORECARD");
+  // ── Section 3: Per-line scoring ───────────────────────────────────────────
+  intelSection("  ③ PER-LINE DAILY SCORECARD");
   applyHeaderRow(ws.addRow([]),
     ["Line","Day Pallets","Night Pallets","Total","Tonnes","Top SKU","☀ Sparkline","🌙 Sparkline"],
     C.navyMid, C.gold
@@ -1054,8 +1151,8 @@ function buildDailyTrendIntelligenceSheet(
   });
   addSeparator(ws, MAX);
 
-  // ── Section 3: Downtime log (combined both shifts) ───────────────────────
-  intelSection("  ③ IDLE & DOWNTIME LOG  (☀ Day + 🌙 Night combined)");
+  // ── Section 4: Downtime log (combined both shifts) ───────────────────────
+  intelSection("  ④ IDLE & DOWNTIME LOG  (☀ Day + 🌙 Night combined)");
   applyHeaderRow(ws.addRow([]),
     ["Shift","Line","Start (EAT)","End (EAT)","Mins","Category","Sub-Category","Description","Logged By"],
     C.navyMid, C.gold
@@ -1100,8 +1197,8 @@ function buildDailyTrendIntelligenceSheet(
   }
   addSeparator(ws, MAX);
 
-  // ── Section 4: 7-day forward signal ─────────────────────────────────────
-  intelSection("  ④ 7-DAY FORWARD SIGNAL");
+  // ── Section 5: 7-day forward signal ─────────────────────────────────────
+  intelSection("  ⑤ 7-DAY FORWARD SIGNAL");
   const sevenTonnesArr=history.map(h=>r5(LINES.reduce((s,l)=>s+(h.agg.day[l]?.tonnes||0)+(h.agg.night[l]?.tonnes||0),0)));
   const slope=linearSlope([...sevenTonnesArr.slice().reverse(), totalTonnes]);
   const [sigEmoji,sigWord,sigDetail,sigRag]:(["📈"|"📉"|"➡","IMPROVING"|"DECLINING"|"STABLE",string,keyof typeof RAG]) =

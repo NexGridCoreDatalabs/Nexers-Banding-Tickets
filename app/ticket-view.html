@@ -902,6 +902,28 @@
         if (!p1 && !p2) { card.style.display = 'none'; return; }
         card.style.display = '';
         grid.innerHTML = '';
+
+        // Append Supabase image transform params so thumbnails load fast on slow networks.
+        // Thumbnails: 480px wide, 70% quality (~30-60 KB).
+        // Lightbox: 1024px wide, 85% quality (~80-150 KB) — full detail, still fast.
+        function thumbUrl(url) {
+          if (!url) return url;
+          try {
+            // Only apply transform to Supabase Storage URLs
+            if (url.indexOf('/storage/v1/object/public/') === -1) return url;
+            var sep = url.indexOf('?') !== -1 ? '&' : '?';
+            return url + sep + 'width=480&quality=70&resize=contain';
+          } catch(e) { return url; }
+        }
+        function fullUrl(url) {
+          if (!url) return url;
+          try {
+            if (url.indexOf('/storage/v1/object/public/') === -1) return url;
+            var sep = url.indexOf('?') !== -1 ? '&' : '?';
+            return url + sep + 'width=1024&quality=85&resize=contain';
+          } catch(e) { return url; }
+        }
+
         var pairs = [
           { url: p1, label: 'Pallet Overview' },
           { url: p2, label: 'Pallet Side View' }
@@ -917,7 +939,7 @@
           lbl.className = 'photo-tile-label';
           lbl.textContent = ph.label;
           var img = document.createElement('img');
-          img.src = ph.url;
+          img.src = thumbUrl(ph.url);   // fast thumbnail
           img.alt = ph.label;
           img.loading = 'lazy';
           var hint = document.createElement('div');
@@ -927,7 +949,7 @@
           tile.appendChild(img);
           tile.appendChild(hint);
           function openLightbox() {
-            document.getElementById('lbImg').src = ph.url;
+            document.getElementById('lbImg').src = fullUrl(ph.url);  // higher-res for lightbox
             document.getElementById('lbCaption').textContent = ph.label;
             document.getElementById('rfLightbox').classList.add('open');
             document.body.style.overflow = 'hidden';

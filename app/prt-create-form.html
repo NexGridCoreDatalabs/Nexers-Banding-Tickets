@@ -30,6 +30,7 @@
       min-height: 100vh;
       color: #e2e8f0;
       padding: 24px 16px 80px;
+      overscroll-behavior: none; /* prevent Android Chrome pull-to-refresh */
     }
     .container { max-width: none; margin: 0; width: 100%; }
     .card {
@@ -931,7 +932,7 @@
       <p class="photo-required-hint">Both photos are <strong style="color:var(--gold)">required</strong> before saving. Tap a zone to open your camera and take the photo.</p>
       <div class="photo-upload-section">
         <div class="photo-zone" id="pzone1" role="button" aria-label="Upload Pallet Overview photo">
-          <input type="file" id="photoInput1" capture="environment">
+          <input type="file" id="photoInput1" accept="image/*" capture="environment">
           <div class="pz-placeholder" id="pzPlaceholder1">
             <span class="pz-icon">📷</span>
             <span class="pz-label">Pallet Overview</span>
@@ -939,7 +940,7 @@
           </div>
         </div>
         <div class="photo-zone" id="pzone2" role="button" aria-label="Upload Pallet Side View photo">
-          <input type="file" id="photoInput2" capture="environment">
+          <input type="file" id="photoInput2" accept="image/*" capture="environment">
           <div class="pz-placeholder" id="pzPlaceholder2">
             <span class="pz-icon">📷</span>
             <span class="pz-label">Pallet Side View</span>
@@ -1073,27 +1074,52 @@
       var PRT_SESSION_KEY = 'prt_rcv_session';
       var currentUser = null;
 
+      // ── Shift-based session helpers (localStorage, survives tab close / OS kill) ──
+      var EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+      function _currentShiftStartISO() {
+        var nowUtc  = new Date();
+        var eatHour = new Date(nowUtc.getTime() + EAT_OFFSET_MS).getUTCHours();
+        var eatNow  = new Date(nowUtc.getTime() + EAT_OFFSET_MS);
+        var midUtc  = Date.UTC(eatNow.getUTCFullYear(), eatNow.getUTCMonth(), eatNow.getUTCDate());
+        var shiftStartUtc;
+        if (eatHour >= 7 && eatHour < 19) {
+          shiftStartUtc = midUtc + 4 * 3600000;        // 07:00 EAT = 04:00 UTC
+        } else if (eatHour >= 19) {
+          shiftStartUtc = midUtc + 16 * 3600000;       // 19:00 EAT = 16:00 UTC
+        } else {
+          shiftStartUtc = midUtc - 8 * 3600000;        // 00–06 EAT: previous night shift
+        }
+        return new Date(shiftStartUtc).toISOString();
+      }
+
       async function sha256(str) {
         var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
         return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
       }
       function readPrtSession() {
         try {
-          var raw = sessionStorage.getItem(PRT_SESSION_KEY);
+          var raw = localStorage.getItem(PRT_SESSION_KEY);
           if (!raw) return null;
-          return JSON.parse(raw);
+          var obj = JSON.parse(raw);
+          if (!obj || !obj.user_id) return null;
+          // Reject if the session was written during a different shift
+          if (!obj.shiftStart || obj.shiftStart !== _currentShiftStartISO()) return null;
+          return obj;
         } catch (e) { return null; }
       }
       function writePrtSession(u) {
-        sessionStorage.setItem(PRT_SESSION_KEY, JSON.stringify({
-          user_id: u.user_id,
-          name: u.name,
-          role: u.role,
-          assigned_zone: u.assigned_zone
-        }));
+        try {
+          localStorage.setItem(PRT_SESSION_KEY, JSON.stringify({
+            user_id:       u.user_id,
+            name:          u.name,
+            role:          u.role,
+            assigned_zone: u.assigned_zone,
+            shiftStart:    _currentShiftStartISO()
+          }));
+        } catch (e) {}
       }
       function clearPrtSession() {
-        sessionStorage.removeItem(PRT_SESSION_KEY);
+        try { localStorage.removeItem(PRT_SESSION_KEY); } catch (e) {}
       }
       /** Ticket / label: clerk id without hyphens (DB user_id e.g. RFX-RCV-WK-001 → RFXRCVWK001). */
       function recordedByFromUserId(u) {
@@ -1444,13 +1470,44 @@
           '<span class="pz-hint">Tap to open camera</span>';
       }
 
+      // ── Client-side compression (Canvas) ─────────────────────────────────
+      // Resizes to max 1280 px on the long edge, re-encodes as JPEG at quality
+      // 0.82. Reduces typical camera shots from 5–25 MB → 150–350 KB.
+      function compressImage(file, maxPx, quality) {
+        return new Promise(function(resolve) {
+          // If already tiny, skip compression
+          if (file.size < 300 * 1024) { resolve(file); return; }
+          var img = new Image();
+          var objUrl = URL.createObjectURL(file);
+          img.onload = function() {
+            URL.revokeObjectURL(objUrl);
+            var w = img.naturalWidth, h = img.naturalHeight;
+            if (w > maxPx || h > maxPx) {
+              if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+              else        { w = Math.round(w * maxPx / h); h = maxPx; }
+            }
+            var canvas = document.createElement('canvas');
+            canvas.width  = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            canvas.toBlob(function(blob) {
+              // toBlob can return null on some old Android WebViews — fall back to original
+              resolve(blob && blob.size > 0 ? blob : file);
+            }, 'image/jpeg', quality);
+          };
+          img.onerror = function() { URL.revokeObjectURL(objUrl); resolve(file); };
+          img.src = objUrl;
+        });
+      }
+
       async function uploadPhotoFile(file, slot) {
         if (!supabase) throw new Error('Supabase not configured');
-        var ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+        // Compress before upload — always store as .jpg
+        var compressed = await compressImage(file, 1280, 0.82);
         var dateStr = new Date().toISOString().slice(0, 10);
         var rand = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-        var path = dateStr + '/' + rand + '-' + slot + '.' + ext;
-        var res = await supabase.storage.from('prt-photos').upload(path, file, { contentType: file.type, upsert: false });
+        var path = dateStr + '/' + rand + '-' + slot + '.jpg';
+        var res = await supabase.storage.from('prt-photos').upload(path, compressed, { contentType: 'image/jpeg', upsert: false });
         if (res.error) throw res.error;
         var urlRes = supabase.storage.from('prt-photos').getPublicUrl(path);
         return urlRes.data.publicUrl;
@@ -1466,9 +1523,16 @@
         zone.querySelectorAll('.pz-check').forEach(function(el) { el.remove(); });
         placeholder.innerHTML =
           '<span class="pz-spinner">⏳</span>' +
-          '<span class="pz-label" style="color:#60a5fa">Uploading…</span>';
+          '<span class="pz-label" style="color:#60a5fa">Compressing…</span>';
 
         try {
+          // Show "Uploading…" once compression hands off to network
+          setTimeout(function() {
+            if (zone.classList.contains('uploading')) {
+              placeholder.querySelector('.pz-label') &&
+                (placeholder.querySelector('.pz-label').textContent = 'Uploading…');
+            }
+          }, 600);
           var publicUrl = await uploadPhotoFile(file, slot);
           if (slot === 1) photo1Url = publicUrl;
           else photo2Url = publicUrl;

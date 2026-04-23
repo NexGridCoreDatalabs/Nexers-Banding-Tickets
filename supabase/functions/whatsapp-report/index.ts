@@ -351,18 +351,21 @@ async function buildHourlyReport(
   const utcHourStart = new Date(eatHourStart.getTime() - EAT_OFFSET_MS);
   const utcHourEnd   = new Date(eatHourEnd.getTime()   - EAT_OFFSET_MS);
 
-  // Shift start in EAT
-  const eatHour = now.getUTCHours();
-  const isDay   = eatHour >= 7 && eatHour < 19;
+  // Shift identity is determined by which hour window is being REPORTED
+  // (eatHourStart), not the current moment (now). This correctly classifies
+  // boundary windows: 18:00–19:00 belongs to Day Shift, 06:00–07:00 to Night Shift.
+  const reportedHour = eatHourStart.getUTCHours(); // eatHourStart is already EAT-shifted
+  const isDay   = reportedHour >= 7 && reportedHour < 19;
   const shiftLabel = isDay ? "Day Shift" : "Night Shift";
   const shiftStartHour = isDay ? 7 : 19;
   const eatShiftStart = new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+    eatHourStart.getUTCFullYear(), eatHourStart.getUTCMonth(), eatHourStart.getUTCDate(),
     shiftStartHour, 0, 0, 0
   ));
-  // Night shift may have started yesterday
+  // Night shift spanning midnight: if reporting 00:00–06:59 EAT the shift
+  // started at 19:00 EAT the previous calendar day.
   let utcShiftStart = new Date(eatShiftStart.getTime() - EAT_OFFSET_MS);
-  if (!isDay && eatHour < 7) {
+  if (!isDay && reportedHour < 7) {
     utcShiftStart = new Date(utcShiftStart.getTime() - 24 * 60 * 60 * 1000);
   }
 
@@ -395,7 +398,7 @@ async function buildHourlyReport(
   }
 
   const windowLabel = `${fmtTime(eatHourStart)}–${fmtTime(eatHourEnd)}`;
-  const dateLabel   = fmtDate(now);
+  const dateLabel   = fmtDate(eatHourStart); // date of the hour being reported
 
   let msg = `⚙️ RetiFlux™ · Production Pulse\n`;
   msg    += `🕐 ${windowLabel} · ${shiftLabel} · ${dateLabel}\n\n`;
@@ -569,7 +572,7 @@ async function buildShiftReport(
 
   let msg = `📋 RetiFlux™ · End of Shift Report\n`;
   msg    += `${emoji} ${shiftLabel} · ${shiftTime}\n`;
-  msg    += `📅 ${fmtDate(now)}\n\n`;
+  msg    += `📅 ${fmtDate(toEAT(curStart))}\n\n`; // label by shift-start date, not shift-end
   msg    += `━━━━━━━━━━━━━━━━━━━━━\n`;
 
   // Per-line + per-SKU breakdown

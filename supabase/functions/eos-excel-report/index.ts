@@ -350,7 +350,9 @@ function buildSummarySheet(
 
   const maxCol = 6;
   const shiftLabel = shift === "day" ? "Day Shift  ·  07:00–19:00 EAT" : "Night Shift  ·  19:00–07:00 EAT";
-  const eatDate = toEAT(shiftEnd);
+  // Always label with the date the shift STARTED, not when it ended.
+  // For night shift shiftEnd is next-morning; shiftEnd-12h gives the correct prior-evening date.
+  const eatDate = toEAT(shiftStart); // shiftStart already passed as param
 
   addSheetTitle(ws,
     "RetiFlux™  ·  End of Shift Production Report",
@@ -451,6 +453,7 @@ function buildByLineSheet(
   skuMeta: Record<string, SkuMeta>,
   shiftEnd: Date
 ): void {
+  const shiftStartEAT = toEAT(new Date(shiftEnd.getTime() - 12*3600000));
   const ws = wb.addWorksheet("By Line", {
     properties:{ tabColor:{ argb:"FF3B82F6" } }
   });
@@ -458,7 +461,7 @@ function buildByLineSheet(
 
   const maxCol = 9;
   const shiftLabel = shift==="day" ? "Day Shift" : "Night Shift";
-  addSheetTitle(ws, "Production — By Line", `${shiftLabel}  ·  ${fmtDateShort(toEAT(shiftEnd))}`, maxCol);
+  addSheetTitle(ws, "Production — By Line", `${shiftLabel}  ·  ${fmtDateShort(shiftStartEAT)}`, maxCol);
 
   const cur  = aggregateByLine(curTickets,  skuMeta);
   const prev = aggregateByLine(prevTickets, skuMeta);
@@ -555,6 +558,7 @@ function buildSkuComparisonsSheet(
   skuMeta: Record<string, SkuMeta>,
   shiftEnd: Date
 ): void {
+  const shiftStartEAT = toEAT(new Date(shiftEnd.getTime() - 12*3600000));
   const ws = wb.addWorksheet("SKU Comparisons", {
     properties:{ tabColor:{ argb:"FF8B5CF6" } }
   });
@@ -562,7 +566,7 @@ function buildSkuComparisonsSheet(
 
   const maxCol = 10;
   const shiftLabel = shift==="day" ? "Day Shift" : "Night Shift";
-  addSheetTitle(ws, "SKU Comparisons — Per Line", `${shiftLabel}  ·  ${fmtDateShort(toEAT(shiftEnd))}`, maxCol);
+  addSheetTitle(ws, "SKU Comparisons — Per Line", `${shiftLabel}  ·  ${fmtDateShort(shiftStartEAT)}`, maxCol);
 
   const cur   = aggregateByLine(curTickets,  skuMeta);
   const prev  = aggregateByLine(prevTickets, skuMeta);
@@ -637,13 +641,14 @@ function buildMaterialsSheet(
   skuMeta: Record<string, SkuMeta>,
   shiftEnd: Date
 ): void {
+  const shiftStartEAT = toEAT(new Date(shiftEnd.getTime() - 12*3600000));
   const ws = wb.addWorksheet("Materials", {
     properties:{ tabColor:{ argb:"FF10B981" } }
   });
   ws.properties.defaultColWidth = 18;
   const maxCol = 7;
   const shiftLabel = shift==="day" ? "Day Shift" : "Night Shift";
-  addSheetTitle(ws, "Materials Consumed", `${shiftLabel}  ·  ${fmtDateShort(toEAT(shiftEnd))}`, maxCol);
+  addSheetTitle(ws, "Materials Consumed", `${shiftLabel}  ·  ${fmtDateShort(shiftStartEAT)}`, maxCol);
 
   // ── Section 1: Outer Cartons ──
   const secRow1 = ws.addRow(["OUTER CARTONS"]);
@@ -779,6 +784,7 @@ function buildHourlySheet(
   skuMeta: Record<string, SkuMeta>,
   shiftEnd: Date
 ): void {
+  const shiftStartEAT = toEAT(new Date(shiftEnd.getTime() - 12*3600000));
   const ws = wb.addWorksheet("Hourly", {
     properties:{ tabColor:{ argb:"FFF59E0B" } }
   });
@@ -788,7 +794,7 @@ function buildHourlySheet(
     ? [7,8,9,10,11,12,13,14,15,16,17,18]
     : [19,20,21,22,23,0,1,2,3,4,5,6];
 
-  addSheetTitle(ws, "Hourly Breakdown", `${shiftLabel}  ·  ${fmtDateShort(toEAT(shiftEnd))}`, LINES.length+3);
+  addSheetTitle(ws, "Hourly Breakdown", `${shiftLabel}  ·  ${fmtDateShort(shiftStartEAT)}`, LINES.length+3);
 
   // Header: Hour | Total | Line1 | Line2 | ...
   applyHeaderRow(ws.addRow([]), ["Hour (EAT)", "Total Pallets", ...LINES, "Tonnage"], C.navy, C.gold);
@@ -967,7 +973,7 @@ function buildNarrative(
   totalCount:  number
 ): string {
   const shiftLabel = shift==="day"?"Day Shift":"Night Shift";
-  const dateStr    = fmtDateFull(toEAT(shiftEnd));
+  const dateStr    = fmtDateFull(toEAT(new Date(shiftEnd.getTime() - 12*3600000)));
   const pallets    = curTickets.length;
   const activeLines= LINES.filter(l=>curMetrics[l].pallets>0).length;
 
@@ -1073,6 +1079,10 @@ function buildTrendIntelligenceSheet(
   downtimeEvents:DowntimeEvent[],
   handoverNote:  HandoverNote | null
 ): void {
+  // Shift started 12h before shiftEnd (true for both day and night shifts).
+  // For night shift this gives the prior-evening date — the correct identity date.
+  const shiftStart = new Date(shiftEnd.getTime() - 12*3600000);
+  const shiftStartEAT = toEAT(shiftStart);
   const ws = wb.addWorksheet("Trend Intelligence", {
     properties:{ tabColor:{ argb:"FF06B6D4" } }
   });
@@ -1082,7 +1092,7 @@ function buildTrendIntelligenceSheet(
 
   addSheetTitle(ws,
     "RetiFlux™  ·  Trend Intelligence",
-    `${shiftLabel}  ·  Board-Level Production Review  ·  ${fmtDateFull(toEAT(shiftEnd))}`,
+    `${shiftLabel}  ·  Board-Level Production Review  ·  ${fmtDateFull(shiftStartEAT)}`,
     MAX
   );
 
@@ -1393,6 +1403,32 @@ function buildTrendIntelligenceSheet(
     lineAvgTonnesPerPallet[line]=lp>0?r5(curMetrics[line].tonnes/lp):0;
   }
 
+  // Per-line active cadence: avg gap between consecutive tickets when the line
+  // was actually running (gaps below threshold only). This gives a realistic
+  // "how fast was this line when healthy" rate, avoiding circular bias from
+  // including the downtime gaps themselves in the denominator.
+  const LINE_THRESH: Record<string,number> = {
+    'SP':25,'PKN':15,'MB-250':20,'AL':45,'MB-150':60,'Offline Banding':30
+  };
+  const lineActiveCadence: Record<string,number|null> = {};
+  for(const line of LINES){
+    const thresh = LINE_THRESH[line] || 30;
+    const lt = [...curTickets.filter(t=>t.production_line?.trim()===line)]
+      .sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
+    if(lt.length >= 2){
+      const activeGaps: number[] = [];
+      for(let i=1;i<lt.length;i++){
+        const g=(new Date(lt[i].created_at).getTime()-new Date(lt[i-1].created_at).getTime())/60000;
+        if(g < thresh) activeGaps.push(g); // only count gaps within normal running pace
+      }
+      lineActiveCadence[line] = activeGaps.length > 0
+        ? r2(activeGaps.reduce((a,b)=>a+b,0)/activeGaps.length)
+        : null;
+    } else {
+      lineActiveCadence[line] = null;
+    }
+  }
+
   // Match downtime events to gaps by ms-level timestamp comparison (tolerates ISO format differences)
   function findDowntimeEvent(line: string, gapStartUtc: string): DowntimeEvent | null {
     const ts = new Date(gapStartUtc).getTime();
@@ -1413,8 +1449,11 @@ function buildTrendIntelligenceSheet(
     gapMins:number, logged: DowntimeEvent|null
   ) {
     const severity=(gapMins>=90?"red":gapMins>=60?"amber":"green") as keyof typeof RAG;
-    const lostPallets=avgCadenceMins?r5(gapMins/avgCadenceMins):0;
-    const lostTonnes =lostPallets?r5(lostPallets*(lineAvgTonnesPerPallet[line]||0)):0;
+    // Use per-line active cadence (healthy-running pace) not a global average.
+    // If cadence is unknown (line only ran one ticket), show — rather than a phantom number.
+    const cadence = lineActiveCadence[line];
+    const lostPallets = cadence ? r5(gapMins/cadence) : 0;
+    const lostTonnes  = lostPallets ? r5(lostPallets*(lineAvgTonnesPerPallet[line]||0)) : 0;
     totalLostPallets+=lostPallets;
     totalLostTonnes  =r5(totalLostTonnes+lostTonnes);
 
@@ -1462,11 +1501,8 @@ function buildTrendIntelligenceSheet(
       .sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
 
     // Check shift-start delay (gap from shift start to first ticket)
-    // Shift start is curStart (passed in from buildReport — we approximate via the shiftEnd)
     if(lt.length>0){
-      const shiftStartApprox = shift==="day"
-        ? new Date(shiftEnd.getTime() - 12*3600000)
-        : new Date(shiftEnd.getTime() - 12*3600000);
+      const shiftStartApprox = shiftStart; // already computed at top of function as shiftEnd-12h
       const firstTicketTime = new Date(lt[0].created_at).getTime();
       const startGapMins = Math.round((firstTicketTime - shiftStartApprox.getTime())/60000);
       if(startGapMins >= thresh){
@@ -1566,7 +1602,7 @@ function buildAuditTrailSheet(
   const maxCol = 11;
   const shiftLabel = shift==="day" ? "Day Shift" : "Night Shift";
 
-  addSheetTitle(ws, "Audit Trail — Voided Tickets", `${shiftLabel}  ·  ${fmtDateShort(toEAT(shiftEnd))}`, maxCol);
+  addSheetTitle(ws, "Audit Trail — Voided Tickets", `${shiftLabel}  ·  ${fmtDateShort(toEAT(new Date(shiftEnd.getTime()-12*3600000)))}`, maxCol);
 
   const voided = allTickets.filter(t => t.voided);
 

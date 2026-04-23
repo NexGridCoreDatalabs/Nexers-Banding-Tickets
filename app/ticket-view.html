@@ -1057,20 +1057,27 @@
           }).join(' — ');
         }
 
-        // Derive a spoken handling instruction from subdivision / uom
-        function handlingHint() {
+        // Derive handling context — two flavours: inline (short clause) and full (own sentence)
+        function handlingHints() {
           var sub = ((skuRow && skuRow.subdivision) || (ticket && ticket.subdivision) || '').toLowerCase();
+          var pn  = productName.toLowerCase();
           var u   = uom.toLowerCase();
-          if (/oil|litre|liter|\bml\b|liquid|frying|corn|olive|soya|ufuta|bahari|sgold|gfry|eli/i.test(sub + ' ' + productName)) {
-            return 'This product must stay upright at all times — no tilting, no laying it on its side.';
-          }
-          if (/sachet|pouch|powder|granule|msafi|gband/i.test(sub + ' ' + productName)) {
-            return 'Handle with care — avoid compression and rough stacking on this product.';
-          }
-          if (/glass|jar|bottle/i.test(sub + ' ' + u)) {
-            return 'Fragile — glass packaging. Handle with care and avoid impact.';
-          }
-          return 'Standard handling applies.';
+          var isOil    = /oil|litre|liter|\bml\b|liquid|frying|corn|olive|soya|ufuta|bahari|sgold|gfry|eli/i.test(sub + ' ' + pn);
+          var isSachet = /sachet|pouch|powder|granule|msafi|gband/i.test(sub + ' ' + pn);
+          var isGlass  = /glass|jar|bottle/i.test(sub + ' ' + u);
+          if (isOil)    return {
+            inline: "it's oil, so upright only — no tilting, ever",
+            full:   "Oil product — it stays upright at all times. No tilting, no laying it on its side."
+          };
+          if (isSachet) return {
+            inline: 'soft handling on this one — no compression',
+            full:   'Soft handling required — avoid compression and rough stacking.'
+          };
+          if (isGlass)  return {
+            inline: 'glass packaging — handle with care',
+            full:   'Glass packaging on this one. Handle with care and avoid any impact.'
+          };
+          return { inline: '', full: '' }; // no special handling — don't mention it
         }
 
         function buildScripts() {
@@ -1081,15 +1088,12 @@
           var loc   = toZone
                         ? 'heading to ' + toZone + ' from ' + zone
                         : (zone ? 'in ' + zone : '');
-          // Stack height is a product spec — always framed as "when loading"
           var stack = stackLayers ? stackLayers + ' layers' : '';
           var batch = batchSaid   ? fmtBatch(batchSaid)    : '';
-          var hdl   = handlingHint();
-          // Notes — always acknowledged, never silently skipped
-          var noteStr = notes
-            ? 'Additional note: ' + notes
-            : null;   // null = "no notes" branch handled per-take
-          var stat  = (status && !/active/i.test(status)) ? 'Status is ' + status + '.' : '';
+          var hdl   = handlingHints();
+          var stat  = (status && !/active/i.test(status)) ? 'Status: ' + status + '. ' : '';
+          // Notes always explicitly acknowledged
+          var hasNote = !!notes;
 
           // ── Voided — 3 takes ──────────────────────────────────────────────
           if (isVoided) {
@@ -1100,7 +1104,7 @@
                        + 'It was raised for ' + prod + ', ' + q_ + '. Serial ' + ser + '.',
                 line2: (vr ? 'Reason on file: ' + vr + '. ' : 'No void reason was captured. ')
                        + (batch ? 'Batch was ' + batch + '. ' : '')
-                       + 'Do not touch this pallet without supervisor clearance. We clear?'
+                       + 'Do not touch this pallet without supervisor clearance.'
               },
               {
                 line1: 'Stop everything. Red flag on this one — voided ticket. '
@@ -1122,64 +1126,67 @@
           }
 
           // ── Active — 5 rotational takes ───────────────────────────────────
-
-          var stackLine = stack
-            ? 'When loading, this product goes ' + stack + ' high — not one more.'
-            : '';
-          var batchLine = batch ? 'Batch: ' + batch + '.' : '';
-          var serialLine = 'Serial ' + ser + '.';
-          var noNotes = 'No additional notes.';
+          // Each take has a genuinely different rhythm, order, and personality.
+          // Handling is woven into the sentence rather than bolted on.
 
           // Take 1 — "The Confident Briefer"
+          // Leads with product + location, weaves handling inline, ends on batch/serial
           var t1l1 = "Right, let's go. " + prod + ' — ' + q_
-                   + ', looking sharp on a ' + col + ' pallet'
-                   + (loc ? ', ' + loc : '') + '.';
-          var t1l2 = (stackLine ? stackLine + ' ' : '')
-                   + hdl + ' '
-                   + (batchLine ? batchLine + ' ' : '')
-                   + serialLine + ' '
-                   + (noteStr ? noteStr + '.' : noNotes + ' Clean ticket.');
-
-          // Take 2 — "The Cheerful Colleague"
-          var t2l1 = "Okay, here we go! You've got " + prod + ' — ' + q_
                    + ' on a ' + col + ' pallet'
-                   + (loc ? ', ' + loc : '') + '. Sweet.';
-          var t2l2 = (stackLine ? stackLine + ' ' : '')
-                   + hdl + ' '
-                   + (batchLine ? batchLine + ' ' : '')
-                   + serialLine + ' '
-                   + (noteStr ? 'One more thing — ' + noteStr + '.' : noNotes + " You're good to go, yeah?");
+                   + (loc ? ', ' + loc : '')
+                   + (hdl.inline ? '. And ' + hdl.inline : '') + '.';
+          var t1l2 = (stack ? 'When loading, cap it at ' + stack + ' — that is the ceiling, not a suggestion. ' : '')
+                   + (batch ? 'Batch: ' + batch + '. ' : '')
+                   + 'Serial ' + ser + '. '
+                   + stat
+                   + (hasNote ? 'One thing to flag — ' + notes + '.' : 'No additional notes. Clean ticket.');
 
-          // Take 3 — "Safety First, Fun Second"
-          var t3l1 = 'First things first. '
-                   + (stackLine ? stackLine + ' ' : '')
-                   + "That's " + prod + ', ' + q_ + ', ' + col + ' pallet'
+          // Take 2 — "The Casual Colleague"
+          // Starts conversationally, leads with location, ends warmly
+          var t2l1 = 'Okay, so — ' + (loc ? loc + ', we have got ' : "we've got ")
+                   + prod + ', ' + q_ + '. ' + col + ' pallet.';
+          var t2l2 = (stack ? 'When you load this, stop at ' + stack + '. ' : '')
+                   + (hdl.full ? hdl.full + ' ' : '')
+                   + (batch ? 'Batch: ' + batch + '. ' : '')
+                   + 'Serial ' + ser + '. '
+                   + stat
+                   + (hasNote ? notes + '.' : 'Nothing extra on this ticket.');
+
+          // Take 3 — "Safety First"
+          // Leads with the loading instruction, product almost becomes secondary
+          var t3l1 = 'Before you do anything — '
+                   + (stack ? 'when loading this product, ' + stack + ' and you stop. Full stop. '
+                            : 'listen up. ')
+                   + (hdl.full ? hdl.full + ' ' : '')
+                   + 'Now — ' + prod + ', ' + q_ + '. ' + col + ' pallet'
                    + (loc ? ', ' + loc : '') + '.';
-          var t3l2 = hdl + ' '
-                   + (batchLine ? batchLine + ' ' : '')
-                   + serialLine + ' '
-                   + (noteStr ? noteStr + '.' : noNotes + ' We keep it safe, we keep it moving.');
+          var t3l2 = (batch ? 'Batch: ' + batch + '. ' : '')
+                   + 'Serial ' + ser + '. '
+                   + stat
+                   + (hasNote ? 'Additional note: ' + notes + '.' : 'No overrides. No exceptions.');
 
-          // Take 4 — "The Punch" — zero-waste, fast
+          // Take 4 — "The Punch" — staccato, confident, no filler
           var t4l1 = prod + '. ' + q_ + '. '
                    + col + ' pallet'
-                   + (loc ? ' — ' + loc : '') + '.';
-          var t4l2 = (stackLine ? stackLine + ' ' : '')
-                   + hdl + ' '
-                   + (batchLine ? batchLine + ' ' : '')
-                   + serialLine + ' '
-                   + (noteStr ? noteStr + '.' : noNotes + ' Done.');
+                   + (loc ? ' — ' + loc : '')
+                   + (hdl.inline ? '. ' + hdl.inline.charAt(0).toUpperCase() + hdl.inline.slice(1) : '') + '.';
+          var t4l2 = (stack ? 'Loading cap: ' + stack + '. ' : '')
+                   + (batch ? 'Batch: ' + batch + '. ' : '')
+                   + 'Serial ' + ser + '. '
+                   + stat
+                   + (hasNote ? notes + '.' : "That's the full picture.");
 
-          // Take 5 — "The Story"
-          var t5l1 = "So here's what's happening. You're standing in front of "
-                   + q_ + ' of ' + prod
+          // Take 5 — "The Story" — narrative, immersive, ends with finality
+          var t5l1 = "So here's the situation. " + q_ + ' of ' + prod
                    + ' on a ' + col + ' pallet'
-                   + (loc ? ', ' + loc : '') + '.';
-          var t5l2 = (stackLine ? stackLine + " Anything above that and we've got a conversation nobody wants to have. " : '')
-                   + hdl + ' '
-                   + (batchLine ? batchLine + ' ' : '')
-                   + serialLine + ' '
-                   + (noteStr ? 'And by the way — ' + noteStr + '.' : noNotes + ' Full picture.');
+                   + (loc ? ', ' + loc : '')
+                   + (hdl.inline ? ' — and ' + hdl.inline : '') + '.';
+          var t5l2 = (stack ? 'When it comes to loading — ' + stack + ' is your number. '
+                              + "Anything above that and we have a problem. " : '')
+                   + (batch ? 'Batch: ' + batch + '. ' : '')
+                   + 'Serial ' + ser + '. '
+                   + stat
+                   + (hasNote ? 'Also worth knowing — ' + notes + '.' : "Nothing else to flag. You've got everything.");
 
           return [
             { line1: t1l1.trim(), line2: t1l2.trim() },

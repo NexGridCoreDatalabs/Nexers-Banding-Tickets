@@ -11,7 +11,11 @@
 //   1. Daily Overview   — Combined KPIs, Day vs Night split, top lines
 //   2. By Line          — Per-line with Day | Night | Total columns
 //   3. SKU Breakdown    — Combined SKU output for the full day
-//   4. 7-Day Trend      — 7 calendar days of combined output (full day, not per-shift)
+//   4. Materials        — Outer cartons, sachets, tablets consumed
+//   5. Hourly 24h       — Hour-by-hour pallet counts across the full day (07:00–06:59 EAT)
+//   6. Intelligence     — KPI scoring, downtime log, 7-day forward signal
+//   7. 7-Day Trend      — 7 calendar days of combined output (full day, not per-shift)
+//   8. Audit Trail      — Voided tickets from both shifts
 //
 // Auto-deploy: add to cron at 04:00 UTC (= 07:00 EAT) alongside Night Shift EOS
 
@@ -80,6 +84,31 @@ function pctVs(cur: number, prev: number): string {
   return `${d > 0 ? "▲" : "▼"} ${Math.abs(Math.round(d))}%`;
 }
 
+// ── RAG / sparkline helpers (shared with Trend Intelligence) ─────────────────
+const RAG = {
+  green: { bg:"FF14532D", text:"FF86EFAC" },
+  amber: { bg:"FF78350F", text:"FFFDE68A" },
+  red:   { bg:"FF7F1D1D", text:"FFFCA5A5" },
+  blue:  { bg:"FF1E3A5F", text:C.gold     },
+  gold:  { bg:C.gold,     text:C.navy     },
+} as const;
+
+const SPARKS = ["▁","▂","▃","▄","▅","▆","▇","█"];
+function spark(values: number[]): string {
+  const max = Math.max(...values, 0.01);
+  return values.map(v => v===0?"·":SPARKS[Math.min(7,Math.floor((v/max)*8))]).join("");
+}
+function linearSlope(values: number[]): number {
+  const n=values.length; if(n<2) return 0;
+  const xm=(n-1)/2, ym=values.reduce((a,b)=>a+b,0)/n;
+  let num=0,den=0;
+  for(let i=0;i<n;i++){num+=(i-xm)*(values[i]-ym);den+=(i-xm)**2;}
+  return den>0?num/den:0;
+}
+
+const DAY_TARGET_MIN_T    = 85.0;   // combined both shifts
+const DAY_TARGET_KAIZEN_T = 100.0;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface TicketRow {
   id:              string;
@@ -92,6 +121,9 @@ interface TicketRow {
   group_leader:    string | null;
   created_at:      string;
   voided:          boolean;
+  voided_at:       string | null;
+  voided_reason:   string | null;
+  voided_by:       string | null;
 }
 interface SkuMeta {
   sku:                    string;
@@ -116,16 +148,41 @@ interface DailyAgg {
 // ── Data fetch ────────────────────────────────────────────────────────────────
 async function fetchTickets(
   sb: ReturnType<typeof createClient>,
-  from: Date, to: Date
+  from: Date, to: Date,
+  includeVoided = false
 ): Promise<TicketRow[]> {
-  const { data, error } = await sb.from("tickets")
-    .select("id,serial,production_line,sku,qty,uom,pallet_color,group_leader,created_at,voided")
+  let q = sb.from("tickets")
+    .select("id,serial,production_line,sku,qty,uom,pallet_color,group_leader,created_at,voided,voided_at,voided_reason,voided_by")
     .gte("created_at", from.toISOString())
     .lt("created_at",  to.toISOString())
-    .eq("voided", false)
     .not("production_line", "is", null);
+  if (!includeVoided) q = q.eq("voided", false);
+  const { data, error } = await q;
   if (error) throw error;
   return (data ?? []) as TicketRow[];
+}
+
+interface DowntimeEvent {
+  production_line: string;
+  gap_start:       string;
+  gap_end:         string;
+  gap_minutes:     number;
+  category:        string;
+  sub_category:    string;
+  description:     string | null;
+  logged_by:       string;
+}
+async function fetchDowntimeEvents(
+  sb: ReturnType<typeof createClient>,
+  from: Date, to: Date
+): Promise<DowntimeEvent[]> {
+  const { data, error } = await sb.from("downtime_events")
+    .select("production_line,gap_start,gap_end,gap_minutes,category,sub_category,description,logged_by")
+    .gte("gap_start", from.toISOString())
+    .lt("gap_end",   to.toISOString())
+    .order("gap_start", { ascending:true });
+  if (error) { console.warn("downtime_events fetch:", error.message); return []; }
+  return (data ?? []) as DowntimeEvent[];
 }
 
 async function fetchSkuMeta(
@@ -689,6 +746,450 @@ function buildSevenDayTrendSheet(
   });
 }
 
+// ── TAB 5: Materials (Daily) ──────────────────────────────────────────────────
+function buildDailyMaterialsSheet(
+  wb: ExcelJS.Workbook,
+  dateEAT: Date,
+  allTickets: TicketRow[],    // combined day + night, non-voided
+  skuMeta: Record<string, SkuMeta>
+): void {
+  const ws = wb.addWorksheet("Materials", {
+    properties:{ tabColor:{ argb:"FF10B981" } }
+  });
+  ws.properties.defaultColWidth = 18;
+  const maxCol = 7;
+  addSheetTitle(ws, "Materials Consumed — Full Day", `${fmtDateFull(dateEAT)}  ·  Day + Night Combined`, maxCol);
+
+  function secBanner(label: string) {
+    const r = ws.addRow([label]);
+    ws.mergeCells(r.number,1,r.number,maxCol);
+    const c = ws.getCell(r.number,1);
+    c.fill=solidFill(C.gold); c.font={bold:true,size:10,color:{argb:C.navy},name:"Consolas"};
+    c.alignment={horizontal:"left",vertical:"middle",indent:1}; r.height=20;
+  }
+
+  // ── Outer cartons ─────────────────────────────────────────────────────────
+  secBanner("OUTER CARTONS");
+  applyHeaderRow(ws.addRow([]), ["Line","SKU","Product","Pallets","Cartons Used","UOM"], C.navyMid, C.gold);
+  const cartonMap: Record<string,Record<string,{pallets:number;cartons:number;uom:string}>> = {};
+  for (const t of allTickets) {
+    const l = t.production_line?.trim()||"UNKNOWN";
+    if (!cartonMap[l]) cartonMap[l]={};
+    if (!cartonMap[l][t.sku]) cartonMap[l][t.sku]={pallets:0,cartons:0,uom:t.uom};
+    cartonMap[l][t.sku].pallets++;
+    cartonMap[l][t.sku].cartons+=Number(t.qty)||0;
+  }
+  let cartonTotal=0, ri=0;
+  for (const line of LINES) {
+    for (const [sku,d] of Object.entries(cartonMap[line]||{})) {
+      cartonTotal+=d.cartons;
+      const bg=ri%2===0?C.navyMid:C.navyLight;
+      const row=ws.addRow(["",line,sku,skuMeta[sku]?.product_name||sku,d.pallets,d.cartons,d.uom]);
+      row.height=18;
+      [2,3,4,5,6,7].forEach((col,i)=>{
+        const cell=ws.getCell(row.number,col);
+        cell.fill=solidFill(bg); cell.font=cellFont(false,10,C.textLight);
+        cell.border=thinBorder(); cell.alignment={horizontal:i<3?"left":"center",vertical:"middle"};
+      }); ri++;
+    }
+  }
+  const ctTot=ws.addRow(["","TOTAL","","","",cartonTotal,""]);
+  ctTot.height=20;
+  [2,3,4,5,6].forEach(col=>{
+    const cell=ws.getCell(ctTot.number,col);
+    cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
+    cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(C.goldDim);
+  });
+  addSeparator(ws, maxCol);
+
+  // ── Sachets ───────────────────────────────────────────────────────────────
+  secBanner("SACHETS (Inner Units)");
+  applyHeaderRow(ws.addRow([]), ["Line","SKU","Product","Sachet Type","Pallets","Sachets Used"], C.navyMid, C.gold);
+  let sachetTotal=0; ri=0;
+  for (const t of allTickets) {
+    const meta=skuMeta[t.sku];
+    if (!meta?.sachet_type||!meta?.units_per_carton) continue;
+    const used=(Number(t.qty)||0)*meta.units_per_carton;
+    sachetTotal+=used;
+    const bg=ri%2===0?C.navyMid:C.navyLight;
+    const row=ws.addRow(["",t.production_line,t.sku,meta.product_name,meta.sachet_type,1,used]);
+    row.height=18;
+    [2,3,4,5,6,7].forEach((col,i)=>{
+      const cell=ws.getCell(row.number,col);
+      cell.fill=solidFill(bg); cell.font=cellFont(false,10,C.textLight);
+      cell.border=thinBorder(); cell.alignment={horizontal:i<4?"left":"center",vertical:"middle"};
+    }); ri++;
+  }
+  if (sachetTotal===0) {
+    const nr=ws.addRow(["  — No sachet products this day"]);
+    ws.mergeCells(nr.number,1,nr.number,maxCol);
+    ws.getCell(nr.number,1).fill=solidFill(C.navyMid);
+    ws.getCell(nr.number,1).font={italic:true,size:10,color:{argb:C.textMuted},name:"Consolas"}; nr.height=18;
+  } else {
+    const sTot=ws.addRow(["","TOTAL","","","",sachetTotal,""]);
+    [2,3,4,5,6].forEach(col=>{
+      const cell=ws.getCell(sTot.number,col);
+      cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
+      cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(C.goldDim);
+    });
+  }
+  addSeparator(ws, maxCol);
+
+  // ── Tablets ───────────────────────────────────────────────────────────────
+  secBanner("TABLETS");
+  applyHeaderRow(ws.addRow([]), ["Line","SKU","Product","Tablet Type","Pallets","Tablets Used"], C.navyMid, C.gold);
+  let tabletTotal=0; ri=0;
+  for (const t of allTickets) {
+    const meta=skuMeta[t.sku];
+    if (!meta?.tablet_type||!meta?.units_per_carton) continue;
+    const used=(Number(t.qty)||0)*meta.units_per_carton;
+    tabletTotal+=used;
+    const bg=ri%2===0?C.navyMid:C.navyLight;
+    const row=ws.addRow(["",t.production_line,t.sku,meta.product_name,meta.tablet_type,1,used]);
+    row.height=18;
+    [2,3,4,5,6,7].forEach((col,i)=>{
+      const cell=ws.getCell(row.number,col);
+      cell.fill=solidFill(bg); cell.font=cellFont(false,10,C.textLight);
+      cell.border=thinBorder(); cell.alignment={horizontal:i<4?"left":"center",vertical:"middle"};
+    }); ri++;
+  }
+  if (tabletTotal===0) {
+    const nr=ws.addRow(["  — No tablet products this day"]);
+    ws.mergeCells(nr.number,1,nr.number,maxCol);
+    ws.getCell(nr.number,1).fill=solidFill(C.navyMid);
+    ws.getCell(nr.number,1).font={italic:true,size:10,color:{argb:C.textMuted},name:"Consolas"}; nr.height=18;
+  } else {
+    const tTot=ws.addRow(["","TOTAL","","","",tabletTotal,""]);
+    [2,3,4,5,6].forEach(col=>{
+      const cell=ws.getCell(tTot.number,col);
+      cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
+      cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(C.goldDim);
+    });
+  }
+  ws.columns=[{width:2},{width:16},{width:12},{width:28},{width:18},{width:8},{width:16}];
+}
+
+// ── TAB 6: Hourly 24h ─────────────────────────────────────────────────────────
+function buildDailyHourlySheet(
+  wb: ExcelJS.Workbook,
+  dateEAT: Date,
+  allTickets: TicketRow[],    // combined day + night, non-voided
+  skuMeta: Record<string, SkuMeta>
+): void {
+  const ws = wb.addWorksheet("Hourly 24h", {
+    properties:{ tabColor:{ argb:"FFF59E0B" } }
+  });
+  ws.properties.defaultColWidth = 13;
+  addSheetTitle(ws, "Hourly Breakdown — Full Day (24h)", `${fmtDateFull(dateEAT)}  ·  07:00 EAT → 06:59 EAT`, LINES.length+3);
+
+  // 24-hour window starting at 07:00 EAT: 7..18 (day shift), 19..23, 0..6 (night shift)
+  const hours = [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,0,1,2,3,4,5,6];
+  const DAY_HOURS = new Set([7,8,9,10,11,12,13,14,15,16,17,18]);
+
+  applyHeaderRow(ws.addRow([]), ["Hour (EAT)", "Shift", "Total Pallets", ...LINES, "Tonnage"], C.navy, C.gold);
+  ws.views = [{ state:"frozen", ySplit: ws.rowCount }];
+
+  const hrLine: Record<number, Record<string,number>> = {};
+  const hrTonnes: Record<number,number> = {};
+  for (const t of allTickets) {
+    const eatT=toEAT(new Date(t.created_at));
+    const h=eatT.getUTCHours();
+    if (!hrLine[h]) hrLine[h]={};
+    hrLine[h][t.production_line?.trim()||"UNKNOWN"]=(hrLine[h][t.production_line?.trim()||"UNKNOWN"]||0)+1;
+    hrTonnes[h]=(hrTonnes[h]||0)+calcTonnes(t,skuMeta[t.sku]);
+  }
+
+  const totals=hours.map(h=>Object.values(hrLine[h]||{}).reduce((s,v)=>s+v,0));
+  const maxVal=Math.max(...totals,1);
+
+  totals.forEach((tot,i)=>{
+    const h=hours[i];
+    const isDay=DAY_HOURS.has(h);
+    const isPeak=tot===Math.max(...totals)&&tot>0;
+    // Day-shift rows: slightly blue tint; night-shift rows: standard
+    const bg=tot===0?"FF0E1420":isPeak?"FF1C2A00":isDay?(i%2===0?C.navyMid:C.navyLight):(i%2===0?"FF1A2236":"FF1E293B");
+    const label=`${String(h).padStart(2,"0")}:00`;
+    const lineCounts=LINES.map(l=>hrLine[h]?.[l]||0);
+    const row=ws.addRow(["",label,isDay?"☀ Day":"🌙 Night",tot,...lineCounts,r5(hrTonnes[h]||0)+" t"]);
+    row.height=20;
+    const colsCount=3+1+LINES.length+1;
+    for(let c=2;c<=colsCount;c++){
+      const cell=ws.getCell(row.number,c);
+      cell.fill=solidFill(bg);
+      cell.font={bold:isPeak||tot===0,size:10,
+        color:{argb:tot===0?C.textMuted:isPeak?C.gold:isDay?C.textLight:"FFB8D4F0"},name:"Consolas"};
+      cell.border=thinBorder();
+      cell.alignment={horizontal:c===2?"left":"center",vertical:"middle"};
+    }
+    if(tot>0){
+      const bars=Math.round((tot/maxVal)*10);
+      ws.getCell(row.number,2).value=`${label}  ${"█".repeat(bars)}${"░".repeat(10-bars)}`;
+    }
+  });
+
+  // Day sub-total
+  const dayHrs=[7,8,9,10,11,12,13,14,15,16,17,18];
+  const nightHrs=[19,20,21,22,23,0,1,2,3,4,5,6];
+  function subTotal(hrs: number[], label: string, bg: string) {
+    const tot=hrs.reduce((s,h)=>s+Object.values(hrLine[h]||{}).reduce((a,b)=>a+b,0),0);
+    const cols=LINES.map(l=>hrs.reduce((s,h)=>s+(hrLine[h]?.[l]||0),0));
+    const tonnes=r5(hrs.reduce((s,h)=>s+(hrTonnes[h]||0),0));
+    const row=ws.addRow(["",label,"",tot,...cols,tonnes+" t"]);
+    row.height=22;
+    for(let c=2;c<=3+1+LINES.length+1;c++){
+      const cell=ws.getCell(row.number,c);
+      cell.fill=solidFill(bg); cell.font={bold:true,size:10,color:{argb:C.navy},name:"Consolas"};
+      cell.alignment={horizontal:c===2?"left":"center",vertical:"middle"}; cell.border=thinBorder(C.goldDim);
+    }
+  }
+  subTotal(dayHrs,   "☀ DAY TOTAL",   C.amber);
+  subTotal(nightHrs, "🌙 NIGHT TOTAL", C.teal);
+  subTotal(hours,    "FULL DAY TOTAL", C.gold);
+
+  ws.columns=[{width:2},{width:22},{width:11},{width:14},...LINES.map(()=>({width:12})),{width:12}];
+}
+
+// ── TAB 7: Daily Trend Intelligence ──────────────────────────────────────────
+function buildDailyTrendIntelligenceSheet(
+  wb: ExcelJS.Workbook,
+  dateEAT: Date,
+  agg: DailyAgg,
+  skuMeta: Record<string, SkuMeta>,
+  history: { dateEAT: Date; agg: DailyAgg }[],
+  downtimeDay: DowntimeEvent[],
+  downtimeNight: DowntimeEvent[]
+): void {
+  const ws = wb.addWorksheet("Intelligence", {
+    properties:{ tabColor:{ argb:"FF06B6D4" } }
+  });
+  ws.properties.defaultColWidth = 14;
+  const MAX = 11;
+
+  addSheetTitle(ws,
+    "RetiFlux™  ·  Daily Intelligence Briefing",
+    `Full Day  ·  Board-Level Review  ·  ${fmtDateFull(dateEAT)}`,
+    MAX
+  );
+
+  const combined  = combinedAgg(agg.day, agg.night);
+  const totalPallets = LINES.reduce((s,l)=>s+combined[l].pallets,0);
+  const totalTonnes  = r5(LINES.reduce((s,l)=>s+combined[l].tonnes,0));
+  const dayPallets   = LINES.reduce((s,l)=>s+agg.day[l].pallets,0);
+  const nightPallets = LINES.reduce((s,l)=>s+agg.night[l].pallets,0);
+  const linesActive  = LINES.filter(l=>combined[l].pallets>0).length;
+
+  function intelSection(label: string) {
+    const r=ws.addRow([label]);
+    ws.mergeCells(r.number,1,r.number,MAX);
+    const c=ws.getCell(r.number,1);
+    c.fill=solidFill(C.navy); c.font={bold:true,size:11,color:{argb:C.gold},name:"Consolas"};
+    c.alignment={horizontal:"left",vertical:"middle",indent:1}; r.height=24;
+  }
+  function ragCell(cell: ExcelJS.Cell, label: string, rag: keyof typeof RAG) {
+    cell.value=label; cell.fill=solidFill(RAG[rag].bg);
+    cell.font={bold:true,size:10,color:{argb:RAG[rag].text},name:"Consolas"};
+    cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder();
+  }
+
+  // ── Section 1: KPI Summary ────────────────────────────────────────────────
+  intelSection("  ① DAILY KPIs");
+  const kpiData = [
+    { label:"Total Pallets", val:`${totalPallets}`, rag:(totalPallets>=240?"green":totalPallets>=180?"amber":"red") as keyof typeof RAG },
+    { label:"Total Tonnes",  val:`${totalTonnes} t`, rag:(totalTonnes>=DAY_TARGET_KAIZEN_T?"green":totalTonnes>=DAY_TARGET_MIN_T?"amber":"red") as keyof typeof RAG },
+    { label:"☀ Day Pallets", val:`${dayPallets}`, rag:"blue" as keyof typeof RAG },
+    { label:"🌙 Night Pallets", val:`${nightPallets}`, rag:"blue" as keyof typeof RAG },
+    { label:"Lines Active",  val:`${linesActive} / ${LINES.length}`, rag:(linesActive>=5?"green":linesActive>=3?"amber":"red") as keyof typeof RAG },
+    { label:"vs Min Target", val:`${Math.round(totalTonnes/DAY_TARGET_MIN_T*100)}%`, rag:(totalTonnes>=DAY_TARGET_MIN_T?"green":totalTonnes>=DAY_TARGET_MIN_T*0.85?"amber":"red") as keyof typeof RAG },
+    { label:"vs Kaizen",     val:`${Math.round(totalTonnes/DAY_TARGET_KAIZEN_T*100)}%`, rag:(totalTonnes>=DAY_TARGET_KAIZEN_T?"green":totalTonnes>=DAY_TARGET_KAIZEN_T*0.85?"amber":"red") as keyof typeof RAG },
+  ];
+  const kpiLabelRow = ws.addRow(["", ...kpiData.map(k=>k.label)]);
+  kpiLabelRow.height=18;
+  [2,3,4,5,6,7,8].forEach((c,i)=>{
+    const cell=ws.getCell(kpiLabelRow.number,c);
+    cell.fill=solidFill(C.navyMid); cell.font=cellFont(true,9,C.textMuted);
+    cell.alignment={horizontal:"center",vertical:"middle"};
+  });
+  const kpiValRow = ws.addRow(["", ...kpiData.map(k=>k.val)]);
+  kpiValRow.height=28;
+  kpiData.forEach((k,i)=>{
+    const cell=ws.getCell(kpiValRow.number,i+2);
+    ragCell(cell, k.val, k.rag);
+    cell.font={...cell.font, size:13};
+  });
+  addSeparator(ws, MAX);
+
+  // ── Section 2: Per-line scoring ───────────────────────────────────────────
+  intelSection("  ② PER-LINE DAILY SCORECARD");
+  applyHeaderRow(ws.addRow([]),
+    ["Line","Day Pallets","Night Pallets","Total","Tonnes","Top SKU","☀ Sparkline","🌙 Sparkline"],
+    C.navyMid, C.gold
+  );
+
+  const dayMetrics  = LINES.map(l => agg.day[l]);
+  const nightMetrics = LINES.map(l => agg.night[l]);
+
+  LINES.forEach((line,li) => {
+    const d=agg.day[line]; const n=agg.night[line]; const tot=combined[line];
+    const bg=li%2===0?C.navyMid:C.navyLight;
+    let topSku="—"; let topP=0;
+    for(const [sku,s] of Object.entries(tot.skus)) if(s.pallets>topP){topP=s.pallets;topSku=skuMeta[sku]?.product_name||sku;}
+
+    // Sparkline across hours for this line
+    const dayHrSpark  = [7,8,9,10,11,12,13,14,15,16,17,18].map(()=>0);
+    const nightHrSpark= [19,20,21,22,23,0,1,2,3,4,5,6].map(()=>0);
+
+    const row=ws.addRow(["",line,
+      d.pallets||"—", n.pallets||"—", tot.pallets||"—",
+      tot.pallets?`${r5(tot.tonnes)} t`:"—",
+      topSku,"—","—"
+    ]);
+    row.height=18;
+    [2,3,4,5,6,7,8,9].forEach((c,j)=>{
+      const cell=ws.getCell(row.number,c);
+      cell.fill=solidFill(bg);
+      cell.font=cellFont(c===5||c===6,10,tot.pallets===0?C.textMuted:C.textLight);
+      cell.border=thinBorder();
+      cell.alignment={horizontal:j===0||j===5?"left":"center",vertical:"middle"};
+    });
+  });
+  addSeparator(ws, MAX);
+
+  // ── Section 3: Downtime log (combined both shifts) ───────────────────────
+  intelSection("  ③ IDLE & DOWNTIME LOG  (☀ Day + 🌙 Night combined)");
+  applyHeaderRow(ws.addRow([]),
+    ["Shift","Line","Start (EAT)","End (EAT)","Mins","Category","Sub-Category","Description","Logged By"],
+    C.navyMid, C.gold
+  );
+  const allDowntime = [
+    ...downtimeDay.map(e=>({...e,shift:"☀ Day"})),
+    ...downtimeNight.map(e=>({...e,shift:"🌙 Night"})),
+  ].sort((a,b)=>new Date(a.gap_start).getTime()-new Date(b.gap_start).getTime());
+
+  if (allDowntime.length===0) {
+    const r=ws.addRow(["  ✓ No logged downtime events this day"]);
+    ws.mergeCells(r.number,1,r.number,MAX);
+    const rc=ws.getCell(r.number,1);
+    rc.fill=solidFill(C.navyMid); rc.font={bold:true,size:10,color:{argb:C.green},name:"Consolas"};
+    rc.alignment={horizontal:"center",vertical:"middle"}; r.height=22;
+  } else {
+    allDowntime.forEach((ev,i)=>{
+      const bg=i%2===0?C.navyMid:C.navyLight;
+      const row=ws.addRow(["",
+        ev.shift, ev.production_line,
+        fmtTime(toEAT(new Date(ev.gap_start))),
+        fmtTime(toEAT(new Date(ev.gap_end))),
+        ev.gap_minutes+" mins",
+        ev.category, ev.sub_category,
+        ev.description||"—", ev.logged_by
+      ]);
+      row.height=18;
+      [2,3,4,5,6,7,8,9,10].forEach((c,j)=>{
+        const cell=ws.getCell(row.number,c);
+        cell.fill=solidFill(bg); cell.font=cellFont(false,10,C.textLight);
+        cell.border=thinBorder(); cell.alignment={horizontal:j<3?"left":"center",vertical:"middle"};
+      });
+    });
+    const totalMins=allDowntime.reduce((s,e)=>s+e.gap_minutes,0);
+    const totRow=ws.addRow(["","","","","",`${totalMins} mins total`,"","","",""]);
+    totRow.height=20;
+    [2,3,4,5,6,7,8,9,10].forEach(c=>{
+      const cell=ws.getCell(totRow.number,c);
+      cell.fill=solidFill(C.navyLight); cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
+      cell.alignment={horizontal:"center",vertical:"middle"}; cell.border=thinBorder(C.goldDim);
+    });
+  }
+  addSeparator(ws, MAX);
+
+  // ── Section 4: 7-day forward signal ─────────────────────────────────────
+  intelSection("  ④ 7-DAY FORWARD SIGNAL");
+  const sevenTonnesArr=history.map(h=>r5(LINES.reduce((s,l)=>s+(h.agg.day[l]?.tonnes||0)+(h.agg.night[l]?.tonnes||0),0)));
+  const slope=linearSlope([...sevenTonnesArr.slice().reverse(), totalTonnes]);
+  const [sigEmoji,sigWord,sigDetail,sigRag]:(["📈"|"📉"|"➡","IMPROVING"|"DECLINING"|"STABLE",string,keyof typeof RAG]) =
+    slope>1
+      ? ["📈","IMPROVING",`Daily tonnage has trended upward at +${r2(slope)} t/day over the last 7 days. Momentum is building — keep staffing and material supply consistent.`,"green"]
+      : slope<-1
+      ? ["📉","DECLINING",`Daily output has slipped at ${r2(slope)} t/day across the last 7 days. Without intervention output risks falling below the ${DAY_TARGET_MIN_T} MT daily floor. Review line availability and staffing before tomorrow.`,"red"]
+      : ["➡","STABLE",`Daily production has been broadly steady over the last 7 days (slope: ${r2(slope)} t/day). The operation is consistent — focus next day on pushing toward the ${DAY_TARGET_KAIZEN_T} MT kaizen target.`,"amber"];
+
+  const sigHead=ws.addRow([`${sigEmoji}  ${sigWord}`]);
+  ws.mergeCells(sigHead.number,1,sigHead.number,MAX);
+  const shc=ws.getCell(sigHead.number,1);
+  shc.fill=solidFill(RAG[sigRag].bg); shc.font={bold:true,size:16,color:{argb:RAG[sigRag].text},name:"Consolas"};
+  shc.alignment={horizontal:"center",vertical:"middle"}; sigHead.height=36;
+
+  const sigDetail2=ws.addRow([sigDetail]);
+  ws.mergeCells(sigDetail2.number,1,sigDetail2.number,MAX);
+  const sdc=ws.getCell(sigDetail2.number,1);
+  sdc.fill=solidFill(C.navyMid); sdc.font={size:11,color:{argb:C.textLight},name:"Consolas"};
+  sdc.alignment={horizontal:"left",vertical:"top",wrapText:true,indent:1}; sigDetail2.height=60;
+
+  addSeparator(ws, MAX);
+  const foot=ws.addRow(["RetiFlux™  ·  NexGridCore DataLabs  ·  Daily Intelligence Briefing  ·  Confidential"]);
+  ws.mergeCells(foot.number,1,foot.number,MAX);
+  const fc=ws.getCell(foot.number,1);
+  fc.fill=solidFill(C.navy); fc.font={size:9,color:{argb:C.textMuted},name:"Consolas",italic:true};
+  fc.alignment={horizontal:"center",vertical:"middle"}; foot.height=18;
+  ws.columns=[{width:2},{width:12},{width:14},{width:12},{width:12},{width:10},{width:18},{width:18},{width:30},{width:18},{width:10}];
+}
+
+// ── TAB 8: Audit Trail (Daily) ────────────────────────────────────────────────
+function buildDailyAuditTrailSheet(
+  wb: ExcelJS.Workbook,
+  dateEAT: Date,
+  allTickets: TicketRow[],   // includes voided (both shifts)
+  skuMeta: Record<string, SkuMeta>
+): void {
+  const ws = wb.addWorksheet("Audit Trail", {
+    properties:{ tabColor:{ argb:"FFEF4444" } }
+  });
+  ws.properties.defaultColWidth = 16;
+  const maxCol = 12;
+  addSheetTitle(ws, "Audit Trail — Voided Tickets", `Full Day  ·  ${fmtDateFull(dateEAT)}`, maxCol);
+
+  const voided = allTickets.filter(t => t.voided);
+
+  if (voided.length === 0) {
+    const nr=ws.addRow(["  ✓ No voided tickets today — clean run across both shifts"]);
+    ws.mergeCells(nr.number,1,nr.number,maxCol);
+    const nc=ws.getCell(nr.number,1);
+    nc.fill=solidFill(C.navyMid); nc.font={bold:true,size:11,color:{argb:C.green},name:"Consolas"};
+    nc.alignment={horizontal:"center",vertical:"middle"}; nr.height=28;
+    ws.columns=[{width:2},...Array(maxCol-1).fill({width:18})];
+    return;
+  }
+
+  const warnRow=ws.addRow([`⚠  ${voided.length} voided ticket${voided.length!==1?"s":""} today — EXCLUDED from all other tabs`]);
+  ws.mergeCells(warnRow.number,1,warnRow.number,maxCol);
+  const wc=ws.getCell(warnRow.number,1);
+  wc.fill=solidFill("FF7F1D1D"); wc.font={bold:true,size:11,color:{argb:"FFFCA5A5"},name:"Consolas"};
+  wc.alignment={horizontal:"center",vertical:"middle"}; warnRow.height=26;
+  ws.addRow([]);
+
+  applyHeaderRow(ws.addRow([]),
+    ["Ticket Serial","Line","SKU","Product","Qty","UOM","Pallet Color","Clerk","Voided By","Void Reason","Voided At (EAT)"],
+    "FF7F1D1D", "FFFCA5A5"
+  );
+
+  voided.forEach((t,i)=>{
+    const meta=skuMeta[t.sku];
+    const vAt=t.voided_at?fmtTime(toEAT(new Date(t.voided_at)))+" "+fmtDateShort(toEAT(new Date(t.voided_at))):"—";
+    const bg=i%2===0?"FF2D0A0A":"FF3D1212";
+    const row=ws.addRow(["",
+      t.serial,t.production_line,t.sku,meta?.product_name||t.sku,
+      t.qty,t.uom,t.pallet_color||"—",
+      t.group_leader||"—",t.voided_by||"—",t.voided_reason||"—",vAt
+    ]);
+    row.height=18;
+    [2,3,4,5,6,7,8,9,10,11,12].forEach((col,j)=>{
+      const cell=ws.getCell(row.number,col);
+      cell.fill=solidFill(bg); cell.font=cellFont(false,10,"FFFCA5A5");
+      cell.border=thinBorder("FF7F1D1D");
+      cell.alignment={horizontal:j<4?"left":"center",vertical:"middle"};
+    });
+  });
+  ws.columns=[{width:2},{width:20},{width:14},{width:22},{width:28},{width:8},{width:8},{width:14},{width:16},{width:16},{width:30},{width:22}];
+}
+
 // ── WhatsApp summary text ─────────────────────────────────────────────────────
 function buildSummaryMessage(
   dateEAT: Date,
@@ -752,21 +1253,30 @@ async function buildReport(dateOverride?: string): Promise<void> {
     new Date(Date.UTC(reportDateEAT.getUTCFullYear(), reportDateEAT.getUTCMonth(), reportDateEAT.getUTCDate() - (i+1)))
   );
 
-  // Fetch all tickets in parallel
-  const [dayTickets, nightTickets, skuMeta, prevDayT, prevNightT, ...historyTickets] =
-    await Promise.all([
-      fetchTickets(sb, dayStart, dayEnd),
-      fetchTickets(sb, nightStart, nightEnd),
-      fetchSkuMeta(sb),
-      fetchTickets(sb, dayShiftBounds(new Date(reportDateEAT.getTime() - 86400000))[0],
-                       dayShiftBounds(new Date(reportDateEAT.getTime() - 86400000))[1]),
-      fetchTickets(sb, nightShiftBounds(new Date(reportDateEAT.getTime() - 86400000))[0],
-                       nightShiftBounds(new Date(reportDateEAT.getTime() - 86400000))[1]),
-      ...historyDates.flatMap(hd => [
-        fetchTickets(sb, dayShiftBounds(hd)[0],   dayShiftBounds(hd)[1]),
-        fetchTickets(sb, nightShiftBounds(hd)[0], nightShiftBounds(hd)[1]),
-      ])
-    ]);
+  // Fetch all data in parallel
+  const prevDate = new Date(reportDateEAT.getTime() - 86400000);
+  const [
+    dayTickets, nightTickets,
+    dayTicketsAll, nightTicketsAll,    // includes voided — for Audit Trail
+    skuMeta,
+    downtimeDay, downtimeNight,
+    prevDayT, prevNightT,
+    ...historyTickets
+  ] = await Promise.all([
+    fetchTickets(sb, dayStart,   dayEnd,   false),
+    fetchTickets(sb, nightStart, nightEnd, false),
+    fetchTickets(sb, dayStart,   dayEnd,   true),
+    fetchTickets(sb, nightStart, nightEnd, true),
+    fetchSkuMeta(sb),
+    fetchDowntimeEvents(sb, dayStart,   dayEnd),
+    fetchDowntimeEvents(sb, nightStart, nightEnd),
+    fetchTickets(sb, dayShiftBounds(prevDate)[0],   dayShiftBounds(prevDate)[1]),
+    fetchTickets(sb, nightShiftBounds(prevDate)[0], nightShiftBounds(prevDate)[1]),
+    ...historyDates.flatMap(hd => [
+      fetchTickets(sb, dayShiftBounds(hd)[0],   dayShiftBounds(hd)[1]),
+      fetchTickets(sb, nightShiftBounds(hd)[0], nightShiftBounds(hd)[1]),
+    ])
+  ]);
 
   const agg: DailyAgg = {
     day:   aggregateByLine(dayTickets,   skuMeta),
@@ -786,6 +1296,9 @@ async function buildReport(dateOverride?: string): Promise<void> {
     }
   }));
 
+  const allTickets    = [...dayTickets,    ...nightTickets];
+  const allTicketsAll = [...dayTicketsAll, ...nightTicketsAll]; // includes voided
+
   // Build Excel workbook
   const wb = new ExcelJS.Workbook();
   wb.creator  = "RetiFlux™ · NexGridCore DataLabs";
@@ -795,7 +1308,11 @@ async function buildReport(dateOverride?: string): Promise<void> {
   buildDailyOverviewSheet(wb, reportDateEAT, agg, skuMeta, prevAgg);
   buildDailyByLineSheet(wb, reportDateEAT, agg, skuMeta);
   buildDailySkuSheet(wb, reportDateEAT, agg, skuMeta);
+  buildDailyMaterialsSheet(wb, reportDateEAT, allTickets, skuMeta);
+  buildDailyHourlySheet(wb, reportDateEAT, allTickets, skuMeta);
+  buildDailyTrendIntelligenceSheet(wb, reportDateEAT, agg, skuMeta, history, downtimeDay, downtimeNight);
   buildSevenDayTrendSheet(wb, reportDateEAT, agg, history);
+  buildDailyAuditTrailSheet(wb, reportDateEAT, allTicketsAll, skuMeta);
 
   // Upload
   const fileName = `RetiFlux_DAILY_${fmtDateFile(reportDateEAT)}.xlsx`;

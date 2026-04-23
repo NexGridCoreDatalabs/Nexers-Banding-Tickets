@@ -1438,7 +1438,8 @@ function buildTrendIntelligenceSheet(
     ) ?? null;
   }
 
-  let idleCount=0, totalLostPallets=0, totalLostTonnes=0;
+  let idleCount=0, totalLostPallets=0, totalLostTonnes=0, totalIdleMins=0;
+  const totalActualPallets = LINES.reduce((s,l)=>s+curMetrics[l].pallets,0);
 
   const LINE_THRESHOLDS: Record<string,number> = {
     'SP':25,'PKN':15,'MB-250':20,'AL':45,'MB-150':60,'Offline Banding':30
@@ -1449,13 +1450,17 @@ function buildTrendIntelligenceSheet(
     gapMins:number, logged: DowntimeEvent|null
   ) {
     const severity=(gapMins>=90?"red":gapMins>=60?"amber":"green") as keyof typeof RAG;
-    // Use per-line active cadence (healthy-running pace) not a global average.
-    // If cadence is unknown (line only ran one ticket), show — rather than a phantom number.
+    // Use per-line active cadence (healthy-running pace), capped at what the
+    // line actually demonstrated this shift — prevents impossible "lost > produced" figures.
     const cadence = lineActiveCadence[line];
-    const lostPallets = cadence ? r5(gapMins/cadence) : 0;
+    const rawLostPallets = cadence ? r5(gapMins/cadence) : 0;
+    const lineActual = curMetrics[line].pallets;
+    // A single gap can claim at most as many pallets as the line made all shift.
+    const lostPallets = lineActual > 0 ? Math.min(rawLostPallets, lineActual) : rawLostPallets;
     const lostTonnes  = lostPallets ? r5(lostPallets*(lineAvgTonnesPerPallet[line]||0)) : 0;
-    totalLostPallets+=lostPallets;
-    totalLostTonnes  =r5(totalLostTonnes+lostTonnes);
+    totalLostPallets  = r5(totalLostPallets+lostPallets);
+    totalLostTonnes   = r5(totalLostTonnes+lostTonnes);
+    totalIdleMins    += gapMins;
 
     const cat    = logged?.category    || "— unlogged";
     const sub    = logged?.sub_category|| "—";
@@ -1527,10 +1532,18 @@ function buildTrendIntelligenceSheet(
     rc.fill=solidFill(C.navyMid); rc.font={bold:true,size:10,color:{argb:C.green},name:"Consolas"};
     rc.alignment={horizontal:"center",vertical:"middle"}; r.height=22;
   } else {
-    const totRow=ws.addRow(["","TOTAL DOWNTIME COST","","","","","","",
-      "",
-      totalLostPallets?`~${r2(totalLostPallets)}`:"—",
-      totalLostTonnes ?`~${totalLostTonnes} t`  :"—",
+    // Opportunity cost %: what fraction of achievable output was lost to idle time?
+    // = lost_pallets / (actual + lost_pallets)  — always ≤ 100%, never exceeds production.
+    const oppCostPct = (totalActualPallets+totalLostPallets) > 0
+      ? r2(totalLostPallets/(totalActualPallets+totalLostPallets)*100)
+      : 0;
+    const totRow=ws.addRow(["",
+      "TOTAL DOWNTIME COST",
+      "","",
+      `${totalIdleMins} mins idle`, "",
+      "","","",
+      totalLostPallets?`~${r2(totalLostPallets)} pallets`:"—",
+      `${oppCostPct}% opp. cost`,
       ""
     ]);
     totRow.height=22;
@@ -1539,7 +1552,7 @@ function buildTrendIntelligenceSheet(
       cell.fill=solidFill(C.navyLight);
       cell.font={bold:true,size:10,color:{argb:C.gold},name:"Consolas"};
       cell.border=thinBorder(C.goldDim);
-      cell.alignment={horizontal:j===0?"left":"center",vertical:"middle"};
+      cell.alignment={horizontal:j===0||j===1?"left":"center",vertical:"middle"};
     });
   }
 

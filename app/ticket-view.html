@@ -1057,27 +1057,32 @@
           }).join(' — ');
         }
 
-        // Derive handling context — two flavours: inline (short clause) and full (own sentence)
+        // Derive handling context from the raw SKU prefix — precise, no false matches.
+        // Two flavours: inline (short woven clause) and full (standalone sentence).
         function handlingHints() {
-          var sub = ((skuRow && skuRow.subdivision) || (ticket && ticket.subdivision) || '').toLowerCase();
-          var pn  = productName.toLowerCase();
-          var u   = uom.toLowerCase();
-          var isOil    = /oil|litre|liter|\bml\b|liquid|frying|corn|olive|soya|ufuta|bahari|sgold|gfry|eli/i.test(sub + ' ' + pn);
-          var isSachet = /sachet|pouch|powder|granule|msafi|gband/i.test(sub + ' ' + pn);
-          var isGlass  = /glass|jar|bottle/i.test(sub + ' ' + u);
-          if (isOil)    return {
-            inline: "it's oil, so upright only — no tilting, ever",
-            full:   "Oil product — it stays upright at all times. No tilting, no laying it on its side."
+          var rawSku = ((ticket && ticket.sku) || (skuRow && skuRow.sku) || '').toUpperCase();
+          var u      = uom.toUpperCase();
+
+          // Edible oils — known SKU prefixes
+          var isOil = /^(ELI|GFRY|SGOLD|BAHARI|UFUTA|SOYA|OLIVE)/.test(rawSku);
+          // Sachet / powder detergents
+          var isSachet = /^(MSAFI|GBAND)/.test(rawSku);
+          // Glass bottles — UOM is BTL
+          var isGlass = u === 'BTL';
+
+          if (isOil) return {
+            inline: "it's an edible oil — upright only, no tilting",
+            full:   'Edible oil product. It stays upright at all times — no tilting, no laying it on its side.'
           };
           if (isSachet) return {
-            inline: 'soft handling on this one — no compression',
-            full:   'Soft handling required — avoid compression and rough stacking.'
+            inline: 'soft handling on this one — avoid compression',
+            full:   'Soft handling required — avoid compression and rough stacking on this product.'
           };
-          if (isGlass)  return {
-            inline: 'glass packaging — handle with care',
-            full:   'Glass packaging on this one. Handle with care and avoid any impact.'
+          if (isGlass) return {
+            inline: 'glass bottles — handle with care',
+            full:   'Glass bottles on this one. Handle with care and avoid any impact.'
           };
-          return { inline: '', full: '' }; // no special handling — don't mention it
+          return { inline: '', full: '' }; // no special callout needed
         }
 
         function buildScripts() {

@@ -1054,88 +1054,93 @@
           var col   = colour     || 'unknown colour';
           var ser   = serialSaid;
           var loc   = toZone
-                        ? 'on its way to ' + toZone + ', coming from ' + zone
-                        : (zone ? 'currently in ' + zone : '');
-          var stack = stackLayers ? stackLayers + ' layers — do not exceed' : '';
-          var batch = batchSaid   ? 'Batch ' + batchSaid + '.' : '';
-          var note  = notes       ? 'Note: ' + notes + '.' : '';
-          var stat  = (status && !/active/i.test(status)) ? 'Status: ' + status + '.' : '';
+                        ? 'heading to ' + toZone + ' from ' + zone
+                        : (zone ? 'in ' + zone : '');
+          // Stack height is a product spec, not a pallet spec
+          var stack = stackLayers ? stackLayers + ' layers' : '';
+          var batch = batchSaid   ? batchSaid : '';
+          var note  = notes       ? notes     : '';
+          var stat  = (status && !/active/i.test(status)) ? 'Status is ' + status + '.' : '';
 
-          // ── Voided — 3 takes ─────────────────────────────────────────────
+          // ── Voided — 3 takes ──────────────────────────────────────────────
           if (isVoided) {
-            var vReason = ticket.voided_reason
-              ? ticket.voided_reason
-              : null;
+            var vr = ticket.voided_reason || null;
             return [
               {
-                line1: 'Stop right there. This ticket has been voided. It was raised for '
-                       + prod + ', ' + q_ + '. Serial ' + ser + '.',
-                line2: vReason
-                  ? 'Reason logged: ' + vReason + '. Do not process this pallet.'
-                  : 'No void reason was captured. Escalate to your supervisor before touching this pallet.'
+                line1: 'Whoa, pump the brakes. This ticket has been voided. I repeat — voided. '
+                       + 'It was raised for ' + prod + ', ' + q_ + '. Serial ' + ser + '.',
+                line2: vr
+                  ? 'Reason? ' + vr + '. Do not touch this pallet. We clear?'
+                  : 'No reason was captured. Do not touch this pallet — supervisor first. We clear?'
               },
               {
-                line1: 'Flag on this one. Do not process. Voided ticket — '
+                line1: 'Stop everything. Red flag on this one — voided ticket. '
                        + prod + ', ' + q_ + '. Serial ' + ser + '.',
-                line2: vReason
-                  ? 'The clerk noted: ' + vReason + '. Stand this pallet down.'
-                  : 'Void reason not recorded. Check with your supervisor.'
+                line2: vr
+                  ? 'Reason logged: ' + vr + '. This pallet is not yours to move. Supervisor first.'
+                  : 'No reason on file. This pallet is not yours to move. Supervisor first.'
               },
               {
-                line1: 'Heads up, this one is out of play. Voided. Product was '
-                       + prod + ', ' + q_ + '. Serial ' + ser + '.',
-                line2: vReason
-                  ? 'Filed under: ' + vReason + '. Mark it and set it aside.'
-                  : 'No reason on file. Do not move or process without supervisor clearance.'
+                line1: "This one's out. Voided, logged, and sealed. "
+                       + 'Was for ' + prod + ', ' + q_ + '. Serial ' + ser + '.',
+                line2: vr
+                  ? 'Filed as: ' + vr + '. Set it aside. No exceptions.'
+                  : 'No reason recorded. Set it aside and leave it alone. No exceptions.'
               }
             ];
           }
 
           // ── Active — 5 rotational takes ───────────────────────────────────
 
-          // Take 1 — "The Anchor" — clean, authoritative
-          var t1l1 = 'Ticket confirmed. You are looking at ' + prod
-                   + ' — ' + q_ + ', on a ' + col + ' pallet.'
-                   + (loc ? ' It is ' + loc + '.' : '');
-          var t1l2 = (stack  ? 'Max stack: ' + stack + '. ' : '')
-                   + (batch  ? batch + ' '                  : '')
-                   + 'Serial ' + ser + '. '
-                   + stat + note;
+          // Take 1 — "The Confident Briefer"
+          var t1l1 = "Right, let's go. " + prod + ' — ' + q_
+                   + ', looking sharp on a ' + col + ' pallet'
+                   + (loc ? ', ' + loc : '') + '.';
+          var t1l2 = (stack ? 'Now listen — this product stacks to ' + stack
+                              + " and that's your ceiling, not a suggestion. " : '')
+                   + (batch ? 'Batch ' + batch + '. ' : '')
+                   + 'Serial ' + ser + '. Clean ticket.'
+                   + (note  ? ' Also — ' + note : '');
 
-          // Take 2 — "The Quick Brief" — fast and punchy
-          var t2l1 = 'Quick read. ' + prod + ', ' + q_ + '. '
-                   + col + ' pallet. Serial ' + ser + '.';
-          var t2l2 = (loc    ? 'Location: ' + loc + '. '   : '')
-                   + (stack  ? 'Stack limit: ' + stack + '. ' : '')
-                   + (batch  ? batch + ' '                  : '')
-                   + stat + note;
+          // Take 2 — "The Cheerful Colleague"
+          var t2l1 = 'Okay, here we go! You\'ve got ' + prod + ' — ' + q_
+                   + ' on a ' + col + ' pallet'
+                   + (loc ? ' ' + loc : '') + '.';
+          var t2l2 = (stack ? 'Stack height on this product is ' + stack
+                              + ', keep it honest. '  : '')
+                   + (batch ? 'Batch ' + batch + ', serial ' + ser + '. ' : 'Serial ' + ser + '. ')
+                   + 'Good to go, yeah?'
+                   + (note  ? ' One more thing — ' + note : '');
 
-          // Take 3 — "Safety First" — leads with the stack callout
+          // Take 3 — "Safety First, Fun Second"
           var t3l1 = (stack
-                       ? 'Safety first — max stack is ' + stack + '. Now, '
-                       : 'Alright. ')
-                   + 'This is ' + prod + ', ' + q_
-                   + ' on a ' + col + ' pallet. Serial ' + ser + '.';
-          var t3l2 = (loc   ? 'It is ' + loc + '. ' : '')
-                   + (batch ? batch + ' '            : '')
-                   + stat + note;
+                       ? 'First things first — this product goes ' + stack
+                         + ' high and no further. That\'s '
+                       : 'Alright. This is ')
+                   + prod + ', ' + q_ + ', ' + col + ' pallet'
+                   + (loc ? ', ' + loc : '') + '.';
+          var t3l2 = (batch ? 'Batch ' + batch + '. ' : '')
+                   + 'Serial ' + ser + '. We keep it safe, we keep it moving.'
+                   + (note  ? ' Note: ' + note : '');
 
-          // Take 4 — "The Handover" — passing-the-baton style
-          var t4l1 = 'Here is what we have got. ' + prod + ', ' + q_
-                   + '. ' + (batch ? batch + ' ' : '')
-                   + col + ' pallet' + (loc ? ', ' + loc : '') + '.';
-          var t4l2 = (stack ? 'Stack ceiling: ' + stack + '. ' : '')
-                   + 'Serial ' + ser + '. '
-                   + stat + note;
+          // Take 4 — "The Punch" — zero-waste, fast
+          var t4l1 = prod + '. ' + q_ + '. '
+                   + col + ' pallet'
+                   + (loc ? ' — ' + loc : '') + '.';
+          var t4l2 = (stack ? 'This product stacks ' + stack + ', not one more. ' : '')
+                   + (batch ? 'Batch ' + batch + '. ' : '')
+                   + 'Serial ' + ser + '. Done.'
+                   + (note  ? ' Oh — ' + note : '');
 
-          // Take 5 — "The Floor Tone" — direct, warehouse-native
-          var t5l1 = 'On the floor: ' + prod + ', ' + q_ + '. '
-                   + col + ' pallet' + (loc ? ', ' + loc : '') + '. '
-                   + (batch ? batch + ' ' : '');
-          var t5l2 = (stack ? 'Stacking cap: ' + stack + '. ' : '')
-                   + 'Ticket serial ' + ser + '. '
-                   + stat + note
-                   + ' All clear.';
+          // Take 5 — "The Story"
+          var t5l1 = "So here's what's happening. You're standing in front of "
+                   + q_ + ' of ' + prod + ' on a ' + col + ' pallet'
+                   + (loc ? ', ' + loc : '') + '.';
+          var t5l2 = (stack ? stack + ' max on this product — anything above that '
+                              + "and we've got a conversation nobody wants to have. " : '')
+                   + (batch ? 'Batch ' + batch + ', serial ' + ser + '. ' : 'Serial ' + ser + '. ')
+                   + 'Full picture.'
+                   + (note  ? ' And by the way — ' + note : '');
 
           return [
             { line1: t1l1.trim(), line2: t1l2.trim() },

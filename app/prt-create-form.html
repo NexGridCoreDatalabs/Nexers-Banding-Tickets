@@ -2100,6 +2100,19 @@
         var uid = currentUser && currentUser.user_id ? currentUser.user_id : '';
         return normalizeUserId(uid) === normalizeUserId(PRIVILEGED_VOID_USER_ID);
       }
+      function getActorUserId() {
+        if (currentUser && currentUser.user_id) return currentUser.user_id;
+        try {
+          var s = readPrtSession();
+          if (s && s.user_id) return s.user_id;
+        } catch (_e) {}
+        try {
+          var rf = window.RetiFluxAuthSession && window.RetiFluxAuthSession.read();
+          if (rf && rf.user_id) return rf.user_id;
+        } catch (_e2) {}
+        var rb = document.getElementById('recordedBy');
+        return rb && rb.value ? rb.value : '';
+      }
       var _myTicketsBySerial = {};
       function applyMyTicketsFilter() {
         var qEl = document.getElementById('myTicketsSerialSearch');
@@ -2158,32 +2171,30 @@
             : '📋 My Tickets Today';
         }
 
-        var query;
-        if (isPrivilegedVoidUser()) {
-          var thirtyDaysAgoUtc = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-          query = supabase
-            .from('tickets')
-            .select('serial, sku, qty, uom, pallet_color, created_at, voided, voided_reason')
-            .gte('created_at', thirtyDaysAgoUtc.toISOString())
-            .order('created_at', { ascending: false })
-            .limit(200);
-        } else {
-          // Default behavior: clerk sees own tickets for current EAT day.
+        // DB-side access control: privileged user gets 30 days; others keep own-today.
+        var res = await supabase.rpc('list_tickets_for_void', {
+          p_actor_user_id: getActorUserId(),
+          p_days: 30,
+          p_limit: 200
+        });
+        var data = res.data;
+        if (res.error) {
+          console.warn('list_tickets_for_void failed:', res.error.message);
+          // Safe fallback to previous baseline behavior.
           var nowUtc = new Date();
           var eatDate = new Date(nowUtc.getTime() + 3 * 60 * 60 * 1000);
           eatDate.setUTCHours(0, 0, 0, 0);
           var dayStartUtc = new Date(eatDate.getTime() - 3 * 60 * 60 * 1000);
           var clerkId = recordedByFromUserId(currentUser);
-          query = supabase
+          var fb = await supabase
             .from('tickets')
             .select('serial, sku, qty, uom, pallet_color, created_at, voided, voided_reason')
             .eq('recorded_by', clerkId)
             .gte('created_at', dayStartUtc.toISOString())
             .order('created_at', { ascending: false })
             .limit(15);
+          data = fb.data || [];
         }
-        var res = await query;
-        var data = res.data;
 
         _myTicketsBySerial = {};
         var list  = document.getElementById('myTicketsList');

@@ -1056,7 +1056,7 @@
       <div class="void-actions">
         <button type="button" class="void-cancel" id="voidCancel">Cancel</button>
         <button type="button" class="void-confirm-btn" id="voidConfirmBtn" disabled>🚫 Void Ticket</button>
-        <button type="button" class="void-confirm-btn" id="voidReplaceBtn" disabled style="background:linear-gradient(135deg,#f59e0b,#f97316);">♻️ Void & Replace</button>
+        <button type="button" class="void-confirm-btn" id="voidReplaceBtn" disabled style="display:none;background:linear-gradient(135deg,#f59e0b,#f97316);">♻️ Void & Replace</button>
       </div>
       <div class="void-status" id="voidStatus"></div>
     </div>
@@ -2092,6 +2092,14 @@
 
       // ── My Tickets Today ──────────────────────────────────────────────
       var MT_COLOR_HEX = { White:'#f0f4f8', Blue:'#2563eb', Green:'#16a34a', Yellow:'#facc15', Maroon:'#881337' };
+      var PRIVILEGED_VOID_USER_ID = 'RFX-RCV-TD-101';
+      function normalizeUserId(v) {
+        return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      }
+      function isPrivilegedVoidUser() {
+        var uid = currentUser && currentUser.user_id ? currentUser.user_id : '';
+        return normalizeUserId(uid) === normalizeUserId(PRIVILEGED_VOID_USER_ID);
+      }
       var _myTicketsBySerial = {};
       function applyMyTicketsFilter() {
         var qEl = document.getElementById('myTicketsSerialSearch');
@@ -2143,21 +2151,39 @@
         var section = document.getElementById('myTicketsSection');
         if (!section) return;
         section.style.display = '';
+        var titleEl = document.querySelector('#myTicketsToggle h3');
+        if (titleEl) {
+          titleEl.textContent = isPrivilegedVoidUser()
+            ? '📋 Tickets (Last 7 Days)'
+            : '📋 My Tickets Today';
+        }
 
-        // Compute today's midnight in UTC (accounting for EAT = UTC+3)
-        var nowUtc = new Date();
-        var eatDate = new Date(nowUtc.getTime() + 3 * 60 * 60 * 1000);
-        eatDate.setUTCHours(0, 0, 0, 0);
-        var dayStartUtc = new Date(eatDate.getTime() - 3 * 60 * 60 * 1000);
-
-        var clerkId = recordedByFromUserId(currentUser);
-        var { data } = await supabase
-          .from('tickets')
-          .select('serial, sku, qty, uom, pallet_color, created_at, voided, voided_reason')
-          .eq('recorded_by', clerkId)
-          .gte('created_at', dayStartUtc.toISOString())
-          .order('created_at', { ascending: false })
-          .limit(15);
+        var query;
+        if (isPrivilegedVoidUser()) {
+          var sevenDaysAgoUtc = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          query = supabase
+            .from('tickets')
+            .select('serial, sku, qty, uom, pallet_color, created_at, voided, voided_reason')
+            .gte('created_at', sevenDaysAgoUtc.toISOString())
+            .order('created_at', { ascending: false })
+            .limit(200);
+        } else {
+          // Default behavior: clerk sees own tickets for current EAT day.
+          var nowUtc = new Date();
+          var eatDate = new Date(nowUtc.getTime() + 3 * 60 * 60 * 1000);
+          eatDate.setUTCHours(0, 0, 0, 0);
+          var dayStartUtc = new Date(eatDate.getTime() - 3 * 60 * 60 * 1000);
+          var clerkId = recordedByFromUserId(currentUser);
+          query = supabase
+            .from('tickets')
+            .select('serial, sku, qty, uom, pallet_color, created_at, voided, voided_reason')
+            .eq('recorded_by', clerkId)
+            .gte('created_at', dayStartUtc.toISOString())
+            .order('created_at', { ascending: false })
+            .limit(15);
+        }
+        var res = await query;
+        var data = res.data;
 
         _myTicketsBySerial = {};
         var list  = document.getElementById('myTicketsList');
@@ -2227,7 +2253,11 @@
         document.getElementById('voidSerialPill').textContent = serial || '—';
         document.getElementById('voidReasonInput').value = '';
         document.getElementById('voidConfirmBtn').disabled = true;
-        document.getElementById('voidReplaceBtn').disabled = true;
+        var replaceBtn = document.getElementById('voidReplaceBtn');
+        if (replaceBtn) {
+          replaceBtn.disabled = true;
+          replaceBtn.style.display = isPrivilegedVoidUser() ? '' : 'none';
+        }
         document.getElementById('voidStatus').textContent = '';
         document.getElementById('voidOverlay').classList.add('open');
         document.body.style.overflow = 'hidden';
@@ -2244,7 +2274,10 @@
       document.getElementById('voidReasonInput').addEventListener('input', function() {
         var disabled = this.value.trim().length < 3;
         document.getElementById('voidConfirmBtn').disabled = disabled;
-        document.getElementById('voidReplaceBtn').disabled = disabled;
+        var replaceBtn = document.getElementById('voidReplaceBtn');
+        if (replaceBtn && replaceBtn.style.display !== 'none') {
+          replaceBtn.disabled = disabled;
+        }
       });
 
       document.getElementById('voidCancel').addEventListener('click', closeVoidModal);

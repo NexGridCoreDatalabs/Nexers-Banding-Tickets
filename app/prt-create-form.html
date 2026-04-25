@@ -2097,7 +2097,7 @@
         return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       }
       function isPrivilegedVoidUser() {
-        var uid = currentUser && currentUser.user_id ? currentUser.user_id : '';
+        var uid = getActorUserId();
         return normalizeUserId(uid) === normalizeUserId(PRIVILEGED_VOID_USER_ID);
       }
       function getActorUserId() {

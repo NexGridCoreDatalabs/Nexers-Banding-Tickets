@@ -2550,8 +2550,21 @@
         if (!isFinite(upc) || upc <= 0) return null;
         return (qty * upc * perUnitKg) / 1000;
       }
-      function buildSupervisorContext() {
+      function buildSupervisorContext(scope) {
         var tickets = getTicketsInView();
+        var mode = String(scope || 'all').toLowerCase();
+        if (mode === 'today') {
+          var nowUtc = new Date();
+          var eatNow = new Date(nowUtc.getTime() + 3 * 60 * 60 * 1000);
+          var y = eatNow.getUTCFullYear();
+          var m = eatNow.getUTCMonth();
+          var d = eatNow.getUTCDate();
+          tickets = tickets.filter(function(t) {
+            if (!t || !t.created_at) return false;
+            var eatTicket = new Date(new Date(t.created_at).getTime() + 3 * 60 * 60 * 1000);
+            return eatTicket.getUTCFullYear() === y && eatTicket.getUTCMonth() === m && eatTicket.getUTCDate() === d;
+          });
+        }
         var units = 0;
         var pallets = tickets.length;
         var tonnes = 0;
@@ -2607,18 +2620,57 @@
       function fmtN(v, d) {
         return Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
       }
-      function supervisorReply(userText) {
+      async function fetchSupervisorMetrics(payload) {
+        if (!supabase || !supabase.functions || typeof supabase.functions.invoke !== 'function') return null;
+        try {
+          var res = await supabase.functions.invoke('supervisor-metrics', { body: payload || {} });
+          if (res && res.error) {
+            console.warn('supervisor-metrics invoke failed:', res.error.message || res.error);
+            return null;
+          }
+          return res && res.data ? res.data : null;
+        } catch (e) {
+          console.warn('supervisor-metrics error:', e && e.message ? e.message : e);
+          return null;
+        }
+      }
+      async function supervisorReply(userText) {
         var q = String(userText || '').trim();
         var low = q.toLowerCase();
-        var c = buildSupervisorContext();
+        var asksToday = /\btoday\b|\btodays\b/.test(low);
+        var asksNow = /\bnow\b|\bcurrently\b|\bcurrent\b/.test(low);
+        var scope = asksToday ? 'today' : 'all';
+        var c = buildSupervisorContext(scope);
         var hasProd = /production|numbers|output|units|pallet|tonnage|tonnes|tons/i.test(low);
+        var hasTopSku = /best\s+performing\s+sku|top\s+sku|best\s+sku|leading\s+sku/i.test(low);
         var hasLatency = /latency|delay|lag|idle|gap|slow/i.test(low);
         var hasReady = /readiness|ready|missing|before save|complete/i.test(low);
-        var hasAction = /next action|what should|do now|priority|priorit/i.test(low);
+        var hasAction = /next action|next best action|what should|do now|priority|priorit/i.test(low);
         var hasCorrection = /void|replace|correction|risk|audit/i.test(low);
-        if (hasProd) {
+        if (hasProd || hasTopSku) {
+          var metrics = await fetchSupervisorMetrics({
+            scope: scope,
+            line: c.line || null,
+            include_previous: true
+          });
+          if (metrics && metrics.official) {
+            var official = metrics.official || {};
+            var delta = metrics.provisional_delta || {};
+            var asOf = metrics.official_as_of_eat || metrics.official_as_of || 'latest snapshot';
+            var topSku = official.top_sku || {};
+            if (hasTopSku) {
+              if (!topSku.sku) {
+                return "From the latest official snapshot (" + asOf + "), I cannot confirm a clear top-performing SKU yet from available records. I would rather stay accurate than force a ranking.\n- Next move: keep ticket capture clean on active lines.\n- Watchpoint: the next snapshot will sharpen SKU ranking confidence.";
+              }
+              var leadLine = topSku.production_line ? (" on " + topSku.production_line) : '';
+              return "As of " + asOf + ", your best performing SKU is " + topSku.sku + leadLine + ", delivering " + fmtN(topSku.units || 0, 0) + " units and " + fmtN(topSku.pallets || 0, 0) + " pallets" + (topSku.tonnes != null ? (", about " + fmtN(topSku.tonnes, 2) + " tonnes.") : ".") + "\n- Since that snapshot: provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets.\n- Next move: protect continuity on the leading SKU line before pushing broader change.";
+            }
+            var periodTxtOfficial = asksToday ? "today" : "in this tracked window";
+            return "Here is where we stand " + periodTxtOfficial + ". As of " + asOf + " (official), output is " + fmtN(official.units || 0, 0) + " units, " + fmtN(official.pallets || 0, 0) + " pallets" + (official.tonnes != null ? (", and " + fmtN(official.tonnes, 2) + " tonnes.") : ".") + " Since that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets" + (delta.tonnes != null ? (", about +" + fmtN(delta.tonnes, 2) + " tonnes.") : ".") + "\n- Lead signal: " + (topSku.sku ? ("top SKU is " + topSku.sku + " at " + fmtN(topSku.units || 0, 0) + " units.") : "top SKU is still not decisive from current records.") + "\n- Next move: hold clean continuity before speed pressure.";
+          }
           var prodLineTxt = c.line ? (' on ' + c.line) : '';
-          var prod = "Quick update" + prodLineTxt + ": we are at " + fmtN(c.totals.units, 0) + " units and " + fmtN(c.totals.pallets, 0) + " pallets";
+          var periodTxt = asksToday ? " today" : (asksNow ? " right now" : "");
+          var prod = "Quick update" + periodTxt + prodLineTxt + ": we are at " + fmtN(c.totals.units, 0) + " units and " + fmtN(c.totals.pallets, 0) + " pallets";
           prod += c.totals.tonnesKnown
             ? (", with " + fmtN(c.totals.tonnes, 2) + " tonnes captured so far.")
             : ", while tonnes are still incomplete for some SKUs.";
@@ -2658,11 +2710,19 @@
         wrap.appendChild(row);
         wrap.scrollTop = wrap.scrollHeight;
       }
-      function sendAssistantPrompt(inputText) {
+      async function sendAssistantPrompt(inputText) {
         var t = String(inputText || '').trim();
         if (!t) return;
         assistantPush('user', t);
-        assistantPush('bot', supervisorReply(t));
+        assistantPush('bot', 'Checking latest snapshot...');
+        var wrap = document.getElementById('assistantMessages');
+        var last = wrap ? wrap.lastElementChild : null;
+        var text = await supervisorReply(t);
+        if (last && last.classList && last.classList.contains('bot')) {
+          last.innerHTML = escHtml(text || '');
+        } else {
+          assistantPush('bot', text);
+        }
       }
       function initAssistantPilot() {
         if (_assistantBooted) return;

@@ -979,6 +979,9 @@
         <span class="my-tickets-caret">▾</span>
       </div>
       <div class="my-tickets-body" id="myTicketsBody">
+        <div style="margin-bottom:10px;">
+          <input id="myTicketsSerialSearch" type="text" placeholder="Search serial in list..." style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid rgba(148,163,184,0.35);background:#0f172a;color:#e2e8f0;">
+        </div>
         <div class="mt-empty" id="myTicketsEmpty">No tickets created yet this shift.</div>
         <div id="myTicketsList"></div>
       </div>
@@ -1053,6 +1056,7 @@
       <div class="void-actions">
         <button type="button" class="void-cancel" id="voidCancel">Cancel</button>
         <button type="button" class="void-confirm-btn" id="voidConfirmBtn" disabled>🚫 Void Ticket</button>
+        <button type="button" class="void-confirm-btn" id="voidReplaceBtn" disabled style="background:linear-gradient(135deg,#f59e0b,#f97316);">♻️ Void & Replace</button>
       </div>
       <div class="void-status" id="voidStatus"></div>
     </div>
@@ -2088,6 +2092,51 @@
 
       // ── My Tickets Today ──────────────────────────────────────────────
       var MT_COLOR_HEX = { White:'#f0f4f8', Blue:'#2563eb', Green:'#16a34a', Yellow:'#facc15', Maroon:'#881337' };
+      var _myTicketsBySerial = {};
+      function applyMyTicketsFilter() {
+        var qEl = document.getElementById('myTicketsSerialSearch');
+        var list = document.getElementById('myTicketsList');
+        var empty = document.getElementById('myTicketsEmpty');
+        if (!qEl || !list || !empty) return;
+        var q = String(qEl.value || '').trim().toUpperCase();
+        var rows = Array.prototype.slice.call(list.querySelectorAll('.mt-row'));
+        var shown = 0;
+        rows.forEach(function(row) {
+          var serial = String(row.getAttribute('data-serial') || '').toUpperCase();
+          var match = !q || serial.indexOf(q) !== -1;
+          row.style.display = match ? '' : 'none';
+          if (match) shown++;
+        });
+        empty.style.display = shown === 0 ? '' : 'none';
+        if (shown === 0 && q) empty.textContent = 'No tickets match that serial in current list.';
+      }
+      function prefillFromVoidedTicket(t) {
+        if (!t) return;
+        // Reset to new-ticket mode first
+        var newBtn = document.getElementById('btnNewTicket');
+        if (newBtn) newBtn.click();
+
+        var skuEl = document.getElementById('sku');
+        var qtyEl = document.getElementById('qty');
+        var uomEl = document.getElementById('uom');
+        if (skuEl && t.sku) {
+          skuEl.value = t.sku;
+          try { skuEl.dispatchEvent(new Event('input', { bubbles:true })); } catch (_e) {}
+          try { skuEl.dispatchEvent(new Event('change', { bubbles:true })); } catch (_e2) {}
+        }
+        if (qtyEl && t.qty != null) qtyEl.value = t.qty;
+        if (uomEl && t.uom) uomEl.value = t.uom;
+
+        if (t.pallet_color) {
+          var sw = document.querySelector('.color-swatch[data-color="' + t.pallet_color + '"]');
+          if (sw) { try { sw.click(); } catch (_e3) {} }
+        }
+        var status = document.getElementById('status');
+        if (status) {
+          status.textContent = '♻️ Replacement mode: old ticket prefilled. Edit and save.';
+          status.className = 'status';
+        }
+      }
 
       async function loadMyTicketsToday() {
         if (!supabase || !currentUser) return;
@@ -2110,6 +2159,7 @@
           .order('created_at', { ascending: false })
           .limit(15);
 
+        _myTicketsBySerial = {};
         var list  = document.getElementById('myTicketsList');
         var empty = document.getElementById('myTicketsEmpty');
         if (!list || !empty) return;
@@ -2122,8 +2172,10 @@
         empty.style.display = 'none';
 
         data.forEach(function(t) {
+          _myTicketsBySerial[t.serial] = t;
           var row = document.createElement('div');
           row.className = 'mt-row' + (t.voided ? ' voided-row' : '');
+          row.setAttribute('data-serial', t.serial || '');
 
           // Time in EAT
           var eat = new Date(new Date(t.created_at).getTime() + 3 * 60 * 60 * 1000);
@@ -2144,11 +2196,12 @@
 
           if (!t.voided) {
             row.querySelector('.mt-void-btn').addEventListener('click', function() {
-              openVoidModal(t.serial);
+              openVoidModal(t.serial, t);
             });
           }
           list.appendChild(row);
         });
+        applyMyTicketsFilter();
       }
 
       // Toggle My Tickets Today panel
@@ -2166,12 +2219,15 @@
 
       // ── Void modal logic ──────────────────────────────────────────────
       var _voidTargetSerial = null;
+      var _voidTargetTicket = null;
 
-      function openVoidModal(serial) {
+      function openVoidModal(serial, ticketRow) {
         _voidTargetSerial = serial;
+        _voidTargetTicket = ticketRow || _myTicketsBySerial[serial] || null;
         document.getElementById('voidSerialPill').textContent = serial || '—';
         document.getElementById('voidReasonInput').value = '';
         document.getElementById('voidConfirmBtn').disabled = true;
+        document.getElementById('voidReplaceBtn').disabled = true;
         document.getElementById('voidStatus').textContent = '';
         document.getElementById('voidOverlay').classList.add('open');
         document.body.style.overflow = 'hidden';
@@ -2182,10 +2238,13 @@
         document.getElementById('voidOverlay').classList.remove('open');
         document.body.style.overflow = '';
         _voidTargetSerial = null;
+        _voidTargetTicket = null;
       }
 
       document.getElementById('voidReasonInput').addEventListener('input', function() {
-        document.getElementById('voidConfirmBtn').disabled = this.value.trim().length < 3;
+        var disabled = this.value.trim().length < 3;
+        document.getElementById('voidConfirmBtn').disabled = disabled;
+        document.getElementById('voidReplaceBtn').disabled = disabled;
       });
 
       document.getElementById('voidCancel').addEventListener('click', closeVoidModal);
@@ -2193,13 +2252,16 @@
         if (e.target === this) closeVoidModal();
       });
 
-      document.getElementById('voidConfirmBtn').addEventListener('click', async function() {
-        var btn = this;
+      async function runVoidAction(mode) {
+        var btn = mode === 'replace' ? document.getElementById('voidReplaceBtn') : document.getElementById('voidConfirmBtn');
+        var otherBtn = mode === 'replace' ? document.getElementById('voidConfirmBtn') : document.getElementById('voidReplaceBtn');
         var statusEl = document.getElementById('voidStatus');
         var reason = document.getElementById('voidReasonInput').value.trim();
         if (!reason || !_voidTargetSerial || !supabase) return;
         btn.disabled = true;
-        btn.textContent = 'Voiding…';
+        if (otherBtn) otherBtn.disabled = true;
+        var oldText = btn.textContent;
+        btn.textContent = mode === 'replace' ? 'Voiding & preparing…' : 'Voiding…';
         statusEl.textContent = '';
         try {
           var { data, error } = await supabase.rpc('void_ticket', {
@@ -2209,19 +2271,26 @@
           });
           if (error) throw new Error(error.message || 'Void failed');
           if (data && data.ok === false) throw new Error(data.error || 'Void failed');
-          statusEl.textContent = '✅ Ticket voided.';
+          var replacementSource = _voidTargetTicket;
+          statusEl.textContent = mode === 'replace' ? '✅ Ticket voided. Loading replacement form…' : '✅ Ticket voided.';
           statusEl.style.color = '#34d399';
           setTimeout(function() {
             closeVoidModal();
             loadMyTicketsToday();
+            if (mode === 'replace') prefillFromVoidedTicket(replacementSource);
           }, 900);
         } catch (ex) {
           statusEl.textContent = '❌ ' + (ex.message || 'Error voiding ticket');
           statusEl.style.color = '#f87171';
           btn.disabled = false;
-          btn.textContent = '🚫 Void Ticket';
+          if (otherBtn) otherBtn.disabled = false;
+          btn.textContent = oldText;
         }
-      });
+      }
+      document.getElementById('voidConfirmBtn').addEventListener('click', function() { runVoidAction('void'); });
+      document.getElementById('voidReplaceBtn').addEventListener('click', function() { runVoidAction('replace'); });
+      var serialSearchEl = document.getElementById('myTicketsSerialSearch');
+      if (serialSearchEl) serialSearchEl.addEventListener('input', applyMyTicketsFilter);
 
     // ═══════════════════════════════════════════════════════════════════════
     // DOWNTIME & HANDOVER SYSTEM

@@ -1150,7 +1150,7 @@
   <div id="assistantShell" class="assistant-shell" role="dialog" aria-modal="false" aria-label="Supervisor Assistant">
     <div class="assistant-head">
       <div>
-        <div class="assistant-title">Supervisor Assistant</div>
+        <div class="assistant-title">Assistant</div>
         <div class="assistant-sub">Facts first. Clear action. No guesswork.</div>
       </div>
       <button id="assistantClose" class="assistant-close" type="button">Close</button>
@@ -2643,19 +2643,28 @@
         var q = String(userText || '').trim();
         var low = q.toLowerCase();
         var asksTodayOnly = /^\s*(that'?s?\s+today|today)\s*\??\s*$/.test(low);
+        var asksShiftOnly = /^\s*(what\s+of\s+this\s+shift\??|this\s+shift\??|for\s+this\s+shift\??|shift\??)\s*$/.test(low);
         var asksToday = /\btoday\b|\btodays\b/.test(low);
         var asksNow = /\bnow\b|\bcurrently\b|\bcurrent\b/.test(low);
+        var asksShift = /\bthis\s+shift\b|\bcurrent\s+shift\b|\bof\s+this\s+shift\b/.test(low);
         var scope = asksToday ? 'today' : 'shift';
         if (asksTodayOnly) scope = 'today';
+        if (asksShift || asksShiftOnly) scope = 'shift';
         var c = buildSupervisorContext(scope);
         var hasProd = /production|numbers|output|units|pallet|tonnage|tonnes|tons/i.test(low);
         var hasTopSku = ((/\bsku\b/.test(low) && /\b(best|top|leading|perform)/.test(low)) || /best\s+performing\s+sku|top\s+sku|best\s+sku|leading\s+sku/i.test(low));
         var hasPerSku = ((/\bsku\b/.test(low) && /\b(per|by|breakdown|numbers)\b/.test(low)) || /\bper\s+sku\b|\bby\s+sku\b|\bsku\s+breakdown\b|\bnumbers\s+per\s+sku\b/.test(low));
         var hasLatency = /latency|delay|lag|idle|gap|slow/i.test(low);
         var hasReady = /readiness|ready|missing|before save|complete/i.test(low);
+        var hasHourAsk = /which hour|what hour|hour window|which window|window\??$/i.test(low);
         var hasAction = /next action|next best action|what should|do now|priority|priorit/i.test(low);
         var hasCorrection = /void|replace|correction|risk|audit/i.test(low);
         if (asksTodayOnly) {
+          hasProd = _assistantLastTopic === 'production' || _assistantLastTopic === 'sku';
+          hasTopSku = _assistantLastTopic === 'topSku';
+          hasPerSku = _assistantLastTopic === 'sku';
+        }
+        if (asksShiftOnly) {
           hasProd = _assistantLastTopic === 'production' || _assistantLastTopic === 'sku';
           hasTopSku = _assistantLastTopic === 'topSku';
           hasPerSku = _assistantLastTopic === 'sku';
@@ -2667,7 +2676,7 @@
         else if (hasReady) _assistantLastTopic = 'readiness';
         else if (hasAction) _assistantLastTopic = 'action';
         else if (hasCorrection) _assistantLastTopic = 'correction';
-        if (hasProd || hasTopSku || hasPerSku) {
+        if (hasProd || hasTopSku || hasPerSku || hasHourAsk) {
           var metrics = await fetchSupervisorMetrics({
             scope: scope,
             line: c.line || null,
@@ -2681,8 +2690,17 @@
             var windowLine = (win.label && win.start_eat && win.end_eat)
               ? ("Window: " + win.label + " (" + win.start_eat + " to " + win.end_eat + ").")
               : "";
+            var hourLine = (win.hour_window && win.hour_window.start_eat && win.hour_window.end_eat)
+              ? ("Latest closed hour: " + win.hour_window.start_eat + " to " + win.hour_window.end_eat + ".")
+              : "";
             var topSku = official.top_sku || {};
             var skuBreak = Array.isArray(official.sku_breakdown) ? official.sku_breakdown : [];
+            if (hasHourAsk) {
+              if (!hourLine && !windowLine) {
+                return "Current metrics are anchored to the latest closed snapshot window. I cannot display an exact hour boundary from this payload yet.";
+              }
+              return "Good question. " + (hourLine || "") + (windowLine ? ("\n" + windowLine) : "") + "\nIf you ask for production now, I will report official values up to the closed hour, then provisional movement after that.";
+            }
             if (hasPerSku) {
               if (!skuBreak.length) {
                 return "I checked the latest official snapshot at " + asOf + ", and there is still not enough clean distribution to rank SKUs confidently in this window. I would rather give you a hard fact than a weak ranking.\n- Next move: keep SKU capture tight on active lines.\n- Watchpoint: the next snapshot should produce a clean leaderboard.";
@@ -2701,7 +2719,7 @@
               var leadLine = topSku.production_line ? (" on " + topSku.production_line) : '';
               return "Clear call: as of " + asOf + ", the best-performing SKU is " + topSku.sku + leadLine + ". It is carrying " + fmtN(topSku.units || 0, 0) + " units and " + fmtN(topSku.pallets || 0, 0) + " pallets" + (topSku.tonnes != null ? (", roughly " + fmtN(topSku.tonnes, 2) + " tonnes.") : ".") + "\n" + windowLine + "\nSince that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets.\n- Next move: keep that lane stable before widening the push.";
             }
-            var periodTxtOfficial = asksToday ? "today" : "in this tracked window";
+            var periodTxtOfficial = (scope === 'today') ? "today" : "for this shift";
             return "Here is where we stand " + periodTxtOfficial + ". As of " + asOf + " (official), output is " + fmtN(official.units || 0, 0) + " units and " + fmtN(official.pallets || 0, 0) + " pallets" + (official.tonnes != null ? (", with " + fmtN(official.tonnes, 2) + " tonnes.") : ".") + "\n" + windowLine + "\nSince that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets" + (delta.tonnes != null ? (", around +" + fmtN(delta.tonnes, 2) + " tonnes.") : ".") + " " + (topSku.sku ? ("Right now, " + topSku.sku + " is leading the mix.") : "SKU leadership is still close.").trim() + "\n- Next move: keep continuity clean, then push speed with control.";
           }
           if (hasPerSku) {
@@ -2733,8 +2751,23 @@
           return "Latency call for " + lineLabel + ": we are in a " + riskBand + " risk band from current operating signals. This is directional, not a final minute score.\n- Main drag: " + (c.missing.length ? ("form completeness gaps (" + c.missing.length + " pending item" + (c.missing.length > 1 ? "s" : "") + ").") : "no major capture gaps detected right now.") + "\n- Next move: clear pending fields fast and lock the next ticket cleanly.";
         }
         if (hasReady) {
-          if (!c.missing.length) return "You are ready to save. All required fields are complete and clean.\n- Next move: quick sanity check on SKU and quantity, then save and print.";
-          return "Not ready yet, and this is where delay starts. You still have " + c.missing.length + " required item(s) missing: " + c.missing.slice(0, 6).join(', ') + (c.missing.length > 6 ? ', ...' : '.') + "\n- Next move: clear those items in order, then save.";
+          if (!c.missing.length) return "You are ready to save. Everything required is complete and clean.\n- Do now: verify SKU, quantity, and pallet colour one final time.\n- Then: save and print without reopening avoidable edits.";
+          var ordered = c.missing.slice();
+          var sequencing = ['Production Line', 'SKU', 'Quantity', 'Pallet Colour', 'Batch / Lot', 'Mfg. Date', 'Expiry Date', 'Pallet Overview Photo', 'Pallet Side View Photo', 'Layers', 'Max Stack'];
+          ordered.sort(function(a, b) {
+            var ia = sequencing.indexOf(a);
+            var ib = sequencing.indexOf(b);
+            if (ia === -1) ia = 999;
+            if (ib === -1) ib = 999;
+            return ia - ib;
+          });
+          var topBlockers = ordered.slice(0, 5);
+          var impact = ordered.indexOf('SKU') !== -1 || ordered.indexOf('Quantity') !== -1
+            ? 'high risk to production accuracy'
+            : (ordered.indexOf('Pallet Overview Photo') !== -1 || ordered.indexOf('Pallet Side View Photo') !== -1
+              ? 'high risk to evidence quality'
+              : 'moderate risk to clean handoff');
+          return "Not ready yet. " + c.missing.length + " required item(s) are still pending, and this is " + impact + ".\n- Priority blockers: " + topBlockers.join(', ') + (ordered.length > topBlockers.length ? ', ...' : '.') + "\n- Fix order: line -> SKU -> quantity -> pallet details -> dates -> photos -> save.\n- Rule: do not save with missing evidence or core capture fields.";
         }
         if (hasCorrection) {
           return "Use correction tools with discipline. Void-and-replace is for factual mistakes, not convenience edits.\n- Quality bar: say what was wrong, what is now correct, and why.\n- Watchpoint: repeated corrections usually mean capture process drift.";

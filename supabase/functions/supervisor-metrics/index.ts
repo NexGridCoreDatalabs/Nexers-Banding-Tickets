@@ -51,6 +51,11 @@ function topOfCurrentHourUtc(nowUtc: Date): Date {
   ));
 }
 
+function prevTopOfHourUtc(nowUtc: Date): Date {
+  const top = topOfCurrentHourUtc(nowUtc);
+  return new Date(top.getTime() - 60 * 60 * 1000);
+}
+
 function fmtAsOfEat(d: Date): string {
   const eat = toEat(d);
   const hh = String(eat.getUTCHours()).padStart(2, "0");
@@ -165,6 +170,7 @@ Deno.serve(async (req: Request) => {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const nowUtc = new Date();
     const officialAsOf = topOfCurrentHourUtc(nowUtc);
+    const hourStart = prevTopOfHourUtc(nowUtc);
     const shiftInfo = currentShiftBoundsUtc(nowUtc);
     const officialStart =
       scope === "today"
@@ -227,6 +233,13 @@ Deno.serve(async (req: Request) => {
         start_eat: fmtAsOfEat(officialStart),
         end_eat: fmtAsOfEat(officialAsOf),
         shift: shiftInfo.shift,
+        hour_window: {
+          label: "Latest closed hour",
+          start_utc: hourStart.toISOString(),
+          end_utc: officialAsOf.toISOString(),
+          start_eat: fmtAsOfEat(hourStart),
+          end_eat: fmtAsOfEat(officialAsOf),
+        },
       },
       official: {
         units: officialAgg.units,

@@ -2267,7 +2267,8 @@
           var { data, error } = await supabase.rpc('void_ticket', {
             p_serial:        _voidTargetSerial,
             p_voided_by:     currentUser ? (currentUser.name || currentUser.user_id || 'Clerk') : 'Clerk',
-            p_voided_reason: reason
+            p_voided_reason: reason,
+            p_actor_user_id: currentUser ? (currentUser.user_id || '') : ''
           });
           if (error) throw new Error(error.message || 'Void failed');
           if (data && data.ok === false) throw new Error(data.error || 'Void failed');

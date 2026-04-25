@@ -2519,6 +2519,7 @@
 
       // ── Supervisor Assistant (Create PRT only) ─────────────────────────
       var _assistantBooted = false;
+      var _assistantLastTopic = 'production';
       function escHtml(s) {
         return String(s == null ? '' : s)
           .replace(/&/g, '&amp;')
@@ -2583,6 +2584,9 @@
           if (!Object.prototype.hasOwnProperty.call(bySku, sku)) continue;
           if (!topSku || bySku[sku] > topSku.qty) topSku = { sku: sku, qty: bySku[sku] };
         }
+        var skuRows = Object.keys(bySku).map(function(sku) {
+          return { sku: sku, units: bySku[sku] || 0 };
+        }).sort(function(a, b) { return b.units - a.units; }).slice(0, 8);
         var line = (document.getElementById('productionLine') || {}).value || '';
         var selectedSku = (document.getElementById('sku') || {}).value || '';
         var selectedQty = Number((document.getElementById('qty') || {}).value) || 0;
@@ -2613,6 +2617,7 @@
           selectedUom: selectedUom,
           totals: { units: units, pallets: pallets, tonnes: tonnes, tonnesKnown: tonnesKnown },
           topSku: topSku,
+          skuRows: skuRows,
           missing: missing,
           ticketCount: tickets.length
         };
@@ -2637,17 +2642,32 @@
       async function supervisorReply(userText) {
         var q = String(userText || '').trim();
         var low = q.toLowerCase();
+        var asksTodayOnly = /^\s*(that'?s?\s+today|today)\s*\??\s*$/.test(low);
         var asksToday = /\btoday\b|\btodays\b/.test(low);
         var asksNow = /\bnow\b|\bcurrently\b|\bcurrent\b/.test(low);
         var scope = asksToday ? 'today' : 'all';
+        if (asksTodayOnly) scope = 'today';
         var c = buildSupervisorContext(scope);
         var hasProd = /production|numbers|output|units|pallet|tonnage|tonnes|tons/i.test(low);
-        var hasTopSku = /best\s+performing\s+sku|top\s+sku|best\s+sku|leading\s+sku/i.test(low);
+        var hasTopSku = ((/\bsku\b/.test(low) && /\b(best|top|leading|perform)/.test(low)) || /best\s+performing\s+sku|top\s+sku|best\s+sku|leading\s+sku/i.test(low));
+        var hasPerSku = ((/\bsku\b/.test(low) && /\b(per|by|breakdown|numbers)\b/.test(low)) || /\bper\s+sku\b|\bby\s+sku\b|\bsku\s+breakdown\b|\bnumbers\s+per\s+sku\b/.test(low));
         var hasLatency = /latency|delay|lag|idle|gap|slow/i.test(low);
         var hasReady = /readiness|ready|missing|before save|complete/i.test(low);
         var hasAction = /next action|next best action|what should|do now|priority|priorit/i.test(low);
         var hasCorrection = /void|replace|correction|risk|audit/i.test(low);
-        if (hasProd || hasTopSku) {
+        if (asksTodayOnly) {
+          hasProd = _assistantLastTopic === 'production' || _assistantLastTopic === 'sku';
+          hasTopSku = _assistantLastTopic === 'topSku';
+          hasPerSku = _assistantLastTopic === 'sku';
+        }
+        if (hasPerSku) _assistantLastTopic = 'sku';
+        else if (hasTopSku) _assistantLastTopic = 'topSku';
+        else if (hasProd) _assistantLastTopic = 'production';
+        else if (hasLatency) _assistantLastTopic = 'latency';
+        else if (hasReady) _assistantLastTopic = 'readiness';
+        else if (hasAction) _assistantLastTopic = 'action';
+        else if (hasCorrection) _assistantLastTopic = 'correction';
+        if (hasProd || hasTopSku || hasPerSku) {
           var metrics = await fetchSupervisorMetrics({
             scope: scope,
             line: c.line || null,
@@ -2658,6 +2678,18 @@
             var delta = metrics.provisional_delta || {};
             var asOf = metrics.official_as_of_eat || metrics.official_as_of || 'latest snapshot';
             var topSku = official.top_sku || {};
+            var skuBreak = Array.isArray(official.sku_breakdown) ? official.sku_breakdown : [];
+            if (hasPerSku) {
+              if (!skuBreak.length) {
+                return "I checked the latest official snapshot (" + asOf + "), but there is no reliable per-SKU breakdown yet in this window.\n- Next move: keep captures complete by SKU so ranking clarity improves.\n- Watchpoint: the next snapshot should resolve the leaderboard cleanly.";
+              }
+              var intro = "As of " + asOf + ", here is the current production by SKU" + (scope === 'today' ? " for today" : "") + ":";
+              var rows = skuBreak.slice(0, 6).map(function(r, i) {
+                var t = r.tonnes == null ? "tonnes pending" : (fmtN(r.tonnes, 2) + " t");
+                return (i + 1) + ". " + r.sku + " - " + fmtN(r.units || 0, 0) + " units, " + fmtN(r.pallets || 0, 0) + " pallets, " + t;
+              }).join("\n");
+              return intro + "\n" + rows + "\n- Since that snapshot: provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets.\n- Next move: protect continuity on the top 2 SKUs before rotating effort.";
+            }
             if (hasTopSku) {
               if (!topSku.sku) {
                 return "From the latest official snapshot (" + asOf + "), I cannot confirm a clear top-performing SKU yet from available records. I would rather stay accurate than force a ranking.\n- Next move: keep ticket capture clean on active lines.\n- Watchpoint: the next snapshot will sharpen SKU ranking confidence.";
@@ -2667,6 +2699,15 @@
             }
             var periodTxtOfficial = asksToday ? "today" : "in this tracked window";
             return "Here is where we stand " + periodTxtOfficial + ". As of " + asOf + " (official), output is " + fmtN(official.units || 0, 0) + " units, " + fmtN(official.pallets || 0, 0) + " pallets" + (official.tonnes != null ? (", and " + fmtN(official.tonnes, 2) + " tonnes.") : ".") + " Since that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets" + (delta.tonnes != null ? (", about +" + fmtN(delta.tonnes, 2) + " tonnes.") : ".") + "\n- Lead signal: " + (topSku.sku ? ("top SKU is " + topSku.sku + " at " + fmtN(topSku.units || 0, 0) + " units.") : "top SKU is still not decisive from current records.") + "\n- Next move: hold clean continuity before speed pressure.";
+          }
+          if (hasPerSku) {
+            if (!c.skuRows.length) {
+              return "I cannot confirm per-SKU numbers yet because there are no active tickets in this view.\n- Next move: save a clean ticket, then ask again for the SKU ranking.";
+            }
+            var localRows = c.skuRows.slice(0, 6).map(function(r, i) {
+              return (i + 1) + ". " + r.sku + " - " + fmtN(r.units || 0, 0) + " units";
+            }).join("\n");
+            return "Using current in-page records, here is the SKU ranking" + (scope === 'today' ? " for today" : "") + ":\n" + localRows + "\n- Note: this is provisional context until snapshot data is available.";
           }
           var prodLineTxt = c.line ? (' on ' + c.line) : '';
           var periodTxt = asksToday ? " today" : (asksNow ? " right now" : "");

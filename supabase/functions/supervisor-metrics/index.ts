@@ -118,7 +118,21 @@ function aggregateTickets(tickets: TicketRow[], skuMeta: Map<string, SkuRow>) {
     }
   }
 
-  return { units, pallets, tonnes: tonnesKnown ? tonnes : null, topSku };
+  const skuBreakdown = Object.keys(bySku)
+    .map((sku) => {
+      const row = bySku[sku];
+      return {
+        sku,
+        units: row.units,
+        pallets: row.pallets,
+        tonnes: row.tonnesKnown ? row.tonnes : null,
+        production_line: row.production_line,
+      };
+    })
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 8);
+
+  return { units, pallets, tonnes: tonnesKnown ? tonnes : null, topSku, skuBreakdown };
 }
 
 Deno.serve(async (req: Request) => {
@@ -183,11 +197,13 @@ Deno.serve(async (req: Request) => {
         pallets: officialAgg.pallets,
         tonnes: officialAgg.tonnes,
         top_sku: officialAgg.topSku,
+        sku_breakdown: officialAgg.skuBreakdown,
       },
       provisional_delta: {
         units: deltaAgg.units,
         pallets: deltaAgg.pallets,
         tonnes: deltaAgg.tonnes,
+        sku_breakdown: deltaAgg.skuBreakdown,
       },
       now_utc: nowUtc.toISOString(),
     }), { headers: corsHeaders() });

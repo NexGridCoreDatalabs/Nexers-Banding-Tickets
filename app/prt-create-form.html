@@ -1151,7 +1151,6 @@
     <div class="assistant-head">
       <div>
         <div class="assistant-title">Assistant</div>
-        <div class="assistant-sub">Facts first. Clear action. No guesswork.</div>
       </div>
       <button id="assistantClose" class="assistant-close" type="button">Close</button>
     </div>
@@ -2632,6 +2631,10 @@
         if (arr.length === 2) return arr[0] + ' and ' + arr[1];
         return arr.slice(0, -1).join(', ') + ', and ' + arr[arr.length - 1];
       }
+      function assistantGreeting() {
+        var pool = ["Good question.", "Nice one.", "Sure.", "Got you."];
+        return pool[Math.floor(Math.random() * pool.length)];
+      }
       async function fetchSupervisorMetrics(payload) {
         if (!supabase || !supabase.functions || typeof supabase.functions.invoke !== 'function') return null;
         try {
@@ -2663,7 +2666,7 @@
         var hasPerSku = ((/\bsku\b/.test(low) && /\b(per|by|breakdown|numbers)\b/.test(low)) || /\bper\s+sku\b|\bby\s+sku\b|\bsku\s+breakdown\b|\bnumbers\s+per\s+sku\b/.test(low));
         var hasLatency = /latency|delay|lag|idle|gap|slow/i.test(low);
         var hasReady = /readiness|ready|missing|before save|complete/i.test(low);
-        var hasHourAsk = /which hour|what hour|hour window|which window|window\??$/i.test(low);
+        var hasHourAsk = /which hour|what hour|hour window|which window|window\??$|this hour|in the hour|last hour/i.test(low);
         var hasWhy = /why|what happened|reason|downtime|explain/i.test(low);
         var hasAction = /next action|next best action|what should|do now|priority|priorit/i.test(low);
         var hasCorrection = /void|replace|correction|risk|audit/i.test(low);
@@ -2693,6 +2696,7 @@
           });
           if (metrics && metrics.official) {
             var official = metrics.official || {};
+            var hourOfficial = metrics.hour_official || {};
             var delta = metrics.provisional_delta || {};
             var asOf = metrics.official_as_of_eat || metrics.official_as_of || 'latest snapshot';
             var win = metrics.window || {};
@@ -2704,25 +2708,34 @@
               : "";
             var dt = metrics.downtime || {};
             var dtOfficial = dt.official || {};
+            var dtHour = dt.hour_official || {};
             var dtDelta = dt.provisional_delta || {};
             var dtTop = Array.isArray(dtOfficial.top_reasons) ? dtOfficial.top_reasons : [];
+            var dtHourTop = Array.isArray(dtHour.top_reasons) ? dtHour.top_reasons : [];
             var topSku = official.top_sku || {};
             var skuBreak = Array.isArray(official.sku_breakdown) ? official.sku_breakdown : [];
             if (hasHourAsk) {
               if (!hourLine && !windowLine) {
                 return "Current metrics are anchored to the latest closed snapshot window. I cannot display an exact hour boundary from this payload yet.";
               }
-              return "Good question. " + (hourLine || "") + (windowLine ? ("\n" + windowLine) : "") + "\nIf you ask for production now, I will report official values up to the closed hour, then provisional movement after that.";
+              var hSku = hourOfficial.top_sku || {};
+              var hLead = hSku.sku ? (hSku.sku + " is leading that hour mix.") : "SKU mix is still dispersed for that hour.";
+              return assistantGreeting() + " " + (hourLine || "Latest closed hour is used.") + "\nIn that hour, output was " + fmtN(hourOfficial.units || 0, 0) + " units and " + fmtN(hourOfficial.pallets || 0, 0) + " pallets" + (hourOfficial.tonnes != null ? (", about " + fmtN(hourOfficial.tonnes, 2) + " tonnes.") : ".") + " " + hLead + "\nIf you want, I can also break this same hour by SKU line-by-line.";
             }
             if (hasWhy) {
-              if (!dtTop.length) {
-                return "From this window, I do not see a dominant logged downtime reason yet.\n" + windowLine + "\nIf you want, I can still break down throughput by SKU and line so we spot where momentum is holding.";
+              var focusHour = /\bthis hour\b|\blast hour\b|\bin the hour\b/.test(low);
+              var reasonSet = focusHour ? dtHourTop : dtTop;
+              var baseOut = focusHour ? hourOfficial : official;
+              if (!reasonSet.length) {
+                return assistantGreeting() + " I do not see a dominant logged downtime reason in that " + (focusHour ? "hour" : "window") + " yet.\n" + (focusHour ? hourLine : windowLine) + "\nOutput in that same view is " + fmtN(baseOut.units || 0, 0) + " units and " + fmtN(baseOut.pallets || 0, 0) + " pallets" + (baseOut.tonnes != null ? (", about " + fmtN(baseOut.tonnes, 2) + " tonnes.") : ".") + " If you want, I can break the SKU mix behind it.";
               }
-              var lead1 = dtTop[0];
-              var lead2 = dtTop[1];
+              var lead1 = reasonSet[0];
+              var lead2 = reasonSet[1];
               var leadText = lead1.category + " > " + lead1.sub_category + " (" + fmtN(lead1.minutes || 0, 0) + " min)";
               if (lead2) leadText += ", followed by " + lead2.category + " > " + lead2.sub_category + " (" + fmtN(lead2.minutes || 0, 0) + " min)";
-              return "Good question. The floor story in this window is mostly downtime-driven: " + leadText + ".\n" + windowLine + "\nTotal logged downtime is " + fmtN(dtOfficial.total_minutes || 0, 0) + " minutes, with +" + fmtN(dtDelta.total_minutes || 0, 0) + " minutes added since the closed snapshot.\nIf you stabilize those top reasons first, output recovery will be much cleaner.";
+              var dtTotal = focusHour ? (dtHour.total_minutes || 0) : (dtOfficial.total_minutes || 0);
+              var viewLine = focusHour ? hourLine : windowLine;
+              return assistantGreeting() + " Here is what happened on the floor " + (focusHour ? "that hour" : "in this window") + ": output was " + fmtN(baseOut.units || 0, 0) + " units and " + fmtN(baseOut.pallets || 0, 0) + " pallets" + (baseOut.tonnes != null ? (", about " + fmtN(baseOut.tonnes, 2) + " tonnes.") : ".") + " Main downtime drivers were " + leadText + ".\n" + viewLine + "\nTotal logged downtime was " + fmtN(dtTotal, 0) + " minutes" + (focusHour ? "." : (", with +" + fmtN(dtDelta.total_minutes || 0, 0) + " minutes added since the closed snapshot.")) + "\nIf those top two reasons are stabilized first, recovery should be cleaner next window.";
             }
             if (hasPerSku) {
               if (!skuBreak.length) {

@@ -225,6 +225,13 @@ Deno.serve(async (req: Request) => {
       .gte("created_at", officialAsOf.toISOString())
       .lt("created_at", nowUtc.toISOString());
 
+    const hourOfficialQuery = sb
+      .from("tickets")
+      .select("sku, qty, uom, production_line, created_at")
+      .eq("voided", false)
+      .gte("created_at", hourStart.toISOString())
+      .lt("created_at", officialAsOf.toISOString());
+
     const skuQuery = sb
       .from("skus")
       .select("sku, units_per_carton, net_weight_kg_per_unit, uom");
@@ -241,27 +248,39 @@ Deno.serve(async (req: Request) => {
       .gte("gap_start", officialAsOf.toISOString())
       .lt("gap_start", nowUtc.toISOString());
 
-    const [officialRes, deltaRes, skuRes, dtOfficialRes, dtDeltaRes] = await Promise.all([
+    const dtHourOfficialQuery = sb
+      .from("downtime_events")
+      .select("production_line, category, sub_category, gap_minutes, gap_start")
+      .gte("gap_start", hourStart.toISOString())
+      .lt("gap_start", officialAsOf.toISOString());
+
+    const [officialRes, deltaRes, hourOfficialRes, skuRes, dtOfficialRes, dtDeltaRes, dtHourOfficialRes] = await Promise.all([
       lineFilter ? officialQuery.eq("production_line", lineFilter) : officialQuery,
       lineFilter ? deltaQuery.eq("production_line", lineFilter) : deltaQuery,
+      lineFilter ? hourOfficialQuery.eq("production_line", lineFilter) : hourOfficialQuery,
       skuQuery,
       lineFilter ? dtOfficialQuery.eq("production_line", lineFilter) : dtOfficialQuery,
       lineFilter ? dtDeltaQuery.eq("production_line", lineFilter) : dtDeltaQuery,
+      lineFilter ? dtHourOfficialQuery.eq("production_line", lineFilter) : dtHourOfficialQuery,
     ]);
 
     if (officialRes.error) throw officialRes.error;
     if (deltaRes.error) throw deltaRes.error;
+    if (hourOfficialRes.error) throw hourOfficialRes.error;
     if (skuRes.error) throw skuRes.error;
     if (dtOfficialRes.error) throw dtOfficialRes.error;
     if (dtDeltaRes.error) throw dtDeltaRes.error;
+    if (dtHourOfficialRes.error) throw dtHourOfficialRes.error;
 
     const skuMap = new Map<string, SkuRow>();
     (skuRes.data || []).forEach((r: SkuRow) => skuMap.set(r.sku, r));
 
     const officialAgg = aggregateTickets((officialRes.data || []) as TicketRow[], skuMap);
     const deltaAgg = aggregateTickets((deltaRes.data || []) as TicketRow[], skuMap);
+    const hourOfficialAgg = aggregateTickets((hourOfficialRes.data || []) as TicketRow[], skuMap);
     const officialDowntime = aggregateDowntime((dtOfficialRes.data || []) as DowntimeRow[]);
     const deltaDowntime = aggregateDowntime((dtDeltaRes.data || []) as DowntimeRow[]);
+    const hourOfficialDowntime = aggregateDowntime((dtHourOfficialRes.data || []) as DowntimeRow[]);
 
     return new Response(JSON.stringify({
       ok: true,
@@ -296,6 +315,13 @@ Deno.serve(async (req: Request) => {
         top_sku: officialAgg.topSku,
         sku_breakdown: officialAgg.skuBreakdown,
       },
+      hour_official: {
+        units: hourOfficialAgg.units,
+        pallets: hourOfficialAgg.pallets,
+        tonnes: hourOfficialAgg.tonnes,
+        top_sku: hourOfficialAgg.topSku,
+        sku_breakdown: hourOfficialAgg.skuBreakdown,
+      },
       provisional_delta: {
         units: deltaAgg.units,
         pallets: deltaAgg.pallets,
@@ -304,6 +330,7 @@ Deno.serve(async (req: Request) => {
       },
       downtime: {
         official: officialDowntime,
+        hour_official: hourOfficialDowntime,
         provisional_delta: deltaDowntime,
       },
       now_utc: nowUtc.toISOString(),

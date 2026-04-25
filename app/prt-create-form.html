@@ -2645,7 +2645,7 @@
         var asksTodayOnly = /^\s*(that'?s?\s+today|today)\s*\??\s*$/.test(low);
         var asksToday = /\btoday\b|\btodays\b/.test(low);
         var asksNow = /\bnow\b|\bcurrently\b|\bcurrent\b/.test(low);
-        var scope = asksToday ? 'today' : 'all';
+        var scope = asksToday ? 'today' : 'shift';
         if (asksTodayOnly) scope = 'today';
         var c = buildSupervisorContext(scope);
         var hasProd = /production|numbers|output|units|pallet|tonnage|tonnes|tons/i.test(low);
@@ -2677,37 +2677,41 @@
             var official = metrics.official || {};
             var delta = metrics.provisional_delta || {};
             var asOf = metrics.official_as_of_eat || metrics.official_as_of || 'latest snapshot';
+            var win = metrics.window || {};
+            var windowLine = (win.label && win.start_eat && win.end_eat)
+              ? ("Window: " + win.label + " (" + win.start_eat + " to " + win.end_eat + ").")
+              : "";
             var topSku = official.top_sku || {};
             var skuBreak = Array.isArray(official.sku_breakdown) ? official.sku_breakdown : [];
             if (hasPerSku) {
               if (!skuBreak.length) {
-                return "I checked the latest official snapshot (" + asOf + "), but there is no reliable per-SKU breakdown yet in this window.\n- Next move: keep captures complete by SKU so ranking clarity improves.\n- Watchpoint: the next snapshot should resolve the leaderboard cleanly.";
+                return "I checked the latest official snapshot at " + asOf + ", and there is still not enough clean distribution to rank SKUs confidently in this window. I would rather give you a hard fact than a weak ranking.\n- Next move: keep SKU capture tight on active lines.\n- Watchpoint: the next snapshot should produce a clean leaderboard.";
               }
-              var intro = "As of " + asOf + ", here is the current production by SKU" + (scope === 'today' ? " for today" : "") + ":";
+              var intro = "Here is the SKU picture as of " + asOf + (scope === 'today' ? " for today" : "") + ".";
               var rows = skuBreak.slice(0, 6).map(function(r, i) {
                 var t = r.tonnes == null ? "tonnes pending" : (fmtN(r.tonnes, 2) + " t");
                 return (i + 1) + ". " + r.sku + " - " + fmtN(r.units || 0, 0) + " units, " + fmtN(r.pallets || 0, 0) + " pallets, " + t;
               }).join("\n");
-              return intro + "\n" + rows + "\n- Since that snapshot: provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets.\n- Next move: protect continuity on the top 2 SKUs before rotating effort.";
+              return intro + "\n" + windowLine + "\n" + rows + "\nSince that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets.\n- Next move: hold continuity on the top two SKUs before rotating effort.";
             }
             if (hasTopSku) {
               if (!topSku.sku) {
-                return "From the latest official snapshot (" + asOf + "), I cannot confirm a clear top-performing SKU yet from available records. I would rather stay accurate than force a ranking.\n- Next move: keep ticket capture clean on active lines.\n- Watchpoint: the next snapshot will sharpen SKU ranking confidence.";
+                return "From the latest official snapshot at " + asOf + ", there is no clear top-performing SKU yet. The spread is still too tight to call a clean leader.\n- Next move: keep capture clean across active lines.\n- Watchpoint: next snapshot should separate the leader clearly.";
               }
               var leadLine = topSku.production_line ? (" on " + topSku.production_line) : '';
-              return "As of " + asOf + ", your best performing SKU is " + topSku.sku + leadLine + ", delivering " + fmtN(topSku.units || 0, 0) + " units and " + fmtN(topSku.pallets || 0, 0) + " pallets" + (topSku.tonnes != null ? (", about " + fmtN(topSku.tonnes, 2) + " tonnes.") : ".") + "\n- Since that snapshot: provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets.\n- Next move: protect continuity on the leading SKU line before pushing broader change.";
+              return "Clear call: as of " + asOf + ", the best-performing SKU is " + topSku.sku + leadLine + ". It is carrying " + fmtN(topSku.units || 0, 0) + " units and " + fmtN(topSku.pallets || 0, 0) + " pallets" + (topSku.tonnes != null ? (", roughly " + fmtN(topSku.tonnes, 2) + " tonnes.") : ".") + "\n" + windowLine + "\nSince that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets.\n- Next move: keep that lane stable before widening the push.";
             }
             var periodTxtOfficial = asksToday ? "today" : "in this tracked window";
-            return "Here is where we stand " + periodTxtOfficial + ". As of " + asOf + " (official), output is " + fmtN(official.units || 0, 0) + " units, " + fmtN(official.pallets || 0, 0) + " pallets" + (official.tonnes != null ? (", and " + fmtN(official.tonnes, 2) + " tonnes.") : ".") + " Since that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets" + (delta.tonnes != null ? (", about +" + fmtN(delta.tonnes, 2) + " tonnes.") : ".") + "\n- Lead signal: " + (topSku.sku ? ("top SKU is " + topSku.sku + " at " + fmtN(topSku.units || 0, 0) + " units.") : "top SKU is still not decisive from current records.") + "\n- Next move: hold clean continuity before speed pressure.";
+            return "Here is where we stand " + periodTxtOfficial + ". As of " + asOf + " (official), output is " + fmtN(official.units || 0, 0) + " units and " + fmtN(official.pallets || 0, 0) + " pallets" + (official.tonnes != null ? (", with " + fmtN(official.tonnes, 2) + " tonnes.") : ".") + "\n" + windowLine + "\nSince that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets" + (delta.tonnes != null ? (", around +" + fmtN(delta.tonnes, 2) + " tonnes.") : ".") + " " + (topSku.sku ? ("Right now, " + topSku.sku + " is leading the mix.") : "SKU leadership is still close.").trim() + "\n- Next move: keep continuity clean, then push speed with control.";
           }
           if (hasPerSku) {
             if (!c.skuRows.length) {
-              return "I cannot confirm per-SKU numbers yet because there are no active tickets in this view.\n- Next move: save a clean ticket, then ask again for the SKU ranking.";
+              return "I cannot rank SKUs yet from this screen because there are no active tickets in the current view.\n- Next move: save one clean ticket first, then ask again and I will rank immediately.";
             }
             var localRows = c.skuRows.slice(0, 6).map(function(r, i) {
               return (i + 1) + ". " + r.sku + " - " + fmtN(r.units || 0, 0) + " units";
             }).join("\n");
-            return "Using current in-page records, here is the SKU ranking" + (scope === 'today' ? " for today" : "") + ":\n" + localRows + "\n- Note: this is provisional context until snapshot data is available.";
+            return "Using current in-page records, this is the SKU ranking" + (scope === 'today' ? " for today" : "") + ":\n" + localRows + "\n- Note: this is provisional until snapshot data is available.";
           }
           var prodLineTxt = c.line ? (' on ' + c.line) : '';
           var periodTxt = asksToday ? " today" : (asksNow ? " right now" : "");
@@ -2718,29 +2722,29 @@
           var prodFocus = c.topSku
             ? ("The current volume leader is " + c.topSku.sku + " at " + fmtN(c.topSku.qty, 0) + " units.")
             : "There are no saved tickets in this active view yet, so output confidence is still low.";
-          return prod + " " + prodFocus + "\n- Next move: keep capture accuracy tight before speed pressure.\n- Watchpoint: avoid late corrections by validating SKU and qty at source.";
+          return prod + " " + prodFocus + "\n- Next move: protect capture quality first, then push pace.\n- Watchpoint: avoid late corrections by validating SKU and quantity at source.";
         }
         if (hasLatency) {
           var lineLabel = c.line ? c.line : 'the selected line';
           if (!c.ticketCount) {
-            return "Right now I cannot give a reliable live latency number for " + lineLabel + " because no active tickets are available in this view yet. I would rather be exact than guess.\n- Next move: save the first clean ticket and I can start latency guidance immediately.\n- Watchpoint: complete all required fields before save to avoid artificial delay.";
+            return "For " + lineLabel + ", I cannot call latency yet because there are no active tickets in this view. I will not fake a metric.\n- Next move: save the first clean ticket, then ask again for latency.";
           }
           var riskBand = c.missing.length === 0 ? 'stable' : (c.missing.length <= 3 ? 'watch' : 'high-risk');
-          return "Here is the straight call on latency for " + lineLabel + ": based on current capture flow, we are in a " + riskBand + " risk band. This is not a final minute value, but it is a reliable operational signal from what is already recorded.\n- Main drag: " + (c.missing.length ? ("form completeness gaps (" + c.missing.length + " pending item" + (c.missing.length > 1 ? "s" : "") + ").") : "no major capture gaps detected right now.") + "\n- Next move: hold continuity, clear pending fields fast, then lock the next ticket cleanly.";
+          return "Latency call for " + lineLabel + ": we are in a " + riskBand + " risk band from current operating signals. This is directional, not a final minute score.\n- Main drag: " + (c.missing.length ? ("form completeness gaps (" + c.missing.length + " pending item" + (c.missing.length > 1 ? "s" : "") + ").") : "no major capture gaps detected right now.") + "\n- Next move: clear pending fields fast and lock the next ticket cleanly.";
         }
         if (hasReady) {
-          if (!c.missing.length) return "You are in a good state to save. All required fields are complete, so there are no hard blockers from this form.\n- Next move: one last sanity scan on SKU and quantity, then save and print.\n- Watchpoint: keep this same discipline on the next ticket to protect trend quality.";
-          return "Not ready yet, and this is exactly where hidden delay begins. You still have " + c.missing.length + " required item(s) missing: " + c.missing.slice(0, 6).join(', ') + (c.missing.length > 6 ? ', ...' : '.') + "\n- Next move: clear those items in order, then save once complete.\n- Watchpoint: do not skip photo evidence; it protects the record and the floor story.";
+          if (!c.missing.length) return "You are ready to save. All required fields are complete and clean.\n- Next move: quick sanity check on SKU and quantity, then save and print.";
+          return "Not ready yet, and this is where delay starts. You still have " + c.missing.length + " required item(s) missing: " + c.missing.slice(0, 6).join(', ') + (c.missing.length > 6 ? ', ...' : '.') + "\n- Next move: clear those items in order, then save.";
         }
         if (hasCorrection) {
-          return "Use correction tools with discipline. Void-and-replace is for factual mistakes, not convenience edits, and that standard protects you.\n- Quality bar: state what was wrong, what is now correct, and why.\n- Watchpoint: frequent corrections usually signal capture process drift, not just isolated mistakes.";
+          return "Use correction tools with discipline. Void-and-replace is for factual mistakes, not convenience edits.\n- Quality bar: say what was wrong, what is now correct, and why.\n- Watchpoint: repeated corrections usually mean capture process drift.";
         }
         if (hasAction) {
           var linePart = c.line ? (" on " + c.line) : '';
           var cue = c.selectedSku ? (" current ticket is " + c.selectedSku + (c.selectedQty > 0 ? (" at qty " + fmtN(c.selectedQty, 0)) : "") + ".") : " SKU not selected yet.";
-          return "Here is the practical next move" + linePart + ":" + cue + " Keep this one clean before thinking about pace.\n- Do now: lock line, SKU, qty, and photo evidence in that order.\n- Then: save and print without reopening avoidable edits.\n- Rule: accuracy first, speed second; speed only counts when records are clean.";
+          return "Here is the next best move" + linePart + ":" + cue + " Keep this ticket clean first, then chase pace.\n- Do now: lock line, SKU, quantity, and photo evidence in order.\n- Then: save and print without reopening avoidable edits.";
         }
-        return "Ask me like you would ask a shift lead, and I will keep it factual and usable: production by numbers, latency/risk, readiness before save, correction discipline, or next best action.\n- I stay practical.\n- I do not guess.\n- I keep the floor story clean.";
+        return "Ask me directly and I will keep it factual and useful: production by numbers, per-SKU ranking, latency risk, readiness before save, correction discipline, or next best action.";
       }
       function assistantPush(role, text) {
         var wrap = document.getElementById('assistantMessages');
@@ -2778,7 +2782,7 @@
         fab.addEventListener('click', function() {
           shell.classList.add('open');
           if (!document.getElementById('assistantMessages').children.length) {
-            assistantPush('bot', "Supervisor online. Talk to me directly - production by numbers, current latency risk, readiness before save, or what to do next. I will keep it factual and practical.");
+            assistantPush('bot', "Assistant online. Ask me directly about production, SKU ranking, latency risk, readiness, or next action. I will keep it factual and practical.");
           }
           setTimeout(function() { input.focus(); }, 60);
         });

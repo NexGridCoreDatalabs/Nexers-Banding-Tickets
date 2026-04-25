@@ -61,6 +61,22 @@ function fmtAsOfEat(d: Date): string {
   return `${yy}-${mo}-${dd} ${hh}:${mm} EAT`;
 }
 
+function currentShiftBoundsUtc(nowUtc: Date): { shift: "day" | "night"; startUtc: Date } {
+  const eat = toEat(nowUtc);
+  const eatHour = eat.getUTCHours();
+  const midUtc = Date.UTC(eat.getUTCFullYear(), eat.getUTCMonth(), eat.getUTCDate());
+  if (eatHour >= 7 && eatHour < 19) {
+    // Day shift starts 07:00 EAT => 04:00 UTC
+    return { shift: "day", startUtc: new Date(midUtc + 4 * 60 * 60 * 1000) };
+  }
+  if (eatHour >= 19) {
+    // Night shift starts 19:00 EAT => 16:00 UTC
+    return { shift: "night", startUtc: new Date(midUtc + 16 * 60 * 60 * 1000) };
+  }
+  // 00:00-06:59 EAT belongs to previous night shift
+  return { shift: "night", startUtc: new Date(midUtc - 8 * 60 * 60 * 1000) };
+}
+
 function calcTonnes(ticket: TicketRow, skuMeta: Map<string, SkuRow>): number | null {
   const qty = Number(ticket.qty || 0);
   if (qty <= 0 || !ticket.sku) return 0;
@@ -142,13 +158,20 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const scope = (String(body.scope || "today").toLowerCase() === "all" ? "all" : "today") as Scope;
+    const rawScope = String(body.scope || "shift").toLowerCase();
+    const scope = (rawScope === "today" || rawScope === "all" ? rawScope : "shift") as Scope | "shift";
     const lineFilter = body.line ? String(body.line) : null;
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const nowUtc = new Date();
     const officialAsOf = topOfCurrentHourUtc(nowUtc);
-    const officialStart = scope === "today" ? startOfEatDayUtc(nowUtc) : new Date(nowUtc.getTime() - 24 * 60 * 60 * 1000);
+    const shiftInfo = currentShiftBoundsUtc(nowUtc);
+    const officialStart =
+      scope === "today"
+        ? startOfEatDayUtc(nowUtc)
+        : scope === "shift"
+          ? shiftInfo.startUtc
+          : new Date(nowUtc.getTime() - 24 * 60 * 60 * 1000);
 
     const baseQuery = sb
       .from("tickets")
@@ -192,6 +215,19 @@ Deno.serve(async (req: Request) => {
       line: lineFilter,
       official_as_of: officialAsOf.toISOString(),
       official_as_of_eat: fmtAsOfEat(officialAsOf),
+      window: {
+        label:
+          scope === "today"
+            ? "Today (EAT)"
+            : scope === "shift"
+              ? (shiftInfo.shift === "day" ? "Current day shift (07:00-19:00 EAT)" : "Current night shift (19:00-07:00 EAT)")
+              : "Rolling last 24 hours",
+        start_utc: officialStart.toISOString(),
+        end_utc: officialAsOf.toISOString(),
+        start_eat: fmtAsOfEat(officialStart),
+        end_eat: fmtAsOfEat(officialAsOf),
+        shift: shiftInfo.shift,
+      },
       official: {
         units: officialAgg.units,
         pallets: officialAgg.pallets,

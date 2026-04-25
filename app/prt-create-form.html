@@ -2654,6 +2654,7 @@
         var low = q.toLowerCase();
         var asksTodayOnly = /^\s*(that'?s?\s+today|today)\s*\??\s*$/.test(low);
         var asksShiftOnly = /^\s*(what\s+of\s+this\s+shift\??|this\s+shift\??|for\s+this\s+shift\??|shift\??)\s*$/.test(low);
+        var asksDoThat = /^\s*(do that|go ahead|yes do|show me|break it down)\s*\.?\s*$/i.test(low);
         var asksToday = /\btoday\b|\btodays\b/.test(low);
         var asksNow = /\bnow\b|\bcurrently\b|\bcurrent\b/.test(low);
         var asksShift = /\bthis\s+shift\b|\bcurrent\s+shift\b|\bof\s+this\s+shift\b/.test(low);
@@ -2667,6 +2668,7 @@
         var hasLatency = /latency|delay|lag|idle|gap|slow/i.test(low);
         var hasReady = /readiness|ready|missing|before save|complete/i.test(low);
         var hasHourAsk = /which hour|what hour|hour window|which window|window\??$|this hour|in the hour|last hour/i.test(low);
+        var hasHourSkuBreakdown = /\b(hour|this hour|last hour)\b.*\b(by sku|per sku|sku breakdown)\b|\bby sku\b.*\b(hour|this hour|last hour)\b/i.test(low);
         var hasWhy = /why|what happened|reason|downtime|explain/i.test(low);
         var hasAction = /next action|next best action|what should|do now|priority|priorit/i.test(low);
         var hasCorrection = /void|replace|correction|risk|audit/i.test(low);
@@ -2680,15 +2682,20 @@
           hasTopSku = _assistantLastTopic === 'topSku';
           hasPerSku = _assistantLastTopic === 'sku';
         }
+        if (asksDoThat) {
+          if (_assistantLastTopic === 'hour') hasHourSkuBreakdown = true;
+          if (_assistantLastTopic === 'sku') hasPerSku = true;
+        }
         if (hasPerSku) _assistantLastTopic = 'sku';
         else if (hasTopSku) _assistantLastTopic = 'topSku';
         else if (hasProd) _assistantLastTopic = 'production';
+        else if (hasHourAsk || hasHourSkuBreakdown) _assistantLastTopic = 'hour';
         else if (hasLatency) _assistantLastTopic = 'latency';
         else if (hasReady) _assistantLastTopic = 'readiness';
         else if (hasWhy) _assistantLastTopic = 'why';
         else if (hasAction) _assistantLastTopic = 'action';
         else if (hasCorrection) _assistantLastTopic = 'correction';
-        if (hasProd || hasTopSku || hasPerSku || hasHourAsk || hasWhy) {
+        if (hasProd || hasTopSku || hasPerSku || hasHourAsk || hasHourSkuBreakdown || hasWhy) {
           var metrics = await fetchSupervisorMetrics({
             scope: scope,
             line: c.line || null,
@@ -2714,6 +2721,17 @@
             var dtHourTop = Array.isArray(dtHour.top_reasons) ? dtHour.top_reasons : [];
             var topSku = official.top_sku || {};
             var skuBreak = Array.isArray(official.sku_breakdown) ? official.sku_breakdown : [];
+            var hourSkuBreak = Array.isArray(hourOfficial.sku_breakdown) ? hourOfficial.sku_breakdown : [];
+            if (hasHourSkuBreakdown) {
+              if (!hourSkuBreak.length) {
+                return assistantGreeting() + " I do not have a clean SKU split for that hour yet.";
+              }
+              var hourRows = hourSkuBreak.slice(0, 6).map(function(r, i) {
+                var t = r.tonnes == null ? "tonnes pending" : (fmtN(r.tonnes, 2) + " t");
+                return (i + 1) + ". " + r.sku + " - " + fmtN(r.units || 0, 0) + " units, " + fmtN(r.pallets || 0, 0) + " pallets, " + t;
+              }).join("\n");
+              return assistantGreeting() + " Here is the SKU split for the latest closed hour.\n" + (hourLine || "") + "\n" + hourRows;
+            }
             if (hasHourAsk) {
               if (!hourLine && !windowLine) {
                 return "Current metrics are anchored to the latest closed snapshot window. I cannot display an exact hour boundary from this payload yet.";

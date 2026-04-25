@@ -1150,7 +1150,7 @@
   <div id="assistantShell" class="assistant-shell" role="dialog" aria-modal="false" aria-label="Supervisor Assistant">
     <div class="assistant-head">
       <div>
-        <div class="assistant-title">Assistant</div>
+        <div class="assistant-title">Reti</div>
       </div>
       <button id="assistantClose" class="assistant-close" type="button">Close</button>
     </div>
@@ -2862,7 +2862,7 @@
         fab.addEventListener('click', function() {
           shell.classList.add('open');
           if (!document.getElementById('assistantMessages').children.length) {
-            assistantPush('bot', "Assistant online. Ask me directly about production, SKU ranking, latency risk, readiness, or next action. I will keep it factual and practical.");
+            assistantPush('bot', "Hi, my name is Reti — your assistant for the day. How are you doing?\nI can help with production numbers, SKU performance, shift and hour summaries, downtime reasons, readiness checks, and next best actions.\nHow may I assist you today?");
           }
           setTimeout(function() { input.focus(); }, 60);
         });

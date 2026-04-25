@@ -21,6 +21,14 @@ interface SkuRow {
   uom: string | null;
 }
 
+interface DowntimeRow {
+  production_line: string | null;
+  category: string | null;
+  sub_category: string | null;
+  gap_minutes: number | null;
+  gap_start: string;
+}
+
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -156,6 +164,28 @@ function aggregateTickets(tickets: TicketRow[], skuMeta: Map<string, SkuRow>) {
   return { units, pallets, tonnes: tonnesKnown ? tonnes : null, topSku, skuBreakdown };
 }
 
+function aggregateDowntime(rows: DowntimeRow[]) {
+  let totalMinutes = 0;
+  const reasons: Record<string, { category: string; sub_category: string; minutes: number; events: number }> = {};
+  for (const r of rows) {
+    const mins = Number(r.gap_minutes || 0);
+    totalMinutes += mins;
+    const cat = String(r.category || "Uncategorized");
+    const sub = String(r.sub_category || "Unspecified");
+    const key = `${cat}||${sub}`;
+    if (!reasons[key]) reasons[key] = { category: cat, sub_category: sub, minutes: 0, events: 0 };
+    reasons[key].minutes += mins;
+    reasons[key].events += 1;
+  }
+  const topReasons = Object.values(reasons)
+    .sort((a, b) => b.minutes - a.minutes)
+    .slice(0, 5);
+  return {
+    total_minutes: totalMinutes,
+    top_reasons: topReasons,
+  };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders() });
@@ -199,21 +229,39 @@ Deno.serve(async (req: Request) => {
       .from("skus")
       .select("sku, units_per_carton, net_weight_kg_per_unit, uom");
 
-    const [officialRes, deltaRes, skuRes] = await Promise.all([
+    const dtOfficialQuery = sb
+      .from("downtime_events")
+      .select("production_line, category, sub_category, gap_minutes, gap_start")
+      .gte("gap_start", officialStart.toISOString())
+      .lt("gap_start", officialAsOf.toISOString());
+
+    const dtDeltaQuery = sb
+      .from("downtime_events")
+      .select("production_line, category, sub_category, gap_minutes, gap_start")
+      .gte("gap_start", officialAsOf.toISOString())
+      .lt("gap_start", nowUtc.toISOString());
+
+    const [officialRes, deltaRes, skuRes, dtOfficialRes, dtDeltaRes] = await Promise.all([
       lineFilter ? officialQuery.eq("production_line", lineFilter) : officialQuery,
       lineFilter ? deltaQuery.eq("production_line", lineFilter) : deltaQuery,
       skuQuery,
+      lineFilter ? dtOfficialQuery.eq("production_line", lineFilter) : dtOfficialQuery,
+      lineFilter ? dtDeltaQuery.eq("production_line", lineFilter) : dtDeltaQuery,
     ]);
 
     if (officialRes.error) throw officialRes.error;
     if (deltaRes.error) throw deltaRes.error;
     if (skuRes.error) throw skuRes.error;
+    if (dtOfficialRes.error) throw dtOfficialRes.error;
+    if (dtDeltaRes.error) throw dtDeltaRes.error;
 
     const skuMap = new Map<string, SkuRow>();
     (skuRes.data || []).forEach((r: SkuRow) => skuMap.set(r.sku, r));
 
     const officialAgg = aggregateTickets((officialRes.data || []) as TicketRow[], skuMap);
     const deltaAgg = aggregateTickets((deltaRes.data || []) as TicketRow[], skuMap);
+    const officialDowntime = aggregateDowntime((dtOfficialRes.data || []) as DowntimeRow[]);
+    const deltaDowntime = aggregateDowntime((dtDeltaRes.data || []) as DowntimeRow[]);
 
     return new Response(JSON.stringify({
       ok: true,
@@ -253,6 +301,10 @@ Deno.serve(async (req: Request) => {
         pallets: deltaAgg.pallets,
         tonnes: deltaAgg.tonnes,
         sku_breakdown: deltaAgg.skuBreakdown,
+      },
+      downtime: {
+        official: officialDowntime,
+        provisional_delta: deltaDowntime,
       },
       now_utc: nowUtc.toISOString(),
     }), { headers: corsHeaders() });

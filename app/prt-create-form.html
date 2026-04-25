@@ -2625,6 +2625,13 @@
       function fmtN(v, d) {
         return Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
       }
+      function joinHumanList(items) {
+        var arr = (items || []).filter(Boolean);
+        if (!arr.length) return '';
+        if (arr.length === 1) return arr[0];
+        if (arr.length === 2) return arr[0] + ' and ' + arr[1];
+        return arr.slice(0, -1).join(', ') + ', and ' + arr[arr.length - 1];
+      }
       async function fetchSupervisorMetrics(payload) {
         if (!supabase || !supabase.functions || typeof supabase.functions.invoke !== 'function') return null;
         try {
@@ -2657,6 +2664,7 @@
         var hasLatency = /latency|delay|lag|idle|gap|slow/i.test(low);
         var hasReady = /readiness|ready|missing|before save|complete/i.test(low);
         var hasHourAsk = /which hour|what hour|hour window|which window|window\??$/i.test(low);
+        var hasWhy = /why|what happened|reason|downtime|explain/i.test(low);
         var hasAction = /next action|next best action|what should|do now|priority|priorit/i.test(low);
         var hasCorrection = /void|replace|correction|risk|audit/i.test(low);
         if (asksTodayOnly) {
@@ -2674,9 +2682,10 @@
         else if (hasProd) _assistantLastTopic = 'production';
         else if (hasLatency) _assistantLastTopic = 'latency';
         else if (hasReady) _assistantLastTopic = 'readiness';
+        else if (hasWhy) _assistantLastTopic = 'why';
         else if (hasAction) _assistantLastTopic = 'action';
         else if (hasCorrection) _assistantLastTopic = 'correction';
-        if (hasProd || hasTopSku || hasPerSku || hasHourAsk) {
+        if (hasProd || hasTopSku || hasPerSku || hasHourAsk || hasWhy) {
           var metrics = await fetchSupervisorMetrics({
             scope: scope,
             line: c.line || null,
@@ -2693,6 +2702,10 @@
             var hourLine = (win.hour_window && win.hour_window.start_eat && win.hour_window.end_eat)
               ? ("Latest closed hour: " + win.hour_window.start_eat + " to " + win.hour_window.end_eat + ".")
               : "";
+            var dt = metrics.downtime || {};
+            var dtOfficial = dt.official || {};
+            var dtDelta = dt.provisional_delta || {};
+            var dtTop = Array.isArray(dtOfficial.top_reasons) ? dtOfficial.top_reasons : [];
             var topSku = official.top_sku || {};
             var skuBreak = Array.isArray(official.sku_breakdown) ? official.sku_breakdown : [];
             if (hasHourAsk) {
@@ -2700,6 +2713,16 @@
                 return "Current metrics are anchored to the latest closed snapshot window. I cannot display an exact hour boundary from this payload yet.";
               }
               return "Good question. " + (hourLine || "") + (windowLine ? ("\n" + windowLine) : "") + "\nIf you ask for production now, I will report official values up to the closed hour, then provisional movement after that.";
+            }
+            if (hasWhy) {
+              if (!dtTop.length) {
+                return "From this window, I do not see a dominant logged downtime reason yet.\n" + windowLine + "\nIf you want, I can still break down throughput by SKU and line so we spot where momentum is holding.";
+              }
+              var lead1 = dtTop[0];
+              var lead2 = dtTop[1];
+              var leadText = lead1.category + " > " + lead1.sub_category + " (" + fmtN(lead1.minutes || 0, 0) + " min)";
+              if (lead2) leadText += ", followed by " + lead2.category + " > " + lead2.sub_category + " (" + fmtN(lead2.minutes || 0, 0) + " min)";
+              return "Good question. The floor story in this window is mostly downtime-driven: " + leadText + ".\n" + windowLine + "\nTotal logged downtime is " + fmtN(dtOfficial.total_minutes || 0, 0) + " minutes, with +" + fmtN(dtDelta.total_minutes || 0, 0) + " minutes added since the closed snapshot.\nIf you stabilize those top reasons first, output recovery will be much cleaner.";
             }
             if (hasPerSku) {
               if (!skuBreak.length) {
@@ -2720,7 +2743,11 @@
               return "Clear call: as of " + asOf + ", the best-performing SKU is " + topSku.sku + leadLine + ". It is carrying " + fmtN(topSku.units || 0, 0) + " units and " + fmtN(topSku.pallets || 0, 0) + " pallets" + (topSku.tonnes != null ? (", roughly " + fmtN(topSku.tonnes, 2) + " tonnes.") : ".") + "\n" + windowLine + "\nSince that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets.\n- Next move: keep that lane stable before widening the push.";
             }
             var periodTxtOfficial = (scope === 'today') ? "today" : "for this shift";
-            return "Here is where we stand " + periodTxtOfficial + ". As of " + asOf + " (official), output is " + fmtN(official.units || 0, 0) + " units and " + fmtN(official.pallets || 0, 0) + " pallets" + (official.tonnes != null ? (", with " + fmtN(official.tonnes, 2) + " tonnes.") : ".") + "\n" + windowLine + "\nSince that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets" + (delta.tonnes != null ? (", around +" + fmtN(delta.tonnes, 2) + " tonnes.") : ".") + " " + (topSku.sku ? ("Right now, " + topSku.sku + " is leading the mix.") : "SKU leadership is still close.").trim() + "\n- Next move: keep continuity clean, then push speed with control.";
+            var whyTail = '';
+            if (dtTop.length) {
+              whyTail = " Main downtime driver so far is " + dtTop[0].category + " > " + dtTop[0].sub_category + ".";
+            }
+            return "Here is where we stand " + periodTxtOfficial + ". As of " + asOf + " (official), output is " + fmtN(official.units || 0, 0) + " units and " + fmtN(official.pallets || 0, 0) + " pallets" + (official.tonnes != null ? (", with " + fmtN(official.tonnes, 2) + " tonnes.") : ".") + "\n" + windowLine + "\nSince that snapshot, provisional movement is +" + fmtN(delta.units || 0, 0) + " units and +" + fmtN(delta.pallets || 0, 0) + " pallets" + (delta.tonnes != null ? (", around +" + fmtN(delta.tonnes, 2) + " tonnes.") : ".") + " " + (topSku.sku ? ("Right now, " + topSku.sku + " is leading the mix.") : "SKU leadership is still close.").trim() + whyTail + "\nIf we keep continuity clean and attack that top drag first, pace should hold.";
           }
           if (hasPerSku) {
             if (!c.skuRows.length) {
@@ -2767,7 +2794,14 @@
             : (ordered.indexOf('Pallet Overview Photo') !== -1 || ordered.indexOf('Pallet Side View Photo') !== -1
               ? 'high risk to evidence quality'
               : 'moderate risk to clean handoff');
-          return "Not ready yet. " + c.missing.length + " required item(s) are still pending, and this is " + impact + ".\n- Priority blockers: " + topBlockers.join(', ') + (ordered.length > topBlockers.length ? ', ...' : '.') + "\n- Fix order: line -> SKU -> quantity -> pallet details -> dates -> photos -> save.\n- Rule: do not save with missing evidence or core capture fields.";
+          var importance = [];
+          if (ordered.indexOf('Production Line') !== -1) importance.push('line selection anchors where performance is attributed');
+          if (ordered.indexOf('SKU') !== -1) importance.push('SKU defines product mix and true output by item');
+          if (ordered.indexOf('Quantity') !== -1) importance.push('quantity directly drives units, pallets, and tonnes');
+          if (ordered.indexOf('Pallet Overview Photo') !== -1 || ordered.indexOf('Pallet Side View Photo') !== -1) importance.push('photos protect evidence quality and dispute safety');
+          if (ordered.indexOf('Batch / Lot') !== -1 || ordered.indexOf('Mfg. Date') !== -1 || ordered.indexOf('Expiry Date') !== -1) importance.push('batch and dates protect traceability');
+          var importanceLine = importance.length ? ("\nThese matter because " + joinHumanList(importance.slice(0, 3)) + ".") : "";
+          return "Not ready yet. " + c.missing.length + " required item(s) are still pending, and this is " + impact + ".\nPriority blockers: " + topBlockers.join(', ') + (ordered.length > topBlockers.length ? ', ...' : '.') + ".\nFix order: line -> SKU -> quantity -> pallet details -> dates -> photos -> save." + importanceLine + "\nPlease clear those first, then save once the record is complete.";
         }
         if (hasCorrection) {
           return "Use correction tools with discipline. Void-and-replace is for factual mistakes, not convenience edits.\n- Quality bar: say what was wrong, what is now correct, and why.\n- Watchpoint: repeated corrections usually mean capture process drift.";

@@ -1044,7 +1044,8 @@
       <div class="form-grid">
         <div class="form-group">
           <label for="batchLot">Batch / Lot *</label>
-          <input type="text" id="batchLot" name="batchLot" required placeholder="e.g. BT-0311-194">
+          <input type="text" id="batchLot" name="batchLot" list="batchLotDatalist" required placeholder="e.g. BT-0311-194">
+          <datalist id="batchLotDatalist"></datalist>
         </div>
         <div class="form-group">
           <label for="mfgDate">Mfg. Date *</label>
@@ -1451,13 +1452,77 @@
           });
         } catch (e) { console.warn('SKU load failed:', e.message); } finally { hideSplash(); }
       }
+      function getEatDateRangeUtc(dateStr) {
+        var d = String(dateStr || '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+        var parts = d.split('-').map(function(x) { return parseInt(x, 10); });
+        var y = parts[0], m = parts[1], day = parts[2];
+        if (!y || !m || !day) return null;
+        // EAT midnight converted to UTC.
+        var startUtcMs = Date.UTC(y, m - 1, day, 0, 0, 0, 0) - (3 * 60 * 60 * 1000);
+        var endUtcMs = startUtcMs + (24 * 60 * 60 * 1000);
+        return { startIso: new Date(startUtcMs).toISOString(), endIso: new Date(endUtcMs).toISOString() };
+      }
+      var _batchSuggestReq = 0;
+      async function refreshBatchLotSuggestions() {
+        var dl = document.getElementById('batchLotDatalist');
+        var batchInput = document.getElementById('batchLot');
+        if (!dl || !batchInput) return;
+        dl.innerHTML = '';
+        if (!supabase) return;
+
+        var skuVal = (document.getElementById('sku').value || '').trim();
+        var lineVal = (document.getElementById('productionLine').value || '').trim();
+        var dateVal = (document.getElementById('mfgDate').value || '').trim();
+        if (!skuVal || !lineVal || !dateVal) return;
+
+        var range = getEatDateRangeUtc(dateVal);
+        if (!range) return;
+
+        var reqId = ++_batchSuggestReq;
+        try {
+          var q = supabase
+            .from('tickets')
+            .select('batch_lot, created_at')
+            .eq('voided', false)
+            .eq('sku', skuVal)
+            .eq('production_line', lineVal)
+            .gte('created_at', range.startIso)
+            .lt('created_at', range.endIso)
+            .not('batch_lot', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(250);
+
+          var res = await q;
+          if (reqId !== _batchSuggestReq) return; // stale response
+          if (res.error) {
+            console.warn('batch suggestions failed:', res.error.message);
+            return;
+          }
+          var seen = {};
+          (res.data || []).forEach(function(r) {
+            var b = String((r && r.batch_lot) || '').trim();
+            if (!b || seen[b]) return;
+            seen[b] = true;
+            var opt = document.createElement('option');
+            opt.value = b;
+            dl.appendChild(opt);
+          });
+        } catch (e) {
+          console.warn('batch suggestions error:', e && e.message ? e.message : e);
+        }
+      }
       function onSkuPick() {
         var m = skuCache[this.value.trim()];
         document.getElementById('uom').value = m ? (m.uom || '') : '';
         document.getElementById('subdivision').value = m ? (m.subdivision || '') : '';
+        refreshBatchLotSuggestions();
       }
       document.getElementById('sku').addEventListener('change', onSkuPick);
       document.getElementById('sku').addEventListener('input', onSkuPick);
+      document.getElementById('productionLine').addEventListener('change', refreshBatchLotSuggestions);
+      document.getElementById('mfgDate').addEventListener('change', refreshBatchLotSuggestions);
+      document.getElementById('mfgDate').addEventListener('input', refreshBatchLotSuggestions);
       function syncPalletSizeFromQty() {
         var q = document.getElementById('qty').value;
         var ps = document.getElementById('palletSize');
@@ -1519,6 +1584,7 @@
         isSaving = false;
         // Scroll to top of form for the next entry
         try { document.getElementById('prtApp').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
+        refreshBatchLotSuggestions();
       });
 
       // ── Bluetooth Pairing Banner ──────────────────────────────────────────

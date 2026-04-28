@@ -1,5 +1,5 @@
--- PostgREST reliably exposes SET-returning RPCs as JSON arrays.
--- Force-drop any scalar vs table overload ambiguity, then one canonical TABLE shape.
+-- authorized_users has no is_active column (see 001_initial_schema.sql).
+-- Apply after 039 if verify_export_passcode referenced au.is_active.
 
 DROP FUNCTION IF EXISTS public.verify_export_passcode(text, text);
 

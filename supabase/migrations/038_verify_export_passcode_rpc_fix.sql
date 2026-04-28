@@ -19,8 +19,7 @@ BEGIN
   RETURN EXISTS (
     SELECT 1
     FROM authorized_users au
-    WHERE au.is_active = true
-      AND regexp_replace(upper(coalesce(au.user_id, '')), '[^A-Z0-9]', '', 'g') = v_actor_norm
+    WHERE regexp_replace(upper(coalesce(au.user_id, '')), '[^A-Z0-9]', '', 'g') = v_actor_norm
       AND lower(trim(coalesce(au.passcode_hash, ''))) = lower(trim(coalesce(p_passcode_hash, '')))
   );
 END;

@@ -446,6 +446,159 @@
         return false;
       }
       verifyPasscode.lastErr = '';
+      function computeLineMix(rows) {
+        var m = {};
+        (rows || []).forEach(function(r) {
+          var line = String(r.production_line || '').trim() || '—';
+          if (!m[line]) m[line] = { tickets: 0, qty: 0, tonnes: 0, tonnesKnown: true };
+          m[line].tickets += 1;
+          m[line].qty += Number(r.qty || 0);
+          var tk = calcRowTonnes(r);
+          if (tk == null) m[line].tonnesKnown = false;
+          else m[line].tonnes += tk;
+        });
+        return Object.keys(m).map(function(k) {
+          return {
+            line: k,
+            tickets: m[k].tickets,
+            qty: m[k].qty,
+            tonnes: m[k].tonnesKnown ? m[k].tonnes : null,
+            tonnesKnown: m[k].tonnesKnown
+          };
+        }).sort(function(a, b) { return b.tickets - a.tickets; });
+      }
+      /** Deterministic analyst memo: blunt headlines + evidence; no named operators. Production-line insights allowed. */
+      function buildAnalystMemo(rows, agg, opts) {
+        opts = opts || {};
+        var limitNum = opts.limitNum != null ? opts.limitNum : 500;
+        var filteredLine = (opts.filteredLine || '').trim();
+        var includeVoided = !!opts.includeVoided;
+
+        var n = agg.ticketCount;
+        var headlines = [];
+        var caveats = [];
+        var actions = [];
+
+        var voidedCount = (rows || []).filter(function(r) { return r.voided; }).length;
+        var voidShare = n > 0 ? voidedCount / n : 0;
+
+        var distinctBatches = {};
+        (rows || []).forEach(function(r) {
+          var b = String(r.batch_lot || '').trim();
+          if (b) distinctBatches[b] = true;
+        });
+        var batchCount = Object.keys(distinctBatches).length;
+
+        var lines = computeLineMix(rows);
+        var topLine = lines[0];
+
+        var situation = '';
+        if (filteredLine) {
+          situation = 'Scope is restricted to production line ' + filteredLine + ' — cross-line benchmarking does not apply. ';
+        }
+        situation += 'This extract contains ' + n + ' pallet ticket(s), ';
+        situation += batchCount === 0 ? 'with no batch/lot identifiers captured — trace granularity is weak. ' :
+          batchCount === 1 ? 'covering one distinct batch/lot tag — trace narrative is tight. ' :
+          'spanning ' + batchCount + ' distinct batch/lot tags. ';
+        situation += includeVoided ? 'Voided tickets are included where applicable — dispute exposure must be read explicitly.' :
+          'Voided tickets are excluded — totals describe active throughput only.';
+
+        if (n >= limitNum) {
+          caveats.push('Hit row cap (' + limitNum + '). Figures describe this capped pull only — widen filters or export again if you need full coverage.');
+          headlines.push({
+            finding: 'Sample may be incomplete versus the full population.',
+            evidence: 'Returned rows equal query limit (' + limitNum + '). Treat aggregates as lower-bound unless scope is intentionally narrow.'
+          });
+        }
+        if (!agg.tonnesKnown) {
+          caveats.push('Tonnes are incomplete — one or more SKUs lack reliable weight metadata; use tonnes as directional only.');
+        }
+
+        if (agg.skuRows.length && agg.totalQty > 0) {
+          var topSku = agg.skuRows[0];
+          var qtyShare = topSku.qty / agg.totalQty;
+          var palletShare = n > 0 ? (topSku.pallets / n) : 0;
+          if (qtyShare >= 0.42 && agg.skuRows.length >= 2) {
+            headlines.push({
+              finding: 'SKU concentration risk — demand mix is not diversified.',
+              evidence: topSku.sku + ' holds ~' + Math.round(qtyShare * 100) + '% of quantity and ' + Math.round(palletShare * 100) + '% of pallets.'
+            });
+          }
+        }
+
+        if (!filteredLine && lines.length >= 2 && topLine && n > 0) {
+          var lineShare = topLine.tickets / n;
+          if (lineShare >= 0.52) {
+            headlines.push({
+              finding: 'Throughput anchors hard on one filling line.',
+              evidence: 'Line ' + topLine.line + ' carries ' + topLine.tickets + ' tickets (~' + Math.round(lineShare * 100) + '%). Continuity losses here disproportionately hurt output.'
+            });
+          } else if (lines.length >= 4 && lineShare < 0.35) {
+            headlines.push({
+              finding: 'Volume splinters across multiple lines — coordination tax is real.',
+              evidence: topLine.line + ' leads with only ~' + Math.round(lineShare * 100) + '% of tickets across ' + lines.length + ' active lines.'
+            });
+          }
+        }
+        if (filteredLine && topLine && n > 0) {
+          headlines.push({
+            finding: 'Single-line diagnostic — compare cautiously.',
+            evidence: 'All ' + n + ' tickets sit on line ' + filteredLine + '; variance versus plant-wide benchmarks requires another export.'
+          });
+        }
+
+        if (includeVoided && voidedCount > 0 && voidShare >= 0.06) {
+          headlines.push({
+            finding: 'Correction load is elevated — governance exposure.',
+            evidence: voidedCount + ' voided ticket(s) (~' + Math.round(voidShare * 100) + '% of rows). Trace disputes and rework probability rise unless causes are clustered and addressed.'
+          });
+        }
+
+        if (batchCount === 1 && n >= 6) {
+          headlines.push({
+            finding: 'Batch footprint is singular — excellent for discrete trace.',
+            evidence: 'One batch/lot drives all rows in-frame — ideal for proving lineage for audits.'
+          });
+        } else if (batchCount > 25 && n >= 30) {
+          headlines.push({
+            finding: 'Batch fragmentation is high — reconciliation drag.',
+            evidence: batchCount + ' distinct batches inside ' + n + ' tickets increases reconciliation workload.'
+          });
+        }
+
+        headlines = headlines.slice(0, 5);
+
+        if (!headlines.length) {
+          headlines.push({
+            finding: 'No strong anomaly flags on automated rules.',
+            evidence: 'Mix and line spread sit inside templates — still validate against planning assumptions manually.'
+          });
+        }
+
+        actions.push('Cross-check Annex SKU totals vs planning SKU priorities for the same window.');
+        if (lines.length >= 2 && topLine) {
+          actions.push('Treat line ' + topLine.line + ' as the pacing constraint if downtime hits — protect changeovers.');
+        }
+        if (!agg.tonnesKnown) {
+          actions.push('Complete SKU weight metadata in the SKU master before signing off tonne-heavy decisions.');
+        }
+        if (voidedCount > 0 && includeVoided) {
+          actions.push('Review void reasons in the detail annex — clustered codes imply systemic fixes, scattered codes imply discipline gaps.');
+        }
+        if (batchCount > 12) {
+          actions.push('Align warehouse and packing leads on batch naming discipline — fragmentation slows investigations.');
+        }
+        actions = actions.slice(0, 5);
+
+        return { situation: situation, headlines: headlines, caveats: caveats, actions: actions };
+      }
+      function pdfMemoSituationBlock(doc, margin, pageW, startY, text) {
+        doc.setFontSize(8.5);
+        doc.setTextColor(51, 65, 85);
+        var lines = doc.splitTextToSize(text, pageW - margin.left - margin.right);
+        doc.text(lines, margin.left, startY + 3);
+        return startY + 5 + lines.length * 4.1;
+      }
       function pdfFooterAllPages(doc, margin) {
         var n = doc.internal.getNumberOfPages();
         var pageW = doc.internal.pageSize.getWidth();
@@ -477,7 +630,7 @@
         doc.text('Advanced Batch Search Report', margin.left, 16);
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
-        doc.text('Pallet trace, SKU mix, tonnage — structured for shift reviews and corrective decisions.', margin.left, 20);
+        doc.text('Management-grade memo + annex evidence · Production-line insights · No operator rankings.', margin.left, 20);
         doc.setTextColor(148, 163, 184);
         doc.text('Generated ' + generatedEat + ' EAT', pageW - margin.right, 11, { align: 'right' });
         doc.text('Exported by ' + (actorId || '—'), pageW - margin.right, 15.5, { align: 'right' });
@@ -552,6 +705,61 @@
           margin: { left: margin.left, right: margin.right }
         };
 
+        if (typeof doc.autoTable !== 'function') {
+          setStatus('PDF table plugin missing. Reload the page.', true);
+          return;
+        }
+
+        var limitNumPdf = Number(document.getElementById('fLimit').value || 500);
+        var memo = buildAnalystMemo(dataRows, agg, {
+          limitNum: limitNumPdf,
+          filteredLine: (document.getElementById('fLine').value || '').trim(),
+          includeVoided: document.getElementById('fVoided').value !== 'no'
+        });
+
+        var yMemoSec = pdfSectionTitle(doc, margin, pageW, 26, '1 · Analyst memo — strategy & operations');
+        var ySitEnd = pdfMemoSituationBlock(doc, margin, pageW, yMemoSec, memo.situation);
+        var headlineBody = memo.headlines.map(function(h, i) {
+          return [String(i + 1), h.finding, h.evidence];
+        });
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['#', 'Finding (headline)', 'Evidence (from this extract)']],
+          body: headlineBody,
+          startY: ySitEnd + 3,
+          theme: 'striped',
+          styles: Object.assign({}, tableDefaults.styles, { fontSize: 8, overflow: 'linebreak', cellPadding: 2 }),
+          headStyles: Object.assign({}, tableDefaults.headStyles, { fontSize: 7.5 }),
+          columnStyles: { 0: { cellWidth: 9 }, 1: { cellWidth: 64 }, 2: { cellWidth: 'auto' } }
+        }));
+
+        var afterHeadlines = doc.lastAutoTable.finalY + 5;
+        var caveatRows = memo.caveats.length
+          ? memo.caveats.map(function(c) { return [c]; })
+          : [['No automated data-quality warnings triggered on this extract.']];
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['Caveats & boundaries']],
+          body: caveatRows,
+          startY: afterHeadlines,
+          theme: 'grid',
+          styles: Object.assign({}, tableDefaults.styles, { fontSize: 7.8 }),
+          columnStyles: { 0: { cellWidth: 'auto' } }
+        }));
+
+        var afterCaveats = doc.lastAutoTable.finalY + 5;
+        var actionRows = memo.actions.map(function(a, i) {
+          return [String(i + 1), a];
+        });
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['#', 'Recommended moves (process accountability — no named operators)']],
+          body: actionRows,
+          startY: afterCaveats,
+          theme: 'striped',
+          styles: Object.assign({}, tableDefaults.styles, { fontSize: 8, overflow: 'linebreak' }),
+          columnStyles: { 0: { cellWidth: 11 }, 1: { cellWidth: 'auto' } }
+        }));
+
+        var afterMemoBlock = doc.lastAutoTable.finalY + 6;
+
         var voidLabel = document.getElementById('fVoided').value === 'no'
           ? 'Non-voided tickets only'
           : 'Include voided tickets';
@@ -572,11 +780,7 @@
           ['Row cap (query limit)', String(document.getElementById('fLimit').value || '500')]
         ];
 
-        var y0 = pdfSectionTitle(doc, margin, pageW, 26, '1 · Search criteria (what this report covers)');
-        if (typeof doc.autoTable !== 'function') {
-          setStatus('PDF table plugin missing. Reload the page.', true);
-          return;
-        }
+        var y0 = pdfSectionTitle(doc, margin, pageW, afterMemoBlock, '2 · Search criteria (what this report covers)');
 
         doc.autoTable(Object.assign({}, tableDefaults, {
           head: paramHead,
@@ -587,7 +791,7 @@
         }));
 
         var afterParams = doc.lastAutoTable.finalY + 6;
-        var y1 = pdfSectionTitle(doc, margin, pageW, afterParams, '2 · Executive snapshot (answer these numbers first)');
+        var y1 = pdfSectionTitle(doc, margin, pageW, afterParams, '3 · Executive snapshot (answer these numbers first)');
         var execBody = [
           ['Tickets returned', String(agg.ticketCount)],
           ['Distinct SKUs in mix', String(agg.skuRows.length)],
@@ -604,7 +808,7 @@
         }));
 
         var afterExec = doc.lastAutoTable.finalY + 6;
-        var y2 = pdfSectionTitle(doc, margin, pageW, afterExec, '3 · Totals by SKU (where volume sits)');
+        var y2 = pdfSectionTitle(doc, margin, pageW, afterExec, '4 · Totals by SKU (where volume sits)');
         var skuTableBody = agg.skuRows.map(function(r) {
           return [
             r.sku,
@@ -630,7 +834,7 @@
         }));
 
         var afterSku = doc.lastAutoTable.finalY + 6;
-        var y3 = pdfSectionTitle(doc, margin, pageW, afterSku, '4 · Totals by unit of measure');
+        var y3 = pdfSectionTitle(doc, margin, pageW, afterSku, '5 · Totals by unit of measure');
         var uomTableBody = agg.uomRows.map(function(r) {
           return [
             r.uom,
@@ -655,7 +859,7 @@
         }));
 
         var afterUom = doc.lastAutoTable.finalY + 6;
-        var y4 = pdfSectionTitle(doc, margin, pageW, afterUom, '5 · Ticket-level detail (audit trail)');
+        var y4 = pdfSectionTitle(doc, margin, pageW, afterUom, '6 · Ticket-level detail (audit trail)');
         var detailRows = dataRows.map(function(r) {
           return [
             fmtEat(r.created_at),

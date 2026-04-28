@@ -163,6 +163,7 @@
   <script src="../js/retiflux-auth-session.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
   <script>
     (function() {
       var cfg = window.BANDFLOW_CONFIG || {};
@@ -281,7 +282,7 @@
           tb.appendChild(tr);
         });
       }
-      function renderAggregates(rows) {
+      function computeAggregateSlices(rows) {
         var skuMap = {};
         var uomMap = {};
         var totalQty = 0;
@@ -324,6 +325,20 @@
           return { uom: uom, qty: rec.qty, pallets: rec.pallets, tonnes: rec.tonnesKnown ? rec.tonnes : null, skuCount: Object.keys(rec.skus).length };
         }).sort(function(a,b){ return b.qty - a.qty; });
 
+        return {
+          skuRows: skuRows,
+          uomRows: uomRows,
+          totalQty: totalQty,
+          totalTonnes: totalTonnes,
+          tonnesKnown: tonnesKnown,
+          ticketCount: (rows || []).length
+        };
+      }
+      function renderAggregates(rows) {
+        var agg = computeAggregateSlices(rows);
+        var skuRows = agg.skuRows;
+        var uomRows = agg.uomRows;
+
         var skuTbody = document.getElementById('aggSkuRows');
         var uomTbody = document.getElementById('aggUomRows');
         skuTbody.innerHTML = '';
@@ -361,10 +376,10 @@
 
         document.getElementById('kpiSkuRows').textContent = 'SKUs: ' + skuRows.length;
         document.getElementById('kpiUomRows').textContent = 'UOMs: ' + uomRows.length;
-        document.getElementById('kpiTotalQty').textContent = 'Total Qty: ' + totalQty.toLocaleString();
-        document.getElementById('kpiTotalPallets').textContent = 'Pallets: ' + (rows || []).length.toLocaleString();
-        document.getElementById('kpiGrandTickets').textContent = 'Tickets: ' + (rows || []).length.toLocaleString();
-        document.getElementById('kpiTotalTonnes').textContent = 'Tonnes: ' + (tonnesKnown ? totalTonnes.toFixed(2) : '—');
+        document.getElementById('kpiTotalQty').textContent = 'Total Qty: ' + agg.totalQty.toLocaleString();
+        document.getElementById('kpiTotalPallets').textContent = 'Pallets: ' + agg.ticketCount.toLocaleString();
+        document.getElementById('kpiGrandTickets').textContent = 'Tickets: ' + agg.ticketCount.toLocaleString();
+        document.getElementById('kpiTotalTonnes').textContent = 'Tonnes: ' + (agg.tonnesKnown ? agg.totalTonnes.toFixed(2) : '—');
       }
       async function runSearch() {
         if (!supabase) { setStatus('Supabase not configured.', true); return; }
@@ -431,18 +446,56 @@
         return false;
       }
       verifyPasscode.lastErr = '';
-      function drawPdfTable(doc, startY, headers, rows) {
-        var y = startY;
+      function pdfFooterAllPages(doc, margin) {
+        var n = doc.internal.getNumberOfPages();
+        var pageW = doc.internal.pageSize.getWidth();
+        var pageH = doc.internal.pageSize.getHeight();
+        var left = margin.left;
+        for (var i = 1; i <= n; i++) {
+          doc.setPage(i);
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.3);
+          doc.line(left, pageH - 9, pageW - margin.right, pageH - 9);
+          doc.setFontSize(6.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text('RetiFlux — Operational intelligence · Confidential · For supervisory use only', left, pageH - 5);
+          doc.text('Page ' + i + ' / ' + n, pageW - margin.right - 22, pageH - 5);
+        }
+      }
+      function pdfBrandBanner(doc, pageW, margin, actorId, generatedEat) {
+        doc.setFillColor(245, 158, 11);
+        doc.rect(0, 0, pageW, 2.8, 'F');
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 2.8, pageW, 19.5, 'F');
+        doc.setTextColor(251, 191, 36);
+        doc.setFontSize(15);
+        doc.setFont(undefined, 'bold');
+        doc.text('RetiFlux', margin.left, 11);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(9.5);
+        doc.setTextColor(226, 232, 240);
+        doc.text('Advanced Batch Search Report', margin.left, 16);
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        doc.text('Pallet trace, SKU mix, tonnage — structured for shift reviews and corrective decisions.', margin.left, 20);
+        doc.setTextColor(148, 163, 184);
+        doc.text('Generated ' + generatedEat + ' EAT', pageW - margin.right, 11, { align: 'right' });
+        doc.text('Exported by ' + (actorId || '—'), pageW - margin.right, 15.5, { align: 'right' });
+        doc.setTextColor(30, 41, 59);
+        return 26;
+      }
+      function pdfSectionTitle(doc, margin, pageW, y, title) {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin.left, y, pageW - margin.left - margin.right, 6.5, 'F');
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.15);
+        doc.rect(margin.left, y, pageW - margin.left - margin.right, 6.5, 'S');
+        doc.setTextColor(30, 41, 59);
         doc.setFontSize(9);
-        doc.text(headers.join(' | '), 10, y);
-        y += 5;
-        doc.setFontSize(8);
-        rows.forEach(function(r) {
-          if (y > 285) { doc.addPage(); y = 12; }
-          doc.text(r.join(' | ').slice(0, 190), 10, y);
-          y += 4;
-        });
-        return y + 3;
+        doc.setFont(undefined, 'bold');
+        doc.text(title, margin.left + 2.5, y + 4.3);
+        doc.setFont(undefined, 'normal');
+        return y + 9;
       }
       async function exportPdfWithSystemPassword() {
         if (!dataRows.length) { setStatus('No rows to export.', true); return; }
@@ -472,42 +525,173 @@
             userPermissions: ['print']
           }
         });
+
+        var margin = { left: 11, right: 11, top: 11 };
+        var pageW = doc.internal.pageSize.getWidth();
+        var actorId = getActorUserId();
         var nowEat = fmtEat(new Date().toISOString());
-        doc.setFontSize(12);
-        doc.text('RetiFlux Advanced Batch Search Report', 10, 10);
-        doc.setFontSize(8);
-        doc.text('Generated (EAT): ' + nowEat, 10, 15);
-        doc.text('Filters: from=' + (document.getElementById('fFrom').value || '—') + ' to=' + (document.getElementById('fTo').value || '—') +
-          ' batch=' + (document.getElementById('fBatch').value || '—') +
-          ' serial=' + (document.getElementById('fSerial').value || '—') +
-          ' sku=' + (document.getElementById('fSku').value || '—') +
-          ' line=' + (document.getElementById('fLine').value || '—'), 10, 20);
+        var agg = computeAggregateSlices(dataRows);
 
-        var y = 26;
-        var skuRows = Array.prototype.slice.call(document.querySelectorAll('#aggSkuRows tr')).map(function(tr){
-          var tds = tr.querySelectorAll('td');
-          return Array.prototype.map.call(tds, function(td){ return td.textContent || ''; });
-        });
-        y = drawPdfTable(doc, y, ['SKU','Qty','Pallets','Tonnes','UOM Mix'], skuRows);
+        pdfBrandBanner(doc, pageW, margin, actorId, nowEat);
 
-        var uomRows = Array.prototype.slice.call(document.querySelectorAll('#aggUomRows tr')).map(function(tr){
-          var tds = tr.querySelectorAll('td');
-          return Array.prototype.map.call(tds, function(td){ return td.textContent || ''; });
-        });
-        y = drawPdfTable(doc, y, ['UOM','Qty','Pallets','Tonnes','SKUs'], uomRows);
+        var tableDefaults = {
+          styles: {
+            fontSize: 8,
+            cellPadding: 2.2,
+            textColor: [30, 41, 59],
+            lineColor: [203, 213, 225],
+            lineWidth: 0.08
+          },
+          headStyles: {
+            fillColor: [30, 41, 59],
+            textColor: [251, 191, 36],
+            fontStyle: 'bold',
+            fontSize: 8
+          },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          margin: { left: margin.left, right: margin.right }
+        };
 
-        var detailRows = dataRows.map(function(r){
+        var voidLabel = document.getElementById('fVoided').value === 'no'
+          ? 'Non-voided tickets only'
+          : 'Include voided tickets';
+        var tw = tsWindow && tsWindow.startIso && tsWindow.endIso
+          ? (fmtEat(tsWindow.startIso) + ' -> ' + fmtEat(tsWindow.endIso) + ' (timestamp window)')
+          : 'Not applied — filters use calendar dates above when set';
+
+        var paramHead = [['Criterion', 'Value']];
+        var paramBody = [
+          ['Calendar from', document.getElementById('fFrom').value || '— (any)'],
+          ['Calendar to', document.getElementById('fTo').value || '— (any)'],
+          ['Shift / interval stamp', tw],
+          ['Batch / lot contains', (document.getElementById('fBatch').value || '').trim() || '—'],
+          ['Serial contains', (document.getElementById('fSerial').value || '').trim() || '—'],
+          ['SKU', (document.getElementById('fSku').value || '').trim() || '—'],
+          ['Production line', (document.getElementById('fLine').value || '').trim() || 'All'],
+          ['Void filter', voidLabel],
+          ['Row cap (query limit)', String(document.getElementById('fLimit').value || '500')]
+        ];
+
+        var y0 = pdfSectionTitle(doc, margin, pageW, 26, '1 · Search criteria (what this report covers)');
+        if (typeof doc.autoTable !== 'function') {
+          setStatus('PDF table plugin missing. Reload the page.', true);
+          return;
+        }
+
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: paramHead,
+          body: paramBody,
+          startY: y0,
+          theme: 'grid',
+          columnStyles: { 0: { cellWidth: 52 }, 1: { cellWidth: 'auto' } }
+        }));
+
+        var afterParams = doc.lastAutoTable.finalY + 6;
+        var y1 = pdfSectionTitle(doc, margin, pageW, afterParams, '2 · Executive snapshot (answer these numbers first)');
+        var execBody = [
+          ['Tickets returned', String(agg.ticketCount)],
+          ['Distinct SKUs in mix', String(agg.skuRows.length)],
+          ['Distinct UOMs', String(agg.uomRows.length)],
+          ['Sum of quantities (all rows)', agg.totalQty.toLocaleString()],
+          ['Tonnes (SKU weights)', agg.tonnesKnown ? agg.totalTonnes.toFixed(3) + ' t' : '— complete SKU weights missing']
+        ];
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['Metric', 'Value']],
+          body: execBody,
+          startY: y1,
+          theme: 'grid',
+          columnStyles: { 0: { cellWidth: 68 }, 1: { cellWidth: 'auto' } }
+        }));
+
+        var afterExec = doc.lastAutoTable.finalY + 6;
+        var y2 = pdfSectionTitle(doc, margin, pageW, afterExec, '3 · Totals by SKU (where volume sits)');
+        var skuTableBody = agg.skuRows.map(function(r) {
           return [
-            fmtEat(r.created_at),
-            r.serial || '—',
-            r.batch_lot || '—',
-            r.sku || '—',
-            String(r.qty || '—') + (r.uom ? (' ' + r.uom) : ''),
-            r.production_line || '—',
-            r.voided ? 'VOIDED' : 'ACTIVE'
+            r.sku,
+            String(r.qty),
+            String(r.pallets),
+            r.tonnes == null ? '—' : r.tonnes.toFixed(2),
+            r.mix || '—'
           ];
         });
-        drawPdfTable(doc, y, ['Created','Serial','Batch','SKU','Qty','Line','Status'], detailRows);
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['SKU', 'Qty', 'Pallets', 'Tonnes', 'UOM mix']],
+          body: skuTableBody,
+          startY: y2,
+          theme: 'striped',
+          styles: Object.assign({}, tableDefaults.styles, { fontSize: 7.5 }),
+          columnStyles: {
+            0: { cellWidth: 42 },
+            1: { halign: 'right', cellWidth: 22 },
+            2: { halign: 'right', cellWidth: 18 },
+            3: { halign: 'right', cellWidth: 22 },
+            4: { cellWidth: 'auto' }
+          }
+        }));
+
+        var afterSku = doc.lastAutoTable.finalY + 6;
+        var y3 = pdfSectionTitle(doc, margin, pageW, afterSku, '4 · Totals by unit of measure');
+        var uomTableBody = agg.uomRows.map(function(r) {
+          return [
+            r.uom,
+            String(r.qty),
+            String(r.pallets),
+            r.tonnes == null ? '—' : r.tonnes.toFixed(2),
+            String(r.skuCount)
+          ];
+        });
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['UOM', 'Qty', 'Pallets', 'Tonnes', 'SKU count']],
+          body: uomTableBody,
+          startY: y3,
+          theme: 'striped',
+          columnStyles: {
+            0: { cellWidth: 36 },
+            1: { halign: 'right' },
+            2: { halign: 'right' },
+            3: { halign: 'right' },
+            4: { halign: 'right', cellWidth: 22 }
+          }
+        }));
+
+        var afterUom = doc.lastAutoTable.finalY + 6;
+        var y4 = pdfSectionTitle(doc, margin, pageW, afterUom, '5 · Ticket-level detail (audit trail)');
+        var detailRows = dataRows.map(function(r) {
+          return [
+            fmtEat(r.created_at),
+            String(r.serial || '—'),
+            String(r.batch_lot || '—'),
+            String(r.sku || '—'),
+            String(r.qty != null ? r.qty : '—') + (r.uom ? (' ' + r.uom) : ''),
+            String(r.production_line || '—'),
+            String(r.pallet_color || '—'),
+            String(r.recorded_by || '—'),
+            r.voided ? 'Voided' : 'Active',
+            String(r.voided_reason || '—').slice(0, 120)
+          ];
+        });
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['Created (EAT)', 'Serial', 'Batch/Lot', 'SKU', 'Qty', 'Line', 'Pallet', 'Recorded by', 'Status', 'Void reason']],
+          body: detailRows,
+          startY: y4,
+          theme: 'striped',
+          styles: Object.assign({}, tableDefaults.styles, { fontSize: 6.5, overflow: 'linebreak', cellPadding: 1.6 }),
+          headStyles: Object.assign({}, tableDefaults.headStyles, { fontSize: 6.5 }),
+          columnStyles: {
+            0: { cellWidth: 26 },
+            1: { cellWidth: 28 },
+            2: { cellWidth: 22 },
+            3: { cellWidth: 28 },
+            4: { cellWidth: 22 },
+            5: { cellWidth: 18 },
+            6: { cellWidth: 18 },
+            7: { cellWidth: 26 },
+            8: { cellWidth: 16 },
+            9: { cellWidth: 'auto' }
+          }
+        }));
+
+        pdfFooterAllPages(doc, margin);
 
         var blob = doc.output('blob');
         var a = document.createElement('a');

@@ -36,6 +36,12 @@
     .agg-box th, .agg-box td { font-size:.72rem; }
     .kpis { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
     .kpi { background:#0b1220; border:1px solid #334155; border-radius:8px; padding:6px 10px; font-size:.72rem; color:#cbd5e1; }
+    .modal-ov { display:none; position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:9999; align-items:center; justify-content:center; padding:12px; }
+    .modal-card { width:100%; max-width:420px; background:#0f172a; border:1px solid rgba(240,192,64,.35); border-radius:12px; padding:14px; }
+    .modal-title { color:#fbbf24; font-weight:800; margin-bottom:6px; }
+    .modal-sub { color:#94a3b8; font-size:.8rem; margin-bottom:10px; }
+    .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
+    .pwd-box { background:#0b1220; border:1px solid #334155; border-radius:8px; padding:10px; font-size:1rem; color:#e2e8f0; word-break:break-all; }
   </style>
 </head>
 <body>
@@ -70,6 +76,7 @@
         <button id="btnSearch" class="btn-main" type="button">Search</button>
         <button id="btnClear" class="btn-soft" type="button">Reset</button>
         <button id="btnCsv" class="btn-soft" type="button">Export CSV</button>
+        <button id="btnPdf" class="btn-soft" type="button">Export PDF</button>
       </div>
       <div class="quick-actions">
         <button id="qBatchOnly" class="btn-soft" type="button">Batch Only</button>
@@ -126,9 +133,35 @@
     </div>
   </div>
 
+  <div id="passcodeModal" class="modal-ov" role="dialog" aria-modal="true" aria-label="Confirm passcode">
+    <div class="modal-card">
+      <div class="modal-title">Confirm Export</div>
+      <div class="modal-sub">Enter your passcode to export the PDF.</div>
+      <input id="exportPasscode" type="password" maxlength="32" placeholder="Passcode" />
+      <div id="passcodeErr" class="status" style="margin-top:8px;"></div>
+      <div class="modal-actions">
+        <button id="passcodeCancel" class="btn-soft" type="button">Cancel</button>
+        <button id="passcodeConfirm" class="btn-main" type="button">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pdfPwdModal" class="modal-ov" role="dialog" aria-modal="true" aria-label="PDF password">
+    <div class="modal-card">
+      <div class="modal-title">PDF Password</div>
+      <div class="modal-sub">Use this password to open your downloaded PDF. It is shown once.</div>
+      <div id="pdfPwdValue" class="pwd-box">—</div>
+      <div class="modal-actions">
+        <button id="pdfPwdCopy" class="btn-soft" type="button">Copy</button>
+        <button id="pdfPwdClose" class="btn-main" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../config.js"></script>
   <script src="../js/retiflux-auth-session.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script>
     (function() {
       var cfg = window.BANDFLOW_CONFIG || {};
@@ -187,11 +220,23 @@
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); });
       }
+      async function sha256(str) {
+        var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+      }
+      function generatePdfPassword() {
+        var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        var out = '';
+        for (var i = 0; i < 12; i++) out += chars.charAt(Math.floor(Math.random() * chars.length));
+        return out;
+      }
       function setStatus(t, isErr) {
         var el = document.getElementById('status');
         el.textContent = t || '';
         el.style.color = isErr ? '#f87171' : '#94a3b8';
       }
+      function openModal(id) { var el = document.getElementById(id); if (el) el.style.display = 'flex'; }
+      function closeModal(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; }
       async function loadSkus() {
         if (!supabase) return;
         try {
@@ -377,10 +422,121 @@
         a.click();
         URL.revokeObjectURL(a.href);
       }
+      async function verifyPasscode(passcode) {
+        var actor = getActorUserId();
+        if (!actor || !passcode || !supabase) return false;
+        var hash = await sha256(passcode);
+        var res = await supabase.from('authorized_users')
+          .select('passcode_hash')
+          .eq('user_id', actor)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (res.error || !res.data) return false;
+        return String(res.data.passcode_hash || '') === hash;
+      }
+      function drawPdfTable(doc, startY, headers, rows) {
+        var y = startY;
+        doc.setFontSize(9);
+        doc.text(headers.join(' | '), 10, y);
+        y += 5;
+        doc.setFontSize(8);
+        rows.forEach(function(r) {
+          if (y > 285) { doc.addPage(); y = 12; }
+          doc.text(r.join(' | ').slice(0, 190), 10, y);
+          y += 4;
+        });
+        return y + 3;
+      }
+      async function exportPdfWithSystemPassword() {
+        if (!dataRows.length) { setStatus('No rows to export.', true); return; }
+        var passcode = (document.getElementById('exportPasscode').value || '').trim();
+        var err = document.getElementById('passcodeErr');
+        err.textContent = '';
+        setStatus('Verifying passcode...');
+        var ok = await verifyPasscode(passcode);
+        if (!ok) { err.textContent = 'Incorrect passcode.'; err.style.color = '#f87171'; return; }
+
+        var pdfPassword = generatePdfPassword();
+        var jspdf = window.jspdf && window.jspdf.jsPDF;
+        if (!jspdf) { setStatus('PDF library unavailable.', true); return; }
+
+        var doc = new jspdf({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a4',
+          encryption: {
+            userPassword: pdfPassword,
+            ownerPassword: pdfPassword + '_owner',
+            userPermissions: ['print']
+          }
+        });
+        var nowEat = fmtEat(new Date().toISOString());
+        doc.setFontSize(12);
+        doc.text('RetiFlux Advanced Batch Search Report', 10, 10);
+        doc.setFontSize(8);
+        doc.text('Generated (EAT): ' + nowEat, 10, 15);
+        doc.text('Filters: from=' + (document.getElementById('fFrom').value || '—') + ' to=' + (document.getElementById('fTo').value || '—') +
+          ' batch=' + (document.getElementById('fBatch').value || '—') +
+          ' serial=' + (document.getElementById('fSerial').value || '—') +
+          ' sku=' + (document.getElementById('fSku').value || '—') +
+          ' line=' + (document.getElementById('fLine').value || '—'), 10, 20);
+
+        var y = 26;
+        var skuRows = Array.prototype.slice.call(document.querySelectorAll('#aggSkuRows tr')).map(function(tr){
+          var tds = tr.querySelectorAll('td');
+          return Array.prototype.map.call(tds, function(td){ return td.textContent || ''; });
+        });
+        y = drawPdfTable(doc, y, ['SKU','Qty','Pallets','Tonnes','UOM Mix'], skuRows);
+
+        var uomRows = Array.prototype.slice.call(document.querySelectorAll('#aggUomRows tr')).map(function(tr){
+          var tds = tr.querySelectorAll('td');
+          return Array.prototype.map.call(tds, function(td){ return td.textContent || ''; });
+        });
+        y = drawPdfTable(doc, y, ['UOM','Qty','Pallets','Tonnes','SKUs'], uomRows);
+
+        var detailRows = dataRows.map(function(r){
+          return [
+            fmtEat(r.created_at),
+            r.serial || '—',
+            r.batch_lot || '—',
+            r.sku || '—',
+            String(r.qty || '—') + (r.uom ? (' ' + r.uom) : ''),
+            r.production_line || '—',
+            r.voided ? 'VOIDED' : 'ACTIVE'
+          ];
+        });
+        drawPdfTable(doc, y, ['Created','Serial','Batch','SKU','Qty','Line','Status'], detailRows);
+
+        var blob = doc.output('blob');
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'batch-search-' + Date.now() + '.pdf';
+        a.click();
+        URL.revokeObjectURL(a.href);
+
+        closeModal('passcodeModal');
+        document.getElementById('exportPasscode').value = '';
+        document.getElementById('pdfPwdValue').textContent = pdfPassword;
+        openModal('pdfPwdModal');
+        setStatus('PDF exported successfully.');
+      }
 
       document.getElementById('btnSearch').addEventListener('click', runSearch);
       document.getElementById('btnClear').addEventListener('click', function(){ resetFilters(); renderRows([]); setStatus('Filters reset.'); });
       document.getElementById('btnCsv').addEventListener('click', exportCsv);
+      document.getElementById('btnPdf').addEventListener('click', function() {
+        if (!dataRows.length) { setStatus('No rows to export.', true); return; }
+        document.getElementById('passcodeErr').textContent = '';
+        document.getElementById('exportPasscode').value = '';
+        openModal('passcodeModal');
+      });
+      document.getElementById('passcodeCancel').addEventListener('click', function(){ closeModal('passcodeModal'); });
+      document.getElementById('passcodeConfirm').addEventListener('click', exportPdfWithSystemPassword);
+      document.getElementById('pdfPwdClose').addEventListener('click', function(){ closeModal('pdfPwdModal'); });
+      document.getElementById('pdfPwdCopy').addEventListener('click', async function() {
+        var v = document.getElementById('pdfPwdValue').textContent || '';
+        try { await navigator.clipboard.writeText(v); setStatus('PDF password copied.'); } catch (_e) { setStatus('Could not copy password.', true); }
+      });
       document.getElementById('qBatchOnly').addEventListener('click', function() {
         document.getElementById('fSerial').value = '';
         document.getElementById('fSku').value = '';

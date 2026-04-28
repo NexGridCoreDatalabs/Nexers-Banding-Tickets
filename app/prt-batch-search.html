@@ -134,14 +134,16 @@
 
   <div id="passcodeModal" class="modal-ov" role="dialog" aria-modal="true" aria-label="Confirm passcode">
     <div class="modal-card">
-      <div class="modal-title">Confirm Export</div>
-      <div class="modal-sub">Enter your passcode to export the PDF.</div>
-      <input id="exportPasscode" type="password" maxlength="32" placeholder="Passcode" />
-      <div id="passcodeErr" class="status" style="margin-top:8px;"></div>
-      <div class="modal-actions">
-        <button id="passcodeCancel" class="btn-soft" type="button">Cancel</button>
-        <button id="passcodeConfirm" class="btn-main" type="button">Continue</button>
-      </div>
+      <form id="passcodeForm" autocomplete="on" novalidate>
+        <div class="modal-title">Confirm Export</div>
+        <div class="modal-sub">Enter your passcode to export the PDF.</div>
+        <input id="exportPasscode" name="passcode" type="password" maxlength="32" placeholder="Passcode" autocomplete="current-password" />
+        <div id="passcodeErr" class="status" style="margin-top:8px;"></div>
+        <div class="modal-actions">
+          <button id="passcodeCancel" class="btn-soft" type="button">Cancel</button>
+          <button id="passcodeConfirm" class="btn-main" type="submit">Continue</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -407,6 +409,7 @@
         document.getElementById('fTo').value = fmtDate(today);
       }
       async function verifyPasscode(passcode) {
+        verifyPasscode.lastErr = '';
         var actor = getActorUserId();
         if (!actor || !passcode || !supabase) return false;
         var hash = String(await sha256(passcode)).trim().toLowerCase();
@@ -414,15 +417,20 @@
           p_actor_user_id: actor,
           p_passcode_hash: hash
         });
-        if (res.error) return false;
-        // Supports scalar boolean return and table-style fallback.
-        if (typeof res.data === 'boolean') return res.data;
-        if (Array.isArray(res.data) && res.data.length) {
-          if (typeof res.data[0] === 'boolean') return res.data[0];
-          if (res.data[0] && typeof res.data[0].ok !== 'undefined') return !!res.data[0].ok;
+        if (res.error) {
+          verifyPasscode.lastErr = [res.error.message, res.error.details, res.error.hint].filter(Boolean).join(' — ');
+          try { console.error('verify_export_passcode RPC:', res.error); } catch (_e) {}
+          return false;
+        }
+        var d = res.data;
+        if (typeof d === 'boolean') return d;
+        if (Array.isArray(d) && d.length) {
+          if (typeof d[0] === 'boolean') return d[0];
+          if (d[0] && typeof d[0].ok !== 'undefined') return !!d[0].ok;
         }
         return false;
       }
+      verifyPasscode.lastErr = '';
       function drawPdfTable(doc, startY, headers, rows) {
         var y = startY;
         doc.setFontSize(9);
@@ -443,7 +451,12 @@
         err.textContent = '';
         setStatus('Verifying passcode...');
         var ok = await verifyPasscode(passcode);
-        if (!ok) { err.textContent = 'Incorrect passcode.'; err.style.color = '#f87171'; return; }
+        if (!ok) {
+          err.textContent = verifyPasscode.lastErr ? verifyPasscode.lastErr : 'Incorrect passcode.';
+          err.style.color = '#f87171';
+          setStatus(verifyPasscode.lastErr ? ('Export verify failed: ' + verifyPasscode.lastErr) : 'Incorrect passcode.', true);
+          return;
+        }
 
         var pdfPassword = generatePdfPassword();
         var jspdf = window.jspdf && window.jspdf.jsPDF;
@@ -519,7 +532,10 @@
         openModal('passcodeModal');
       });
       document.getElementById('passcodeCancel').addEventListener('click', function(){ closeModal('passcodeModal'); });
-      document.getElementById('passcodeConfirm').addEventListener('click', exportPdfWithSystemPassword);
+      document.getElementById('passcodeForm').addEventListener('submit', function(ev) {
+        ev.preventDefault();
+        exportPdfWithSystemPassword();
+      });
       document.getElementById('pdfPwdClose').addEventListener('click', function(){ closeModal('pdfPwdModal'); });
       document.getElementById('pdfPwdCopy').addEventListener('click', async function() {
         var v = document.getElementById('pdfPwdValue').textContent || '';

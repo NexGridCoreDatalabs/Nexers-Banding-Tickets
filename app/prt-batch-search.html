@@ -75,6 +75,7 @@
         <button id="qBatchOnly" class="btn-soft" type="button">Batch Only</button>
         <button id="qSerialOnly" class="btn-soft" type="button">Serial Only</button>
         <button id="qToday" class="btn-soft" type="button">Today</button>
+        <button id="qThisShift" class="btn-soft" type="button">This Shift</button>
         <button id="q7Day" class="btn-soft" type="button">7-Day Rolling</button>
         <button id="q30Day" class="btn-soft" type="button">30-Day Rolling</button>
       </div>
@@ -88,10 +89,11 @@
           <div class="kpi" id="kpiSkuRows">SKUs: 0</div>
           <div class="kpi" id="kpiTotalQty">Total Qty: 0</div>
           <div class="kpi" id="kpiTotalPallets">Pallets: 0</div>
+          <div class="kpi" id="kpiTotalTonnes">Tonnes: 0.00</div>
         </div>
         <div class="agg-box">
           <table>
-            <thead><tr><th>SKU</th><th>Total Qty</th><th>Pallets</th><th>UOM Mix</th></tr></thead>
+            <thead><tr><th>SKU</th><th>Total Qty</th><th>Pallets</th><th>Tonnes</th><th>UOM Mix</th></tr></thead>
             <tbody id="aggSkuRows"></tbody>
           </table>
         </div>
@@ -104,7 +106,7 @@
         </div>
         <div class="agg-box">
           <table>
-            <thead><tr><th>UOM</th><th>Total Qty</th><th>Pallets</th><th>SKUs</th></tr></thead>
+            <thead><tr><th>UOM</th><th>Total Qty</th><th>Pallets</th><th>Tonnes</th><th>SKUs</th></tr></thead>
             <tbody id="aggUomRows"></tbody>
           </table>
         </div>
@@ -132,6 +134,8 @@
       var cfg = window.BANDFLOW_CONFIG || {};
       var supabase = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
       var dataRows = [];
+      var skuMeta = {};
+      var tsWindow = null;
 
       function getActorUserId() {
         try {
@@ -155,6 +159,31 @@
         var day = String(d.getUTCDate()).padStart(2, '0');
         return y + '-' + m + '-' + day;
       }
+      function currentShiftWindowUtc() {
+        var nowUtc = new Date();
+        var eat = new Date(nowUtc.getTime() + 3 * 60 * 60 * 1000);
+        var h = eat.getUTCHours();
+        var midUtc = Date.UTC(eat.getUTCFullYear(), eat.getUTCMonth(), eat.getUTCDate());
+        var startUtc;
+        if (h >= 7 && h < 19) startUtc = new Date(midUtc + 4 * 60 * 60 * 1000);
+        else if (h >= 19) startUtc = new Date(midUtc + 16 * 60 * 60 * 1000);
+        else startUtc = new Date(midUtc - 8 * 60 * 60 * 1000);
+        return { startIso: startUtc.toISOString(), endIso: nowUtc.toISOString() };
+      }
+      function calcRowTonnes(r) {
+        var sku = String(r.sku || '');
+        var qty = Number(r.qty || 0);
+        if (!sku || qty <= 0) return null;
+        var m = skuMeta[sku];
+        if (!m || m.net_weight_kg_per_unit == null) return null;
+        var perUnit = Number(m.net_weight_kg_per_unit);
+        if (!isFinite(perUnit) || perUnit <= 0) return null;
+        var uom = String((r.uom || m.uom || '')).toUpperCase().trim();
+        if (uom === 'BUCKET' || uom === 'BKT') return (qty * perUnit) / 1000;
+        var upc = Number(m.units_per_carton);
+        if (!isFinite(upc) || upc <= 0) return null;
+        return (qty * upc * perUnit) / 1000;
+      }
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); });
       }
@@ -166,11 +195,12 @@
       async function loadSkus() {
         if (!supabase) return;
         try {
-          var res = await supabase.from('skus').select('sku').eq('is_active', true).order('sku');
+          var res = await supabase.from('skus').select('sku, uom, units_per_carton, net_weight_kg_per_unit').eq('is_active', true).order('sku');
           if (res.error) return;
           var dl = document.getElementById('fSkuList');
           dl.innerHTML = '';
           (res.data || []).forEach(function(r) {
+            skuMeta[r.sku] = r;
             var opt = document.createElement('option');
             opt.value = r.sku;
             dl.appendChild(opt);
@@ -206,34 +236,43 @@
         var skuMap = {};
         var uomMap = {};
         var totalQty = 0;
+        var totalTonnes = 0;
+        var tonnesKnown = true;
 
         (rows || []).forEach(function(r) {
           var sku = String(r.sku || '—');
           var uom = String(r.uom || '—');
           var qty = Number(r.qty || 0);
+          var tk = calcRowTonnes(r);
 
           totalQty += qty;
+          if (tk == null) tonnesKnown = false;
+          else totalTonnes += tk;
 
-          if (!skuMap[sku]) skuMap[sku] = { qty:0, pallets:0, uoms:{} };
+          if (!skuMap[sku]) skuMap[sku] = { qty:0, pallets:0, tonnes:0, tonnesKnown:true, uoms:{} };
           skuMap[sku].qty += qty;
           skuMap[sku].pallets += 1;
+          if (tk == null) skuMap[sku].tonnesKnown = false;
+          else skuMap[sku].tonnes += tk;
           skuMap[sku].uoms[uom] = (skuMap[sku].uoms[uom] || 0) + qty;
 
-          if (!uomMap[uom]) uomMap[uom] = { qty:0, pallets:0, skus:{} };
+          if (!uomMap[uom]) uomMap[uom] = { qty:0, pallets:0, tonnes:0, tonnesKnown:true, skus:{} };
           uomMap[uom].qty += qty;
           uomMap[uom].pallets += 1;
+          if (tk == null) uomMap[uom].tonnesKnown = false;
+          else uomMap[uom].tonnes += tk;
           uomMap[uom].skus[sku] = true;
         });
 
         var skuRows = Object.keys(skuMap).map(function(sku) {
           var rec = skuMap[sku];
           var mix = Object.keys(rec.uoms).map(function(u) { return u + ':' + rec.uoms[u]; }).join(' · ');
-          return { sku: sku, qty: rec.qty, pallets: rec.pallets, mix: mix };
+          return { sku: sku, qty: rec.qty, pallets: rec.pallets, tonnes: rec.tonnesKnown ? rec.tonnes : null, mix: mix };
         }).sort(function(a,b){ return b.qty - a.qty; });
 
         var uomRows = Object.keys(uomMap).map(function(uom) {
           var rec = uomMap[uom];
-          return { uom: uom, qty: rec.qty, pallets: rec.pallets, skuCount: Object.keys(rec.skus).length };
+          return { uom: uom, qty: rec.qty, pallets: rec.pallets, tonnes: rec.tonnesKnown ? rec.tonnes : null, skuCount: Object.keys(rec.skus).length };
         }).sort(function(a,b){ return b.qty - a.qty; });
 
         var skuTbody = document.getElementById('aggSkuRows');
@@ -242,7 +281,7 @@
         uomTbody.innerHTML = '';
 
         if (!skuRows.length) {
-          skuTbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8;">No aggregated SKU totals yet.</td></tr>';
+          skuTbody.innerHTML = '<tr><td colspan="5" style="color:#94a3b8;">No aggregated SKU totals yet.</td></tr>';
         } else {
           skuRows.forEach(function(r){
             var tr = document.createElement('tr');
@@ -250,13 +289,14 @@
               '<td>' + esc(r.sku) + '</td>' +
               '<td>' + esc(r.qty) + '</td>' +
               '<td>' + esc(r.pallets) + '</td>' +
+              '<td>' + esc(r.tonnes == null ? '—' : r.tonnes.toFixed(2)) + '</td>' +
               '<td>' + esc(r.mix || '—') + '</td>';
             skuTbody.appendChild(tr);
           });
         }
 
         if (!uomRows.length) {
-          uomTbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8;">No aggregated UOM totals yet.</td></tr>';
+          uomTbody.innerHTML = '<tr><td colspan="5" style="color:#94a3b8;">No aggregated UOM totals yet.</td></tr>';
         } else {
           uomRows.forEach(function(r){
             var tr = document.createElement('tr');
@@ -264,6 +304,7 @@
               '<td>' + esc(r.uom) + '</td>' +
               '<td>' + esc(r.qty) + '</td>' +
               '<td>' + esc(r.pallets) + '</td>' +
+              '<td>' + esc(r.tonnes == null ? '—' : r.tonnes.toFixed(2)) + '</td>' +
               '<td>' + esc(r.skuCount) + '</td>';
             uomTbody.appendChild(tr);
           });
@@ -274,6 +315,7 @@
         document.getElementById('kpiTotalQty').textContent = 'Total Qty: ' + totalQty.toLocaleString();
         document.getElementById('kpiTotalPallets').textContent = 'Pallets: ' + (rows || []).length.toLocaleString();
         document.getElementById('kpiGrandTickets').textContent = 'Tickets: ' + (rows || []).length.toLocaleString();
+        document.getElementById('kpiTotalTonnes').textContent = 'Tonnes: ' + (tonnesKnown ? totalTonnes.toFixed(2) : '—');
       }
       async function runSearch() {
         if (!supabase) { setStatus('Supabase not configured.', true); return; }
@@ -290,7 +332,9 @@
           p_sku: (document.getElementById('fSku').value || '').trim() || null,
           p_line: (document.getElementById('fLine').value || '').trim() || null,
           p_include_voided: document.getElementById('fVoided').value !== 'no',
-          p_limit: Number(document.getElementById('fLimit').value || 500)
+          p_limit: Number(document.getElementById('fLimit').value || 500),
+          p_start_ts: tsWindow ? tsWindow.startIso : null,
+          p_end_ts: tsWindow ? tsWindow.endIso : null
         };
         var res = await supabase.rpc('search_tickets_advanced', params);
         if (res.error) { setStatus('Search failed: ' + res.error.message, true); renderRows([]); return; }
@@ -306,8 +350,10 @@
         document.getElementById('fLine').value = '';
         document.getElementById('fVoided').value = 'all';
         document.getElementById('fLimit').value = '500';
+        tsWindow = null;
       }
       function applyRollingDays(days) {
+        tsWindow = null;
         var today = nowEatDate();
         var from = new Date(today.getTime() - ((days - 1) * 24 * 60 * 60 * 1000));
         document.getElementById('fFrom').value = fmtDate(from);
@@ -350,6 +396,12 @@
       document.getElementById('qToday').addEventListener('click', function() {
         applyRollingDays(1);
         setStatus('Date window set to today.');
+      });
+      document.getElementById('qThisShift').addEventListener('click', function() {
+        tsWindow = currentShiftWindowUtc();
+        document.getElementById('fFrom').value = '';
+        document.getElementById('fTo').value = '';
+        setStatus('Time window set to current shift (07:00-19:00 / 19:00-07:00 EAT).');
       });
       document.getElementById('q7Day').addEventListener('click', function() {
         applyRollingDays(7);

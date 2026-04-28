@@ -75,7 +75,6 @@
       <div class="actions">
         <button id="btnSearch" class="btn-main" type="button">Search</button>
         <button id="btnClear" class="btn-soft" type="button">Reset</button>
-        <button id="btnCsv" class="btn-soft" type="button">Export CSV</button>
         <button id="btnPdf" class="btn-soft" type="button">Export PDF</button>
       </div>
       <div class="quick-actions">
@@ -407,24 +406,6 @@
         document.getElementById('fFrom').value = fmtDate(from);
         document.getElementById('fTo').value = fmtDate(today);
       }
-      function exportCsv() {
-        if (!dataRows.length) { setStatus('No rows to export.', true); return; }
-        var cols = ['created_at','serial','batch_lot','sku','qty','uom','production_line','pallet_color','recorded_by','voided','voided_reason'];
-        var lines = [cols.join(',')];
-        dataRows.forEach(function(r){
-          lines.push(cols.map(function(c){
-            var v = r[c];
-            var s = String(v == null ? '' : v).replace(/"/g,'""');
-            return '"' + s + '"';
-          }).join(','));
-        });
-        var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'batch-search-' + Date.now() + '.csv';
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }
       async function verifyPasscode(passcode) {
         var actor = getActorUserId();
         if (!actor || !passcode || !supabase) return false;
@@ -433,8 +414,14 @@
           p_actor_user_id: actor,
           p_passcode_hash: hash
         });
-        if (res.error || !res.data || !res.data.length) return false;
-        return !!res.data[0].ok;
+        if (res.error) return false;
+        // Supports scalar boolean return and table-style fallback.
+        if (typeof res.data === 'boolean') return res.data;
+        if (Array.isArray(res.data) && res.data.length) {
+          if (typeof res.data[0] === 'boolean') return res.data[0];
+          if (res.data[0] && typeof res.data[0].ok !== 'undefined') return !!res.data[0].ok;
+        }
+        return false;
       }
       function drawPdfTable(doc, startY, headers, rows) {
         var y = startY;
@@ -525,7 +512,6 @@
 
       document.getElementById('btnSearch').addEventListener('click', runSearch);
       document.getElementById('btnClear').addEventListener('click', function(){ resetFilters(); renderRows([]); setStatus('Filters reset.'); });
-      document.getElementById('btnCsv').addEventListener('click', exportCsv);
       document.getElementById('btnPdf').addEventListener('click', function() {
         if (!dataRows.length) { setStatus('No rows to export.', true); return; }
         document.getElementById('passcodeErr').textContent = '';

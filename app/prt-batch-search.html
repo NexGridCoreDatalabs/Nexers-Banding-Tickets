@@ -177,6 +177,9 @@
         } catch (_e) {}
         return '';
       }
+      function normalizeUserId(v) {
+        return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      }
       function fmtEat(iso) {
         if (!iso) return '—';
         var d = new Date(new Date(iso).getTime() + 3 * 60 * 60 * 1000);
@@ -426,13 +429,15 @@
         var actor = getActorUserId();
         if (!actor || !passcode || !supabase) return false;
         var hash = await sha256(passcode);
+        var actorNorm = normalizeUserId(actor);
         var res = await supabase.from('authorized_users')
-          .select('passcode_hash')
-          .eq('user_id', actor)
+          .select('user_id, passcode_hash')
           .eq('is_active', true)
-          .maybeSingle();
-        if (res.error || !res.data) return false;
-        return String(res.data.passcode_hash || '') === hash;
+          .limit(500);
+        if (res.error || !res.data || !res.data.length) return false;
+        var row = (res.data || []).find(function(r) { return normalizeUserId(r.user_id) === actorNorm; });
+        if (!row) return false;
+        return String(row.passcode_hash || '') === hash;
       }
       function drawPdfTable(doc, startY, headers, rows) {
         var y = startY;

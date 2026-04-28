@@ -18,6 +18,7 @@
     label { display:block; font-size:.7rem; color:#cbd5e1; margin-bottom:4px; text-transform:uppercase; letter-spacing:.5px; }
     input, select { width:100%; padding:9px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; font-family:inherit; }
     .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .quick-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
     button { padding:9px 12px; border-radius:8px; border:0; font-family:inherit; cursor:pointer; font-weight:700; }
     .btn-main { background:linear-gradient(135deg,#f59e0b,#d97706); color:#0f172a; }
     .btn-soft { background:#1e293b; color:#cbd5e1; border:1px solid #334155; }
@@ -27,6 +28,14 @@
     th, td { border-bottom:1px solid rgba(148,163,184,.2); padding:8px; font-size:.73rem; text-align:left; white-space:nowrap; }
     th { color:#fbbf24; font-size:.68rem; text-transform:uppercase; letter-spacing:.6px; background:rgba(2,6,23,.65); position:sticky; top:0; }
     .void { color:#f87171; }
+    .agg-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px; }
+    @media (max-width: 980px) { .agg-grid { grid-template-columns: 1fr; } }
+    .agg-title { color:#fbbf24; font-size:.74rem; font-weight:700; margin:0 0 8px; text-transform:uppercase; letter-spacing:.5px; }
+    .agg-box { max-height:260px; overflow:auto; border:1px solid rgba(148,163,184,.2); border-radius:10px; }
+    .agg-box table { min-width: 100%; }
+    .agg-box th, .agg-box td { font-size:.72rem; }
+    .kpis { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+    .kpi { background:#0b1220; border:1px solid #334155; border-radius:8px; padding:6px 10px; font-size:.72rem; color:#cbd5e1; }
   </style>
 </head>
 <body>
@@ -38,8 +47,8 @@
 
     <div class="card">
       <div class="filters">
-        <div><label for="fFrom">From Date</label><input id="fFrom" type="date"></div>
-        <div><label for="fTo">To Date</label><input id="fTo" type="date"></div>
+        <div><label for="fFrom">From Date (optional)</label><input id="fFrom" type="date"></div>
+        <div><label for="fTo">To Date (optional)</label><input id="fTo" type="date"></div>
         <div><label for="fBatch">Batch / Lot</label><input id="fBatch" type="text" placeholder="contains..."></div>
         <div><label for="fSerial">Serial</label><input id="fSerial" type="text" placeholder="contains..."></div>
         <div><label for="fSku">SKU</label><input id="fSku" type="text" list="fSkuList" placeholder="select SKU"></div>
@@ -62,7 +71,44 @@
         <button id="btnClear" class="btn-soft" type="button">Reset</button>
         <button id="btnCsv" class="btn-soft" type="button">Export CSV</button>
       </div>
-      <div id="status" class="status"></div>
+      <div class="quick-actions">
+        <button id="qBatchOnly" class="btn-soft" type="button">Batch Only</button>
+        <button id="qSerialOnly" class="btn-soft" type="button">Serial Only</button>
+        <button id="qToday" class="btn-soft" type="button">Today</button>
+        <button id="q7Day" class="btn-soft" type="button">7-Day Rolling</button>
+        <button id="q30Day" class="btn-soft" type="button">30-Day Rolling</button>
+      </div>
+      <div id="status" class="status">Tip: all filters are independent. Leave any field blank to ignore it.</div>
+    </div>
+
+    <div class="agg-grid">
+      <div class="card">
+        <div class="agg-title">Aggregated Totals by SKU</div>
+        <div class="kpis">
+          <div class="kpi" id="kpiSkuRows">SKUs: 0</div>
+          <div class="kpi" id="kpiTotalQty">Total Qty: 0</div>
+          <div class="kpi" id="kpiTotalPallets">Pallets: 0</div>
+        </div>
+        <div class="agg-box">
+          <table>
+            <thead><tr><th>SKU</th><th>Total Qty</th><th>Pallets</th><th>UOM Mix</th></tr></thead>
+            <tbody id="aggSkuRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="agg-title">Aggregated Totals by Unit (UOM)</div>
+        <div class="kpis">
+          <div class="kpi" id="kpiUomRows">UOMs: 0</div>
+          <div class="kpi" id="kpiGrandTickets">Tickets: 0</div>
+        </div>
+        <div class="agg-box">
+          <table>
+            <thead><tr><th>UOM</th><th>Total Qty</th><th>Pallets</th><th>SKUs</th></tr></thead>
+            <tbody id="aggUomRows"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <div class="card table-wrap">
@@ -94,14 +140,20 @@
         } catch (_e) {}
         return '';
       }
-      function nowEatDateStr() {
-        var eat = new Date(Date.now() + 3 * 60 * 60 * 1000);
-        return eat.toISOString().slice(0, 10);
-      }
       function fmtEat(iso) {
         if (!iso) return '—';
         var d = new Date(new Date(iso).getTime() + 3 * 60 * 60 * 1000);
         return d.toISOString().slice(0,16).replace('T',' ');
+      }
+      function nowEatDate() {
+        var eat = new Date(Date.now() + 3 * 60 * 60 * 1000);
+        return new Date(Date.UTC(eat.getUTCFullYear(), eat.getUTCMonth(), eat.getUTCDate()));
+      }
+      function fmtDate(d) {
+        var y = d.getUTCFullYear();
+        var m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        var day = String(d.getUTCDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
       }
       function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]); });
@@ -129,6 +181,7 @@
         dataRows = rows || [];
         var tb = document.getElementById('rows');
         tb.innerHTML = '';
+        renderAggregates(dataRows);
         if (!dataRows.length) {
           tb.innerHTML = '<tr><td colspan="10" style="color:#94a3b8;">No tickets found for current filters.</td></tr>';
           return;
@@ -148,6 +201,79 @@
             '<td>' + esc(r.voided_reason || '—') + '</td>';
           tb.appendChild(tr);
         });
+      }
+      function renderAggregates(rows) {
+        var skuMap = {};
+        var uomMap = {};
+        var totalQty = 0;
+
+        (rows || []).forEach(function(r) {
+          var sku = String(r.sku || '—');
+          var uom = String(r.uom || '—');
+          var qty = Number(r.qty || 0);
+
+          totalQty += qty;
+
+          if (!skuMap[sku]) skuMap[sku] = { qty:0, pallets:0, uoms:{} };
+          skuMap[sku].qty += qty;
+          skuMap[sku].pallets += 1;
+          skuMap[sku].uoms[uom] = (skuMap[sku].uoms[uom] || 0) + qty;
+
+          if (!uomMap[uom]) uomMap[uom] = { qty:0, pallets:0, skus:{} };
+          uomMap[uom].qty += qty;
+          uomMap[uom].pallets += 1;
+          uomMap[uom].skus[sku] = true;
+        });
+
+        var skuRows = Object.keys(skuMap).map(function(sku) {
+          var rec = skuMap[sku];
+          var mix = Object.keys(rec.uoms).map(function(u) { return u + ':' + rec.uoms[u]; }).join(' · ');
+          return { sku: sku, qty: rec.qty, pallets: rec.pallets, mix: mix };
+        }).sort(function(a,b){ return b.qty - a.qty; });
+
+        var uomRows = Object.keys(uomMap).map(function(uom) {
+          var rec = uomMap[uom];
+          return { uom: uom, qty: rec.qty, pallets: rec.pallets, skuCount: Object.keys(rec.skus).length };
+        }).sort(function(a,b){ return b.qty - a.qty; });
+
+        var skuTbody = document.getElementById('aggSkuRows');
+        var uomTbody = document.getElementById('aggUomRows');
+        skuTbody.innerHTML = '';
+        uomTbody.innerHTML = '';
+
+        if (!skuRows.length) {
+          skuTbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8;">No aggregated SKU totals yet.</td></tr>';
+        } else {
+          skuRows.forEach(function(r){
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+              '<td>' + esc(r.sku) + '</td>' +
+              '<td>' + esc(r.qty) + '</td>' +
+              '<td>' + esc(r.pallets) + '</td>' +
+              '<td>' + esc(r.mix || '—') + '</td>';
+            skuTbody.appendChild(tr);
+          });
+        }
+
+        if (!uomRows.length) {
+          uomTbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8;">No aggregated UOM totals yet.</td></tr>';
+        } else {
+          uomRows.forEach(function(r){
+            var tr = document.createElement('tr');
+            tr.innerHTML =
+              '<td>' + esc(r.uom) + '</td>' +
+              '<td>' + esc(r.qty) + '</td>' +
+              '<td>' + esc(r.pallets) + '</td>' +
+              '<td>' + esc(r.skuCount) + '</td>';
+            uomTbody.appendChild(tr);
+          });
+        }
+
+        document.getElementById('kpiSkuRows').textContent = 'SKUs: ' + skuRows.length;
+        document.getElementById('kpiUomRows').textContent = 'UOMs: ' + uomRows.length;
+        document.getElementById('kpiTotalQty').textContent = 'Total Qty: ' + totalQty.toLocaleString();
+        document.getElementById('kpiTotalPallets').textContent = 'Pallets: ' + (rows || []).length.toLocaleString();
+        document.getElementById('kpiGrandTickets').textContent = 'Tickets: ' + (rows || []).length.toLocaleString();
       }
       async function runSearch() {
         if (!supabase) { setStatus('Supabase not configured.', true); return; }
@@ -172,15 +298,20 @@
         setStatus('Found ' + (res.data || []).length + ' ticket(s).');
       }
       function resetFilters() {
-        var d = nowEatDateStr();
-        document.getElementById('fFrom').value = d;
-        document.getElementById('fTo').value = d;
+        document.getElementById('fFrom').value = '';
+        document.getElementById('fTo').value = '';
         document.getElementById('fBatch').value = '';
         document.getElementById('fSerial').value = '';
         document.getElementById('fSku').value = '';
         document.getElementById('fLine').value = '';
         document.getElementById('fVoided').value = 'all';
         document.getElementById('fLimit').value = '500';
+      }
+      function applyRollingDays(days) {
+        var today = nowEatDate();
+        var from = new Date(today.getTime() - ((days - 1) * 24 * 60 * 60 * 1000));
+        document.getElementById('fFrom').value = fmtDate(from);
+        document.getElementById('fTo').value = fmtDate(today);
       }
       function exportCsv() {
         if (!dataRows.length) { setStatus('No rows to export.', true); return; }
@@ -204,10 +335,33 @@
       document.getElementById('btnSearch').addEventListener('click', runSearch);
       document.getElementById('btnClear').addEventListener('click', function(){ resetFilters(); renderRows([]); setStatus('Filters reset.'); });
       document.getElementById('btnCsv').addEventListener('click', exportCsv);
+      document.getElementById('qBatchOnly').addEventListener('click', function() {
+        document.getElementById('fSerial').value = '';
+        document.getElementById('fSku').value = '';
+        document.getElementById('fLine').value = '';
+        setStatus('Batch-only mode ready. Enter a batch and search.');
+      });
+      document.getElementById('qSerialOnly').addEventListener('click', function() {
+        document.getElementById('fBatch').value = '';
+        document.getElementById('fSku').value = '';
+        document.getElementById('fLine').value = '';
+        setStatus('Serial-only mode ready. Enter a serial and search.');
+      });
+      document.getElementById('qToday').addEventListener('click', function() {
+        applyRollingDays(1);
+        setStatus('Date window set to today.');
+      });
+      document.getElementById('q7Day').addEventListener('click', function() {
+        applyRollingDays(7);
+        setStatus('Date window set to rolling last 7 days.');
+      });
+      document.getElementById('q30Day').addEventListener('click', function() {
+        applyRollingDays(30);
+        setStatus('Date window set to rolling last 30 days.');
+      });
 
       resetFilters();
       loadSkus();
-      runSearch();
     })();
   </script>
 </body>

@@ -467,7 +467,7 @@
           };
         }).sort(function(a, b) { return b.tickets - a.tickets; });
       }
-      /** Deterministic analyst memo: blunt headlines + evidence; no named operators. Production-line insights allowed. */
+      /** Summary text for PDF: plain language; no named operators. */
       function buildAnalystMemo(rows, agg, opts) {
         opts = opts || {};
         var limitNum = opts.limitNum != null ? opts.limitNum : 500;
@@ -494,24 +494,24 @@
 
         var situation = '';
         if (filteredLine) {
-          situation = 'Scope is restricted to production line ' + filteredLine + ' — cross-line benchmarking does not apply. ';
+          situation = 'You filtered to one line only (' + filteredLine + '). Do not compare these numbers to the whole plant — other lines are left out on purpose. ';
         }
-        situation += 'This extract contains ' + n + ' pallet ticket(s), ';
-        situation += batchCount === 0 ? 'with no batch/lot identifiers captured — trace granularity is weak. ' :
-          batchCount === 1 ? 'covering one distinct batch/lot tag — trace narrative is tight. ' :
-          'spanning ' + batchCount + ' distinct batch/lot tags. ';
-        situation += includeVoided ? 'Voided tickets are included where applicable — dispute exposure must be read explicitly.' :
-          'Voided tickets are excluded — totals describe active throughput only.';
+        situation += 'This PDF is built from ' + n + ' pallet ticket(s) in your search results. ';
+        situation += batchCount === 0 ? 'None of them have a batch/lot filled in — you can still follow serial and SKU, but you cannot track by lot from this data alone. ' :
+          batchCount === 1 ? 'They all share one batch/lot code — easy to follow that lot end to end in this list. ' :
+          'They use ' + batchCount + ' different batch/lot codes. ';
+        situation += includeVoided ? 'Voided (cancelled) tickets are included — read void reasons if someone may challenge the numbers.' :
+          'Voided tickets are hidden — totals here are for active pallets only.';
 
         if (n >= limitNum) {
-          caveats.push('Hit row cap (' + limitNum + '). Figures describe this capped pull only — widen filters or export again if you need full coverage.');
+          caveats.push('Search stopped at the row limit (' + limitNum + '). Totals may be low if more tickets matched; narrow your filters or raise the limit and export again.');
           headlines.push({
-            finding: 'Sample may be incomplete versus the full population.',
-            evidence: 'Returned rows equal query limit (' + limitNum + '). Treat aggregates as lower-bound unless scope is intentionally narrow.'
+            finding: 'The list may be cut short.',
+            evidence: 'You hit the maximum row count (' + limitNum + '). The PDF only reflects what fit in that limit, not every matching ticket in the database.'
           });
         }
         if (!agg.tonnesKnown) {
-          caveats.push('Tonnes are incomplete — one or more SKUs lack reliable weight metadata; use tonnes as directional only.');
+          caveats.push('Tonnes cannot be fully trusted here — at least one SKU is missing weight information in the SKU table. Treat tonnes as rough, not exact.');
         }
 
         if (agg.skuRows.length && agg.totalQty > 0) {
@@ -520,8 +520,8 @@
           var palletShare = n > 0 ? (topSku.pallets / n) : 0;
           if (qtyShare >= 0.42 && agg.skuRows.length >= 2) {
             headlines.push({
-              finding: 'SKU concentration risk — demand mix is not diversified.',
-              evidence: topSku.sku + ' holds ~' + Math.round(qtyShare * 100) + '% of quantity and ' + Math.round(palletShare * 100) + '% of pallets.'
+              finding: 'One SKU is doing most of the work.',
+              evidence: topSku.sku + ' is about ' + Math.round(qtyShare * 100) + '% of all quantity and ' + Math.round(palletShare * 100) + '% of pallets — the mix is not spread evenly.'
             });
           }
         }
@@ -530,39 +530,39 @@
           var lineShare = topLine.tickets / n;
           if (lineShare >= 0.52) {
             headlines.push({
-              finding: 'Throughput anchors hard on one filling line.',
-              evidence: 'Line ' + topLine.line + ' carries ' + topLine.tickets + ' tickets (~' + Math.round(lineShare * 100) + '%). Continuity losses here disproportionately hurt output.'
+              finding: 'Most pallets sit on one line.',
+              evidence: 'Line ' + topLine.line + ' has ' + topLine.tickets + ' tickets — about ' + Math.round(lineShare * 100) + '% of this report. If that line stops, you feel it first.'
             });
           } else if (lines.length >= 4 && lineShare < 0.35) {
             headlines.push({
-              finding: 'Volume splinters across multiple lines — coordination tax is real.',
-              evidence: topLine.line + ' leads with only ~' + Math.round(lineShare * 100) + '% of tickets across ' + lines.length + ' active lines.'
+              finding: 'Work is spread thin across many lines.',
+              evidence: 'Even the biggest line (' + topLine.line + ') is only ~' + Math.round(lineShare * 100) + '% of tickets, across ' + lines.length + ' lines — more handovers and coordination.'
             });
           }
         }
         if (filteredLine && topLine && n > 0) {
           headlines.push({
-            finding: 'Single-line diagnostic — compare cautiously.',
-            evidence: 'All ' + n + ' tickets sit on line ' + filteredLine + '; variance versus plant-wide benchmarks requires another export.'
+            finding: 'One-line view only.',
+            evidence: 'All ' + n + ' tickets are on line ' + filteredLine + '. To compare with the rest of the plant, run a search without the line filter.'
           });
         }
 
         if (includeVoided && voidedCount > 0 && voidShare >= 0.06) {
           headlines.push({
-            finding: 'Correction load is elevated — governance exposure.',
-            evidence: voidedCount + ' voided ticket(s) (~' + Math.round(voidShare * 100) + '% of rows). Trace disputes and rework probability rise unless causes are clustered and addressed.'
+            finding: 'Quite a few tickets are voided.',
+            evidence: voidedCount + ' voided ticket(s) — about ' + Math.round(voidShare * 100) + '% of this list. Check whether void reasons repeat (one issue) or are scattered (many small problems).'
           });
         }
 
         if (batchCount === 1 && n >= 6) {
           headlines.push({
-            finding: 'Batch footprint is singular — excellent for discrete trace.',
-            evidence: 'One batch/lot drives all rows in-frame — ideal for proving lineage for audits.'
+            finding: 'One batch/lot covers this whole picture.',
+            evidence: 'Every row in this search shares one lot — good for audits and “what happened on this batch?” conversations.'
           });
         } else if (batchCount > 25 && n >= 30) {
           headlines.push({
-            finding: 'Batch fragmentation is high — reconciliation drag.',
-            evidence: batchCount + ' distinct batches inside ' + n + ' tickets increases reconciliation workload.'
+            finding: 'Many small batches in one list.',
+            evidence: batchCount + ' different batches in only ' + n + ' tickets — checking and explaining results takes longer when lots are sliced this finely.'
           });
         }
 
@@ -570,23 +570,23 @@
 
         if (!headlines.length) {
           headlines.push({
-            finding: 'No strong anomaly flags on automated rules.',
-            evidence: 'Mix and line spread sit inside templates — still validate against planning assumptions manually.'
+            finding: 'Nothing dramatic stood out in the automatic checks.',
+            evidence: 'SKU and line spread look ordinary for this data — still sense-check against what production planned for the same dates.'
           });
         }
 
-        actions.push('Cross-check Annex SKU totals vs planning SKU priorities for the same window.');
+        actions.push('Compare the SKU totals in section 7 with what production planned to run for the same period.');
         if (lines.length >= 2 && topLine) {
-          actions.push('Treat line ' + topLine.line + ' as the pacing constraint if downtime hits — protect changeovers.');
+          actions.push('If you lose time today, watch line ' + topLine.line + ' first — it carries the most tickets in this report; keep changeovers tight there.');
         }
         if (!agg.tonnesKnown) {
-          actions.push('Complete SKU weight metadata in the SKU master before signing off tonne-heavy decisions.');
+          actions.push('Fix missing net weight / units-per-carton in the SKU master before using tonnes for pay or tight targets.');
         }
         if (voidedCount > 0 && includeVoided) {
-          actions.push('Review void reasons in the detail annex — clustered codes imply systemic fixes, scattered codes imply discipline gaps.');
+          actions.push('Skim void reasons in the ticket list at the end — the same reason many times usually means one fix; many different reasons means wider coaching or data entry issues.');
         }
         if (batchCount > 12) {
-          actions.push('Align warehouse and packing leads on batch naming discipline — fragmentation slows investigations.');
+          actions.push('Agree clear batch/lot naming and capture rules with packing and warehouse so investigations stay quick.');
         }
         actions = actions.slice(0, 5);
 
@@ -638,40 +638,40 @@
         var untagged = n - tagged;
         var intro = '';
         var mid = '';
-        var closing = 'Dispute posture: pair lot rows below with serial-led annex rows. Clustered voids on one lot suggest a breakpoint; scattered voids suggest discipline or master-data drift.';
+        var closing = 'If there is a disagreement, use the batch table together with the serial list at the end. Voids piled on one batch often mean one process break; voids spread across batches often mean data entry habits or many small mistakes.';
 
         if (!batchAgg.length) {
           intro = untagged === n
-            ? 'Batch trace story — there is no batch/lot identity on any ticket in this extract. The narrative runs on serials, SKUs, lines, and timestamps only; you cannot close a classic “which lot?” argument from these fields alone unless upstream systems hold the lot key.'
-            : 'Batch tags are missing on ' + untagged + ' of ' + n + ' ticket(s). Any batch table in this section reflects partial coverage — widen capture discipline before signing trace conclusions.';
+            ? 'No batch or lot was recorded on any ticket in this search. You can still use serial number, SKU, line, and time — but you cannot answer “which lot?” from this PDF alone unless another system has the lot.'
+            : untagged + ' ticket(s) have no batch/lot — the table below only includes tickets where someone entered a lot. Totals can look smaller than the full search until capture improves.';
           return { intro: intro, mid: '', closing: closing, batchTableCap: 0 };
         }
 
         var B = batchAgg.length;
         var top = batchAgg[0];
         var topShare = n > 0 ? (100 * top.tickets / n) : 0;
-        intro = 'Batch landscape — ' + B + ' distinct lot code(s) sit on ' + tagged + ' tagged ticket(s)';
-        intro += untagged ? ' (' + untagged + ' row(s) remain untagged and are invisible to lot-level rollups).' : '.';
+        intro = 'This search uses ' + B + ' different batch/lot code(s) on ' + tagged + ' ticket(s) that have a lot filled in';
+        intro += untagged ? ' (' + untagged + ' ticket(s) have no lot and are missing from the batch table).' : '.';
 
         if (B === 1) {
-          intro += ' Single-lot thread «' + top.batch + '»: every tagged pallet shares one trace anchor — the story inside the lot is about SKU mix, line routing, and whether voids corrupt the thread.';
+          intro += ' Everything ties to one lot ("' + top.batch + '"). The real question is which SKUs and lines sit under that lot, and whether any rows are voided.';
         } else {
-          intro += ' Dominant lot «' + top.batch + '» owns ' + top.tickets + ' tickets (~' + topShare.toFixed(0) + '% of all rows here) — start reconciliation and risk triage there, then work the long tail for exposure.';
+          intro += ' The biggest lot is "' + top.batch + '" with ' + top.tickets + ' tickets — about ' + topShare.toFixed(0) + '% of all rows in this PDF. That is usually the place to start questions, then check smaller lots.';
         }
 
         if (top.firstMs != null && top.lastMs != null && top.tickets > 1) {
           var spanMin = Math.round((top.lastMs - top.firstMs) / 60000);
-          mid = 'Timing on the top lot — captures for «' + top.batch + '» stretch about ' + spanMin + ' minutes from earliest to latest ticket in this extract (EAT-stamped). Long spans flag campaign-style runs; tight spans flag narrow windows.';
+          mid = 'For that top lot, the first and last ticket in this search are about ' + spanMin + ' minutes apart (times shown in EAT — East Africa Time). A long gap often means a long run; a short gap often means a quick burst.';
         }
 
         if (batchAgg.length >= 2) {
           var second = batchAgg[1];
-          mid += (mid ? ' ' : '') + 'Runner: «' + second.batch + '» at ' + second.tickets + ' tickets, ' + Object.keys(second.skus).length + ' SKU(s), ' + Object.keys(second.lines).length + ' line(s).';
+          mid += (mid ? ' ' : '') + 'Second largest lot: "' + second.batch + '" with ' + second.tickets + ' tickets, ' + Object.keys(second.skus).length + ' SKU(s), on ' + Object.keys(second.lines).length + ' line(s).';
         }
 
         var voidLots = batchAgg.filter(function(b) { return b.voided > 0; }).length;
         if (voidLots > 0) {
-          mid += (mid ? ' ' : '') + 'Void footprint — ' + voidLots + ' lot(s) carry at least one voided row in-frame; read void reasons in the annex for pattern vs noise.';
+          mid += (mid ? ' ' : '') + voidLots + ' lot(s) include at least one voided ticket — scroll to the reason column in the ticket list for detail.';
         }
 
         return { intro: intro.trim(), mid: mid.trim(), closing: closing, batchTableCap: Math.min(batchAgg.length, 45) };
@@ -736,7 +736,7 @@
           doc.line(left, pageH - 9, pageW - margin.right, pageH - 9);
           doc.setFontSize(6.5);
           doc.setTextColor(100, 116, 139);
-          doc.text('RetiFlux — Operational intelligence · Confidential · For supervisory use only', left, pageH - 5);
+          doc.text('RetiFlux — internal operations · confidential · for supervisors and managers', left, pageH - 5);
           doc.text('Page ' + i + ' / ' + n, pageW - margin.right - 22, pageH - 5);
         }
       }
@@ -755,9 +755,9 @@
         doc.text('Advanced Batch Search Report', margin.left, 16);
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
-        doc.text('Batch trace + Pareto spine (SKU & line) + annex · No operator rankings.', margin.left, 20);
+        doc.text('Batch story + "who carries the load" tables (SKU & line) + full ticket list · no staff league tables.', margin.left, 20);
         doc.setTextColor(148, 163, 184);
-        doc.text('Generated ' + generatedEat + ' EAT', pageW - margin.right, 11, { align: 'right' });
+        doc.text('Generated ' + generatedEat + ' (East Africa Time)', pageW - margin.right, 11, { align: 'right' });
         doc.text('Exported by ' + (actorId || '—'), pageW - margin.right, 15.5, { align: 'right' });
         doc.setTextColor(30, 41, 59);
         return 26;
@@ -842,13 +842,13 @@
           includeVoided: document.getElementById('fVoided').value !== 'no'
         });
 
-        var yMemoSec = pdfSectionTitle(doc, margin, pageW, 26, '1 · Analyst memo — strategy & operations');
+        var yMemoSec = pdfSectionTitle(doc, margin, pageW, 26, '1 · Summary for management (plain-language highlights)');
         var ySitEnd = pdfMemoSituationBlock(doc, margin, pageW, yMemoSec, memo.situation);
         var headlineBody = memo.headlines.map(function(h, i) {
           return [String(i + 1), h.finding, h.evidence];
         });
         doc.autoTable(Object.assign({}, tableDefaults, {
-          head: [['#', 'Finding (headline)', 'Evidence (from this extract)']],
+          head: [['#', 'What stands out', 'Why we say that (from this search)']],
           body: headlineBody,
           startY: ySitEnd + 3,
           theme: 'striped',
@@ -860,9 +860,9 @@
         var afterHeadlines = doc.lastAutoTable.finalY + 5;
         var caveatRows = memo.caveats.length
           ? memo.caveats.map(function(c) { return [c]; })
-          : [['No automated data-quality warnings triggered on this extract.']];
+          : [['No automatic warnings fired — data looks complete enough for the checks we run.']];
         doc.autoTable(Object.assign({}, tableDefaults, {
-          head: [['Caveats & boundaries']],
+          head: [['Limits and warnings (read these)']],
           body: caveatRows,
           startY: afterHeadlines,
           theme: 'grid',
@@ -875,7 +875,7 @@
           return [String(i + 1), a];
         });
         doc.autoTable(Object.assign({}, tableDefaults, {
-          head: [['#', 'Recommended moves (process accountability — no named operators)']],
+          head: [['#', 'Practical next steps (about process — not about naming people)']],
           body: actionRows,
           startY: afterCaveats,
           theme: 'striped',
@@ -889,7 +889,7 @@
         var batchStory = buildBatchTraceStory(dataRows, agg, batchAgg);
         var linesForPdf = computeLineMix(dataRows);
 
-        var yBn = pdfSectionTitle(doc, margin, pageW, afterMemoBlock, '2 · Batch & trace narrative (lot-led story from this extract)');
+        var yBn = pdfSectionTitle(doc, margin, pageW, afterMemoBlock, '2 · Batch / lot story (what the lots are doing)');
         var yB1 = pdfMemoSituationBlock(doc, margin, pageW, yBn, batchStory.intro);
         var yB2 = batchStory.mid ? pdfMemoSituationBlock(doc, margin, pageW, yB1 + 2, batchStory.mid) : yB1;
         var yB3 = pdfMemoSituationBlock(doc, margin, pageW, yB2 + 2, batchStory.closing);
@@ -917,7 +917,7 @@
             ];
           });
           doc.autoTable(Object.assign({}, tableDefaults, {
-            head: [['Batch / lot', 'Tix', 'SKUs', '#Lines', 'Lines (preview)', 'Qty', 't', 'Voids', 'First–last (EAT)']],
+            head: [['Batch / lot', 'Tickets', 'SKUs', 'Lines', 'Which lines', 'Qty', 'Tonnes', 'Voids', 'First → last time']],
             body: batchRows,
             startY: yBatchTableStart,
             theme: 'striped',
@@ -937,8 +937,8 @@
           }));
         } else {
           doc.autoTable(Object.assign({}, tableDefaults, {
-            head: [['No batch-tagged rows in extract']],
-            body: [['Every row lacked batch/lot — see SKU and serial annex for trace.']],
+            head: [['No batch or lot on these tickets']],
+            body: [['Every ticket in this search has an empty batch field — use SKU and serial in the list at the end to trace pallets.']],
             startY: yBatchTableStart,
             theme: 'grid',
             styles: Object.assign({}, tableDefaults.styles, { fontSize: 8 })
@@ -946,11 +946,11 @@
         }
 
         var afterBatch = doc.lastAutoTable.finalY + 6;
-        var yParSku = pdfSectionTitle(doc, margin, pageW, afterBatch, '3 · Pareto spine — SKUs (rank · share · cumulative)');
-        var paretoExplain = 'Sorted by quantity. Cumulative columns show how fast the “vital few” SKUs absorb this extract — classic 80/20 read without naming individuals. Tonne cumulative needs complete weights.';
+        var yParSku = pdfSectionTitle(doc, margin, pageW, afterBatch, '3 · Which SKUs carry most of the load (80/20 style table)');
+        var paretoExplain = 'Rows are sorted by quantity, largest first. "Running %" columns add up from the top: you see how few SKUs account for most pallets (the usual 80/20 idea). Running % for tonnes only works when every SKU has weight data.';
         var yParSkuE = pdfMemoSituationBlock(doc, margin, pageW, yParSku, paretoExplain);
         doc.autoTable(Object.assign({}, tableDefaults, {
-          head: [['#', 'SKU', 'Qty', '%Qty', 'ΣQty%', 'Pal', '%Pal', 'ΣPal%', 't', 'Σt%']],
+          head: [['#', 'SKU', 'Qty', '% of qty', 'Running %', 'Pallets', '% of Pal', 'Running %', 'Tonnes', 'Running %']],
           body: skuParetoRows(agg),
           startY: yParSkuE + 3,
           theme: 'striped',
@@ -971,11 +971,11 @@
         }));
 
         var afterParSku = doc.lastAutoTable.finalY + 6;
-        var yParLn = pdfSectionTitle(doc, margin, pageW, afterParSku, '4 · Pareto spine — production lines (throughput concentration)');
-        var lineExplain = 'Lines ranked by ticket count in this extract. Use with batch narrative: dominant line + dominant lot = the constraint story management usually asks first.';
+        var yParLn = pdfSectionTitle(doc, margin, pageW, afterParSku, '4 · Which lines have the most tickets (same 80/20 idea)');
+        var lineExplain = 'Lines sorted by ticket count. Together with section 2, this answers the common question: “Which line and which lot should we worry about first?” — without naming individual staff.';
         var yParLnE = pdfMemoSituationBlock(doc, margin, pageW, yParLn, lineExplain);
         doc.autoTable(Object.assign({}, tableDefaults, {
-          head: [['#', 'Line', 'Tickets', '%', 'Σ%', 'Qty', 't']],
+          head: [['#', 'Line', 'Tickets', '% of all', 'Running %', 'Qty', 'Tonnes']],
           body: lineParetoRows(linesForPdf, agg.ticketCount),
           startY: yParLnE + 3,
           theme: 'striped',
@@ -994,26 +994,26 @@
         var afterParAll = doc.lastAutoTable.finalY + 6;
 
         var voidLabel = document.getElementById('fVoided').value === 'no'
-          ? 'Non-voided tickets only'
-          : 'Include voided tickets';
+          ? 'Hide voided tickets'
+          : 'Show cancelled (voided) tickets too';
         var tw = tsWindow && tsWindow.startIso && tsWindow.endIso
-          ? (fmtEat(tsWindow.startIso) + ' -> ' + fmtEat(tsWindow.endIso) + ' (timestamp window)')
-          : 'Not applied — filters use calendar dates above when set';
+          ? (fmtEat(tsWindow.startIso) + ' → ' + fmtEat(tsWindow.endIso) + ' (exact clock range; EAT)')
+          : 'Not used — only the calendar dates above (if any) limit the time range';
 
-        var paramHead = [['Criterion', 'Value']];
+        var paramHead = [['What you filtered', 'What you chose']];
         var paramBody = [
-          ['Calendar from', document.getElementById('fFrom').value || '— (any)'],
-          ['Calendar to', document.getElementById('fTo').value || '— (any)'],
-          ['Shift / interval stamp', tw],
-          ['Batch / lot contains', (document.getElementById('fBatch').value || '').trim() || '—'],
-          ['Serial contains', (document.getElementById('fSerial').value || '').trim() || '—'],
+          ['From date (calendar)', document.getElementById('fFrom').value || '— (any)'],
+          ['To date (calendar)', document.getElementById('fTo').value || '— (any)'],
+          ['Clock range (current shift, etc.)', tw],
+          ['Batch / lot text', (document.getElementById('fBatch').value || '').trim() || '—'],
+          ['Serial text', (document.getElementById('fSerial').value || '').trim() || '—'],
           ['SKU', (document.getElementById('fSku').value || '').trim() || '—'],
-          ['Production line', (document.getElementById('fLine').value || '').trim() || 'All'],
-          ['Void filter', voidLabel],
-          ['Row cap (query limit)', String(document.getElementById('fLimit').value || '500')]
+          ['Line', (document.getElementById('fLine').value || '').trim() || 'All lines'],
+          ['Voided tickets', voidLabel],
+          ['Max rows loaded', String(document.getElementById('fLimit').value || '500')]
         ];
 
-        var y0 = pdfSectionTitle(doc, margin, pageW, afterParAll, '5 · Search criteria (what this report covers)');
+        var y0 = pdfSectionTitle(doc, margin, pageW, afterParAll, '5 · Your search filters (so the numbers make sense)');
 
         doc.autoTable(Object.assign({}, tableDefaults, {
           head: paramHead,
@@ -1024,16 +1024,16 @@
         }));
 
         var afterParams = doc.lastAutoTable.finalY + 6;
-        var y1 = pdfSectionTitle(doc, margin, pageW, afterParams, '6 · Executive snapshot (answer these numbers first)');
+        var y1 = pdfSectionTitle(doc, margin, pageW, afterParams, '6 · Headline numbers (quick read)');
         var execBody = [
-          ['Tickets returned', String(agg.ticketCount)],
-          ['Distinct SKUs in mix', String(agg.skuRows.length)],
-          ['Distinct UOMs', String(agg.uomRows.length)],
-          ['Sum of quantities (all rows)', agg.totalQty.toLocaleString()],
-          ['Tonnes (SKU weights)', agg.tonnesKnown ? agg.totalTonnes.toFixed(3) + ' t' : '— complete SKU weights missing']
+          ['Pallet tickets in this PDF', String(agg.ticketCount)],
+          ['Different SKUs', String(agg.skuRows.length)],
+          ['Different units (cartons, buckets, …)', String(agg.uomRows.length)],
+          ['Total quantity (all UOMs added as entered)', agg.totalQty.toLocaleString()],
+          ['Total tonnes', agg.tonnesKnown ? agg.totalTonnes.toFixed(3) + ' t' : '— cannot sum: missing weights on some SKUs']
         ];
         doc.autoTable(Object.assign({}, tableDefaults, {
-          head: [['Metric', 'Value']],
+          head: [['Measure', 'Value']],
           body: execBody,
           startY: y1,
           theme: 'grid',
@@ -1041,7 +1041,7 @@
         }));
 
         var afterExec = doc.lastAutoTable.finalY + 6;
-        var y2 = pdfSectionTitle(doc, margin, pageW, afterExec, '7 · Totals by SKU + UOM mix (detail)');
+        var y2 = pdfSectionTitle(doc, margin, pageW, afterExec, '7 · Totals by SKU (with pack types / UOM mix)');
         var skuTableBody = agg.skuRows.map(function(r) {
           return [
             r.sku,
@@ -1067,7 +1067,7 @@
         }));
 
         var afterSku = doc.lastAutoTable.finalY + 6;
-        var y3 = pdfSectionTitle(doc, margin, pageW, afterSku, '8 · Totals by unit of measure');
+        var y3 = pdfSectionTitle(doc, margin, pageW, afterSku, '8 · Totals by pack type (UOM)');
         var uomTableBody = agg.uomRows.map(function(r) {
           return [
             r.uom,
@@ -1092,7 +1092,7 @@
         }));
 
         var afterUom = doc.lastAutoTable.finalY + 6;
-        var y4 = pdfSectionTitle(doc, margin, pageW, afterUom, '9 · Ticket-level detail (audit trail)');
+        var y4 = pdfSectionTitle(doc, margin, pageW, afterUom, '9 · Every ticket (full detail)');
         var detailRows = dataRows.map(function(r) {
           return [
             fmtEat(r.created_at),
@@ -1108,7 +1108,7 @@
           ];
         });
         doc.autoTable(Object.assign({}, tableDefaults, {
-          head: [['Created (EAT)', 'Serial', 'Batch/Lot', 'SKU', 'Qty', 'Line', 'Pallet', 'Recorded by', 'Status', 'Void reason']],
+          head: [['Created (E. Africa)', 'Serial', 'Batch/Lot', 'SKU', 'Qty', 'Line', 'Pallet', 'Recorded by', 'Status', 'Void reason']],
           body: detailRows,
           startY: y4,
           theme: 'striped',

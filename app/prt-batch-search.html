@@ -592,6 +592,131 @@
 
         return { situation: situation, headlines: headlines, caveats: caveats, actions: actions };
       }
+      function computeBatchAggregates(rows) {
+        var m = {};
+        (rows || []).forEach(function(r) {
+          var b = String(r.batch_lot || '').trim();
+          if (!b) return;
+          if (!m[b]) {
+            m[b] = {
+              batch: b,
+              tickets: 0,
+              skus: {},
+              lines: {},
+              qty: 0,
+              tonnes: 0,
+              tonnesKnown: true,
+              voided: 0,
+              firstMs: null,
+              lastMs: null
+            };
+          }
+          var rec = m[b];
+          rec.tickets += 1;
+          rec.qty += Number(r.qty || 0);
+          var tk = calcRowTonnes(r);
+          if (tk == null) rec.tonnesKnown = false;
+          else rec.tonnes += tk;
+          if (r.voided) rec.voided += 1;
+          rec.skus[String(r.sku || '—')] = true;
+          var line = String(r.production_line || '').trim() || '—';
+          rec.lines[line] = true;
+          var iso = r.created_at;
+          if (iso) {
+            var ms = new Date(iso).getTime();
+            if (isFinite(ms)) {
+              if (rec.firstMs == null || ms < rec.firstMs) rec.firstMs = ms;
+              if (rec.lastMs == null || ms > rec.lastMs) rec.lastMs = ms;
+            }
+          }
+        });
+        return Object.keys(m).map(function(k) { return m[k]; }).sort(function(a, b) { return b.tickets - a.tickets; });
+      }
+      function buildBatchTraceStory(rows, agg, batchAgg) {
+        var n = rows.length;
+        var tagged = (rows || []).filter(function(r) { return String(r.batch_lot || '').trim(); }).length;
+        var untagged = n - tagged;
+        var intro = '';
+        var mid = '';
+        var closing = 'Dispute posture: pair lot rows below with serial-led annex rows. Clustered voids on one lot suggest a breakpoint; scattered voids suggest discipline or master-data drift.';
+
+        if (!batchAgg.length) {
+          intro = untagged === n
+            ? 'Batch trace story — there is no batch/lot identity on any ticket in this extract. The narrative runs on serials, SKUs, lines, and timestamps only; you cannot close a classic “which lot?” argument from these fields alone unless upstream systems hold the lot key.'
+            : 'Batch tags are missing on ' + untagged + ' of ' + n + ' ticket(s). Any batch table in this section reflects partial coverage — widen capture discipline before signing trace conclusions.';
+          return { intro: intro, mid: '', closing: closing, batchTableCap: 0 };
+        }
+
+        var B = batchAgg.length;
+        var top = batchAgg[0];
+        var topShare = n > 0 ? (100 * top.tickets / n) : 0;
+        intro = 'Batch landscape — ' + B + ' distinct lot code(s) sit on ' + tagged + ' tagged ticket(s)';
+        intro += untagged ? ' (' + untagged + ' row(s) remain untagged and are invisible to lot-level rollups).' : '.';
+
+        if (B === 1) {
+          intro += ' Single-lot thread «' + top.batch + '»: every tagged pallet shares one trace anchor — the story inside the lot is about SKU mix, line routing, and whether voids corrupt the thread.';
+        } else {
+          intro += ' Dominant lot «' + top.batch + '» owns ' + top.tickets + ' tickets (~' + topShare.toFixed(0) + '% of all rows here) — start reconciliation and risk triage there, then work the long tail for exposure.';
+        }
+
+        if (top.firstMs != null && top.lastMs != null && top.tickets > 1) {
+          var spanMin = Math.round((top.lastMs - top.firstMs) / 60000);
+          mid = 'Timing on the top lot — captures for «' + top.batch + '» stretch about ' + spanMin + ' minutes from earliest to latest ticket in this extract (EAT-stamped). Long spans flag campaign-style runs; tight spans flag narrow windows.';
+        }
+
+        if (batchAgg.length >= 2) {
+          var second = batchAgg[1];
+          mid += (mid ? ' ' : '') + 'Runner: «' + second.batch + '» at ' + second.tickets + ' tickets, ' + Object.keys(second.skus).length + ' SKU(s), ' + Object.keys(second.lines).length + ' line(s).';
+        }
+
+        var voidLots = batchAgg.filter(function(b) { return b.voided > 0; }).length;
+        if (voidLots > 0) {
+          mid += (mid ? ' ' : '') + 'Void footprint — ' + voidLots + ' lot(s) carry at least one voided row in-frame; read void reasons in the annex for pattern vs noise.';
+        }
+
+        return { intro: intro.trim(), mid: mid.trim(), closing: closing, batchTableCap: Math.min(batchAgg.length, 45) };
+      }
+      function skuParetoRows(agg) {
+        var totalQ = agg.totalQty;
+        var totalP = agg.ticketCount;
+        var totalT = agg.tonnesKnown ? agg.totalTonnes : null;
+        var cumQ = 0;
+        var cumP = 0;
+        var cumT = 0;
+        return agg.skuRows.map(function(r, i) {
+          cumQ += r.qty;
+          cumP += r.pallets;
+          if (r.tonnes != null && totalT != null && totalT > 0) cumT += r.tonnes;
+          var pctQ = totalQ > 0 ? 100 * r.qty / totalQ : 0;
+          var cumPctQ = totalQ > 0 ? 100 * cumQ / totalQ : 0;
+          var pctP = totalP > 0 ? 100 * r.pallets / totalP : 0;
+          var cumPctP = totalP > 0 ? 100 * cumP / totalP : 0;
+          var tCell = r.tonnes == null ? '—' : r.tonnes.toFixed(2);
+          var cumPctT = totalT != null && totalT > 0 && r.tonnes != null ? (100 * cumT / totalT).toFixed(0) + '%' : '—';
+          return [
+            String(i + 1),
+            r.sku,
+            String(r.qty),
+            pctQ.toFixed(1) + '%',
+            cumPctQ.toFixed(0) + '%',
+            String(r.pallets),
+            pctP.toFixed(1) + '%',
+            cumPctP.toFixed(0) + '%',
+            tCell,
+            cumPctT
+          ];
+        });
+      }
+      function lineParetoRows(lines, totalTickets) {
+        var cum = 0;
+        return (lines || []).map(function(L, i) {
+          cum += L.tickets;
+          var pct = totalTickets > 0 ? 100 * L.tickets / totalTickets : 0;
+          var cumPct = totalTickets > 0 ? 100 * cum / totalTickets : 0;
+          var tCell = L.tonnes == null ? '—' : L.tonnes.toFixed(2);
+          return [String(i + 1), L.line, String(L.tickets), pct.toFixed(0) + '%', cumPct.toFixed(0) + '%', String(L.qty), tCell];
+        });
+      }
       function pdfMemoSituationBlock(doc, margin, pageW, startY, text) {
         doc.setFontSize(8.5);
         doc.setTextColor(51, 65, 85);
@@ -630,7 +755,7 @@
         doc.text('Advanced Batch Search Report', margin.left, 16);
         doc.setFontSize(7);
         doc.setTextColor(148, 163, 184);
-        doc.text('Management-grade memo + annex evidence · Production-line insights · No operator rankings.', margin.left, 20);
+        doc.text('Batch trace + Pareto spine (SKU & line) + annex · No operator rankings.', margin.left, 20);
         doc.setTextColor(148, 163, 184);
         doc.text('Generated ' + generatedEat + ' EAT', pageW - margin.right, 11, { align: 'right' });
         doc.text('Exported by ' + (actorId || '—'), pageW - margin.right, 15.5, { align: 'right' });
@@ -760,6 +885,114 @@
 
         var afterMemoBlock = doc.lastAutoTable.finalY + 6;
 
+        var batchAgg = computeBatchAggregates(dataRows);
+        var batchStory = buildBatchTraceStory(dataRows, agg, batchAgg);
+        var linesForPdf = computeLineMix(dataRows);
+
+        var yBn = pdfSectionTitle(doc, margin, pageW, afterMemoBlock, '2 · Batch & trace narrative (lot-led story from this extract)');
+        var yB1 = pdfMemoSituationBlock(doc, margin, pageW, yBn, batchStory.intro);
+        var yB2 = batchStory.mid ? pdfMemoSituationBlock(doc, margin, pageW, yB1 + 2, batchStory.mid) : yB1;
+        var yB3 = pdfMemoSituationBlock(doc, margin, pageW, yB2 + 2, batchStory.closing);
+        var yBatchTableStart = yB3 + 4;
+
+        if (batchAgg.length) {
+          var batchRows = batchAgg.slice(0, 45).map(function(b) {
+            var skuN = Object.keys(b.skus).length;
+            var lineKeys = Object.keys(b.lines);
+            var lineStr = lineKeys.slice(0, 5).join(', ') + (lineKeys.length > 5 ? ' +' + (lineKeys.length - 5) : '');
+            var span = '—';
+            if (b.firstMs != null && b.lastMs != null) {
+              span = fmtEat(new Date(b.firstMs).toISOString()).slice(0, 16) + '–' + fmtEat(new Date(b.lastMs).toISOString()).slice(0, 16);
+            }
+            return [
+              b.batch.length > 42 ? b.batch.slice(0, 40) + '…' : b.batch,
+              String(b.tickets),
+              String(skuN),
+              String(lineKeys.length),
+              lineStr.length > 38 ? lineStr.slice(0, 36) + '…' : lineStr,
+              String(b.qty),
+              b.tonnesKnown ? b.tonnes.toFixed(2) : '—',
+              String(b.voided),
+              span.length > 42 ? span.slice(0, 40) + '…' : span
+            ];
+          });
+          doc.autoTable(Object.assign({}, tableDefaults, {
+            head: [['Batch / lot', 'Tix', 'SKUs', '#Lines', 'Lines (preview)', 'Qty', 't', 'Voids', 'First–last (EAT)']],
+            body: batchRows,
+            startY: yBatchTableStart,
+            theme: 'striped',
+            styles: Object.assign({}, tableDefaults.styles, { fontSize: 6.8, overflow: 'linebreak', cellPadding: 1.4 }),
+            headStyles: Object.assign({}, tableDefaults.headStyles, { fontSize: 6.8 }),
+            columnStyles: {
+              0: { cellWidth: 34 },
+              1: { halign: 'right', cellWidth: 12 },
+              2: { halign: 'right', cellWidth: 12 },
+              3: { halign: 'right', cellWidth: 14 },
+              4: { cellWidth: 38 },
+              5: { halign: 'right', cellWidth: 14 },
+              6: { halign: 'right', cellWidth: 14 },
+              7: { halign: 'right', cellWidth: 12 },
+              8: { cellWidth: 'auto' }
+            }
+          }));
+        } else {
+          doc.autoTable(Object.assign({}, tableDefaults, {
+            head: [['No batch-tagged rows in extract']],
+            body: [['Every row lacked batch/lot — see SKU and serial annex for trace.']],
+            startY: yBatchTableStart,
+            theme: 'grid',
+            styles: Object.assign({}, tableDefaults.styles, { fontSize: 8 })
+          }));
+        }
+
+        var afterBatch = doc.lastAutoTable.finalY + 6;
+        var yParSku = pdfSectionTitle(doc, margin, pageW, afterBatch, '3 · Pareto spine — SKUs (rank · share · cumulative)');
+        var paretoExplain = 'Sorted by quantity. Cumulative columns show how fast the “vital few” SKUs absorb this extract — classic 80/20 read without naming individuals. Tonne cumulative needs complete weights.';
+        var yParSkuE = pdfMemoSituationBlock(doc, margin, pageW, yParSku, paretoExplain);
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['#', 'SKU', 'Qty', '%Qty', 'ΣQty%', 'Pal', '%Pal', 'ΣPal%', 't', 'Σt%']],
+          body: skuParetoRows(agg),
+          startY: yParSkuE + 3,
+          theme: 'striped',
+          styles: Object.assign({}, tableDefaults.styles, { fontSize: 7, cellPadding: 1.6 }),
+          headStyles: Object.assign({}, tableDefaults.headStyles, { fontSize: 7 }),
+          columnStyles: {
+            0: { cellWidth: 8 },
+            1: { cellWidth: 36 },
+            2: { halign: 'right', cellWidth: 16 },
+            3: { halign: 'right', cellWidth: 14 },
+            4: { halign: 'right', cellWidth: 14 },
+            5: { halign: 'right', cellWidth: 12 },
+            6: { halign: 'right', cellWidth: 12 },
+            7: { halign: 'right', cellWidth: 14 },
+            8: { halign: 'right', cellWidth: 14 },
+            9: { halign: 'right', cellWidth: 14 }
+          }
+        }));
+
+        var afterParSku = doc.lastAutoTable.finalY + 6;
+        var yParLn = pdfSectionTitle(doc, margin, pageW, afterParSku, '4 · Pareto spine — production lines (throughput concentration)');
+        var lineExplain = 'Lines ranked by ticket count in this extract. Use with batch narrative: dominant line + dominant lot = the constraint story management usually asks first.';
+        var yParLnE = pdfMemoSituationBlock(doc, margin, pageW, yParLn, lineExplain);
+        doc.autoTable(Object.assign({}, tableDefaults, {
+          head: [['#', 'Line', 'Tickets', '%', 'Σ%', 'Qty', 't']],
+          body: lineParetoRows(linesForPdf, agg.ticketCount),
+          startY: yParLnE + 3,
+          theme: 'striped',
+          styles: Object.assign({}, tableDefaults.styles, { fontSize: 7.5 }),
+          columnStyles: {
+            0: { cellWidth: 10 },
+            1: { cellWidth: 36 },
+            2: { halign: 'right', cellWidth: 18 },
+            3: { halign: 'right', cellWidth: 16 },
+            4: { halign: 'right', cellWidth: 14 },
+            5: { halign: 'right', cellWidth: 22 },
+            6: { halign: 'right', cellWidth: 18 }
+          }
+        }));
+
+        var afterParAll = doc.lastAutoTable.finalY + 6;
+
         var voidLabel = document.getElementById('fVoided').value === 'no'
           ? 'Non-voided tickets only'
           : 'Include voided tickets';
@@ -780,7 +1013,7 @@
           ['Row cap (query limit)', String(document.getElementById('fLimit').value || '500')]
         ];
 
-        var y0 = pdfSectionTitle(doc, margin, pageW, afterMemoBlock, '2 · Search criteria (what this report covers)');
+        var y0 = pdfSectionTitle(doc, margin, pageW, afterParAll, '5 · Search criteria (what this report covers)');
 
         doc.autoTable(Object.assign({}, tableDefaults, {
           head: paramHead,
@@ -791,7 +1024,7 @@
         }));
 
         var afterParams = doc.lastAutoTable.finalY + 6;
-        var y1 = pdfSectionTitle(doc, margin, pageW, afterParams, '3 · Executive snapshot (answer these numbers first)');
+        var y1 = pdfSectionTitle(doc, margin, pageW, afterParams, '6 · Executive snapshot (answer these numbers first)');
         var execBody = [
           ['Tickets returned', String(agg.ticketCount)],
           ['Distinct SKUs in mix', String(agg.skuRows.length)],
@@ -808,7 +1041,7 @@
         }));
 
         var afterExec = doc.lastAutoTable.finalY + 6;
-        var y2 = pdfSectionTitle(doc, margin, pageW, afterExec, '4 · Totals by SKU (where volume sits)');
+        var y2 = pdfSectionTitle(doc, margin, pageW, afterExec, '7 · Totals by SKU + UOM mix (detail)');
         var skuTableBody = agg.skuRows.map(function(r) {
           return [
             r.sku,
@@ -834,7 +1067,7 @@
         }));
 
         var afterSku = doc.lastAutoTable.finalY + 6;
-        var y3 = pdfSectionTitle(doc, margin, pageW, afterSku, '5 · Totals by unit of measure');
+        var y3 = pdfSectionTitle(doc, margin, pageW, afterSku, '8 · Totals by unit of measure');
         var uomTableBody = agg.uomRows.map(function(r) {
           return [
             r.uom,
@@ -859,7 +1092,7 @@
         }));
 
         var afterUom = doc.lastAutoTable.finalY + 6;
-        var y4 = pdfSectionTitle(doc, margin, pageW, afterUom, '6 · Ticket-level detail (audit trail)');
+        var y4 = pdfSectionTitle(doc, margin, pageW, afterUom, '9 · Ticket-level detail (audit trail)');
         var detailRows = dataRows.map(function(r) {
           return [
             fmtEat(r.created_at),

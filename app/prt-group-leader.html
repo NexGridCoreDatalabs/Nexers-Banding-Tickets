@@ -273,27 +273,34 @@
       </details>
     </div>
 
-    <div class="card">
-      <h2>Team transfers</h2>
-      <p class="roster-hint">Ask someone to move to another group leader. They must accept. Until then, your roster is unchanged.</p>
-      <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 12px;">
-        <div>
-          <label for="transferMemberSelect">Member on your team</label>
-          <select id="transferMemberSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;"></select>
+    <div class="card roster-card">
+      <details class="roster-details" id="transferDetails">
+        <summary class="roster-summary">
+          <span>Team transfers<span class="roster-caret" aria-hidden="true">▾</span></span>
+          <span class="roster-summary-kpi" id="transferSummaryKpi">Pending: 0 · tap to expand</span>
+        </summary>
+        <div class="roster-body">
+          <p class="roster-hint">Ask someone to move to another group leader. They must accept. Until then, your roster is unchanged.</p>
+          <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 12px;">
+            <div>
+              <label for="transferMemberSelect">Member on your team</label>
+              <select id="transferMemberSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;"></select>
+            </div>
+            <div>
+              <label for="transferToLeaderSelect">To group leader</label>
+              <select id="transferToLeaderSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;"></select>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" id="btnCreateTransfer">Request transfer</button>
+          </div>
+          <div id="transferActionStatus" class="status"></div>
+          <h3 style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 8px;">Incoming — accept or reject</h3>
+          <div id="transferIncomingList" class="transfer-list"></div>
+          <h3 style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 8px;">Outgoing — pending</h3>
+          <div id="transferOutgoingList" class="transfer-list"></div>
         </div>
-        <div>
-          <label for="transferToLeaderSelect">To group leader</label>
-          <select id="transferToLeaderSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;"></select>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button type="button" class="btn btn-primary" id="btnCreateTransfer">Request transfer</button>
-      </div>
-      <div id="transferActionStatus" class="status"></div>
-      <h3 style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 8px;">Incoming — accept or reject</h3>
-      <div id="transferIncomingList" class="transfer-list"></div>
-      <h3 style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 8px;">Outgoing — pending</h3>
-      <div id="transferOutgoingList" class="transfer-list"></div>
+      </details>
     </div>
 
     <div class="card">
@@ -813,9 +820,14 @@
       async function refreshTransferRequests() {
         var inc = document.getElementById('transferIncomingList');
         var out = document.getElementById('transferOutgoingList');
+        var tsk = document.getElementById('transferSummaryKpi');
+        function setTransferKpi(text) {
+          if (tsk) tsk.textContent = text;
+        }
         if (!supabase || !sessionUser) {
           if (inc) inc.innerHTML = '';
           if (out) out.innerHTML = '';
+          setTransferKpi('Pending: 0 · tap to expand');
           return;
         }
         var shiftIso = _currentShiftStartISO();
@@ -829,6 +841,7 @@
           if (ts) ts.textContent = res.error.message || 'Could not load transfers.';
           if (inc) inc.innerHTML = '';
           if (out) out.innerHTML = '';
+          setTransferKpi('Could not load · tap to expand');
           return;
         }
         var rows = res.data || [];
@@ -924,6 +937,8 @@
             });
           }
         }
+        var pend = incoming.length + outgoing.length;
+        setTransferKpi('Pending: ' + pend + ' · tap to expand');
       }
 
       async function bootstrapRosterUi() {
@@ -1112,8 +1127,12 @@
         var tol = document.getElementById('transferOutgoingList');
         if (til) til.innerHTML = '';
         if (tol) tol.innerHTML = '';
+        var td = document.getElementById('transferDetails');
+        if (td) td.open = false;
         var tas = document.getElementById('transferActionStatus');
         if (tas) tas.textContent = '';
+        var tsk = document.getElementById('transferSummaryKpi');
+        if (tsk) tsk.textContent = 'Pending: 0 · tap to expand';
         updateRosterSelectedCount();
       }
 

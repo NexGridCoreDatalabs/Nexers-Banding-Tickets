@@ -276,10 +276,10 @@
         <div class="kpis" style="margin-bottom:8px;">
           <span class="kpi">Group total: <strong id="kpiGroupKes" style="color:#bbf7d0">—</strong> KES</span>
           <span class="kpi">Per person: <strong id="kpiPerPersonKes" style="color:#bbf7d0">—</strong> KES</span>
-          <span class="kpi">Team (N): <strong id="kpiTeamN">—</strong></span>
+          <span class="kpi">Team size: <strong id="kpiTeamN">—</strong></span>
           <span class="kpi">Unpriced pallets: <strong id="kpiUnpriced">—</strong></span>
         </div>
-        <p class="remuner-hint" style="margin:0;font-size:10px;color:#94a3b8;line-height:1.4;">Per person = group total ÷ your saved shift team size. Same N is used for all date filters below (shift roster for this shift).</p>
+        <p class="remuner-hint" style="margin:0;font-size:10px;color:#94a3b8;line-height:1.4;">Per person = group total ÷ team size. The same team size is used for all date filters below (this shift's roster).</p>
         <div id="remunerRpcErr" class="status" style="color:#f87171;margin-top:6px;"></div>
         <details style="margin-top:10px;">
           <summary style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:700;">Breakdown by SKU / UOM</summary>
@@ -302,21 +302,6 @@
       </div>
       <div class="kpis">
         <span class="kpi" id="kpiCount">Tickets: —</span>
-        <span class="kpi" id="kpiAggLines">Lines: —</span>
-      </div>
-      <h3 style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;margin:12px 0 8px;">Quantity by SKU</h3>
-      <div class="table-wrap">
-        <table class="tbl-sku">
-          <thead>
-            <tr>
-              <th>SKU</th>
-              <th>UOM</th>
-              <th>Pallets</th>
-              <th>Total qty</th>
-            </tr>
-          </thead>
-          <tbody id="aggSkuBody"></tbody>
-        </table>
       </div>
       <div class="scope-btns" role="group" aria-label="Time range">
         <button type="button" class="scope active" data-scope="shift">This shift</button>
@@ -550,13 +535,10 @@
       async function loadTickets() {
         var st = document.getElementById('loadStatus');
         var body = document.getElementById('tblBody');
-        var aggBody = document.getElementById('aggSkuBody');
         var kpiCount = document.getElementById('kpiCount');
-        var kpiSkuLines = document.getElementById('kpiAggLines');
         if (!supabase || !sessionUser) return;
         st.textContent = 'Loading…';
         body.innerHTML = '';
-        if (aggBody) aggBody.innerHTML = '';
         try {
           var leaderName = String(sessionUser.leaderName || sessionUser.name || '').trim();
           var q = supabase.from('tickets')
@@ -568,31 +550,6 @@
           var res = await q;
           if (res.error) throw res.error;
           var rows = res.data || [];
-          var byKey = {};
-          rows.forEach(function(t) {
-            var sku = String(t.sku != null ? t.sku : 'UNKNOWN').trim() || 'UNKNOWN';
-            var uom = String(t.uom != null ? t.uom : '').trim();
-            var key = sku + '\0' + uom;
-            if (!byKey[key]) byKey[key] = { sku: sku, uom: uom, pallets: 0, qty: 0 };
-            byKey[key].pallets += 1;
-            byKey[key].qty += Number(t.qty) || 0;
-          });
-          var aggList = Object.keys(byKey).map(function(k) { return byKey[k]; });
-          aggList.sort(function(a, b) {
-            if (b.qty !== a.qty) return b.qty - a.qty;
-            return (a.sku + a.uom).localeCompare(b.sku + b.uom);
-          });
-          if (aggBody) {
-            aggList.forEach(function(a) {
-              var tr = document.createElement('tr');
-              tr.innerHTML =
-                '<td>' + escapeHtml(a.sku) + '</td>' +
-                '<td>' + escapeHtml(a.uom || '—') + '</td>' +
-                '<td>' + a.pallets + '</td>' +
-                '<td>' + a.qty.toLocaleString() + '</td>';
-              aggBody.appendChild(tr);
-            });
-          }
           rows.forEach(function(t) {
             var tr = document.createElement('tr');
             tr.innerHTML =
@@ -607,13 +564,11 @@
             body.appendChild(tr);
           });
           kpiCount.textContent = 'Tickets: ' + rows.length;
-          if (kpiSkuLines) kpiSkuLines.textContent = 'SKU / UOM lines: ' + aggList.length;
           st.textContent = rows.length ? '' : 'No tickets in this range with your name as group leader.';
           await loadRemuneration();
         } catch (e) {
           st.textContent = (e && e.message) ? e.message : 'Load failed.';
           kpiCount.textContent = 'Tickets: —';
-          if (kpiSkuLines) kpiSkuLines.textContent = 'Lines: —';
           resetRemunerationKpis();
         }
       }

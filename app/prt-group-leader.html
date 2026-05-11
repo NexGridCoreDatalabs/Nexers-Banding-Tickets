@@ -180,6 +180,41 @@
     .roster-name { flex: 1; min-width: 0; overflow-wrap: break-word; white-space: normal; }
     .roster-taken-badge { font-size: 10px; color: #f87171; flex-shrink: 0; max-width: 42%; text-align: right; }
     .roster-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+    .roster-card { padding-top: 16px; }
+    .roster-details { margin: 0; }
+    .roster-summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gold);
+      user-select: none;
+    }
+    .roster-summary::-webkit-details-marker { display: none; }
+    .roster-summary::marker { content: ''; }
+    .roster-caret {
+      display: inline-block;
+      margin-left: 8px;
+      font-size: 10px;
+      opacity: 0.85;
+      transition: transform 0.2s ease;
+    }
+    .roster-details[open] .roster-caret { transform: rotate(180deg); }
+    .roster-summary-kpi {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0.3px;
+      color: #94a3b8;
+    }
+    .roster-body { padding-top: 14px; margin-top: 10px; border-top: 1px solid rgba(245, 158, 11, 0.22); }
   </style>
 </head>
 <body>
@@ -214,17 +249,24 @@
       <button type="button" class="btn btn-ghost" id="btnGlSignOut">Sign out</button>
     </div>
 
-    <div class="card">
-      <h2>Team on this shift</h2>
-      <p class="roster-hint">Pick team members from the official roster only. Each person can appear on only one group leader's team for this shift.</p>
-      <label for="rosterFilter">Find names</label>
-      <input type="search" id="rosterFilter" autocomplete="off" placeholder="Filter the list…">
-      <div id="rosterList" class="roster-list" role="group" aria-label="Workforce roster"></div>
-      <div class="roster-toolbar">
-        <span class="kpi" id="rosterSelectedCount">Selected: 0</span>
-        <button type="button" class="btn btn-primary" id="btnSaveTeam">Save team</button>
-      </div>
-      <div id="teamRosterStatus" class="status"></div>
+    <div class="card roster-card">
+      <details class="roster-details" id="rosterDetails">
+        <summary class="roster-summary">
+          <span>Team on this shift<span class="roster-caret" aria-hidden="true">▾</span></span>
+          <span class="roster-summary-kpi" id="rosterSummaryKpi">Selected: 0 · tap to expand</span>
+        </summary>
+        <div class="roster-body">
+          <p class="roster-hint">Pick team members from the official roster only. Each person can appear on only one group leader's team for this shift.</p>
+          <label for="rosterFilter">Find names</label>
+          <input type="search" id="rosterFilter" autocomplete="off" placeholder="Filter the list…">
+          <div id="rosterList" class="roster-list" role="group" aria-label="Workforce roster"></div>
+          <div class="roster-toolbar">
+            <span class="kpi" id="rosterSelectedCount">Selected: 0</span>
+            <button type="button" class="btn btn-primary" id="btnSaveTeam">Save team</button>
+          </div>
+          <div id="teamRosterStatus" class="status"></div>
+        </div>
+      </details>
     </div>
 
     <div class="card">
@@ -492,10 +534,12 @@
       }
 
       function updateRosterSelectedCount() {
-        var el = document.getElementById('rosterSelectedCount');
-        if (!el) return;
         var n = Object.keys(rosterSelected).filter(function(k) { return rosterSelected[k]; }).length;
-        el.textContent = 'Selected: ' + n;
+        var line = 'Selected: ' + n + ' · tap to expand';
+        var el = document.getElementById('rosterSelectedCount');
+        if (el) el.textContent = 'Selected: ' + n;
+        var sk = document.getElementById('rosterSummaryKpi');
+        if (sk) sk.textContent = line;
       }
 
       function renderRosterList() {

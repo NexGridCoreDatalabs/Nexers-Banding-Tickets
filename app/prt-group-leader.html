@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>RetiFlux™ — Group Leader</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #f0c040;
+      --bg: #0f172a;
+      --card: rgba(15, 23, 42, 0.95);
+      --txt: #e2e8f0;
+      --muted: #94a3b8;
+      --font: 'Cascadia Mono', Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: var(--txt);
+      padding: 20px 14px 64px;
+    }
+    .top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .title-block h1 {
+      font-size: clamp(1.15rem, 4vw, 1.45rem);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+    .home {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      text-decoration: none;
+      border: 2px solid rgba(245, 158, 11, 0.45);
+      border-radius: 8px;
+    }
+    .home:hover { background: rgba(245, 158, 11, 0.12); }
+    .card {
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.28);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(8px);
+    }
+    .card h2 {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 14px;
+    }
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+    input, select, button {
+      font-family: var(--font);
+      font-size: 15px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      background: rgba(15, 23, 42, 0.85);
+      color: var(--txt);
+    }
+    input:focus, select:focus { outline: none; border-color: var(--gold); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    button[type="button"], .btn {
+      cursor: pointer;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+      border-color: var(--gold);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--gold);
+      border-color: rgba(245, 158, 11, 0.5);
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .err { color: #f87171; font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+    .signed-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      background: rgba(240, 192, 64, 0.08);
+      border: 1px solid rgba(240, 192, 64, 0.25);
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .signed-bar strong { color: var(--gold); }
+    .kpis { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .kpi {
+      background: rgba(2, 6, 23, 0.55);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .scope-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .scope-btns button { font-size: 11px; padding: 8px 12px; text-transform: none; letter-spacing: 0; font-weight: 700; }
+    .scope-btns button.active {
+      background: rgba(240, 192, 64, 0.2);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+    .chk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+    .chk input { width: auto; accent-color: var(--gold); }
+    .table-wrap { overflow: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 920px; }
+    th, td { border-bottom: 1px solid rgba(148, 163, 184, 0.2); padding: 8px 6px; font-size: 11px; text-align: left; white-space: nowrap; }
+    th {
+      color: var(--gold);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      font-size: 10px;
+      position: sticky;
+      top: 0;
+      background: rgba(15, 23, 42, 0.98);
+    }
+    .void { color: #f87171; }
+    .status { font-size: 12px; color: var(--muted); margin-top: 8px; }
+    #mainApp { display: none; }
+    #loginCard.login-hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="title-block">
+      <h1>Group Leader</h1>
+    </div>
+    <a class="home" href="../index.html">← Home</a>
+  </div>
+
+  <div id="loginCard" class="card">
+    <h2>Sign in</h2>
+    <div class="form-grid">
+      <div>
+        <label for="inputGlUserId">User ID</label>
+        <input id="inputGlUserId" type="text" autocomplete="username" placeholder="e.g. RFX-GL-MUMBI-001">
+      </div>
+      <div>
+        <label for="inputGlPasscode">Passcode</label>
+        <input id="inputGlPasscode" type="password" autocomplete="current-password" placeholder="Your passcode">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-primary" id="btnGlLogin">Sign in</button>
+    </div>
+    <div id="loginErr" class="err"></div>
+  </div>
+
+  <div id="mainApp">
+    <div class="signed-bar">
+      <div>Signed in as <strong id="glSignedName">—</strong> · <span id="glSignedId" style="color:#94a3b8;font-size:12px"></span></div>
+      <button type="button" class="btn btn-ghost" id="btnGlSignOut">Sign out</button>
+    </div>
+
+    <div class="card">
+      <h2>Your pallets</h2>
+      <div class="kpis">
+        <span class="kpi" id="kpiCount">Tickets: —</span>
+        <span class="kpi" id="kpiQty">Total qty: —</span>
+      </div>
+      <div class="scope-btns" role="group" aria-label="Time range">
+        <button type="button" class="scope active" data-scope="shift">This shift</button>
+        <button type="button" class="scope" data-scope="today">Today (EAT)</button>
+        <button type="button" class="scope" data-scope="7d">Last 7 days</button>
+        <button type="button" class="scope" data-scope="30d">Last 30 days</button>
+      </div>
+      <label class="chk">
+        <input type="checkbox" id="chkVoided">
+        Include voided tickets
+      </label>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btnRefresh">Refresh</button>
+      </div>
+      <div id="loadStatus" class="status"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Created (EAT)</th>
+              <th>Serial</th>
+              <th>SKU</th>
+              <th>Qty</th>
+              <th>Line</th>
+              <th>Batch</th>
+              <th>Pallet colour</th>
+              <th>Recorded by</th>
+              <th>Voided</th>
+            </tr>
+          </thead>
+          <tbody id="tblBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    (function() {
+      var cfg = window.BANDFLOW_CONFIG || {};
+      var supabase = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
+      var GL_SESSION_KEY = 'prt_gl_session';
+      var EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+      var sessionUser = null;
+      var scopeMode = 'shift';
+
+      function _currentShiftStartISO() {
+        var nowUtc  = new Date();
+        var eatHour = new Date(nowUtc.getTime() + EAT_OFFSET_MS).getUTCHours();
+        var eatNow  = new Date(nowUtc.getTime() + EAT_OFFSET_MS);
+        var midUtc  = Date.UTC(eatNow.getUTCFullYear(), eatNow.getUTCMonth(), eatNow.getUTCDate());
+        var shiftStartUtc;
+        if (eatHour >= 7 && eatHour < 19) {
+          shiftStartUtc = midUtc + 4 * 3600000;
+        } else if (eatHour >= 19) {
+          shiftStartUtc = midUtc + 16 * 3600000;
+        } else {
+          shiftStartUtc = midUtc - 8 * 3600000;
+        }
+        return new Date(shiftStartUtc).toISOString();
+      }
+
+      function eatDayStartIso() {
+        var eat = new Date(Date.now() + EAT_OFFSET_MS);
+        var y = eat.getUTCFullYear(), m = eat.getUTCMonth(), d = eat.getUTCDate();
+        var startUtcMs = Date.UTC(y, m, d, 0, 0, 0, 0) - (3 * 60 * 60 * 1000);
+        return new Date(startUtcMs).toISOString();
+      }
+      function eatDayEndIso() {
+        var eat = new Date(Date.now() + EAT_OFFSET_MS);
+        var y = eat.getUTCFullYear(), m = eat.getUTCMonth(), d = eat.getUTCDate();
+        var startUtcMs = Date.UTC(y, m, d, 0, 0, 0, 0) - (3 * 60 * 60 * 1000);
+        return new Date(startUtcMs + 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      function readGlSession() {
+        try {
+          var raw = localStorage.getItem(GL_SESSION_KEY);
+          if (!raw) return null;
+          var obj = JSON.parse(raw);
+          if (!obj || !obj.user_id || !obj.leaderName) return null;
+          if (!obj.shiftStart || obj.shiftStart !== _currentShiftStartISO()) return null;
+          return obj;
+        } catch (e) { return null; }
+      }
+      function writeGlSession(u) {
+        try {
+          localStorage.setItem(GL_SESSION_KEY, JSON.stringify({
+            user_id: u.user_id,
+            name: u.name,
+            leaderName: u.leaderName,
+            role: u.role,
+            shiftStart: _currentShiftStartISO()
+          }));
+        } catch (e) {}
+      }
+      function clearGlSession() {
+        try { localStorage.removeItem(GL_SESSION_KEY); } catch (e) {}
+      }
+
+      async function sha256(str) {
+        var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+        return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+      }
+
+      function fmtEat(iso) {
+        if (!iso) return '—';
+        var d = new Date(new Date(iso).getTime() + EAT_OFFSET_MS);
+        return d.toISOString().slice(0, 16).replace('T', ' ');
+      }
+
+      function applyScopeToQuery(q) {
+        if (scopeMode === 'shift') {
+          q = q.gte('created_at', _currentShiftStartISO());
+        } else if (scopeMode === 'today') {
+          q = q.gte('created_at', eatDayStartIso()).lt('created_at', eatDayEndIso());
+        } else if (scopeMode === '7d') {
+          q = q.gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+        } else if (scopeMode === '30d') {
+          q = q.gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+        } else {
+          q = q.gte('created_at', _currentShiftStartISO());
+        }
+        return q;
+      }
+
+      async function loadTickets() {
+        var st = document.getElementById('loadStatus');
+        var body = document.getElementById('tblBody');
+        var kpiCount = document.getElementById('kpiCount');
+        var kpiQty = document.getElementById('kpiQty');
+        if (!supabase || !sessionUser) return;
+        st.textContent = 'Loading…';
+        body.innerHTML = '';
+        try {
+          var includeVoid = document.getElementById('chkVoided').checked;
+          var leaderName = String(sessionUser.leaderName || sessionUser.name || '').trim();
+          var q = supabase.from('tickets')
+            .select('serial, sku, qty, uom, production_line, batch_lot, pallet_color, created_at, voided, recorded_by')
+            .eq('group_leader', leaderName);
+          if (!includeVoid) q = q.eq('voided', false);
+          q = applyScopeToQuery(q);
+          q = q.order('created_at', { ascending: false }).limit(500);
+          var res = await q;
+          if (res.error) throw res.error;
+          var rows = res.data || [];
+          var qtySum = 0;
+          rows.forEach(function(t) {
+            qtySum += Number(t.qty) || 0;
+            var tr = document.createElement('tr');
+            if (t.voided) tr.className = 'void';
+            tr.innerHTML =
+              '<td>' + fmtEat(t.created_at) + '</td>' +
+              '<td>' + escapeHtml(t.serial) + '</td>' +
+              '<td>' + escapeHtml(t.sku) + '</td>' +
+              '<td>' + escapeHtml(String(t.qty)) + (t.uom ? ' ' + escapeHtml(t.uom) : '') + '</td>' +
+              '<td>' + escapeHtml(t.production_line || '') + '</td>' +
+              '<td>' + escapeHtml(t.batch_lot || '') + '</td>' +
+              '<td>' + escapeHtml(t.pallet_color || '') + '</td>' +
+              '<td>' + escapeHtml(t.recorded_by || '') + '</td>' +
+              '<td>' + (t.voided ? 'Yes' : 'No') + '</td>';
+            body.appendChild(tr);
+          });
+          kpiCount.textContent = 'Tickets: ' + rows.length;
+          kpiQty.textContent = 'Total qty (sum): ' + qtySum.toLocaleString();
+          st.textContent = rows.length ? '' : 'No tickets in this range with your name as group leader.';
+        } catch (e) {
+          st.textContent = (e && e.message) ? e.message : 'Load failed.';
+          kpiCount.textContent = 'Tickets: —';
+          kpiQty.textContent = 'Total qty: —';
+        }
+      }
+
+      function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function showMain(u) {
+        sessionUser = u;
+        document.getElementById('loginCard').classList.add('login-hidden');
+        document.getElementById('mainApp').style.display = 'block';
+        document.getElementById('glSignedName').textContent = u.leaderName || u.name || u.user_id;
+        document.getElementById('glSignedId').textContent = u.user_id || '';
+        loadTickets();
+      }
+
+      function showLogin() {
+        sessionUser = null;
+        document.getElementById('loginCard').classList.remove('login-hidden');
+        document.getElementById('mainApp').style.display = 'none';
+        document.getElementById('inputGlPasscode').value = '';
+      }
+
+      async function doLogin() {
+        var errEl = document.getElementById('loginErr');
+        errEl.textContent = '';
+        var userId = (document.getElementById('inputGlUserId').value || '').trim();
+        var pass = (document.getElementById('inputGlPasscode').value || '').trim();
+        if (!supabase) {
+          errEl.textContent = 'Supabase not configured (config.js).';
+          return;
+        }
+        if (!userId || !pass) {
+          errEl.textContent = 'Enter User ID and passcode.';
+          return;
+        }
+        var btn = document.getElementById('btnGlLogin');
+        btn.disabled = true;
+        try {
+          var hash = await sha256(pass);
+          var res = await supabase.from('authorized_users')
+            .select('user_id, name, role, passcode_hash')
+            .ilike('user_id', userId)
+            .maybeSingle();
+          if (res.error) throw new Error(res.error.message || 'Sign in failed.');
+          var data = res.data;
+          if (!data) throw new Error('User ID not found.');
+          var role = (data.role || '').trim();
+          if (!/^Group Leader$/i.test(role)) {
+            throw new Error('Only Group Leader accounts can sign in here. Your role: ' + (role || '—'));
+          }
+          if (data.passcode_hash !== hash) throw new Error('Incorrect passcode.');
+          var u = {
+            user_id: data.user_id,
+            name: data.name,
+            leaderName: String(data.name || '').trim(),
+            role: role
+          };
+          writeGlSession(u);
+          document.getElementById('inputGlPasscode').value = '';
+          showMain(u);
+        } catch (ex) {
+          errEl.textContent = ex.message || 'Sign in failed.';
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      document.getElementById('btnGlLogin').addEventListener('click', doLogin);
+      document.getElementById('inputGlPasscode').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') doLogin();
+      });
+      document.getElementById('btnGlSignOut').addEventListener('click', function() {
+        clearGlSession();
+        showLogin();
+      });
+      document.getElementById('btnRefresh').addEventListener('click', loadTickets);
+      document.getElementById('chkVoided').addEventListener('change', loadTickets);
+      document.querySelectorAll('.scope-btns .scope').forEach(function(b) {
+        b.addEventListener('click', function() {
+          document.querySelectorAll('.scope-btns .scope').forEach(function(x) { x.classList.remove('active'); });
+          b.classList.add('active');
+          scopeMode = b.getAttribute('data-scope') || 'shift';
+          loadTickets();
+        });
+      });
+
+      (function boot() {
+        if (!supabase) {
+          document.getElementById('loginErr').textContent = 'Supabase not configured (config.js).';
+          return;
+        }
+        var s = readGlSession();
+        if (s && s.user_id && s.leaderName) {
+          showMain(s);
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>

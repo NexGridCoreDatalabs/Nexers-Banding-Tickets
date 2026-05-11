@@ -1948,6 +1948,7 @@
       var r = (role || '').trim();
       if (/^Zone Clerk$/i.test(r)) return 'zone-clerk.html';
       if (/^Picker$/i.test(r)) return 'pickers.html';
+      if (/^Group Leader$/i.test(r)) return 'prt-group-leader.html';
       return null;
     }
     var highwayRcPendingUser = null;
@@ -1980,6 +1981,23 @@
       var firstRc = document.getElementById('hwRcBtnPrt');
       if (firstRc) try { firstRc.focus(); } catch (eF) {}
     }
+    /** Match prt-group-leader.html / prt-create shift boundary for session validity. */
+    function highwayShiftStartISO() {
+      var EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+      var nowUtc  = new Date();
+      var eatHour = new Date(nowUtc.getTime() + EAT_OFFSET_MS).getUTCHours();
+      var eatNow  = new Date(nowUtc.getTime() + EAT_OFFSET_MS);
+      var midUtc  = Date.UTC(eatNow.getUTCFullYear(), eatNow.getUTCMonth(), eatNow.getUTCDate());
+      var shiftStartUtc;
+      if (eatHour >= 7 && eatHour < 19) {
+        shiftStartUtc = midUtc + 4 * 3600000;
+      } else if (eatHour >= 19) {
+        shiftStartUtc = midUtc + 16 * 3600000;
+      } else {
+        shiftStartUtc = midUtc - 8 * 3600000;
+      }
+      return new Date(shiftStartUtc).toISOString();
+    }
     function finalizeHighwayAppRedirect(data, fileName) {
       if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(data);
       try {
@@ -1992,6 +2010,15 @@
           }));
         } else {
           sessionStorage.removeItem('prt_rcv_session');
+        }
+        if (fileName.indexOf('prt-group-leader') >= 0) {
+          localStorage.setItem('prt_gl_session', JSON.stringify({
+            user_id: data.user_id,
+            name: data.name,
+            leaderName: String(data.name || '').trim(),
+            role: data.role,
+            shiftStart: highwayShiftStartISO()
+          }));
         }
       } catch (e0) {}
       window.location.href = fileName;
@@ -2010,7 +2037,7 @@
         sub.style.display = '';
         sub.textContent = highwayLoginIntent === 'hub'
           ? 'Use your User ID and passcode. After verification we open the full app menu (superuser & training).'
-          : 'Use your User ID and passcode. We open your role app (zone clerk, picker, or ask receiving clerks where they are working).';
+          : 'Use your User ID and passcode. We open your role app (zone clerk, picker, group leader, or receiving clerk choices).';
       }
       var pc = document.getElementById('hwLoginPasscode');
       if (pc) pc.value = '';

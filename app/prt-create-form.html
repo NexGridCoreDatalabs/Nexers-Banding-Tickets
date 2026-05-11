@@ -970,7 +970,7 @@
 
     <div class="card" id="prtLoginCard" style="display: none;">
       <h2>Receiving Clerk sign-in</h2>
-      <p class="page-sub" style="margin-bottom: 16px;">Sign in to save tickets.</p>
+      <p class="page-sub" style="margin-bottom: 16px;">Sign in to continue.</p>
       <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
         <div class="prt-field">
           <label for="inputPrtUserId">User ID</label>
@@ -1069,6 +1069,13 @@
             <option value="AL">AL</option>
             <option value="Offline Banding">Offline Banding</option>
           </select>
+        </div>
+        <div class="form-group">
+          <label for="groupLeader">Group Leader *</label>
+          <select id="groupLeader" name="groupLeader" required>
+            <option value="">— Select group leader —</option>
+          </select>
+          <small id="groupLeaderHint" style="color:#64748b;">Loading roster…</small>
         </div>
         <div class="form-group">
           <label for="recordedBy">Recorded By</label>
@@ -1201,6 +1208,14 @@
         <div class="cf-row">
           <div class="cf-label">Batch / Lot</div>
           <div class="cf-value" id="cfBatch">—</div>
+        </div>
+        <div class="cf-row">
+          <div class="cf-label">Production Line</div>
+          <div class="cf-value" id="cfProductionLine">—</div>
+        </div>
+        <div class="cf-row">
+          <div class="cf-label">Group Leader</div>
+          <div class="cf-value" id="cfGroupLeader">—</div>
         </div>
       </div>
       <div class="confirm-actions">
@@ -1376,6 +1391,7 @@
           applyPrtUserToUi(data);
           document.getElementById('inputPrtPasscode').value = '';
           loadSkus();
+          loadGroupLeaders();
           loadMyTicketsToday();
         } catch (ex) {
           if (errEl) errEl.textContent = ex.message || 'Sign in failed.';
@@ -1419,12 +1435,14 @@
           if (window.RetiFluxAuthSession) window.RetiFluxAuthSession.write(s);
           applyPrtUserToUi(s);
           loadSkus();
+          loadGroupLeaders();
           loadMyTicketsToday();
           return;
         }
         clearPrtSession();
         showPrtInlineLogin();
         loadSkus();
+        loadGroupLeaders();
       }
 
       // Set default date to today
@@ -1455,6 +1473,67 @@
           });
         } catch (e) { console.warn('SKU load failed:', e.message); } finally { hideSplash(); }
       }
+
+      /** Selected group leader display name for tickets / confirm (option value = user_id). */
+      function getGroupLeaderDisplayName() {
+        var sel = document.getElementById('groupLeader');
+        if (!sel || sel.selectedIndex < 0) return '';
+        var o = sel.options[sel.selectedIndex];
+        if (!o || !o.value) return '';
+        var nm = String(o.textContent || '').trim();
+        return nm || o.value;
+      }
+
+      async function loadGroupLeaders() {
+        var sel = document.getElementById('groupLeader');
+        var hint = document.getElementById('groupLeaderHint');
+        if (!sel) return;
+        var keepVal = sel.value;
+        sel.innerHTML = '';
+        var blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = '— Select group leader —';
+        sel.appendChild(blank);
+        if (!supabase) {
+          if (hint) { hint.textContent = 'Supabase not configured — cannot load roster.'; hint.style.color = '#f87171'; }
+          return;
+        }
+        if (hint) { hint.textContent = 'Loading roster…'; hint.style.color = '#64748b'; }
+        try {
+          var res = await supabase.from('authorized_users')
+            .select('user_id, name')
+            .eq('role', 'Group Leader')
+            .order('name');
+          if (res.error) throw res.error;
+          (res.data || []).forEach(function(r) {
+            var uid = String((r && r.user_id) || '').trim();
+            var nm = String((r && r.name) || '').trim();
+            if (!uid) return;
+            var opt = document.createElement('option');
+            opt.value = uid;
+            opt.textContent = nm || uid;
+            sel.appendChild(opt);
+          });
+          if (keepVal) sel.value = keepVal;
+          var n = (res.data || []).length;
+          if (hint) {
+            if (n === 0) {
+              hint.textContent = 'No Group Leader accounts found — run DB seed or contact supervisor.';
+              hint.style.color = '#f87171';
+            } else {
+              hint.textContent = '';
+            }
+          }
+        } catch (e) {
+          console.warn('Group leader roster failed:', e && e.message ? e.message : e);
+          if (hint) {
+            hint.textContent = 'Could not load group leaders. Check connection or database access.';
+            hint.style.color = '#f87171';
+          }
+        }
+        if (window._prtUpdateProgress) window._prtUpdateProgress();
+      }
+
       function getEatDateRangeUtc(dateStr) {
         var d = String(dateStr || '').trim();
         if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
@@ -1566,6 +1645,7 @@
         document.getElementById('mfgDate').value = new Date().toISOString().slice(0, 10);
         document.getElementById('expiryDate').value = '';
         document.getElementById('productionLine').value = '';
+        document.getElementById('groupLeader').value = '';
         document.getElementById('recordedBy').value = recordedByFromUserId(currentUser);
         document.getElementById('subdivision').value = '';
         document.getElementById('notes').value = '';
@@ -1916,6 +1996,7 @@
           var color      = params.palletColor || 'unspecified colour';
           var batch      = params.batchLot    || 'no batch';
           var line       = params.productionLine || '';
+          var groupLead  = (params.groupLeader || '').trim();
 
           function doSpeak() {
             var voices = synth.getVoices();
@@ -1937,6 +2018,7 @@
             var line2 = color + ' pallet.'
               + ' Batch: ' + batch + '.'
               + (line ? ' Line: ' + line + '.' : '')
+              + (groupLead ? ' Group leader: ' + groupLead + '.' : '')
               + ' If that\'s all correct, hold to confirm and let\'s get it done!';
             var u2 = new SpeechSynthesisUtterance(line2);
             u2.rate = 0.88; u2.pitch = 0.97; u2.lang = 'en-US';
@@ -1963,6 +2045,8 @@
         document.getElementById('cfColorName').textContent = params.palletColor || '—';
         document.getElementById('cfColorDot').style.background = COLOR_HEX[params.palletColor] || '#334155';
         document.getElementById('cfBatch').textContent    = params.batchLot || '—';
+        document.getElementById('cfProductionLine').textContent = params.productionLine || '—';
+        document.getElementById('cfGroupLeader').textContent    = (params.groupLeader || '').trim() || '—';
         document.getElementById('confirmOverlay').classList.add('open');
         document.body.style.overflow = 'hidden';
         speakConfirmation(params);
@@ -2153,6 +2237,15 @@
           document.getElementById('productionLine').focus();
           return;
         }
+        var glSel = document.getElementById('groupLeader');
+        if (!glSel || !glSel.value) {
+          status.textContent = '⚠️ Select a group leader before saving.';
+          status.className = 'status error';
+          btn.disabled = false; isSaving = false;
+          glSel.focus();
+          return;
+        }
+        var groupLeaderVal = getGroupLeaderDisplayName();
         if (!photo1Url || !photo2Url) {
           var missing = [];
           if (!photo1Url) missing.push('Pallet Overview');
@@ -2183,6 +2276,7 @@
           uom: document.getElementById('uom').value || '',
           palletColor: palletColor, batchLot: document.getElementById('batchLot').value,
           productionLine: document.getElementById('productionLine').value || '',
+          groupLeader: groupLeaderVal,
           mfgDate: mfgDate, timeStr: timeStr, derivedShift: derivedShift,
           recordedBy: recordedBy
         });
@@ -2196,6 +2290,8 @@
         var mfgDate = p.mfgDate; var timeStr = p.timeStr;
         var derivedShift = p.derivedShift; var recordedBy = p.recordedBy;
         var palletColor = p.palletColor;
+        var groupLeaderSave = ((p.groupLeader != null ? p.groupLeader : getGroupLeaderDisplayName()) + '').trim()
+          || (document.getElementById('groupLeader').value || '').trim();
         status.textContent = 'Saving…';
         status.className = 'status';
         syncPalletSizeFromQty();
@@ -2216,6 +2312,7 @@
           shift: derivedShift || null,
           subdivision: document.getElementById('subdivision').value || null,
           recorded_by: recordedBy || null,
+          group_leader: groupLeaderSave || null,
           photo_1_url: photo1Url || null,
           photo_2_url: photo2Url || null,
           pallet_color: palletColor || null
@@ -2669,7 +2766,8 @@
           ['batchLot', 'Batch / Lot'],
           ['mfgDate', 'Mfg. Date'],
           ['expiryDate', 'Expiry Date'],
-          ['productionLine', 'Production Line']
+          ['productionLine', 'Production Line'],
+          ['groupLeader', 'Group Leader']
         ];
         checks.forEach(function(pair) {
           var el = document.getElementById(pair[0]);
@@ -3358,7 +3456,7 @@
     // ═══════════════════════════════════════════════════════════════════════
     (function() {
 
-      // All 11 trackable required fields with human labels and validators
+      // All trackable required fields with human labels and validators
       const FIELDS = [
         { id:'sku',            label:'SKU',              ok: () => {
             const v = document.getElementById('sku')?.value.trim();
@@ -3385,6 +3483,7 @@
         { id:'mfgDate',        label:'Mfg. Date',        ok: () => !!(document.getElementById('mfgDate')?.value) },
         { id:'expiryDate',     label:'Expiry Date',      ok: () => !!(document.getElementById('expiryDate')?.value) },
         { id:'productionLine', label:'Production Line',  ok: () => !!(document.getElementById('productionLine')?.value) },
+        { id:'groupLeader',    label:'Group Leader',     ok: () => !!(document.getElementById('groupLeader')?.value.trim()) },
         { id:'photo1',         label:'Pallet Overview Photo',   ok: () => !!(window.photo1Url) },
         { id:'photo2',         label:'Pallet Side View Photo',  ok: () => !!(window.photo2Url) },
       ];
@@ -3423,7 +3522,7 @@
       window._prtUpdateProgress = updateProgress;
 
       // Listen to all relevant inputs
-      const watchIds = ['sku','qty','layers','maxStack','palletColor','batchLot','mfgDate','expiryDate','productionLine'];
+      const watchIds = ['sku','qty','layers','maxStack','palletColor','batchLot','mfgDate','expiryDate','productionLine','groupLeader'];
       watchIds.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;

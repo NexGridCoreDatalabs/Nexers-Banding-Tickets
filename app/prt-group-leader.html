@@ -86,6 +86,19 @@
       color: var(--txt);
     }
     input:focus, select:focus { outline: none; border-color: var(--gold); }
+    textarea {
+      font-family: var(--font);
+      font-size: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      background: rgba(15, 23, 42, 0.85);
+      color: var(--txt);
+      width: 100%;
+      min-height: 100px;
+      resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: var(--gold); }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
     .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
@@ -151,10 +164,22 @@
       top: 0;
       background: rgba(15, 23, 42, 0.98);
     }
-    .void { color: #f87171; }
+    table.tbl-sku { min-width: 420px; }
+    table.tbl-sku th, table.tbl-sku td { white-space: normal; }
     .status { font-size: 12px; color: var(--muted); margin-top: 8px; }
     #mainApp { display: none; }
     #loginCard.login-hidden { display: none; }
+    .roster-hint { font-size: 11px; color: var(--muted); margin-bottom: 10px; line-height: 1.45; }
+    .roster-list { max-height: 360px; overflow-y: auto; border: 2px solid rgba(245,158,11,0.25); border-radius: 8px; background: rgba(2,6,23,0.4); margin-top: 8px; }
+    .roster-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid rgba(148,163,184,0.12); font-size: 12px; }
+    .roster-row:not(.taken-other) { cursor: pointer; }
+    .roster-row:not(.taken-other):hover { background: rgba(251,191,36,0.06); }
+    .roster-row.taken-other { opacity: 0.58; }
+    .roster-row input { width: auto; accent-color: var(--gold); flex-shrink: 0; cursor: pointer; }
+    .roster-row.taken-other input { cursor: not-allowed; }
+    .roster-name { flex: 1; min-width: 0; overflow-wrap: break-word; white-space: normal; }
+    .roster-taken-badge { font-size: 10px; color: #f87171; flex-shrink: 0; max-width: 42%; text-align: right; }
+    .roster-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -190,10 +215,37 @@
     </div>
 
     <div class="card">
+      <h2>Team on this shift</h2>
+      <p class="roster-hint">Pick team members from the official roster only. Each person can appear on only one group leader's team for this shift.</p>
+      <label for="rosterFilter">Find names</label>
+      <input type="search" id="rosterFilter" autocomplete="off" placeholder="Filter the list…">
+      <div id="rosterList" class="roster-list" role="group" aria-label="Workforce roster"></div>
+      <div class="roster-toolbar">
+        <span class="kpi" id="rosterSelectedCount">Selected: 0</span>
+        <button type="button" class="btn btn-primary" id="btnSaveTeam">Save team</button>
+      </div>
+      <div id="teamRosterStatus" class="status"></div>
+    </div>
+
+    <div class="card">
       <h2>Your pallets</h2>
       <div class="kpis">
         <span class="kpi" id="kpiCount">Tickets: —</span>
-        <span class="kpi" id="kpiQty">Total qty: —</span>
+        <span class="kpi" id="kpiAggLines">Lines: —</span>
+      </div>
+      <h3 style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;margin:12px 0 8px;">Quantity by SKU</h3>
+      <div class="table-wrap">
+        <table class="tbl-sku">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>UOM</th>
+              <th>Pallets</th>
+              <th>Total qty</th>
+            </tr>
+          </thead>
+          <tbody id="aggSkuBody"></tbody>
+        </table>
       </div>
       <div class="scope-btns" role="group" aria-label="Time range">
         <button type="button" class="scope active" data-scope="shift">This shift</button>
@@ -241,6 +293,10 @@
       var EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
       var sessionUser = null;
       var scopeMode = 'shift';
+      var workforceRows = [];
+      var rosterSelected = {};
+      var rosterTaken = {};
+      var _rosterFilterTimer = null;
 
       function _currentShiftStartISO() {
         var nowUtc  = new Date();
@@ -322,14 +378,25 @@
         return q;
       }
 
+      function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
       async function loadTickets() {
         var st = document.getElementById('loadStatus');
         var body = document.getElementById('tblBody');
+        var aggBody = document.getElementById('aggSkuBody');
         var kpiCount = document.getElementById('kpiCount');
-        var kpiQty = document.getElementById('kpiQty');
+        var kpiSkuLines = document.getElementById('kpiAggLines');
         if (!supabase || !sessionUser) return;
         st.textContent = 'Loading…';
         body.innerHTML = '';
+        if (aggBody) aggBody.innerHTML = '';
         try {
           var includeVoid = document.getElementById('chkVoided').checked;
           var leaderName = String(sessionUser.leaderName || sessionUser.name || '').trim();
@@ -342,9 +409,32 @@
           var res = await q;
           if (res.error) throw res.error;
           var rows = res.data || [];
-          var qtySum = 0;
+          var byKey = {};
           rows.forEach(function(t) {
-            qtySum += Number(t.qty) || 0;
+            var sku = String(t.sku != null ? t.sku : 'UNKNOWN').trim() || 'UNKNOWN';
+            var uom = String(t.uom != null ? t.uom : '').trim();
+            var key = sku + '\0' + uom;
+            if (!byKey[key]) byKey[key] = { sku: sku, uom: uom, pallets: 0, qty: 0 };
+            byKey[key].pallets += 1;
+            byKey[key].qty += Number(t.qty) || 0;
+          });
+          var aggList = Object.keys(byKey).map(function(k) { return byKey[k]; });
+          aggList.sort(function(a, b) {
+            if (b.qty !== a.qty) return b.qty - a.qty;
+            return (a.sku + a.uom).localeCompare(b.sku + b.uom);
+          });
+          if (aggBody) {
+            aggList.forEach(function(a) {
+              var tr = document.createElement('tr');
+              tr.innerHTML =
+                '<td>' + escapeHtml(a.sku) + '</td>' +
+                '<td>' + escapeHtml(a.uom || '—') + '</td>' +
+                '<td>' + a.pallets + '</td>' +
+                '<td>' + a.qty.toLocaleString() + '</td>';
+              aggBody.appendChild(tr);
+            });
+          }
+          rows.forEach(function(t) {
             var tr = document.createElement('tr');
             if (t.voided) tr.className = 'void';
             tr.innerHTML =
@@ -360,22 +450,174 @@
             body.appendChild(tr);
           });
           kpiCount.textContent = 'Tickets: ' + rows.length;
-          kpiQty.textContent = 'Total qty (sum): ' + qtySum.toLocaleString();
+          if (kpiSkuLines) kpiSkuLines.textContent = 'SKU / UOM lines: ' + aggList.length;
           st.textContent = rows.length ? '' : 'No tickets in this range with your name as group leader.';
         } catch (e) {
           st.textContent = (e && e.message) ? e.message : 'Load failed.';
           kpiCount.textContent = 'Tickets: —';
-          kpiQty.textContent = 'Total qty: —';
+          if (kpiSkuLines) kpiSkuLines.textContent = 'Lines: —';
         }
       }
 
-      function escapeHtml(s) {
-        if (s == null) return '';
-        return String(s)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;');
+      async function loadWorkforceOnce() {
+        if (!supabase || workforceRows.length) return;
+        var res = await supabase.from('prt_workforce_roster')
+          .select('id, display_name')
+          .eq('is_active', true)
+          .order('display_name');
+        if (res.error) throw res.error;
+        workforceRows = res.data || [];
+      }
+
+      async function refreshShiftTeamState() {
+        rosterTaken = {};
+        rosterSelected = {};
+        if (!supabase || !sessionUser) return;
+        var shiftIso = _currentShiftStartISO();
+        var res = await supabase.from('gl_shift_team_member')
+          .select('workforce_id, group_leader_user_id, group_leader_name')
+          .eq('shift_start_iso', shiftIso);
+        if (res.error) throw res.error;
+        (res.data || []).forEach(function(r) {
+          var wid = r.workforce_id;
+          if (String(r.group_leader_user_id || '').toLowerCase() === String(sessionUser.user_id || '').toLowerCase()) {
+            rosterSelected[wid] = true;
+          } else {
+            rosterTaken[wid] = {
+              group_leader_user_id: r.group_leader_user_id,
+              group_leader_name: r.group_leader_name || r.group_leader_user_id || '—'
+            };
+          }
+        });
+      }
+
+      function updateRosterSelectedCount() {
+        var el = document.getElementById('rosterSelectedCount');
+        if (!el) return;
+        var n = Object.keys(rosterSelected).filter(function(k) { return rosterSelected[k]; }).length;
+        el.textContent = 'Selected: ' + n;
+      }
+
+      function renderRosterList() {
+        var box = document.getElementById('rosterList');
+        var fil = document.getElementById('rosterFilter');
+        if (!box) return;
+        var q = (fil && fil.value || '').trim().toLowerCase();
+        box.innerHTML = '';
+        workforceRows.forEach(function(row) {
+          var name = row.display_name || '';
+          if (q && name.toLowerCase().indexOf(q) < 0) return;
+          var wid = row.id;
+          var taken = rosterTaken[wid];
+          var isMine = !!rosterSelected[wid];
+          var wrap = document.createElement('div');
+          wrap.className = 'roster-row' + (taken ? ' taken-other' : '');
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = isMine;
+          cb.disabled = !!taken;
+          cb.setAttribute('data-wid', wid);
+          var lbl = document.createElement('span');
+          lbl.className = 'roster-name';
+          lbl.textContent = name;
+          wrap.appendChild(cb);
+          wrap.appendChild(lbl);
+          if (taken) {
+            var badge = document.createElement('span');
+            badge.className = 'roster-taken-badge';
+            badge.textContent = 'On ' + (taken.group_leader_name || 'other leader');
+            wrap.appendChild(badge);
+          }
+          cb.addEventListener('click', function(e) { e.stopPropagation(); });
+          cb.addEventListener('change', function() {
+            if (taken) { cb.checked = false; return; }
+            if (cb.checked) rosterSelected[wid] = true;
+            else delete rosterSelected[wid];
+            updateRosterSelectedCount();
+          });
+          wrap.addEventListener('click', function() {
+            if (taken) return;
+            cb.checked = !cb.checked;
+            if (cb.checked) rosterSelected[wid] = true;
+            else delete rosterSelected[wid];
+            updateRosterSelectedCount();
+          });
+          box.appendChild(wrap);
+        });
+      }
+
+      async function bootstrapRosterUi() {
+        var st = document.getElementById('teamRosterStatus');
+        if (st) st.textContent = '';
+        try {
+          await loadWorkforceOnce();
+          await refreshShiftTeamState();
+          renderRosterList();
+          updateRosterSelectedCount();
+        } catch (e) {
+          var msg = (e && e.message) ? e.message : 'Roster load failed.';
+          if ((/relation|does not exist|schema cache/i).test(msg)) {
+            msg = 'Run DB migrations 042–043 (workforce roster tables and seed).';
+          }
+          if (st) st.textContent = msg;
+        }
+      }
+
+      async function saveTeamMembers() {
+        var st = document.getElementById('teamRosterStatus');
+        var btn = document.getElementById('btnSaveTeam');
+        if (!sessionUser || !supabase) return;
+        var shiftIso = _currentShiftStartISO();
+        var leaderName = String(sessionUser.leaderName || sessionUser.name || '').trim();
+        var myUid = sessionUser.user_id;
+        var ids = Object.keys(rosterSelected).filter(function(k) { return rosterSelected[k]; });
+        if (btn) btn.disabled = true;
+        if (st) st.textContent = '';
+        try {
+          for (var i = 0; i < ids.length; i++) {
+            var wid = ids[i];
+            if (rosterTaken[wid]) {
+              var nm = wid;
+              for (var j = 0; j < workforceRows.length; j++) {
+                if (workforceRows[j].id === wid) {
+                  nm = workforceRows[j].display_name;
+                  break;
+                }
+              }
+              throw new Error(nm + ' is already on another leader\'s team this shift.');
+            }
+          }
+          var del = await supabase.from('gl_shift_team_member')
+            .delete()
+            .eq('shift_start_iso', shiftIso)
+            .eq('group_leader_user_id', myUid);
+          if (del.error) throw del.error;
+          if (ids.length) {
+            var insRows = ids.map(function(wid) {
+              return {
+                shift_start_iso: shiftIso,
+                group_leader_user_id: myUid,
+                group_leader_name: leaderName,
+                workforce_id: wid
+              };
+            });
+            var ins = await supabase.from('gl_shift_team_member').insert(insRows);
+            if (ins.error) {
+              if (/duplicate key|unique constraint|23505/i.test(ins.error.message || '')) {
+                throw new Error('One or more people were just picked by another leader for this shift. Refresh and try again.');
+              }
+              throw ins.error;
+            }
+          }
+          if (st) st.textContent = 'Saved.';
+          await refreshShiftTeamState();
+          renderRosterList();
+          updateRosterSelectedCount();
+        } catch (e) {
+          if (st) st.textContent = (e && e.message) ? e.message : 'Save failed.';
+        } finally {
+          if (btn) btn.disabled = false;
+        }
       }
 
       function showMain(u) {
@@ -385,6 +627,7 @@
         document.getElementById('glSignedName').textContent = u.leaderName || u.name || u.user_id;
         document.getElementById('glSignedId').textContent = u.user_id || '';
         loadTickets();
+        bootstrapRosterUi();
       }
 
       function showLogin() {
@@ -392,6 +635,16 @@
         document.getElementById('loginCard').classList.remove('login-hidden');
         document.getElementById('mainApp').style.display = 'none';
         document.getElementById('inputGlPasscode').value = '';
+        workforceRows = [];
+        rosterSelected = {};
+        rosterTaken = {};
+        var rf = document.getElementById('rosterFilter');
+        if (rf) rf.value = '';
+        var rl = document.getElementById('rosterList');
+        if (rl) rl.innerHTML = '';
+        var ts = document.getElementById('teamRosterStatus');
+        if (ts) ts.textContent = '';
+        updateRosterSelectedCount();
       }
 
       async function doLogin() {
@@ -448,6 +701,11 @@
         showLogin();
       });
       document.getElementById('btnRefresh').addEventListener('click', loadTickets);
+      document.getElementById('btnSaveTeam').addEventListener('click', saveTeamMembers);
+      document.getElementById('rosterFilter').addEventListener('input', function() {
+        clearTimeout(_rosterFilterTimer);
+        _rosterFilterTimer = setTimeout(function() { renderRosterList(); }, 120);
+      });
       document.getElementById('chkVoided').addEventListener('change', loadTickets);
       document.querySelectorAll('.scope-btns .scope').forEach(function(b) {
         b.addEventListener('click', function() {

@@ -214,8 +214,11 @@
       letter-spacing: 0.3px;
       color: #94a3b8;
     }
-    .roster-body { padding-top: 14px; margin-top: 10px; border-top: 1px solid rgba(245, 158, 11, 0.22); }
-  </style>
+    .roster-row .roster-small-lbl { font-size: 10px; color: #94a3b8; margin-left: auto; flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+    .roster-row .roster-small-lbl input { width: auto; accent-color: #22c55e; }
+    .transfer-list { font-size: 12px; }
+    .transfer-item { border: 1px solid rgba(148,163,184,0.25); border-radius: 8px; padding: 10px; margin-bottom: 8px; background: rgba(2,6,23,0.35); }
+    .transfer-item .btn-row { margin-top: 8px; gap: 8px; flex-wrap: wrap; }
 </head>
 <body>
   <div class="top">
@@ -267,6 +270,29 @@
           <div id="teamRosterStatus" class="status"></div>
         </div>
       </details>
+    </div>
+
+    <div class="card">
+      <h2>Team transfers</h2>
+      <p class="roster-hint">Ask someone to move to another group leader. They must accept. Until then, your roster is unchanged.</p>
+      <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 12px;">
+        <div>
+          <label for="transferMemberSelect">Member on your team</label>
+          <select id="transferMemberSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;"></select>
+        </div>
+        <div>
+          <label for="transferToLeaderSelect">To group leader</label>
+          <select id="transferToLeaderSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;"></select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btnCreateTransfer">Request transfer</button>
+      </div>
+      <div id="transferActionStatus" class="status"></div>
+      <h3 style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 8px;">Incoming — accept or reject</h3>
+      <div id="transferIncomingList" class="transfer-list"></div>
+      <h3 style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 8px;">Outgoing — pending</h3>
+      <div id="transferOutgoingList" class="transfer-list"></div>
     </div>
 
     <div class="card">
@@ -346,7 +372,9 @@
       var scopeMode = 'shift';
       var workforceRows = [];
       var rosterSelected = {};
+      var rosterPool = {};
       var rosterTaken = {};
+      var glLeaderList = [];
       var _rosterFilterTimer = null;
 
       function _currentShiftStartISO() {
@@ -586,16 +614,18 @@
       async function refreshShiftTeamState() {
         rosterTaken = {};
         rosterSelected = {};
+        rosterPool = {};
         if (!supabase || !sessionUser) return;
         var shiftIso = _currentShiftStartISO();
         var res = await supabase.from('gl_shift_team_member')
-          .select('workforce_id, group_leader_user_id, group_leader_name')
+          .select('workforce_id, group_leader_user_id, group_leader_name, remuneration_pool')
           .eq('shift_start_iso', shiftIso);
         if (res.error) throw res.error;
         (res.data || []).forEach(function(r) {
           var wid = r.workforce_id;
           if (String(r.group_leader_user_id || '').toLowerCase() === String(sessionUser.user_id || '').toLowerCase()) {
             rosterSelected[wid] = true;
+            rosterPool[wid] = (r.remuneration_pool === 'small_sku') ? 'small_sku' : 'main';
           } else {
             rosterTaken[wid] = {
               group_leader_user_id: r.group_leader_user_id,
@@ -638,6 +668,24 @@
           lbl.textContent = name;
           wrap.appendChild(cb);
           wrap.appendChild(lbl);
+          if (isMine) {
+            var poolLbl = document.createElement('label');
+            poolLbl.className = 'roster-small-lbl';
+            var poolCb = document.createElement('input');
+            poolCb.type = 'checkbox';
+            poolCb.checked = rosterPool[wid] === 'small_sku';
+            poolCb.setAttribute('data-wid-small', wid);
+            poolLbl.appendChild(poolCb);
+            var st = document.createElement('span');
+            st.textContent = 'Small SKUs';
+            poolLbl.appendChild(st);
+            poolCb.addEventListener('click', function(e) { e.stopPropagation(); });
+            poolCb.addEventListener('change', function() {
+              if (poolCb.checked) rosterPool[wid] = 'small_sku';
+              else rosterPool[wid] = 'main';
+            });
+            wrap.appendChild(poolLbl);
+          }
           if (taken) {
             var badge = document.createElement('span');
             badge.className = 'roster-taken-badge';
@@ -647,16 +695,28 @@
           cb.addEventListener('click', function(e) { e.stopPropagation(); });
           cb.addEventListener('change', function() {
             if (taken) { cb.checked = false; return; }
-            if (cb.checked) rosterSelected[wid] = true;
-            else delete rosterSelected[wid];
+            if (cb.checked) {
+              rosterSelected[wid] = true;
+              if (!rosterPool[wid]) rosterPool[wid] = 'main';
+            } else {
+              delete rosterSelected[wid];
+              delete rosterPool[wid];
+            }
             updateRosterSelectedCount();
+            renderRosterListIfOpen();
           });
           wrap.addEventListener('click', function() {
             if (taken) return;
             cb.checked = !cb.checked;
-            if (cb.checked) rosterSelected[wid] = true;
-            else delete rosterSelected[wid];
+            if (cb.checked) {
+              rosterSelected[wid] = true;
+              if (!rosterPool[wid]) rosterPool[wid] = 'main';
+            } else {
+              delete rosterSelected[wid];
+              delete rosterPool[wid];
+            }
             updateRosterSelectedCount();
+            renderRosterListIfOpen();
           });
           box.appendChild(wrap);
         });
@@ -667,17 +727,217 @@
         if (rd && rd.open) renderRosterList();
       }
 
+      function mapSaveRosterRpcError(code) {
+        var m = {
+          leader_required: 'Sign in again (leader id/name missing).',
+          members_must_be_array: 'Invalid team payload — refresh and try again.',
+          invalid_pool: 'Each member must use pool main or small_sku.',
+          one_or_more_members_on_another_team_use_transfer:
+            'Someone is on another leader’s team — use a transfer request or refresh.'
+        };
+        return m[code] || code || 'Save failed.';
+      }
+
+      function mapTransferRpcError(code) {
+        var m = {
+          invalid_leaders: 'Pick a valid group leader (not yourself).',
+          member_not_on_your_team: 'That person is not on your team for this shift.',
+          pending_transfer_exists: 'A transfer is already pending for this person.',
+          not_found_or_not_pending: 'That request is no longer pending.',
+          invalid_pool: 'Invalid pool.',
+          member_conflict_refresh: 'Roster changed — refresh and try again.'
+        };
+        return m[code] || code || 'Transfer failed.';
+      }
+
+      function workforceDisplayName(wid) {
+        for (var j = 0; j < workforceRows.length; j++) {
+          if (workforceRows[j].id === wid) return workforceRows[j].display_name || wid;
+        }
+        return wid;
+      }
+
+      function leaderDisplayNameFromList(uid) {
+        uid = String(uid || '');
+        for (var i = 0; i < glLeaderList.length; i++) {
+          if (String(glLeaderList[i].user_id || '').toLowerCase() === uid.toLowerCase()) {
+            return glLeaderList[i].name || glLeaderList[i].user_id;
+          }
+        }
+        return uid || '—';
+      }
+
+      async function loadGlLeadersForTransfer() {
+        var sel = document.getElementById('transferToLeaderSelect');
+        if (!supabase || !sessionUser || !sel) return;
+        var res = await supabase.from('authorized_users')
+          .select('user_id, name')
+          .ilike('role', 'Group Leader');
+        if (res.error) throw res.error;
+        var my = String(sessionUser.user_id || '').toLowerCase();
+        glLeaderList = (res.data || []).filter(function(r) {
+          return String(r.user_id || '').toLowerCase() !== my;
+        });
+        sel.innerHTML = '';
+        var ph = document.createElement('option');
+        ph.value = '';
+        ph.textContent = 'Choose group leader…';
+        sel.appendChild(ph);
+        glLeaderList.forEach(function(r) {
+          var o = document.createElement('option');
+          o.value = r.user_id;
+          o.textContent = (r.name || r.user_id || '') + ' · ' + (r.user_id || '');
+          sel.appendChild(o);
+        });
+      }
+
+      function populateTransferMemberSelect() {
+        var sel = document.getElementById('transferMemberSelect');
+        if (!sel || !sessionUser) return;
+        var prev = sel.value;
+        sel.innerHTML = '';
+        var ph = document.createElement('option');
+        ph.value = '';
+        ph.textContent = 'Choose team member…';
+        sel.appendChild(ph);
+        Object.keys(rosterSelected).filter(function(k) { return rosterSelected[k]; }).forEach(function(wid) {
+          var o = document.createElement('option');
+          o.value = wid;
+          o.textContent = workforceDisplayName(wid);
+          sel.appendChild(o);
+        });
+        if (prev && sel.querySelector('option[value="' + prev + '"]')) sel.value = prev;
+      }
+
+      async function refreshTransferRequests() {
+        var inc = document.getElementById('transferIncomingList');
+        var out = document.getElementById('transferOutgoingList');
+        if (!supabase || !sessionUser) {
+          if (inc) inc.innerHTML = '';
+          if (out) out.innerHTML = '';
+          return;
+        }
+        var shiftIso = _currentShiftStartISO();
+        var myUid = String(sessionUser.user_id || '');
+        var res = await supabase.from('gl_team_transfer_request')
+          .select('id, workforce_id, from_leader_user_id, to_leader_user_id, status, created_at')
+          .eq('shift_start_iso', shiftIso)
+          .eq('status', 'pending');
+        if (res.error) {
+          var ts = document.getElementById('transferActionStatus');
+          if (ts) ts.textContent = res.error.message || 'Could not load transfers.';
+          if (inc) inc.innerHTML = '';
+          if (out) out.innerHTML = '';
+          return;
+        }
+        var rows = res.data || [];
+        var incoming = rows.filter(function(r) {
+          return String(r.to_leader_user_id || '').toLowerCase() === myUid.toLowerCase();
+        });
+        var outgoing = rows.filter(function(r) {
+          return String(r.from_leader_user_id || '').toLowerCase() === myUid.toLowerCase();
+        });
+        var uidSet = {};
+        incoming.forEach(function(r) { uidSet[r.from_leader_user_id] = true; });
+        outgoing.forEach(function(r) { uidSet[r.to_leader_user_id] = true; });
+        var uids = Object.keys(uidSet);
+        var nameMap = {};
+        if (uids.length) {
+          var nr = await supabase.from('authorized_users').select('user_id, name').in('user_id', uids);
+          if (!nr.error && nr.data) {
+            nr.data.forEach(function(u) { nameMap[u.user_id] = u.name; });
+          }
+        }
+        function leaderLabel(uid) {
+          return nameMap[uid] || leaderDisplayNameFromList(uid) || uid || '—';
+        }
+        if (inc) {
+          inc.innerHTML = '';
+          if (!incoming.length) {
+            inc.innerHTML = '<div class="status">No incoming requests.</div>';
+          } else {
+            incoming.forEach(function(r) {
+              var div = document.createElement('div');
+              div.className = 'transfer-item';
+              var head = document.createElement('div');
+              head.innerHTML = '<strong>' + escapeHtml(workforceDisplayName(r.workforce_id)) + '</strong>' +
+                ' · from ' + escapeHtml(leaderLabel(r.from_leader_user_id));
+              var row = document.createElement('div');
+              row.className = 'btn-row';
+              var lbl = document.createElement('label');
+              lbl.style.fontSize = '10px';
+              lbl.style.color = '#94a3b8';
+              lbl.appendChild(document.createTextNode('Pool on accept '));
+              var poolSel = document.createElement('select');
+              poolSel.className = 'transfer-pool';
+              poolSel.style.marginLeft = '6px';
+              poolSel.style.padding = '4px';
+              poolSel.style.fontSize = '12px';
+              [['main', 'Main'], ['small_sku', 'Small SKUs']].forEach(function(opt) {
+                var o = document.createElement('option');
+                o.value = opt[0];
+                o.textContent = opt[1];
+                poolSel.appendChild(o);
+              });
+              lbl.appendChild(poolSel);
+              var bOk = document.createElement('button');
+              bOk.type = 'button';
+              bOk.className = 'btn btn-primary transfer-accept';
+              bOk.setAttribute('data-req', r.id);
+              bOk.textContent = 'Accept';
+              var bNo = document.createElement('button');
+              bNo.type = 'button';
+              bNo.className = 'btn btn-ghost transfer-reject';
+              bNo.setAttribute('data-req', r.id);
+              bNo.textContent = 'Reject';
+              row.appendChild(lbl);
+              row.appendChild(bOk);
+              row.appendChild(bNo);
+              div.appendChild(head);
+              div.appendChild(row);
+              inc.appendChild(div);
+            });
+          }
+        }
+        if (out) {
+          out.innerHTML = '';
+          if (!outgoing.length) {
+            out.innerHTML = '<div class="status">No outgoing requests.</div>';
+          } else {
+            outgoing.forEach(function(r) {
+              var div = document.createElement('div');
+              div.className = 'transfer-item';
+              var head = document.createElement('div');
+              head.textContent = workforceDisplayName(r.workforce_id) + ' → ' + leaderLabel(r.to_leader_user_id);
+              var row = document.createElement('div');
+              row.className = 'btn-row';
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'btn btn-ghost transfer-cancel';
+              b.setAttribute('data-req', r.id);
+              b.textContent = 'Cancel request';
+              row.appendChild(b);
+              div.appendChild(head);
+              div.appendChild(row);
+              out.appendChild(div);
+            });
+          }
+        }
+      }
+
       async function bootstrapRosterUi() {
         var st = document.getElementById('teamRosterStatus');
         if (st) st.textContent = '';
         try {
-          await Promise.all([loadWorkforceOnce(), refreshShiftTeamState()]);
+          await Promise.all([loadWorkforceOnce(), loadGlLeadersForTransfer(), refreshShiftTeamState()]);
           updateRosterSelectedCount();
           renderRosterListIfOpen();
+          populateTransferMemberSelect();
+          await refreshTransferRequests();
         } catch (e) {
           var msg = (e && e.message) ? e.message : 'Roster load failed.';
           if ((/relation|does not exist|schema cache/i).test(msg)) {
-            msg = 'Run DB migrations 042–043 (workforce roster tables and seed).';
+            msg = 'Run DB migrations 042–047 (roster, pools, transfers).';
           }
           if (st) st.textContent = msg;
         }
@@ -697,46 +957,123 @@
           for (var i = 0; i < ids.length; i++) {
             var wid = ids[i];
             if (rosterTaken[wid]) {
-              var nm = wid;
-              for (var j = 0; j < workforceRows.length; j++) {
-                if (workforceRows[j].id === wid) {
-                  nm = workforceRows[j].display_name;
-                  break;
-                }
-              }
+              var nm = workforceDisplayName(wid);
               throw new Error(nm + ' is already on another leader\'s team this shift.');
             }
           }
-          var del = await supabase.from('gl_shift_team_member')
-            .delete()
-            .eq('shift_start_iso', shiftIso)
-            .eq('group_leader_user_id', myUid);
-          if (del.error) throw del.error;
-          if (ids.length) {
-            var insRows = ids.map(function(wid) {
-              return {
-                shift_start_iso: shiftIso,
-                group_leader_user_id: myUid,
-                group_leader_name: leaderName,
-                workforce_id: wid
-              };
-            });
-            var ins = await supabase.from('gl_shift_team_member').insert(insRows);
-            if (ins.error) {
-              if (/duplicate key|unique constraint|23505/i.test(ins.error.message || '')) {
-                throw new Error('One or more people were just picked by another leader for this shift. Refresh and try again.');
-              }
-              throw ins.error;
-            }
+          var members = ids.map(function(wid) {
+            return {
+              workforce_id: wid,
+              pool: rosterPool[wid] === 'small_sku' ? 'small_sku' : 'main'
+            };
+          });
+          var rpcRes = await supabase.rpc('gl_save_shift_roster', {
+            p_shift_start_iso: shiftIso,
+            p_leader_user_id: myUid,
+            p_leader_name: leaderName,
+            p_members: members
+          });
+          if (rpcRes.error) throw new Error(rpcRes.error.message || 'Save failed.');
+          var payload = rpcRes.data;
+          if (!payload || payload.ok !== true) {
+            throw new Error(mapSaveRosterRpcError(payload && payload.error));
           }
           if (st) st.textContent = 'Saved.';
           await refreshShiftTeamState();
           renderRosterListIfOpen();
           updateRosterSelectedCount();
+          populateTransferMemberSelect();
+          await refreshTransferRequests();
+          await loadRemuneration();
         } catch (e) {
           if (st) st.textContent = (e && e.message) ? e.message : 'Save failed.';
         } finally {
           if (btn) btn.disabled = false;
+        }
+      }
+
+      async function createTransferRequest() {
+        var st = document.getElementById('transferActionStatus');
+        var btn = document.getElementById('btnCreateTransfer');
+        if (!sessionUser || !supabase) return;
+        var memSel = document.getElementById('transferMemberSelect');
+        var leadSel = document.getElementById('transferToLeaderSelect');
+        var wid = memSel && memSel.value;
+        var toUid = leadSel && leadSel.value;
+        if (!wid || !toUid) {
+          if (st) st.textContent = 'Choose a team member and a group leader.';
+          return;
+        }
+        if (btn) btn.disabled = true;
+        if (st) st.textContent = '';
+        try {
+          var rpcRes = await supabase.rpc('gl_team_transfer_request_create', {
+            p_shift_start_iso: _currentShiftStartISO(),
+            p_from_leader_user_id: sessionUser.user_id,
+            p_to_leader_user_id: toUid,
+            p_workforce_id: wid
+          });
+          if (rpcRes.error) throw new Error(rpcRes.error.message || 'Request failed.');
+          var payload = rpcRes.data;
+          if (!payload || payload.ok !== true) {
+            throw new Error(mapTransferRpcError(payload && payload.error));
+          }
+          if (st) st.textContent = 'Transfer requested.';
+          await refreshTransferRequests();
+        } catch (e) {
+          if (st) st.textContent = (e && e.message) ? e.message : 'Request failed.';
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      }
+
+      async function respondTransfer(requestId, accept, pool) {
+        var st = document.getElementById('transferActionStatus');
+        if (!sessionUser || !supabase || !requestId) return;
+        if (st) st.textContent = '';
+        try {
+          var rpcRes = await supabase.rpc('gl_team_transfer_request_respond', {
+            p_request_id: requestId,
+            p_to_leader_user_id: sessionUser.user_id,
+            p_accept: accept,
+            p_pool: accept ? (pool || 'main') : 'main'
+          });
+          if (rpcRes.error) throw new Error(rpcRes.error.message || 'Respond failed.');
+          var payload = rpcRes.data;
+          if (!payload || payload.ok !== true) {
+            throw new Error(mapTransferRpcError(payload && payload.error));
+          }
+          if (st) st.textContent = accept ? 'Accepted — they are now on your team.' : 'Rejected.';
+          await refreshShiftTeamState();
+          renderRosterListIfOpen();
+          updateRosterSelectedCount();
+          populateTransferMemberSelect();
+          await refreshTransferRequests();
+          await loadRemuneration();
+          await loadTickets();
+        } catch (e) {
+          if (st) st.textContent = (e && e.message) ? e.message : 'Respond failed.';
+        }
+      }
+
+      async function cancelTransferRequest(requestId) {
+        var st = document.getElementById('transferActionStatus');
+        if (!sessionUser || !supabase || !requestId) return;
+        if (st) st.textContent = '';
+        try {
+          var rpcRes = await supabase.rpc('gl_team_transfer_request_cancel', {
+            p_request_id: requestId,
+            p_from_leader_user_id: sessionUser.user_id
+          });
+          if (rpcRes.error) throw new Error(rpcRes.error.message || 'Cancel failed.');
+          var payload = rpcRes.data;
+          if (!payload || payload.ok !== true) {
+            throw new Error(mapTransferRpcError(payload && payload.error));
+          }
+          if (st) st.textContent = 'Request cancelled.';
+          await refreshTransferRequests();
+        } catch (e) {
+          if (st) st.textContent = (e && e.message) ? e.message : 'Cancel failed.';
         }
       }
 
@@ -757,6 +1094,7 @@
         document.getElementById('inputGlPasscode').value = '';
         workforceRows = [];
         rosterSelected = {};
+        rosterPool = {};
         rosterTaken = {};
         var rf = document.getElementById('rosterFilter');
         if (rf) rf.value = '';
@@ -764,6 +1102,17 @@
         if (rl) rl.innerHTML = '';
         var ts = document.getElementById('teamRosterStatus');
         if (ts) ts.textContent = '';
+        glLeaderList = [];
+        var tms = document.getElementById('transferMemberSelect');
+        var tls = document.getElementById('transferToLeaderSelect');
+        if (tms) tms.innerHTML = '';
+        if (tls) tls.innerHTML = '';
+        var til = document.getElementById('transferIncomingList');
+        var tol = document.getElementById('transferOutgoingList');
+        if (til) til.innerHTML = '';
+        if (tol) tol.innerHTML = '';
+        var tas = document.getElementById('transferActionStatus');
+        if (tas) tas.textContent = '';
         updateRosterSelectedCount();
       }
 
@@ -822,6 +1171,27 @@
       });
       document.getElementById('btnRefresh').addEventListener('click', loadTickets);
       document.getElementById('btnSaveTeam').addEventListener('click', saveTeamMembers);
+      document.getElementById('btnCreateTransfer').addEventListener('click', createTransferRequest);
+      document.getElementById('transferIncomingList').addEventListener('click', function(e) {
+        var btn = e.target && e.target.closest && e.target.closest('button');
+        if (!btn) return;
+        var id = btn.getAttribute('data-req');
+        if (!id) return;
+        if (btn.classList.contains('transfer-accept')) {
+          var item = btn.closest('.transfer-item');
+          var ps = item && item.querySelector('.transfer-pool');
+          var pool = (ps && ps.value) || 'main';
+          respondTransfer(id, true, pool);
+        } else if (btn.classList.contains('transfer-reject')) {
+          respondTransfer(id, false, 'main');
+        }
+      });
+      document.getElementById('transferOutgoingList').addEventListener('click', function(e) {
+        var btn = e.target && e.target.closest && e.target.closest('button');
+        if (!btn || !btn.classList.contains('transfer-cancel')) return;
+        var id = btn.getAttribute('data-req');
+        if (id) cancelTransferRequest(id);
+      });
       document.getElementById('rosterDetails').addEventListener('toggle', function() {
         if (this.open) renderRosterList();
       });

@@ -271,6 +271,35 @@
 
     <div class="card">
       <h2>Your pallets</h2>
+      <div class="remuner-panel" style="margin-bottom:14px;padding:12px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25);border-radius:10px;">
+        <div style="font-size:11px;font-weight:800;color:#86efac;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px;">Remuneration (piece rates)</div>
+        <div class="kpis" style="margin-bottom:8px;">
+          <span class="kpi">Group total: <strong id="kpiGroupKes" style="color:#bbf7d0">—</strong> KES</span>
+          <span class="kpi">Per person: <strong id="kpiPerPersonKes" style="color:#bbf7d0">—</strong> KES</span>
+          <span class="kpi">Team (N): <strong id="kpiTeamN">—</strong></span>
+          <span class="kpi">Unpriced pallets: <strong id="kpiUnpriced">—</strong></span>
+        </div>
+        <p class="remuner-hint" style="margin:0;font-size:10px;color:#94a3b8;line-height:1.4;">Per person = group total ÷ your saved shift team size. Same N is used for all date filters below (shift roster for this shift).</p>
+        <div id="remunerRpcErr" class="status" style="color:#f87171;margin-top:6px;"></div>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:700;">Breakdown by SKU / UOM</summary>
+          <div class="table-wrap" style="margin-top:8px;">
+            <table class="tbl-sku">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>UOM</th>
+                  <th>Pallets</th>
+                  <th>Qty</th>
+                  <th>Rate</th>
+                  <th>Line KES</th>
+                </tr>
+              </thead>
+              <tbody id="remunerLinesBody"></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
       <div class="kpis">
         <span class="kpi" id="kpiCount">Tickets: —</span>
         <span class="kpi" id="kpiAggLines">Lines: —</span>
@@ -295,10 +324,6 @@
         <button type="button" class="scope" data-scope="7d">Last 7 days</button>
         <button type="button" class="scope" data-scope="30d">Last 30 days</button>
       </div>
-      <label class="chk">
-        <input type="checkbox" id="chkVoided">
-        Include voided tickets
-      </label>
       <div class="btn-row">
         <button type="button" class="btn btn-primary" id="btnRefresh">Refresh</button>
       </div>
@@ -315,7 +340,6 @@
               <th>Batch</th>
               <th>Pallet colour</th>
               <th>Recorded by</th>
-              <th>Voided</th>
             </tr>
           </thead>
           <tbody id="tblBody"></tbody>
@@ -420,6 +444,100 @@
         return q;
       }
 
+      function remunerationTicketBounds() {
+        if (scopeMode === 'shift') {
+          return { from: _currentShiftStartISO(), to: null };
+        }
+        if (scopeMode === 'today') {
+          return { from: eatDayStartIso(), to: eatDayEndIso() };
+        }
+        if (scopeMode === '7d') {
+          return { from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), to: null };
+        }
+        if (scopeMode === '30d') {
+          return { from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), to: null };
+        }
+        return { from: _currentShiftStartISO(), to: null };
+      }
+
+      function resetRemunerationKpis() {
+        var g = document.getElementById('kpiGroupKes');
+        var p = document.getElementById('kpiPerPersonKes');
+        var n = document.getElementById('kpiTeamN');
+        var u = document.getElementById('kpiUnpriced');
+        var rb = document.getElementById('remunerLinesBody');
+        var re = document.getElementById('remunerRpcErr');
+        if (g) g.textContent = '—';
+        if (p) p.textContent = '—';
+        if (n) n.textContent = '—';
+        if (u) u.textContent = '—';
+        if (rb) rb.innerHTML = '';
+        if (re) re.textContent = '';
+      }
+
+      function fmtKes(n) {
+        if (n == null || n === '') return '—';
+        var x = typeof n === 'number' ? n : Number(n);
+        if (isNaN(x)) return '—';
+        return x.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      async function loadRemuneration() {
+        if (!supabase || !sessionUser) return;
+        var g = document.getElementById('kpiGroupKes');
+        var p = document.getElementById('kpiPerPersonKes');
+        var nEl = document.getElementById('kpiTeamN');
+        var uEl = document.getElementById('kpiUnpriced');
+        var rb = document.getElementById('remunerLinesBody');
+        var re = document.getElementById('remunerRpcErr');
+        if (re) re.textContent = '';
+        var bounds = remunerationTicketBounds();
+        var leaderName = String(sessionUser.leaderName || sessionUser.name || '').trim();
+        var payload = {
+          p_leader_name: leaderName,
+          p_leader_user_id: String(sessionUser.user_id || '').trim(),
+          p_shift_start_iso: _currentShiftStartISO(),
+          p_ticket_from: bounds.from,
+          p_ticket_to: bounds.to
+        };
+        var res = await supabase.rpc('gl_shift_remuneration_summary', payload);
+        if (res.error) {
+          if (re) re.textContent = res.error.message || 'Remuneration unavailable (run migration 046?).';
+          if (g) g.textContent = '—';
+          if (p) p.textContent = '—';
+          if (nEl) nEl.textContent = '—';
+          if (uEl) uEl.textContent = '—';
+          if (rb) rb.innerHTML = '';
+          return;
+        }
+        var data = res.data;
+        if (!data || typeof data !== 'object') {
+          resetRemunerationKpis();
+          return;
+        }
+        if (g) g.textContent = fmtKes(data.total_group_kes);
+        if (p) p.textContent = data.kes_per_person != null ? fmtKes(data.kes_per_person) : '—';
+        if (nEl) nEl.textContent = String(data.team_member_count != null ? data.team_member_count : '—');
+        if (uEl) uEl.textContent = String(data.unpriced_ticket_count != null ? data.unpriced_ticket_count : '—');
+        if (rb) {
+          rb.innerHTML = '';
+          var lines = Array.isArray(data.lines) ? data.lines : [];
+          lines.forEach(function(L) {
+            var tr = document.createElement('tr');
+            var rateStr = L.rate_kes != null ? fmtKes(L.rate_kes) : '—';
+            var lineStr = L.line_kes != null ? fmtKes(L.line_kes) : '—';
+            tr.innerHTML =
+              '<td>' + escapeHtml(L.sku || '') + '</td>' +
+              '<td>' + escapeHtml(L.uom || '—') + '</td>' +
+              '<td>' + (L.pallet_count != null ? L.pallet_count : '—') + '</td>' +
+              '<td>' + (L.qty_sum != null ? Number(L.qty_sum).toLocaleString() : '—') + '</td>' +
+              '<td>' + rateStr + '</td>' +
+              '<td>' + lineStr + '</td>';
+            rb.appendChild(tr);
+          });
+        }
+      }
+
       function escapeHtml(s) {
         if (s == null) return '';
         return String(s)
@@ -440,12 +558,11 @@
         body.innerHTML = '';
         if (aggBody) aggBody.innerHTML = '';
         try {
-          var includeVoid = document.getElementById('chkVoided').checked;
           var leaderName = String(sessionUser.leaderName || sessionUser.name || '').trim();
           var q = supabase.from('tickets')
-            .select('serial, sku, qty, uom, production_line, batch_lot, pallet_color, created_at, voided, recorded_by')
-            .eq('group_leader', leaderName);
-          if (!includeVoid) q = q.eq('voided', false);
+            .select('serial, sku, qty, uom, production_line, batch_lot, pallet_color, created_at, recorded_by')
+            .eq('group_leader', leaderName)
+            .eq('voided', false);
           q = applyScopeToQuery(q);
           q = q.order('created_at', { ascending: false }).limit(500);
           var res = await q;
@@ -478,7 +595,6 @@
           }
           rows.forEach(function(t) {
             var tr = document.createElement('tr');
-            if (t.voided) tr.className = 'void';
             tr.innerHTML =
               '<td>' + fmtEat(t.created_at) + '</td>' +
               '<td>' + escapeHtml(t.serial) + '</td>' +
@@ -487,17 +603,18 @@
               '<td>' + escapeHtml(t.production_line || '') + '</td>' +
               '<td>' + escapeHtml(t.batch_lot || '') + '</td>' +
               '<td>' + escapeHtml(t.pallet_color || '') + '</td>' +
-              '<td>' + escapeHtml(t.recorded_by || '') + '</td>' +
-              '<td>' + (t.voided ? 'Yes' : 'No') + '</td>';
+              '<td>' + escapeHtml(t.recorded_by || '') + '</td>';
             body.appendChild(tr);
           });
           kpiCount.textContent = 'Tickets: ' + rows.length;
           if (kpiSkuLines) kpiSkuLines.textContent = 'SKU / UOM lines: ' + aggList.length;
           st.textContent = rows.length ? '' : 'No tickets in this range with your name as group leader.';
+          await loadRemuneration();
         } catch (e) {
           st.textContent = (e && e.message) ? e.message : 'Load failed.';
           kpiCount.textContent = 'Tickets: —';
           if (kpiSkuLines) kpiSkuLines.textContent = 'Lines: —';
+          resetRemunerationKpis();
         }
       }
 
@@ -590,14 +707,18 @@
         });
       }
 
+      function renderRosterListIfOpen() {
+        var rd = document.getElementById('rosterDetails');
+        if (rd && rd.open) renderRosterList();
+      }
+
       async function bootstrapRosterUi() {
         var st = document.getElementById('teamRosterStatus');
         if (st) st.textContent = '';
         try {
-          await loadWorkforceOnce();
-          await refreshShiftTeamState();
-          renderRosterList();
+          await Promise.all([loadWorkforceOnce(), refreshShiftTeamState()]);
           updateRosterSelectedCount();
+          renderRosterListIfOpen();
         } catch (e) {
           var msg = (e && e.message) ? e.message : 'Roster load failed.';
           if ((/relation|does not exist|schema cache/i).test(msg)) {
@@ -655,7 +776,7 @@
           }
           if (st) st.textContent = 'Saved.';
           await refreshShiftTeamState();
-          renderRosterList();
+          renderRosterListIfOpen();
           updateRosterSelectedCount();
         } catch (e) {
           if (st) st.textContent = (e && e.message) ? e.message : 'Save failed.';
@@ -746,11 +867,13 @@
       });
       document.getElementById('btnRefresh').addEventListener('click', loadTickets);
       document.getElementById('btnSaveTeam').addEventListener('click', saveTeamMembers);
+      document.getElementById('rosterDetails').addEventListener('toggle', function() {
+        if (this.open) renderRosterList();
+      });
       document.getElementById('rosterFilter').addEventListener('input', function() {
         clearTimeout(_rosterFilterTimer);
-        _rosterFilterTimer = setTimeout(function() { renderRosterList(); }, 120);
+        _rosterFilterTimer = setTimeout(function() { renderRosterListIfOpen(); }, 120);
       });
-      document.getElementById('chkVoided').addEventListener('change', loadTickets);
       document.querySelectorAll('.scope-btns .scope').forEach(function(b) {
         b.addEventListener('click', function() {
           document.querySelectorAll('.scope-btns .scope').forEach(function(x) { x.classList.remove('active'); });

@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS skus (
   shelf_life_days integer,
   sachet_type text,
   tablet_type text,
+  banding_demarcation text NOT NULL DEFAULT 'non_banded'
+    CHECK (banding_demarcation IN ('banded', 'non_banded')),
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()

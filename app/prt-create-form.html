@@ -1441,8 +1441,6 @@
         }
         clearPrtSession();
         showPrtInlineLogin();
-        loadSkus();
-        loadGroupLeaders();
       }
 
       // Set default date to today
@@ -1464,13 +1462,15 @@
           if (error) throw error;
           var dl = document.getElementById('skuDatalist');
           dl.innerHTML = '';
+          var frag = document.createDocumentFragment();
           (data || []).forEach(function(r) {
             skuCache[r.sku] = r;
             var opt = document.createElement('option');
             opt.value = r.sku;
             opt.label = r.sku + ' — ' + (r.product_name || '') + (r.variant ? ' ' + r.variant : '');
-            dl.appendChild(opt);
+            frag.appendChild(opt);
           });
+          dl.appendChild(frag);
         } catch (e) { console.warn('SKU load failed:', e.message); } finally { hideSplash(); }
       }
 

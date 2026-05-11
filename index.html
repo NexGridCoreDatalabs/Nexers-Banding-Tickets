@@ -552,19 +552,18 @@
 
     <script>
     (function() {
-        // ── Splash: 1–2s on load only. Destination pages show their own splash (no double splash on nav). ──
+        // ── Splash: brief paint only (floor devices need fast hub access). ──
         (function runIndexSplash() {
             var splash = document.getElementById('indexSplash');
-            var minMs = 1000;
-            var maxMs = 2000;
-            var minDelay = new Promise(function(r) { setTimeout(r, minMs); });
-            var maxDelay = new Promise(function(r) { setTimeout(r, maxMs); });
-            Promise.race([minDelay, maxDelay]).then(function() {
+            function hide() {
                 splash.classList.add('fade-out');
                 setTimeout(function() {
                     splash.style.display = 'none';
                     splash.setAttribute('aria-hidden', 'true');
                 }, 280);
+            }
+            requestAnimationFrame(function() {
+                requestAnimationFrame(hide);
             });
         })();
 

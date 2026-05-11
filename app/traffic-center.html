@@ -877,7 +877,7 @@
         window.__retifluxHwTypewriterLoaded = true;
         var tw = document.createElement('script');
         tw.src = '../js/retiflux-intro-typewriter.js';
-        tw.async = false;
+        tw.async = true;
         document.body.appendChild(tw);
       }
     }
@@ -1695,18 +1695,20 @@
       if (refreshInFlight) { refreshQueued = true; return; }
       refreshInFlight = true;
       try {
-        await loadZones();
-        await loadTransitions();
+        await Promise.all([loadZones(), loadTransitions()]);
         await loadPalletCounts();
-        await loadInTransitPallets();
-        await loadForkliftPositions();
         var hwHours = parseInt(document.getElementById('highwayRange').value, 10) || 24;
-        await loadHighwayCounts(hwHours);
+        var parallel = [
+          loadInTransitPallets(),
+          loadForkliftPositions(),
+          loadHighwayCounts(hwHours)
+        ];
         if (!SIMPLE_HIGHWAY) {
           var avgHours = parseInt(document.getElementById('avgTransitScope').value, 10) || 168;
-          await loadAvgTransit(avgHours);
-          await loadRecentMovements(20);
+          parallel.push(loadAvgTransit(avgHours));
+          parallel.push(loadRecentMovements(20));
         }
+        await Promise.all(parallel);
         if (!SIMPLE_HIGHWAY) updateAvgLabel();
         renderMap();
         if (!SIMPLE_HIGHWAY) renderRecentTable();

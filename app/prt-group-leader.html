@@ -328,12 +328,29 @@
         <div style="font-size:11px;font-weight:800;color:#86efac;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px;">Remuneration (piece rates)</div>
         <div class="kpis" style="margin-bottom:8px;">
           <span class="kpi">Group total: <strong id="kpiGroupKes" style="color:#bbf7d0">—</strong> KES</span>
-          <span class="kpi">Per person: <strong id="kpiPerPersonKes" style="color:#bbf7d0">—</strong> KES</span>
+          <span class="kpi">Fair range: <strong id="kpiFairRange" style="color:#bbf7d0">—</strong> KES</span>
+          <span class="kpi">Fair team avg: <strong id="kpiPerPersonKes" style="color:#bbf7d0">—</strong> KES</span>
+          <span class="kpi">If / everyone: <strong id="kpiEqualSplitKes" style="color:#94a3b8">—</strong> KES</span>
           <span class="kpi">Team size: <strong id="kpiTeamN">—</strong></span>
           <span class="kpi">Unpriced pallets: <strong id="kpiUnpriced">—</strong></span>
         </div>
-        <p class="remuner-hint" style="margin:0;font-size:10px;color:#94a3b8;line-height:1.4;">Per person = group total ÷ team size. The same team size is used for all date filters below (this shift's roster).</p>
+        <p class="remuner-hint" style="margin:0;font-size:10px;color:#94a3b8;line-height:1.4;"><strong>Fair</strong> uses small-SKU vs main pools (who is checked in roster). <strong>If / everyone</strong> is only a reference: group total ÷ team size, ignoring pools. Apply migration 050 for pool-aware figures.</p>
         <div id="remunerRpcErr" class="status" style="color:#f87171;margin-top:6px;"></div>
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:700;">Fair pay by team member (pools)</summary>
+          <div class="table-wrap" style="margin-top:8px;">
+            <table class="tbl-sku">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Pool</th>
+                  <th>Fair KES</th>
+                </tr>
+              </thead>
+              <tbody id="remunerByPersonBody"></tbody>
+            </table>
+          </div>
+        </details>
         <details style="margin-top:10px;">
           <summary style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:700;">Breakdown by SKU / UOM</summary>
           <div class="table-wrap" style="margin-top:8px;">
@@ -503,15 +520,21 @@
       function resetRemunerationKpis() {
         var g = document.getElementById('kpiGroupKes');
         var p = document.getElementById('kpiPerPersonKes');
+        var fr = document.getElementById('kpiFairRange');
+        var eq = document.getElementById('kpiEqualSplitKes');
         var n = document.getElementById('kpiTeamN');
         var u = document.getElementById('kpiUnpriced');
         var rb = document.getElementById('remunerLinesBody');
+        var rbp = document.getElementById('remunerByPersonBody');
         var re = document.getElementById('remunerRpcErr');
         if (g) g.textContent = '—';
         if (p) p.textContent = '—';
+        if (fr) fr.textContent = '—';
+        if (eq) eq.textContent = '—';
         if (n) n.textContent = '—';
         if (u) u.textContent = '—';
         if (rb) rb.innerHTML = '';
+        if (rbp) rbp.innerHTML = '';
         if (re) re.textContent = '';
       }
 
@@ -526,9 +549,12 @@
         if (!supabase || !sessionUser) return;
         var g = document.getElementById('kpiGroupKes');
         var p = document.getElementById('kpiPerPersonKes');
+        var fr = document.getElementById('kpiFairRange');
+        var eq = document.getElementById('kpiEqualSplitKes');
         var nEl = document.getElementById('kpiTeamN');
         var uEl = document.getElementById('kpiUnpriced');
         var rb = document.getElementById('remunerLinesBody');
+        var rbp = document.getElementById('remunerByPersonBody');
         var re = document.getElementById('remunerRpcErr');
         if (re) re.textContent = '';
         var bounds = remunerationTicketBounds();
@@ -542,12 +568,15 @@
         };
         var res = await supabase.rpc('gl_shift_remuneration_summary', payload);
         if (res.error) {
-          if (re) re.textContent = res.error.message || 'Remuneration unavailable (run migration 046?).';
+          if (re) re.textContent = res.error.message || 'Remuneration unavailable (run migrations 046–050?).';
           if (g) g.textContent = '—';
           if (p) p.textContent = '—';
+          if (fr) fr.textContent = '—';
+          if (eq) eq.textContent = '—';
           if (nEl) nEl.textContent = '—';
           if (uEl) uEl.textContent = '—';
           if (rb) rb.innerHTML = '';
+          if (rbp) rbp.innerHTML = '';
           return;
         }
         var data = res.data;
@@ -556,9 +585,28 @@
           return;
         }
         if (g) g.textContent = fmtKes(data.total_group_kes);
-        if (p) p.textContent = data.kes_per_person != null ? fmtKes(data.kes_per_person) : '—';
+        if (p) p.textContent = data.fair_kes_avg != null ? fmtKes(data.fair_kes_avg) : (data.kes_per_person != null ? fmtKes(data.kes_per_person) : '—');
+        if (fr) {
+          if (data.fair_kes_min != null && data.fair_kes_max != null) {
+            fr.textContent = fmtKes(data.fair_kes_min) + ' – ' + fmtKes(data.fair_kes_max);
+          } else fr.textContent = '—';
+        }
+        if (eq) eq.textContent = data.kes_per_person_equal_split != null ? fmtKes(data.kes_per_person_equal_split) : '—';
         if (nEl) nEl.textContent = String(data.team_member_count != null ? data.team_member_count : '—');
         if (uEl) uEl.textContent = String(data.unpriced_ticket_count != null ? data.unpriced_ticket_count : '—');
+        if (rbp) {
+          rbp.innerHTML = '';
+          var rows = Array.isArray(data.by_workforce) ? data.by_workforce : [];
+          rows.forEach(function(R) {
+            var tr = document.createElement('tr');
+            var pool = (R.remuneration_pool === 'small_sku') ? 'Small SKUs' : 'Main';
+            tr.innerHTML =
+              '<td>' + escapeHtml(R.display_name || '') + '</td>' +
+              '<td>' + escapeHtml(pool) + '</td>' +
+              '<td>' + fmtKes(R.total_kes) + '</td>';
+            rbp.appendChild(tr);
+          });
+        }
         if (rb) {
           rb.innerHTML = '';
           var lines = Array.isArray(data.lines) ? data.lines : [];

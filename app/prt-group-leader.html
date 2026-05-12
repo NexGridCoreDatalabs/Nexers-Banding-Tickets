@@ -290,6 +290,28 @@
           <div id="teamRosterStatus" class="status"></div>
         </div>
       </details>
+
+      <details class="roster-details" id="teamCompositionDetails" style="margin-top:14px;border-top:1px solid rgba(245,158,11,0.18);padding-top:14px;">
+        <summary class="roster-summary">
+          <span>Team composition<span class="roster-caret" aria-hidden="true">▾</span></span>
+          <span class="roster-summary-kpi" id="teamCompositionKpi">0 members</span>
+        </summary>
+        <div class="roster-body">
+          <p class="roster-hint">Your selected team for this shift (pool affects piece-rate splits). Save team to persist.</p>
+          <div class="table-wrap" style="margin-top:8px;">
+            <table class="tbl-sku">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Pool</th>
+                  <th>Workforce ID</th>
+                </tr>
+              </thead>
+              <tbody id="teamCompositionBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="card roster-card">
@@ -762,6 +784,50 @@
         if (el) el.textContent = 'Selected: ' + n;
         var sk = document.getElementById('rosterSummaryKpi');
         if (sk) sk.textContent = line;
+        renderTeamCompositionTable();
+      }
+
+      function renderTeamCompositionTable() {
+        var tb = document.getElementById('teamCompositionBody');
+        var kpi = document.getElementById('teamCompositionKpi');
+        if (!tb) return;
+        if (!sessionUser) {
+          tb.innerHTML = '';
+          if (kpi) kpi.textContent = '—';
+          return;
+        }
+        var ids = Object.keys(rosterSelected).filter(function(k) { return rosterSelected[k]; });
+        ids.sort(function(a, b) {
+          return workforceDisplayName(a).localeCompare(workforceDisplayName(b), undefined, { sensitivity: 'base' });
+        });
+        var nMain = 0;
+        var nSmall = 0;
+        tb.innerHTML = '';
+        ids.forEach(function(wid) {
+          var pool = rosterPool[wid] === 'small_sku' ? 'small_sku' : 'main';
+          if (pool === 'small_sku') nSmall++;
+          else nMain++;
+          var tr = document.createElement('tr');
+          var poolLabel = pool === 'small_sku' ? 'Small SKUs' : 'Main';
+          tr.innerHTML =
+            '<td>' + escapeHtml(workforceDisplayName(wid)) + '</td>' +
+            '<td>' + escapeHtml(poolLabel) + '</td>' +
+            '<td style="font-size:10px;color:#94a3b8">' + escapeHtml(String(wid)) + '</td>';
+          tb.appendChild(tr);
+        });
+        if (!ids.length) {
+          var empty = document.createElement('tr');
+          empty.innerHTML = '<td colspan="3" style="color:#94a3b8;font-size:12px">No one on the team yet — select above and save.</td>';
+          tb.appendChild(empty);
+        }
+        if (kpi) {
+          if (!ids.length) {
+            kpi.textContent = '0 members';
+          } else {
+            kpi.textContent = ids.length + ' member' + (ids.length === 1 ? '' : 's') +
+              ' · main ' + nMain + ' · small SKUs ' + nSmall;
+          }
+        }
       }
 
       function renderRosterList() {
@@ -803,6 +869,7 @@
             poolCb.addEventListener('change', function() {
               if (poolCb.checked) rosterPool[wid] = 'small_sku';
               else rosterPool[wid] = 'main';
+              renderTeamCompositionTable();
             });
             wrap.appendChild(poolLbl);
           }

@@ -219,6 +219,16 @@
     .transfer-list { font-size: 12px; }
     .transfer-item { border: 1px solid rgba(148,163,184,0.25); border-radius: 8px; padding: 10px; margin-bottom: 8px; background: rgba(2,6,23,0.35); }
     .transfer-item .btn-row { margin-top: 8px; gap: 8px; flex-wrap: wrap; }
+    .roster-add-panel {
+      margin-bottom: 14px;
+      padding: 12px;
+      background: rgba(59, 130, 246, 0.07);
+      border: 1px solid rgba(59, 130, 246, 0.28);
+      border-radius: 10px;
+    }
+    .roster-add-panel label { margin-bottom: 4px; }
+    .roster-add-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
+    .roster-add-toolbar input { flex: 1; min-width: 200px; margin: 0; }
   </style>
 </head>
 <body>
@@ -261,6 +271,15 @@
         </summary>
         <div class="roster-body">
           <p class="roster-hint">Pick team members from the official roster only. Each person can appear on only one group leader's team for this shift.</p>
+          <div class="roster-add-panel">
+            <label for="newRosterName">Add to official roster</label>
+            <p class="roster-hint" style="margin-top:4px;">New names are saved to the shared workforce list and appear for every group leader on this site.</p>
+            <div class="roster-add-toolbar">
+              <input type="text" id="newRosterName" autocomplete="name" placeholder="Full name as it should appear" maxlength="200">
+              <button type="button" class="btn btn-ghost" id="btnAddRosterName">Add name</button>
+            </div>
+            <div id="addRosterStatus" class="status"></div>
+          </div>
           <label for="rosterFilter">Find names</label>
           <input type="search" id="rosterFilter" autocomplete="off" placeholder="Filter the list…">
           <div id="rosterList" class="roster-list" role="group" aria-label="Workforce roster"></div>
@@ -606,6 +625,51 @@
           st.textContent = (e && e.message) ? e.message : 'Load failed.';
           kpiCount.textContent = 'Tickets: —';
           resetRemunerationKpis();
+        }
+      }
+
+      function normalizeRosterDisplayName(s) {
+        return String(s || '').trim().replace(/\s+/g, ' ');
+      }
+
+      async function addOfficialRosterName() {
+        var inp = document.getElementById('newRosterName');
+        var st = document.getElementById('addRosterStatus');
+        var btn = document.getElementById('btnAddRosterName');
+        if (!sessionUser || !supabase) return;
+        var name = normalizeRosterDisplayName(inp && inp.value);
+        if (!name) {
+          if (st) st.textContent = 'Enter a name.';
+          return;
+        }
+        if (name.length > 200) {
+          if (st) st.textContent = 'Name is too long (max 200 characters).';
+          return;
+        }
+        if (btn) btn.disabled = true;
+        if (st) st.textContent = '';
+        try {
+          var res = await supabase.from('prt_workforce_roster').insert({
+            display_name: name,
+            is_active: true
+          });
+          if (res.error) {
+            var msg = res.error.message || '';
+            if (/duplicate|unique|23505/i.test(msg)) {
+              throw new Error('That name is already on the roster (same spelling).');
+            }
+            throw new Error(msg || 'Could not add name.');
+          }
+          if (st) st.textContent = 'Saved — pick them from the list below.';
+          if (inp) inp.value = '';
+          workforceRows = [];
+          await loadWorkforceOnce();
+          renderRosterListIfOpen();
+          populateTransferMemberSelect();
+        } catch (e) {
+          if (st) st.textContent = (e && e.message) ? e.message : 'Add failed.';
+        } finally {
+          if (btn) btn.disabled = false;
         }
       }
 
@@ -1118,6 +1182,10 @@
         if (rl) rl.innerHTML = '';
         var ts = document.getElementById('teamRosterStatus');
         if (ts) ts.textContent = '';
+        var nr = document.getElementById('newRosterName');
+        if (nr) nr.value = '';
+        var ars = document.getElementById('addRosterStatus');
+        if (ars) ars.textContent = '';
         glLeaderList = [];
         var tms = document.getElementById('transferMemberSelect');
         var tls = document.getElementById('transferToLeaderSelect');
@@ -1191,6 +1259,10 @@
       });
       document.getElementById('btnRefresh').addEventListener('click', loadTickets);
       document.getElementById('btnSaveTeam').addEventListener('click', saveTeamMembers);
+      document.getElementById('btnAddRosterName').addEventListener('click', addOfficialRosterName);
+      document.getElementById('newRosterName').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); addOfficialRosterName(); }
+      });
       document.getElementById('btnCreateTransfer').addEventListener('click', createTransferRequest);
       document.getElementById('transferIncomingList').addEventListener('click', function(e) {
         var btn = e.target && e.target.closest && e.target.closest('button');

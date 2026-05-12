@@ -224,6 +224,19 @@
             height: 1px;
             background: linear-gradient(to right, rgba(71, 85, 105, 0.6), transparent);
         }
+        .qa-payroll-hint {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin: -4px 0 16px 0;
+            line-height: 1.45;
+        }
+        .qa-payroll-hint a {
+            color: #f0c040;
+            font-weight: 700;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(240, 192, 64, 0.45);
+        }
+        .qa-payroll-hint a:hover { border-bottom-color: #f0c040; }
         .quick-actions-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -442,6 +455,7 @@
             <span class="qa-header-label">Quick Actions</span>
             <div class="qa-header-line"></div>
         </div>
+        <p class="qa-payroll-hint">Payroll / piece-rate workbook: <a href="app/prt-payroll-report.html">Open Payroll export</a> — or use the <strong>Payroll export</strong> card below (next to Group Leader).</p>
         <div class="quick-actions-grid">
 
             <a href="app/prt-create-form.html" class="qa-card">

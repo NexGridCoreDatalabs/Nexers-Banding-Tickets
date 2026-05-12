@@ -297,7 +297,7 @@
           <span class="roster-summary-kpi" id="teamCompositionKpi">0 members</span>
         </summary>
         <div class="roster-body">
-          <p class="roster-hint">Your selected team for this shift (pool affects piece-rate splits). Save team to persist.</p>
+          <p class="roster-hint">Your selected team for this shift. Save team to persist.</p>
           <div class="table-wrap" style="margin-top:8px;">
             <table class="tbl-sku">
               <thead>
@@ -349,24 +349,22 @@
       <div class="remuner-panel" style="margin-bottom:14px;padding:12px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25);border-radius:10px;">
         <div style="font-size:11px;font-weight:800;color:#86efac;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px;">Remuneration (piece rates)</div>
         <div class="kpis" style="margin-bottom:8px;">
-          <span class="kpi">Group total: <strong id="kpiGroupKes" style="color:#bbf7d0">—</strong> KES</span>
-          <span class="kpi">Fair range: <strong id="kpiFairRange" style="color:#bbf7d0">—</strong> KES</span>
-          <span class="kpi">Fair team avg: <strong id="kpiPerPersonKes" style="color:#bbf7d0">—</strong> KES</span>
-          <span class="kpi">If / everyone: <strong id="kpiEqualSplitKes" style="color:#94a3b8">—</strong> KES</span>
+          <span class="kpi">Group total (priced lines): <strong id="kpiGroupKes" style="color:#bbf7d0">—</strong> KES</span>
+          <span class="kpi">Assigned to roster: <strong id="kpiAllocatedTeam" style="color:#bbf7d0">—</strong> KES</span>
           <span class="kpi">Team size: <strong id="kpiTeamN">—</strong></span>
           <span class="kpi">Unpriced pallets: <strong id="kpiUnpriced">—</strong></span>
         </div>
-        <p class="remuner-hint" style="margin:0;font-size:10px;color:#94a3b8;line-height:1.4;"><strong>Fair</strong> uses small-SKU vs main pools (who is checked in roster). <strong>If / everyone</strong> is only a reference: group total ÷ team size, ignoring pools. Apply migration 050 for pool-aware figures.</p>
+        <div id="kpiPools" style="font-size:11px;color:#cbd5e1;line-height:1.45;margin-bottom:6px;"></div>
         <div id="remunerRpcErr" class="status" style="color:#f87171;margin-top:6px;"></div>
         <details style="margin-top:10px;">
-          <summary style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:700;">Fair pay by team member (pools)</summary>
+          <summary style="cursor:pointer;font-size:11px;color:#94a3b8;font-weight:700;">Pay by team member</summary>
           <div class="table-wrap" style="margin-top:8px;">
             <table class="tbl-sku">
               <thead>
                 <tr>
                   <th>Name</th>
                   <th>Pool</th>
-                  <th>Fair KES</th>
+                  <th>KES (allocated)</th>
                 </tr>
               </thead>
               <tbody id="remunerByPersonBody"></tbody>
@@ -541,18 +539,16 @@
 
       function resetRemunerationKpis() {
         var g = document.getElementById('kpiGroupKes');
-        var p = document.getElementById('kpiPerPersonKes');
-        var fr = document.getElementById('kpiFairRange');
-        var eq = document.getElementById('kpiEqualSplitKes');
+        var alloc = document.getElementById('kpiAllocatedTeam');
+        var poolsEl = document.getElementById('kpiPools');
         var n = document.getElementById('kpiTeamN');
         var u = document.getElementById('kpiUnpriced');
         var rb = document.getElementById('remunerLinesBody');
         var rbp = document.getElementById('remunerByPersonBody');
         var re = document.getElementById('remunerRpcErr');
         if (g) g.textContent = '—';
-        if (p) p.textContent = '—';
-        if (fr) fr.textContent = '—';
-        if (eq) eq.textContent = '—';
+        if (alloc) alloc.textContent = '—';
+        if (poolsEl) poolsEl.innerHTML = '';
         if (n) n.textContent = '—';
         if (u) u.textContent = '—';
         if (rb) rb.innerHTML = '';
@@ -570,9 +566,8 @@
       async function loadRemuneration() {
         if (!supabase || !sessionUser) return;
         var g = document.getElementById('kpiGroupKes');
-        var p = document.getElementById('kpiPerPersonKes');
-        var fr = document.getElementById('kpiFairRange');
-        var eq = document.getElementById('kpiEqualSplitKes');
+        var allocEl = document.getElementById('kpiAllocatedTeam');
+        var poolsEl = document.getElementById('kpiPools');
         var nEl = document.getElementById('kpiTeamN');
         var uEl = document.getElementById('kpiUnpriced');
         var rb = document.getElementById('remunerLinesBody');
@@ -590,11 +585,10 @@
         };
         var res = await supabase.rpc('gl_shift_remuneration_summary', payload);
         if (res.error) {
-          if (re) re.textContent = res.error.message || 'Remuneration unavailable (run migrations 046–050?).';
+          if (re) re.textContent = res.error.message || 'Remuneration could not be loaded.';
           if (g) g.textContent = '—';
-          if (p) p.textContent = '—';
-          if (fr) fr.textContent = '—';
-          if (eq) eq.textContent = '—';
+          if (allocEl) allocEl.textContent = '—';
+          if (poolsEl) poolsEl.innerHTML = '';
           if (nEl) nEl.textContent = '—';
           if (uEl) uEl.textContent = '—';
           if (rb) rb.innerHTML = '';
@@ -607,13 +601,29 @@
           return;
         }
         if (g) g.textContent = fmtKes(data.total_group_kes);
-        if (p) p.textContent = data.fair_kes_avg != null ? fmtKes(data.fair_kes_avg) : (data.kes_per_person != null ? fmtKes(data.kes_per_person) : '—');
-        if (fr) {
-          if (data.fair_kes_min != null && data.fair_kes_max != null) {
-            fr.textContent = fmtKes(data.fair_kes_min) + ' – ' + fmtKes(data.fair_kes_max);
-          } else fr.textContent = '—';
-        }
-        if (eq) eq.textContent = data.kes_per_person_equal_split != null ? fmtKes(data.kes_per_person_equal_split) : '—';
+        if (poolsEl) {
+          poolsEl.innerHTML = '';
+          var plist = Array.isArray(data.pools) ? data.pools : [];
+          var allocSum = 0;
+          plist.forEach(function(P) {
+            var t = Number(P.total_allocated_kes);
+            if (!isNaN(t)) allocSum += t;
+            var label = (P.pool === 'small_sku') ? 'Small SKUs pool' : ((P.pool === 'main') ? 'Main pool' : String(P.pool || 'Pool'));
+            var n = P.member_count != null ? P.member_count : '—';
+            var row = document.createElement('div');
+            row.style.marginTop = '4px';
+            row.innerHTML =
+              '<span style="color:#86efac;font-weight:700">' + escapeHtml(label) + '</span>: ' +
+              '<strong style="color:#bbf7d0">' + fmtKes(P.total_allocated_kes) + '</strong> KES total · ' +
+              escapeHtml(String(n)) + ' ' + (Number(n) === 1 ? 'person' : 'people') + ' · ' +
+              '<strong style="color:#bbf7d0">' + fmtKes(P.per_person_kes) + '</strong> KES each';
+            poolsEl.appendChild(row);
+          });
+          if (allocEl) allocEl.textContent = plist.length ? fmtKes(allocSum) : '—';
+          if (!plist.length) {
+            poolsEl.innerHTML = '<span style="color:#64748b">No pool breakdown (add team to roster).</span>';
+          }
+        } else if (allocEl) allocEl.textContent = '—';
         if (nEl) nEl.textContent = String(data.team_member_count != null ? data.team_member_count : '—');
         if (uEl) uEl.textContent = String(data.unpriced_ticket_count != null ? data.unpriced_ticket_count : '—');
         if (rbp) {

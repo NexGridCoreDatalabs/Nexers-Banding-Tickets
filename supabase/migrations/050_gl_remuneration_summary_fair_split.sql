@@ -29,6 +29,7 @@ DECLARE
   v_t timestamptz;
   v_pool_subset int;
   v_shift timestamptz;
+  v_fallback boolean := false;
 BEGIN
   IF v_scope = '' THEN
     RETURN jsonb_build_object('by_workforce', '[]'::jsonb);
@@ -117,62 +118,144 @@ BEGIN
       END IF;
     END IF;
 
+    v_fallback := false;
+    IF v_n IS NULL OR v_n <= 0 THEN
+      v_fallback := true;
+      IF v_small THEN
+        SELECT count(*)::int INTO v_pool_subset
+        FROM gl_shift_team_member m
+        WHERE m.shift_start_iso = v_shift
+          AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+          AND m.remuneration_pool = 'small_sku';
+        IF v_pool_subset > 0 THEN
+          v_n := v_pool_subset;
+        ELSE
+          v_pool_subset := 0;
+          SELECT count(*)::int INTO v_n
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid));
+        END IF;
+      ELSE
+        SELECT count(*)::int INTO v_pool_subset
+        FROM gl_shift_team_member m
+        WHERE m.shift_start_iso = v_shift
+          AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+          AND m.remuneration_pool = 'main';
+        IF v_pool_subset > 0 THEN
+          v_n := v_pool_subset;
+        ELSE
+          v_pool_subset := 0;
+          SELECT count(*)::int INTO v_n
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid));
+        END IF;
+      END IF;
+    END IF;
+
     IF v_n IS NULL OR v_n <= 0 THEN
       CONTINUE;
     END IF;
 
     v_share := v_line / v_n::numeric;
 
-    IF v_small AND v_pool_subset > 0 THEN
-      FOR wid IN
-        SELECT i.workforce_id
-        FROM gl_shift_team_membership_interval i
-        WHERE i.shift_start_iso = v_shift
-          AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
-          AND i.valid_from <= v_t
-          AND (i.valid_to IS NULL OR v_t < i.valid_to)
-          AND i.remuneration_pool = 'small_sku'
-      LOOP
-        INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
-        ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
-      END LOOP;
-    ELSIF v_small AND v_pool_subset = 0 THEN
-      FOR wid IN
-        SELECT i.workforce_id
-        FROM gl_shift_team_membership_interval i
-        WHERE i.shift_start_iso = v_shift
-          AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
-          AND i.valid_from <= v_t
-          AND (i.valid_to IS NULL OR v_t < i.valid_to)
-      LOOP
-        INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
-        ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
-      END LOOP;
-    ELSIF NOT v_small AND v_pool_subset > 0 THEN
-      FOR wid IN
-        SELECT i.workforce_id
-        FROM gl_shift_team_membership_interval i
-        WHERE i.shift_start_iso = v_shift
-          AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
-          AND i.valid_from <= v_t
-          AND (i.valid_to IS NULL OR v_t < i.valid_to)
-          AND i.remuneration_pool = 'main'
-      LOOP
-        INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
-        ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
-      END LOOP;
+    IF NOT v_fallback THEN
+      IF v_small AND v_pool_subset > 0 THEN
+        FOR wid IN
+          SELECT i.workforce_id
+          FROM gl_shift_team_membership_interval i
+          WHERE i.shift_start_iso = v_shift
+            AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND i.valid_from <= v_t
+            AND (i.valid_to IS NULL OR v_t < i.valid_to)
+            AND i.remuneration_pool = 'small_sku'
+        LOOP
+          INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
+          ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSIF v_small AND v_pool_subset = 0 THEN
+        FOR wid IN
+          SELECT i.workforce_id
+          FROM gl_shift_team_membership_interval i
+          WHERE i.shift_start_iso = v_shift
+            AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND i.valid_from <= v_t
+            AND (i.valid_to IS NULL OR v_t < i.valid_to)
+        LOOP
+          INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
+          ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSIF NOT v_small AND v_pool_subset > 0 THEN
+        FOR wid IN
+          SELECT i.workforce_id
+          FROM gl_shift_team_membership_interval i
+          WHERE i.shift_start_iso = v_shift
+            AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND i.valid_from <= v_t
+            AND (i.valid_to IS NULL OR v_t < i.valid_to)
+            AND i.remuneration_pool = 'main'
+        LOOP
+          INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
+          ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSE
+        FOR wid IN
+          SELECT i.workforce_id
+          FROM gl_shift_team_membership_interval i
+          WHERE i.shift_start_iso = v_shift
+            AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND i.valid_from <= v_t
+            AND (i.valid_to IS NULL OR v_t < i.valid_to)
+        LOOP
+          INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
+          ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
+        END LOOP;
+      END IF;
     ELSE
-      FOR wid IN
-        SELECT i.workforce_id
-        FROM gl_shift_team_membership_interval i
-        WHERE i.shift_start_iso = v_shift
-          AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
-          AND i.valid_from <= v_t
-          AND (i.valid_to IS NULL OR v_t < i.valid_to)
-      LOOP
-        INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
-        ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
-      END LOOP;
+      IF v_small AND v_pool_subset > 0 THEN
+        FOR wid IN
+          SELECT m.workforce_id
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND m.remuneration_pool = 'small_sku'
+        LOOP
+          INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
+          ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSIF v_small AND v_pool_subset = 0 THEN
+        FOR wid IN
+          SELECT m.workforce_id
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+        LOOP
+          INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
+          ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSIF NOT v_small AND v_pool_subset > 0 THEN
+        FOR wid IN
+          SELECT m.workforce_id
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND m.remuneration_pool = 'main'
+        LOOP
+          INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
+          ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSE
+        FOR wid IN
+          SELECT m.workforce_id
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+        LOOP
+          INSERT INTO _earn_scoped (workforce_id, amt) VALUES (wid, v_share)
+          ON CONFLICT (workforce_id) DO UPDATE SET amt = _earn_scoped.amt + EXCLUDED.amt;
+        END LOOP;
+      END IF;
     END IF;
   END LOOP;
 
@@ -181,7 +264,7 @@ BEGIN
       'by_workforce',
       coalesce(jsonb_agg(
         jsonb_build_object(
-          'workforce_id', w.workforce_id,
+          'workforce_id', w.id,
           'display_name', w.display_name,
           'total_kes', round(e.amt, 2)
         )
@@ -196,11 +279,11 @@ END;
 $$;
 
 COMMENT ON FUNCTION gl_workforce_earnings_leader_scoped(text, timestamptz, timestamptz) IS
-  'Fair piece-rate totals for one leader tickets only; pools + per-ticket shift start.';
+  'Fair piece-rate totals for one leader tickets only; pools + per-ticket shift. Falls back to gl_shift_team_member when no interval covers ticket time so totals match catalogue.';
 
 GRANT EXECUTE ON FUNCTION gl_workforce_earnings_leader_scoped(text, timestamptz, timestamptz) TO anon, authenticated;
 
--- GL panel: SKU lines unchanged; fair by_workforce + min/max/avg from leader-scoped earnings.
+-- GL panel: SKU lines + by_workforce rows; pools[] = allocated total and per_person by roster pool.
 
 CREATE OR REPLACE FUNCTION gl_shift_remuneration_summary(
   p_leader_name text,
@@ -221,19 +304,14 @@ DECLARE
   v_leader_uid text := trim(COALESCE(p_leader_user_id, ''));
   v_earn jsonb;
   v_by_roster jsonb;
-  v_fair_min numeric;
-  v_fair_max numeric;
-  v_fair_avg numeric;
+  v_pools_json jsonb;
 BEGIN
   IF v_leader_name = '' OR v_leader_uid = '' THEN
       RETURN jsonb_build_object(
         'team_member_count', 0,
         'total_group_kes', 0,
-        'kes_per_person', NULL,
         'kes_per_person_equal_split', NULL,
-        'fair_kes_min', NULL,
-        'fair_kes_max', NULL,
-        'fair_kes_avg', NULL,
+        'pools', '[]'::jsonb,
         'ticket_count', 0,
         'priced_ticket_count', 0,
         'unpriced_ticket_count', 0,
@@ -261,15 +339,8 @@ BEGIN
       ORDER BY w.display_name
     ),
     '[]'::jsonb
-  ),
-  min(round(coalesce(x.amt, 0), 4)),
-  max(round(coalesce(x.amt, 0), 4)),
-  CASE
-    WHEN v_team_n > 0
-    THEN round(sum(round(coalesce(x.amt, 0), 4)) / v_team_n::numeric, 4)
-    ELSE NULL
-  END
-  INTO v_by_roster, v_fair_min, v_fair_max, v_fair_avg
+  )
+  INTO v_by_roster
   FROM gl_shift_team_member m
   JOIN prt_workforce_roster w ON w.id = m.workforce_id
   LEFT JOIN LATERAL (
@@ -280,6 +351,41 @@ BEGIN
   ) x ON true
   WHERE m.shift_start_iso = p_shift_start_iso
     AND lower(trim(m.group_leader_user_id)) = lower(v_leader_uid);
+
+  SELECT coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'pool', q.pool,
+        'member_count', q.member_count,
+        'total_allocated_kes', round(q.total_amt, 2),
+        'per_person_kes',
+          CASE
+            WHEN q.member_count > 0 THEN round(q.total_amt / q.member_count::numeric, 4)
+            ELSE NULL
+          END
+      )
+      ORDER BY CASE WHEN q.pool = 'main' THEN 0 WHEN q.pool = 'small_sku' THEN 1 ELSE 2 END
+    ),
+    '[]'::jsonb
+  )
+  INTO v_pools_json
+  FROM (
+    SELECT
+      m.remuneration_pool AS pool,
+      count(*)::int AS member_count,
+      sum(round(coalesce(x.amt, 0), 4)) AS total_amt
+    FROM gl_shift_team_member m
+    JOIN prt_workforce_roster w ON w.id = m.workforce_id
+    LEFT JOIN LATERAL (
+      SELECT (elem->>'total_kes')::numeric AS amt
+      FROM jsonb_array_elements(coalesce(v_earn->'by_workforce', '[]'::jsonb)) AS elem
+      WHERE (elem->>'workforce_id')::uuid = w.id
+      LIMIT 1
+    ) x ON true
+    WHERE m.shift_start_iso = p_shift_start_iso
+      AND lower(trim(m.group_leader_user_id)) = lower(v_leader_uid)
+    GROUP BY m.remuneration_pool
+  ) q;
 
   WITH enriched AS (
     SELECT
@@ -337,15 +443,12 @@ BEGIN
   SELECT jsonb_build_object(
     'team_member_count', v_team_n,
     'total_group_kes', s.total_kes,
-    'kes_per_person', v_fair_avg,
     'kes_per_person_equal_split',
       CASE
         WHEN v_team_n > 0 THEN round(s.total_kes / v_team_n::numeric, 4)
         ELSE NULL
       END,
-    'fair_kes_min', v_fair_min,
-    'fair_kes_max', v_fair_max,
-    'fair_kes_avg', v_fair_avg,
+    'pools', coalesce(v_pools_json, '[]'::jsonb),
     'ticket_count', s.ticket_count,
     'priced_ticket_count', s.priced_ticket_count,
     'unpriced_ticket_count', s.unpriced_ticket_count,
@@ -373,4 +476,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION gl_shift_remuneration_summary(text, text, timestamptz, timestamptz, timestamptz) IS
-  'GL pay: SKU lines + fair pool split for this leader tickets; by_workforce matches current shift roster.';
+  'GL pay: SKU lines + by_workforce allocations; pools[] = total allocated per roster pool and per_person_kes = total/members in that pool.';

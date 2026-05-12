@@ -327,8 +327,8 @@
 
         recon.innerHTML =
           '<strong>Reading the gap.</strong> Ticket cash is the sum of priced line KES for voided=false tickets in range. ' +
-          'Allocated pay is the fair split to rostered workers using shift membership at ticket time. ' +
-          'A positive difference usually means priced work that could not be split (e.g. no team interval, or group leader name did not match an authorized user). ' +
+          'Allocated pay is amounts assigned to rostered workers from shift and pool rules at ticket time. ' +
+          'A positive difference usually means priced work that could not be assigned (e.g. no roster match, or group leader name did not match an authorized user). ' +
           'Unpriced tickets add neither side — check the Unpriced count and rate catalogue.';
 
         var person = Array.isArray(data.by_person_day) ? data.by_person_day : [];

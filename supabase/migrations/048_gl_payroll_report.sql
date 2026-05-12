@@ -59,6 +59,7 @@ DECLARE
   v_unpriced int;
   v_ticket_n int;
   v_alloc numeric;
+  v_fallback boolean := false;
 BEGIN
   IF p_ticket_from IS NULL OR p_ticket_to IS NULL OR p_ticket_to <= p_ticket_from THEN
     RETURN jsonb_build_object(
@@ -162,6 +163,42 @@ BEGIN
       END IF;
     END IF;
 
+    v_fallback := false;
+    IF v_n IS NULL OR v_n <= 0 THEN
+      v_fallback := true;
+      IF v_small THEN
+        SELECT count(*)::int INTO v_pool_subset
+        FROM gl_shift_team_member m
+        WHERE m.shift_start_iso = v_shift
+          AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+          AND m.remuneration_pool = 'small_sku';
+        IF v_pool_subset > 0 THEN
+          v_n := v_pool_subset;
+        ELSE
+          v_pool_subset := 0;
+          SELECT count(*)::int INTO v_n
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid));
+        END IF;
+      ELSE
+        SELECT count(*)::int INTO v_pool_subset
+        FROM gl_shift_team_member m
+        WHERE m.shift_start_iso = v_shift
+          AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+          AND m.remuneration_pool = 'main';
+        IF v_pool_subset > 0 THEN
+          v_n := v_pool_subset;
+        ELSE
+          v_pool_subset := 0;
+          SELECT count(*)::int INTO v_n
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid));
+        END IF;
+      END IF;
+    END IF;
+
     IF v_n IS NULL OR v_n <= 0 THEN
       CONTINUE;
     END IF;
@@ -169,60 +206,110 @@ BEGIN
     v_share := v_line / v_n::numeric;
     v_eat := (v_t AT TIME ZONE 'Africa/Nairobi')::date;
 
-    IF v_small AND v_pool_subset > 0 THEN
-      FOR wid IN
-        SELECT i.workforce_id
-        FROM gl_shift_team_membership_interval i
-        WHERE i.shift_start_iso = v_shift
-          AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
-          AND i.valid_from <= v_t
-          AND (i.valid_to IS NULL OR v_t < i.valid_to)
-          AND i.remuneration_pool = 'small_sku'
-      LOOP
-        INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
-        ON CONFLICT (eat_date, workforce_id)
-        DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
-      END LOOP;
-    ELSIF v_small AND v_pool_subset = 0 THEN
-      FOR wid IN
-        SELECT i.workforce_id
-        FROM gl_shift_team_membership_interval i
-        WHERE i.shift_start_iso = v_shift
-          AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
-          AND i.valid_from <= v_t
-          AND (i.valid_to IS NULL OR v_t < i.valid_to)
-      LOOP
-        INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
-        ON CONFLICT (eat_date, workforce_id)
-        DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
-      END LOOP;
-    ELSIF NOT v_small AND v_pool_subset > 0 THEN
-      FOR wid IN
-        SELECT i.workforce_id
-        FROM gl_shift_team_membership_interval i
-        WHERE i.shift_start_iso = v_shift
-          AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
-          AND i.valid_from <= v_t
-          AND (i.valid_to IS NULL OR v_t < i.valid_to)
-          AND i.remuneration_pool = 'main'
-      LOOP
-        INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
-        ON CONFLICT (eat_date, workforce_id)
-        DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
-      END LOOP;
+    IF NOT v_fallback THEN
+      IF v_small AND v_pool_subset > 0 THEN
+        FOR wid IN
+          SELECT i.workforce_id
+          FROM gl_shift_team_membership_interval i
+          WHERE i.shift_start_iso = v_shift
+            AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND i.valid_from <= v_t
+            AND (i.valid_to IS NULL OR v_t < i.valid_to)
+            AND i.remuneration_pool = 'small_sku'
+        LOOP
+          INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
+          ON CONFLICT (eat_date, workforce_id)
+          DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSIF v_small AND v_pool_subset = 0 THEN
+        FOR wid IN
+          SELECT i.workforce_id
+          FROM gl_shift_team_membership_interval i
+          WHERE i.shift_start_iso = v_shift
+            AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND i.valid_from <= v_t
+            AND (i.valid_to IS NULL OR v_t < i.valid_to)
+        LOOP
+          INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
+          ON CONFLICT (eat_date, workforce_id)
+          DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSIF NOT v_small AND v_pool_subset > 0 THEN
+        FOR wid IN
+          SELECT i.workforce_id
+          FROM gl_shift_team_membership_interval i
+          WHERE i.shift_start_iso = v_shift
+            AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND i.valid_from <= v_t
+            AND (i.valid_to IS NULL OR v_t < i.valid_to)
+            AND i.remuneration_pool = 'main'
+        LOOP
+          INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
+          ON CONFLICT (eat_date, workforce_id)
+          DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSE
+        FOR wid IN
+          SELECT i.workforce_id
+          FROM gl_shift_team_membership_interval i
+          WHERE i.shift_start_iso = v_shift
+            AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND i.valid_from <= v_t
+            AND (i.valid_to IS NULL OR v_t < i.valid_to)
+        LOOP
+          INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
+          ON CONFLICT (eat_date, workforce_id)
+          DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
+        END LOOP;
+      END IF;
     ELSE
-      FOR wid IN
-        SELECT i.workforce_id
-        FROM gl_shift_team_membership_interval i
-        WHERE i.shift_start_iso = v_shift
-          AND lower(trim(i.group_leader_user_id)) = lower(trim(v_leader_uid))
-          AND i.valid_from <= v_t
-          AND (i.valid_to IS NULL OR v_t < i.valid_to)
-      LOOP
-        INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
-        ON CONFLICT (eat_date, workforce_id)
-        DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
-      END LOOP;
+      IF v_small AND v_pool_subset > 0 THEN
+        FOR wid IN
+          SELECT m.workforce_id
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND m.remuneration_pool = 'small_sku'
+        LOOP
+          INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
+          ON CONFLICT (eat_date, workforce_id)
+          DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSIF v_small AND v_pool_subset = 0 THEN
+        FOR wid IN
+          SELECT m.workforce_id
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+        LOOP
+          INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
+          ON CONFLICT (eat_date, workforce_id)
+          DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSIF NOT v_small AND v_pool_subset > 0 THEN
+        FOR wid IN
+          SELECT m.workforce_id
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+            AND m.remuneration_pool = 'main'
+        LOOP
+          INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
+          ON CONFLICT (eat_date, workforce_id)
+          DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
+        END LOOP;
+      ELSE
+        FOR wid IN
+          SELECT m.workforce_id
+          FROM gl_shift_team_member m
+          WHERE m.shift_start_iso = v_shift
+            AND lower(trim(m.group_leader_user_id)) = lower(trim(v_leader_uid))
+        LOOP
+          INSERT INTO _payroll_pd (eat_date, workforce_id, amt) VALUES (v_eat, wid, v_share)
+          ON CONFLICT (eat_date, workforce_id)
+          DO UPDATE SET amt = _payroll_pd.amt + EXCLUDED.amt;
+        END LOOP;
+      END IF;
     END IF;
   END LOOP;
 

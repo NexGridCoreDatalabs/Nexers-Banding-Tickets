@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>RetiFlux™ — Payroll export</title>
+  <link rel="icon" href="../favicon.png" type="image/png">
+  <link rel="stylesheet" href="../css/retiflux-footer.css">
+  <link href="https://fonts.googleapis.com/css2?family=Cascadia+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #f0c040;
+      --bg: #0f172a;
+      --card: rgba(15, 23, 42, 0.95);
+      --txt: #e2e8f0;
+      --muted: #94a3b8;
+      --font: 'Cascadia Mono', Consolas, monospace;
+      --teal: #5eead4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      min-height: 100vh;
+      color: var(--txt);
+      padding: 20px 14px 64px;
+    }
+    .top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .title-block h1 {
+      font-size: clamp(1.15rem, 4vw, 1.45rem);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+    .home {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      text-decoration: none;
+      border: 2px solid rgba(245, 158, 11, 0.45);
+      border-radius: 8px;
+    }
+    .home:hover { background: rgba(245, 158, 11, 0.12); }
+    .card {
+      background: var(--card);
+      border: 2px solid rgba(245, 158, 11, 0.28);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 16px;
+      backdrop-filter: blur(8px);
+    }
+    .card h2 {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 14px;
+    }
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+    input, select, button {
+      font-family: var(--font);
+      font-size: 15px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 2px solid rgba(245, 158, 11, 0.4);
+      background: rgba(15, 23, 42, 0.85);
+      color: var(--txt);
+    }
+    input:focus { outline: none; border-color: var(--gold); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    button[type="button"], .btn {
+      cursor: pointer;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold), #f59e0b);
+      color: #0f172a;
+      border-color: var(--gold);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--gold);
+      border-color: rgba(245, 158, 11, 0.5);
+    }
+    .btn-teal {
+      background: linear-gradient(135deg, #2dd4bf, #14b8a6);
+      color: #042f2e;
+      border-color: #2dd4bf;
+      font-weight: 800;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .err { color: #f87171; font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+    .hint { font-size: 11px; color: var(--muted); line-height: 1.45; margin-bottom: 12px; }
+    .kpis { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .kpi {
+      background: rgba(2, 6, 23, 0.55);
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .kpi strong { color: var(--teal); }
+    .kpi.warn strong { color: #fbbf24; }
+    .recon-panel {
+      margin-top: 6px;
+      padding: 12px;
+      background: rgba(94, 234, 212, 0.06);
+      border: 1px solid rgba(45, 212, 191, 0.28);
+      border-radius: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .recon-panel strong { color: #99f6e4; }
+    .table-wrap { overflow: auto; max-height: 320px; margin-top: 10px; border: 2px solid rgba(245,158,11,0.2); border-radius: 8px; }
+    table.preview { width: 100%; border-collapse: collapse; min-width: 640px; }
+    .preview th, .preview td {
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+      padding: 6px 8px;
+      font-size: 10px;
+      text-align: left;
+    }
+    .preview th {
+      color: var(--gold);
+      text-transform: uppercase;
+      font-size: 9px;
+      position: sticky;
+      top: 0;
+      background: rgba(15, 23, 42, 0.98);
+    }
+    .preview-note { font-size: 10px; color: var(--muted); margin-top: 6px; }
+    details.report-details { margin-top: 12px; }
+    summary.report-summary {
+      cursor: pointer;
+      list-style: none;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--gold);
+      user-select: none;
+      padding: 8px 0;
+    }
+    summary.report-summary::-webkit-details-marker { display: none; }
+    details.report-details[open] summary .caret { transform: rotate(180deg); }
+    .caret { display: inline-block; margin-left: 6px; font-size: 10px; transition: transform 0.2s; }
+    .status { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="title-block">
+      <h1>Payroll export</h1>
+    </div>
+    <a class="home" href="../index.html">← Home</a>
+  </div>
+
+  <div class="card">
+    <h2>Date range (EAT calendar days)</h2>
+    <p class="hint">Bounds are inclusive of both start and end dates in <strong>Africa/Nairobi</strong> (full local days). Piece-rate totals and per-person splits use the same catalogue and team rules as the Group Leader view.</p>
+    <div class="form-grid">
+      <div>
+        <label for="dateFrom">From</label>
+        <input type="date" id="dateFrom" autocomplete="off">
+      </div>
+      <div>
+        <label for="dateTo">To</label>
+        <input type="date" id="dateTo" autocomplete="off">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-primary" id="btnRun">Run report</button>
+      <button type="button" class="btn btn-teal" id="btnXlsx" disabled>Download .xlsx</button>
+    </div>
+    <div id="errBox" class="err"></div>
+    <div id="loadStatus" class="status"></div>
+
+    <div id="results" style="display:none;margin-top:16px;">
+      <h2 style="margin-bottom:10px;">Reconciliation</h2>
+      <div class="kpis" id="kpiRow"></div>
+      <div class="recon-panel" id="reconExplain"></div>
+
+      <details class="report-details" open>
+        <summary class="report-summary">Per person · per day <span class="caret">▾</span></summary>
+        <p class="preview-note">First 40 rows · full list in the workbook.</p>
+        <div class="table-wrap">
+          <table class="preview" id="tblPerson"><thead></thead><tbody></tbody></table>
+        </div>
+      </details>
+
+      <details class="report-details" open style="margin-top:8px;">
+        <summary class="report-summary">Tickets · cash <span class="caret">▾</span></summary>
+        <p class="preview-note">First 40 rows · full list in the workbook.</p>
+        <div class="table-wrap">
+          <table class="preview" id="tblTickets"><thead></thead><tbody></tbody></table>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="rf-page-footer"><strong class="footer-brand">RetiFlux™</strong> Powered by <strong class="footer-lab">NexGridCore DataLabs</strong></div>
+  <script src="../config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script>
+    (function() {
+      var cfg = window.BANDFLOW_CONFIG || {};
+      var supabase = (cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY)
+        ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
+        : null;
+      var reportPayload = null;
+
+      /** Inclusive EAT calendar dates → half-open [from, to) in timestamptz (DB). */
+      function eatRangeToIsoBounds(startYmd, endYmd) {
+        var a = startYmd.split('-').map(Number);
+        var b = endYmd.split('-').map(Number);
+        if (a.length !== 3 || b.length !== 3) return null;
+        var fromMs = Date.UTC(a[0], a[1] - 1, a[2]) - 3 * 60 * 60 * 1000;
+        var endNext = new Date(Date.UTC(b[0], b[1] - 1, b[2] + 1));
+        var toMs = endNext.getTime() - 3 * 60 * 60 * 1000;
+        if (toMs <= fromMs) return null;
+        return {
+          fromIso: new Date(fromMs).toISOString(),
+          toIso: new Date(toMs).toISOString()
+        };
+      }
+
+      function setDefaultDates() {
+        var d = new Date();
+        var eat = new Date(d.getTime() + 3 * 60 * 60 * 1000);
+        var y = eat.getUTCFullYear();
+        var m = String(eat.getUTCMonth() + 1).padStart(2, '0');
+        var day = String(eat.getUTCDate()).padStart(2, '0');
+        var today = y + '-' + m + '-' + day;
+        var df = document.getElementById('dateFrom');
+        var dt = document.getElementById('dateTo');
+        if (df && !df.value) df.value = today;
+        if (dt && !dt.value) dt.value = today;
+      }
+
+      function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function fmtNum(n) {
+        if (n == null || n === '') return '—';
+        var x = Number(n);
+        if (isNaN(x)) return '—';
+        return x.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function renderPreviewTable(tableId, rows, columns) {
+        var tbl = document.getElementById(tableId);
+        if (!tbl) return;
+        var thead = tbl.querySelector('thead');
+        var tbody = tbl.querySelector('tbody');
+        thead.innerHTML = '';
+        tbody.innerHTML = '';
+        var hr = document.createElement('tr');
+        columns.forEach(function(c) {
+          var th = document.createElement('th');
+          th.textContent = c.label;
+          hr.appendChild(th);
+        });
+        thead.appendChild(hr);
+        var slice = rows.slice(0, 40);
+        slice.forEach(function(r) {
+          var tr = document.createElement('tr');
+          columns.forEach(function(c) {
+            var td = document.createElement('td');
+            var v = r[c.key];
+            td.textContent = v != null && v !== '' ? String(v) : '—';
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+      }
+
+      function showResults(data) {
+        var res = document.getElementById('results');
+        var kpi = document.getElementById('kpiRow');
+        var recon = document.getElementById('reconExplain');
+        if (!data || !data.ok) {
+          if (res) res.style.display = 'none';
+          return;
+        }
+        if (res) res.style.display = 'block';
+        var t = data.totals || {};
+        var diff = Number(t.reconciliation_diff_kes);
+        kpi.innerHTML =
+          '<span class="kpi">Ticket cash (priced lines): <strong>' + fmtNum(t.priced_line_kes_total) + '</strong> KES</span>' +
+          '<span class="kpi">Allocated pay: <strong>' + fmtNum(t.allocated_pay_kes_total) + '</strong> KES</span>' +
+          '<span class="kpi' + (Math.abs(diff) > 0.02 ? ' warn' : '') + '">Difference: <strong>' + fmtNum(diff) + '</strong> KES</span>' +
+          '<span class="kpi">Priced tickets: <strong>' + String(t.priced_ticket_count != null ? t.priced_ticket_count : '—') + '</strong></span>' +
+          '<span class="kpi">Unpriced: <strong>' + String(t.unpriced_ticket_count != null ? t.unpriced_ticket_count : '—') + '</strong></span>';
+
+        recon.innerHTML =
+          '<strong>Reading the gap.</strong> Ticket cash is the sum of priced line KES for voided=false tickets in range. ' +
+          'Allocated pay is the fair split to rostered workers using shift membership at ticket time. ' +
+          'A positive difference usually means priced work that could not be split (e.g. no team interval, or group leader name did not match an authorized user). ' +
+          'Unpriced tickets add neither side — check the Unpriced count and rate catalogue.';
+
+        var person = Array.isArray(data.by_person_day) ? data.by_person_day : [];
+        var tickets = Array.isArray(data.tickets) ? data.tickets : [];
+        renderPreviewTable('tblPerson', person, [
+          { key: 'eat_date', label: 'Date (EAT)' },
+          { key: 'display_name', label: 'Name' },
+          { key: 'workforce_id', label: 'ID' },
+          { key: 'total_kes', label: 'KES' }
+        ]);
+        renderPreviewTable('tblTickets', tickets, [
+          { key: 'eat_date', label: 'Day' },
+          { key: 'created_eat', label: 'Created (EAT)' },
+          { key: 'serial', label: 'Serial' },
+          { key: 'sku', label: 'SKU' },
+          { key: 'qty', label: 'Qty' },
+          { key: 'uom', label: 'UOM' },
+          { key: 'group_leader', label: 'Group leader' },
+          { key: 'line_kes', label: 'Line KES' },
+          { key: 'priced', label: 'Priced' }
+        ]);
+      }
+
+      function downloadXlsx() {
+        if (!reportPayload || !reportPayload.ok || !window.XLSX) return;
+        var person = Array.isArray(reportPayload.by_person_day) ? reportPayload.by_person_day : [];
+        var tickets = Array.isArray(reportPayload.tickets) ? reportPayload.tickets : [];
+        var ws1 = XLSX.utils.json_to_sheet(person);
+        var ws2 = XLSX.utils.json_to_sheet(tickets);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws1, 'Per person day');
+        XLSX.utils.book_append_sheet(wb, ws2, 'Tickets');
+        var t = reportPayload.totals || {};
+        var summary = [{
+          priced_line_kes_total: t.priced_line_kes_total,
+          allocated_pay_kes_total: t.allocated_pay_kes_total,
+          reconciliation_diff_kes: t.reconciliation_diff_kes,
+          priced_ticket_count: t.priced_ticket_count,
+          unpriced_ticket_count: t.unpriced_ticket_count,
+          ticket_row_count: t.ticket_row_count
+        }];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), 'Totals');
+        var df = document.getElementById('dateFrom').value;
+        var dt = document.getElementById('dateTo').value;
+        var fname = 'retiflux-payroll-' + df + '_to_' + dt + '.xlsx';
+        XLSX.writeFile(wb, fname);
+      }
+
+      async function runReport() {
+        var err = document.getElementById('errBox');
+        var st = document.getElementById('loadStatus');
+        var btnRun = document.getElementById('btnRun');
+        var btnX = document.getElementById('btnXlsx');
+        err.textContent = '';
+        reportPayload = null;
+        if (btnX) btnX.disabled = true;
+        if (!supabase) {
+          err.textContent = 'Supabase not configured (config.js).';
+          return;
+        }
+        var df = document.getElementById('dateFrom').value;
+        var dt = document.getElementById('dateTo').value;
+        if (!df || !dt) {
+          err.textContent = 'Choose both dates.';
+          return;
+        }
+        var bounds = eatRangeToIsoBounds(df, dt);
+        if (!bounds) {
+          err.textContent = 'Invalid range (end must be on or after start).';
+          return;
+        }
+        if (btnRun) btnRun.disabled = true;
+        if (st) st.textContent = 'Loading…';
+        try {
+          var res = await supabase.rpc('gl_payroll_report', {
+            p_ticket_from: bounds.fromIso,
+            p_ticket_to: bounds.toIso
+          });
+          if (res.error) throw new Error(res.error.message || 'RPC failed.');
+          var data = res.data;
+          if (!data || data.ok === false) {
+            err.textContent = (data && data.error) ? String(data.error) : 'Report failed.';
+            document.getElementById('results').style.display = 'none';
+            return;
+          }
+          reportPayload = data;
+          showResults(data);
+          if (btnX) btnX.disabled = false;
+          if (st) st.textContent = 'Done. Preview below — download for the full workbook (includes Totals sheet).';
+        } catch (e) {
+          err.textContent = (e && e.message) ? e.message : 'Error.';
+          var hint = (/function gl_payroll_report|does not exist|schema cache/i).test(err.textContent || '');
+          if (hint) err.textContent += ' Apply migration 048 (gl_payroll_report).';
+          document.getElementById('results').style.display = 'none';
+          if (st) st.textContent = '';
+        } finally {
+          if (btnRun) btnRun.disabled = false;
+        }
+      }
+
+      document.getElementById('btnRun').addEventListener('click', runReport);
+      document.getElementById('btnXlsx').addEventListener('click', downloadXlsx);
+      setDefaultDates();
+    })();
+  </script>
+</body>
+</html>
